@@ -12,6 +12,7 @@ flowchart TD
     classDef workerApp fill:#f59e0b,stroke:#d97706,stroke-width:2px,color:#fff,rx:8px,ry:8px
     classDef packageUI fill:#8b5cf6,stroke:#7c3aed,stroke-width:2px,color:#fff,rx:8px,ry:8px
     classDef packageCore fill:#64748b,stroke:#475569,stroke-width:2px,color:#fff,rx:8px,ry:8px
+    classDef packageAI fill:#ef4444,stroke:#dc2626,stroke-width:2px,color:#fff,rx:8px,ry:8px
     classDef container fill:#f8fafc,stroke:#cbd5e1,stroke-width:2px,stroke-dasharray: 5 5,color:#334155
 
     subgraph Apps ["Apps"]
@@ -26,6 +27,7 @@ flowchart TD
         Types["@repo/types<br/>Shared TS Interfaces"]:::packageCore
         Validation["@repo/validation<br/>Zod Schemas"]:::packageCore
         Config["@repo/config<br/>Constants"]:::packageCore
+        Agents["@repo/agents<br/>AI SDK Agents"]:::packageAI
     end
 
     class Apps,SharedPackages container
@@ -38,6 +40,7 @@ flowchart TD
     API -->|Redis| Worker
     API -.-> Validation
     API -.-> Types
+    API -.-> Agents
 
     Worker -.-> Types
     Worker -.-> Config
