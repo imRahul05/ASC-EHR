@@ -1,10 +1,11 @@
-import { Worker, Job } from "bullmq";
+import type { Job } from "bullmq";
+import { Worker } from "bullmq";
+import { logger } from "@asc/logger";
+import { shutdownTelemetry } from "@asc/telemetry";
+import { env } from "./env.js";
 import { redisConnection } from "./redis.js";
-import { logger } from "@repo/logger";
 
-const QUEUE_NAME = process.env["QUEUE_NAME"] ?? "default";
-
-logger.info(`Starting worker for queue: ${QUEUE_NAME}`);
+logger.info({ queue: env.QUEUE_NAME }, "Starting worker");
 
 interface BaseJobData {
   correlationId?: string;
@@ -14,44 +15,56 @@ interface BaseJobData {
   surgicalCaseId?: string;
 }
 
-const worker = new Worker(
-  QUEUE_NAME,
-  async (job: Job<BaseJobData>) => {
-    const jobLogger = logger.child({ 
-      correlationId: job.data?.correlationId ?? job.id,
-      jobId: job.id, 
-      jobName: job.name 
-    });
-    
-    jobLogger.info("Processing job");
+function processJob(job: Job<BaseJobData>): Promise<void> {
+  const jobLogger = logger.child({
+    correlationId: job.data?.correlationId ?? job.id,
+    jobId: job.id,
+    jobName: job.name,
+  });
 
-    // Job processing will be implemented here.
-    // Each job type will have its own processor.
-    // Example: fetch data from DB using job.data.patientId
-  },
-  {
-    connection: redisConnection,
-    concurrency: 5,
-  }
-);
+  jobLogger.info("Processing job");
+
+  // Job processing will be implemented here.
+  // Each job type will have its own processor.
+  // Example: fetch data from DB using job.data.patientId
+  return Promise.resolve();
+}
+
+const worker = new Worker<BaseJobData>(env.QUEUE_NAME, processJob, {
+  connection: redisConnection,
+  concurrency: env.CONCURRENCY,
+});
 
 worker.on("completed", (job) => {
-  logger.info({ jobId: job.id }, `Job completed`);
+  logger.info({ jobId: job.id }, "Job completed");
 });
 
 worker.on("failed", (job, err) => {
-  logger.error({ jobId: job?.id, err }, `Job failed: ${err.message}`);
+  logger.error({ jobId: job?.id, err }, "Job failed");
 });
 
 worker.on("error", (err) => {
   logger.error({ err }, "Worker error");
 });
 
-async function shutdown() {
-  logger.info("Shutting down worker...");
-  await worker.close();
+let shuttingDown = false;
+
+async function shutdown(signal: NodeJS.Signals): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logger.info({ signal }, "Shutting down worker");
+  try {
+    await worker.close();
+    await redisConnection.quit();
+  } catch (err) {
+    logger.error({ err }, "Error while closing worker");
+  }
+  const telemetryError = await shutdownTelemetry();
+  if (telemetryError) {
+    logger.error({ err: telemetryError }, "Telemetry shutdown failed");
+  }
   process.exit(0);
 }
 
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
+process.once("SIGINT", (signal) => void shutdown(signal));
+process.once("SIGTERM", (signal) => void shutdown(signal));

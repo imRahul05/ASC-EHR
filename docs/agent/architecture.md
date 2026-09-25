@@ -10,7 +10,7 @@ Read this before writing any code. The sole purpose of this monorepo is **centra
 5. **CENTRALIZED CONFIGURATION (NO ENV FOR CONSTANTS):** Do not scatter configuration strings (like LLM model names, feature flags, or non-sensitive settings) across files or hide them in `.env`. Put them in a centralized exported config directory (e.g., `packages/agents/src/config/`). This ensures easy maintenance and allows the frontend to import the config.
 6. **RESPECT ARCHITECTURE DECISIONS:** Always read the Architecture Decision Records (ADRs) in `docs/decisions/` before making architectural changes or creating new agent workflows. When you make an architectural decision, use the `adr-skill` to create a new ADR.
 7. **COMPLIANCE & PHI HANDLING:** Never expose or log raw Protected Health Information (PHI). All data access must be audit-logged, and all code must adhere to HIPAA and SOC 2 standards. Read the full guidelines at [`docs/COMPLIANCE_AND_PHI.md`](../COMPLIANCE_AND_PHI.md).
-8. **LOGGING, OBSERVABILITY & AUDIT:** Never use `console.log` for application logs or initialize Pino directly. You MUST use `@repo/logger` for logging, `@repo/telemetry` for tracing, and `@repo/audit` for security events. Read the architecture plan at [`docs/plan/logging-observability-audit.md`](../plan/logging-observability-audit.md) and strict rules in [`docs/COMPLIANCE_AND_PHI.md`](../COMPLIANCE_AND_PHI.md).
+8. **LOGGING, OBSERVABILITY & AUDIT:** Never use `console.log` for application logs or initialize Pino directly. You MUST use `@asc/logger` for logging, `@asc/telemetry` for tracing, and `@asc/audit` for security events. Read the architecture plan at [`docs/plan/logging-observability-audit.md`](../plan/logging-observability-audit.md) and strict rules in [`docs/COMPLIANCE_AND_PHI.md`](../COMPLIANCE_AND_PHI.md).
 
 *See `docs/ARCHITECTURE.md` for the architectural diagram and breakdown.*
 
@@ -42,4 +42,16 @@ Read this before writing any code. The sole purpose of this monorepo is **centra
 
 ### 5. Shared Packages Boundaries
 - **Server/Client Boundaries**: Packages like `ui` and `api-client` are designed for browser/Node usage. Packages containing sensitive logic or Node-only APIs should never be imported by the Next.js client bundle.
-- **Strict TypeScript**: `any` is banned. Use `unknown` or proper types.
+- **Strict TypeScript**: `any` is banned. Use `unknown` or proper types. Enforced by lint (`@typescript-eslint/no-explicit-any: error`).
+
+### 6. Internal Package Strategy (Just-in-Time packages)
+- Every `@asc/*` library exports its TypeScript source directly: `"exports": { ".": "./src/index.ts" }`. Libraries have **no build step** and never point `main`/`types` at `dist/`.
+- Consumers compile them: `apps/web` via Next.js, `apps/api` and `apps/worker` via **tsup** (bundles `@asc/*`, keeps third-party deps external). Never run an app with plain `tsc` output — Node cannot load `.ts` from `node_modules`.
+- OpenTelemetry is loaded as a preload (`node --import ./dist/instrumentation.js`), never by calling `initTelemetry()` inside `server.ts` (ESM hoists imports, so instrumentation would load too late).
+- Runtime env is parsed once with `parseEnv()` from `@asc/config` (Zod). Do not read `process.env` directly in app code.
+
+### 7. TypeScript 7 + Lint
+- The compiler is TypeScript 7 (native). `check-types` uses `tsc --noEmit`.
+- `typescript-eslint` cannot load TS 7, so `@asc/eslint-config` depends on `typescript` aliased to `@typescript/typescript6` (scoped peer — only the linter sees TS 6). Do not add `typescript-eslint` anywhere else, and do not remove the alias until typescript-eslint supports TS 7.
+- Lint is type-aware and errors (not warnings) on: `any`, `console`, floating/misused promises, non-`import type` type imports, unused vars.
+- Tests: Vitest, `pnpm test` (turbo `test` task). CI is intentionally deferred until the first product features land.

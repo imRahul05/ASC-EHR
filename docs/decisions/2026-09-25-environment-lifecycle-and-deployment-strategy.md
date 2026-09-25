@@ -31,8 +31,8 @@ We establish a three-tier environment model with strict isolation, centralized e
 | **LLM Tiering** | Low-cost models or mock fixtures | Cost-capped models & evaluation test fixtures | Full multi-provider reasoning fallback chain |
 | **API Keys** | Developer personal / sandbox keys | Staging organization keys (spend-capped) | Production enterprise keys with strict BAA |
 
-### 2. Centralized Environment Configuration (`@repo/config/env`)
-Instead of raw `process.env` access, all apps will consume a validated environment contract defined in `@repo/config`:
+### 2. Centralized Environment Configuration (`@asc/config/env`)
+Instead of raw `process.env` access, all apps will consume a validated environment contract defined in `@asc/config`:
 - An explicit `APP_ENV` variable with values: `'development' | 'staging' | 'production'`.
 - Zod schemas validating all database URLs, Redis URLs, and API keys at boot time.
 - Failure to provide valid keys in Staging or Production results in immediate fast-fail at process startup.

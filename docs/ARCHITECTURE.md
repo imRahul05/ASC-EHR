@@ -13,11 +13,11 @@ Every piece of reusable logic, typing, or configuration **must** be extracted in
 
 ### The Packages (`/packages`)
 All shared logic acts as the single source of truth:
-- **`@repo/ui`**: Centralized UI components (shadcn + Base UI). Do not install UI libraries directly in `apps/web`.
-- **`@repo/validation`**: Centralized Zod schemas. Both `apps/web` (for forms) and `apps/api` (for request validation) use exactly the same schemas from here.
-- **`@repo/types`**: Centralized TypeScript definitions.
-- **`@repo/api-client`**: Centralized fetching logic. 
-- **`@repo/config`**: Centralized constants and environment variables mapping.
+- **`@asc/ui`**: Centralized UI components (shadcn + Base UI). Do not install UI libraries directly in `apps/web`.
+- **`@asc/validation`**: Centralized Zod schemas. Both `apps/web` (for forms) and `apps/api` (for request validation) use exactly the same schemas from here.
+- **`@asc/types`**: Centralized TypeScript definitions.
+- **`@asc/api-client`**: Centralized fetching logic. 
+- **`@asc/config`**: Centralized constants and environment variables mapping.
 
 ### Rule of Thumb for Agents / Developers
 > **If you are about to write a TypeScript interface, a Zod schema, or a generic utility function inside `/apps/*`, STOP.** Put it in the appropriate `/packages/*` workspace instead.

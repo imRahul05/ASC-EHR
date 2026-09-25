@@ -118,7 +118,7 @@ The implementation should proceed in phased, parallelizable steps to be executed
 
 ### Phase 3: Durable Audit Trail
 - **Data Model**: Design the database schema for the Audit table (likely in Prisma/PostgreSQL).
-- **Audit Client**: Create an internal service/utility in a shared package (e.g., `@repo/audit`) to cleanly emit audit events.
+- **Audit Client**: Create an internal service/utility in a shared package (e.g., `@asc/audit`) to cleanly emit audit events.
 - **Integration**: Instrument critical API routes to emit audit events upon successful/failed actions.
 
 ### Phase 4: Telemetry (Staging/Production Only)

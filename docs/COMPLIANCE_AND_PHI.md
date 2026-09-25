@@ -9,7 +9,8 @@ HIPAA regulates the protection of sensitive patient health information from bein
 ### Rules for Agents and Developers:
 *   **Data Minimization**: Only process and return the minimum PHI necessary to accomplish the intended task.
 *   **Encryption**: Ensure all PHI is encrypted at rest and in transit.
-*   **No PHI in Prompts/Logs**: NEVER include raw, unmasked PHI in AI prompt payloads, console logs, error messages, or debugging artifacts.
+*   **No PHI in Logs**: NEVER include raw, unmasked PHI in console logs, application logs, traces, error messages, or debugging artifacts.
+*   **PHI to AI models — BAA providers only**: Clinical AI (scribe, note generation, coding) requires PHI in prompts. This is allowed **only** through the `@asc/agents` gateway with `containsPhi: true`, which restricts routing to providers flagged `baa: true` in the provider catalog and refuses the call if none are available. Never call a model SDK directly, never send PHI to a provider without a signed BAA, and send only the minimum necessary context. Prompts and model outputs are never logged.
 *   **Access Control**: Ensure that all endpoints accessing PHI implement strict Authorization checks.
 
 ## 2. SOC 2 (Service Organization Control Type 2)
@@ -25,22 +26,23 @@ SOC 2 is an auditing procedure that ensures service providers securely manage da
 
 **CRITICAL RULE FOR AI AGENTS:** You must strictly follow this architecture whenever you write code involving logging, tracing, or auditing. Do not initialize raw loggers or reinvent these layers.
 
-### Layer 1: Application Logging (`@repo/logger`)
+### Layer 1: Application Logging (`@asc/logger`)
 *   **Rule**: NEVER initialize Pino directly in apps or use `console.log` for application events.
-*   **Action**: Always use the shared `@repo/logger` package.
+*   **Action**: Always use the shared `@asc/logger` package.
 *   **Why**: The shared logger is pre-configured with PHI-redaction rules and environment-specific formatting (e.g., `pino-pretty` in dev, structured JSON in prod).
-*   **How**: `import { logger } from "@repo/logger";`
+*   **How**: `import { logger } from "@asc/logger";`
 
-### Layer 2: Observability / Telemetry (`@repo/telemetry`)
+### Layer 2: Observability / Telemetry (`@asc/telemetry`)
 *   **Rule**: Application telemetry (OpenTelemetry) must remain separate from normal application logging.
-*   **Action**: Use `@repo/telemetry` for distributed tracing.
+*   **Action**: Use `@asc/telemetry` for distributed tracing.
 *   **Why**: The custom telemetry processor (`RedactingSpanProcessor`) ensures PHI-redaction rules are applied to all span attributes and metadata before leaving the system.
 
-### Layer 3: Durable Audit Trail (`@repo/audit`)
+### Layer 3: Durable Audit Trail (`@asc/audit`)
 *   **Rule**: Application logs are NOT the compliance audit trail.
-*   **Action**: Use `@repo/audit` to record all security and business events.
+*   **Action**: Use `@asc/audit` to record all security and business events.
 *   **Why**: We must track *who* (user, system, agent) did *what*, *when*, and *why* in a durable, queryable format without storing raw PHI.
-*   **How**: `import { auditClient } from "@repo/audit";`
+*   **How**: `import { auditClient } from "@asc/audit";`
+*   **Durability**: In development the default store writes a dedicated `channel: "audit"` log stream. In **production the client fails closed**: it throws unless a durable store is injected at startup with `configureAuditStore(store)` (planned: Medplum `AuditEvent`, see the Medplum ADR). `details` accepts primitive values only and rejects PHI-like keys.
 
 ## 4. PHI Audit Logging Requirements
 
@@ -52,4 +54,4 @@ Audit logs track security and business actions.
 *   **Agent Workflows**: When an AI agent performs an action on behalf of a user or the system, the audit log must reflect both the triggering user and the AI agent involved by providing the `agentExecutionId`.
 
 ---
-**Summary for AI Agents**: If you need to log something for developers, use `@repo/logger`. If you need to record a business/security event, use `@repo/audit`. Never bypass these packages to reinvent logging directly.
+**Summary for AI Agents**: If you need to log something for developers, use `@asc/logger`. If you need to record a business/security event, use `@asc/audit`. Never bypass these packages to reinvent logging directly.

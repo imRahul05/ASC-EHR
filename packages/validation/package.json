@@ -1,5 +1,5 @@
 {
-  "name": "@repo/validation",
+  "name": "@asc/validation",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,10 +14,10 @@
     "zod": "^3.25.67"
   },
   "devDependencies": {
-    "@repo/eslint-config": "workspace:*",
-    "@repo/typescript-config": "workspace:*",
+    "@asc/eslint-config": "workspace:*",
+    "@asc/typescript-config": "workspace:*",
     "@types/node": "^20",
-    "eslint": "^9",
+    "eslint": "^10.9.1",
     "typescript": "^7.0.0"
   }
 }

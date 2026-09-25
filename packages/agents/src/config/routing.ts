@@ -1,36 +1,33 @@
-import { type ReasoningTier, type FallbackEntry, type TaskType } from './types.js';
-import { OPENAI_MODELS } from './providers/openai/constants.js';
-import { ANTHROPIC_MODELS } from './providers/anthropic/constants.js';
-import { GOOGLE_MODELS } from './providers/google/constants.js';
+/**
+ * Routing: which LOGICAL models serve each reasoning tier, in fallback order.
+ *
+ * Hosting-independent: the router resolves each model through the active
+ * hosting target and skips models that target does not host. For PHI calls it
+ * also drops models whose endpoint has `baa: false` — `validateAgentConfig`
+ * checks every target still has a BAA model for PHI-capable tiers.
+ */
 
-export const ROUTING_TABLE: Record<ReasoningTier, FallbackEntry[]> = {
-  high: [
-    { provider: 'anthropic', modelKey: ANTHROPIC_MODELS.CLAUDE_OPUS_5_5 },
-    { provider: 'openai',    modelKey: OPENAI_MODELS.GPT_6_ASTRA },
-    { provider: 'anthropic', modelKey: ANTHROPIC_MODELS.CLAUDE_FABLE_5_1 },
-  ],
+import { Models, type ModelRef } from './models/index.js';
+import { Reasoning, type ReasoningTier } from './reasoning.js';
 
-  medium: [
-    { provider: 'openai',    modelKey: OPENAI_MODELS.GPT_6_SOL },
-    { provider: 'anthropic', modelKey: ANTHROPIC_MODELS.CLAUDE_SONNET_5 },
-    { provider: 'openai',    modelKey: OPENAI_MODELS.GPT_5_6_SOL },
-    { provider: 'google',    modelKey: GOOGLE_MODELS.GEMINI_3_8_FLASH },
-  ],
+export type RoutingTable = Readonly<Record<ReasoningTier, readonly ModelRef[]>>;
 
-  low: [
-    { provider: 'google',    modelKey: GOOGLE_MODELS.GEMINI_3_5_FLASH_LITE },
-    { provider: 'openai',    modelKey: OPENAI_MODELS.GPT_6_LUNA },
-    { provider: 'anthropic', modelKey: ANTHROPIC_MODELS.CLAUDE_HAIKU_4_5 },
-    { provider: 'openai',    modelKey: OPENAI_MODELS.GPT_5_6_LUNA },
-  ],
-};
+export const ROUTING_PROFILES = {
+  /** Production routing. */
+  default: {
+    [Reasoning.High]: [Models.claudeOpus55, Models.gpt6Astra, Models.claudeFable51],
+    [Reasoning.Medium]: [Models.gpt6Sol, Models.claudeSonnet5, Models.gpt56Sol, Models.gemini38Flash],
+    [Reasoning.Low]: [Models.gemini35FlashLite, Models.gpt6Luna, Models.claudeHaiku45, Models.gpt56Luna],
+  },
 
-export const TASK_TIER_MAP: Record<TaskType, ReasoningTier> = {
-  'medical-coding':       'high',
-  'diagnostic-reasoning': 'high',
-  'summarization':        'medium',
-  'data-extraction':      'low',
-  'validation':           'low',
-  'classification':       'low',
-  'general':              'medium',
-};
+  /** Cost-controlled routing for staging / automated tests (synthetic data only). */
+  budget: {
+    [Reasoning.High]: [Models.claudeSonnet5, Models.gpt6Sol],
+    [Reasoning.Medium]: [Models.claudeHaiku45, Models.gpt6Luna, Models.gemini38Flash],
+    [Reasoning.Low]: [Models.gemini35FlashLite, Models.claudeHaiku45, Models.gpt6Luna],
+  },
+} as const satisfies Record<string, RoutingTable>;
+
+export type RoutingProfile = keyof typeof ROUTING_PROFILES;
+
+export const DEFAULT_ROUTING_PROFILE: RoutingProfile = 'default';

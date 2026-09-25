@@ -1,14 +1,10 @@
-import { type ProviderName, type ProviderCatalog } from '../types.js';
-import { OPENAI_CATALOG } from './openai/catalog.js';
-import { ANTHROPIC_CATALOG } from './anthropic/catalog.js';
-import { GOOGLE_CATALOG } from './google/catalog.js';
-
-export * from './openai/constants.js';
-export * from './anthropic/constants.js';
-export * from './google/constants.js';
-
-export const PROVIDER_REGISTRY: Record<ProviderName, ProviderCatalog> = {
-  openai: OPENAI_CATALOG,
-  anthropic: ANTHROPIC_CATALOG,
-  google: GOOGLE_CATALOG,
-};
+/**
+ * SDK endpoints — one file per Vercel AI SDK provider (@ai-sdk/*).
+ * Each file owns the provider's BAA flag and how to create a model.
+ * Adding one (e.g. `@ai-sdk/amazon-bedrock`) = one file here + export below.
+ */
+export * from './define.js';
+export { anthropicEndpoint } from './anthropic.js';
+export { createAzureOpenAIEndpoint, type AzureOpenAIEndpointSettings } from './azure-openai.js';
+export { googleEndpoint } from './google.js';
+export { openaiEndpoint } from './openai.js';

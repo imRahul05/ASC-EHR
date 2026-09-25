@@ -22,12 +22,12 @@ flowchart TD
     end
 
     subgraph SharedPackages ["Shared Packages"]
-        UI["@repo/ui<br/>Tailwind v4 + shadcn Base UI"]:::packageUI
-        APIClient["@repo/api-client<br/>Fetch wrapper"]:::packageCore
-        Types["@repo/types<br/>Shared TS Interfaces"]:::packageCore
-        Validation["@repo/validation<br/>Zod Schemas"]:::packageCore
-        Config["@repo/config<br/>Constants"]:::packageCore
-        Agents["@repo/agents<br/>AI SDK Agents"]:::packageAI
+        UI["@asc/ui<br/>Tailwind v4 + shadcn Base UI"]:::packageUI
+        APIClient["@asc/api-client<br/>Fetch wrapper"]:::packageCore
+        Types["@asc/types<br/>Shared TS Interfaces"]:::packageCore
+        Validation["@asc/validation<br/>Zod Schemas"]:::packageCore
+        Config["@asc/config<br/>Constants"]:::packageCore
+        Agents["@asc/agents<br/>AI SDK Agents"]:::packageAI
     end
 
     class Apps,SharedPackages container
@@ -60,6 +60,7 @@ pnpm dev
 - `pnpm dev`: Starts all applications (Web, API, Worker) in development mode.
 - `pnpm build`: Builds all applications and packages.
 - `pnpm typecheck`: Runs strict TypeScript validation across the entire workspace.
-- `pnpm lint`: Runs ESLint checks.
+- `pnpm lint`: Runs type-aware ESLint checks (errors on `any`, `console`, floating promises).
+- `pnpm test`: Runs Vitest suites across packages.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [AGENTS.md](AGENTS.md) for strict contribution rules and project conventions.

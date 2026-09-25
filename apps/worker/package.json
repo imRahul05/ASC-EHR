@@ -4,27 +4,35 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
+    "dev": "tsx watch --import ./src/instrumentation.ts src/index.ts",
+    "build": "tsup",
+    "start": "node --enable-source-maps --import ./dist/instrumentation.js dist/index.js",
     "lint": "eslint --max-warnings 0",
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@repo/audit": "workspace:*",
-    "@repo/config": "workspace:*",
-    "@repo/logger": "workspace:*",
-    "@repo/telemetry": "workspace:*",
-    "@repo/types": "workspace:*",
-    "@repo/validation": "workspace:*",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/core": "^1.30.1",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.57.2",
+    "@opentelemetry/sdk-node": "^0.57.2",
+    "@opentelemetry/sdk-trace-base": "^1.30.1",
+    "@asc/audit": "workspace:*",
+    "@asc/config": "workspace:*",
+    "@asc/logger": "workspace:*",
+    "@asc/telemetry": "workspace:*",
+    "@asc/types": "workspace:*",
+    "@asc/validation": "workspace:*",
     "bullmq": "^5.53.3",
-    "ioredis": "^5.6.1"
+    "ioredis": "^5.6.1",
+    "pino": "^9.14.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@repo/eslint-config": "workspace:*",
-    "@repo/typescript-config": "workspace:*",
+    "@asc/eslint-config": "workspace:*",
+    "@asc/typescript-config": "workspace:*",
     "@types/node": "^20",
-    "eslint": "^9",
+    "eslint": "^10.9.1",
+    "tsup": "^8.5.1",
     "tsx": "^4.19.4",
     "typescript": "^7.0.0"
   }
