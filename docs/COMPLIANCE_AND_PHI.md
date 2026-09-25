@@ -9,7 +9,8 @@ HIPAA regulates the protection of sensitive patient health information from bein
 ### Rules for Agents and Developers:
 *   **Data Minimization**: Only process and return the minimum PHI necessary to accomplish the intended task.
 *   **Encryption**: Ensure all PHI is encrypted at rest and in transit.
-*   **No PHI in Prompts/Logs**: NEVER include raw, unmasked PHI in AI prompt payloads, console logs, error messages, or debugging artifacts.
+*   **No PHI in Logs**: NEVER include raw, unmasked PHI in console logs, application logs, traces, error messages, or debugging artifacts.
+*   **PHI to AI models — BAA providers only**: Clinical AI (scribe, note generation, coding) requires PHI in prompts. This is allowed **only** through the `@repo/agents` gateway with `containsPhi: true`, which restricts routing to providers flagged `baa: true` in the provider catalog and refuses the call if none are available. Never call a model SDK directly, never send PHI to a provider without a signed BAA, and send only the minimum necessary context. Prompts and model outputs are never logged.
 *   **Access Control**: Ensure that all endpoints accessing PHI implement strict Authorization checks.
 
 ## 2. SOC 2 (Service Organization Control Type 2)
@@ -41,6 +42,7 @@ SOC 2 is an auditing procedure that ensures service providers securely manage da
 *   **Action**: Use `@repo/audit` to record all security and business events.
 *   **Why**: We must track *who* (user, system, agent) did *what*, *when*, and *why* in a durable, queryable format without storing raw PHI.
 *   **How**: `import { auditClient } from "@repo/audit";`
+*   **Durability**: In development the default store writes a dedicated `channel: "audit"` log stream. In **production the client fails closed**: it throws unless a durable store is injected at startup with `configureAuditStore(store)` (planned: Medplum `AuditEvent`, see the Medplum ADR). `details` accepts primitive values only and rejects PHI-like keys.
 
 ## 4. PHI Audit Logging Requirements
 

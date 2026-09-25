@@ -12,7 +12,7 @@ As we adopt the Vercel AI SDK for agent orchestration, hardcoding model strings 
 
 Additionally, we need:
 1. **Provider segregation**: Each provider's models listed in their own catalog for clarity.
-2. **Fallback chains**: If a model fails (rate limit, outage, deprecation), the system must automatically try the next model in a defined order.
+2. **Fallback chains**: If a model fails with a *transient* error (rate limit, 5xx/overloaded, timeout, network), the system must automatically try the next model in a defined order. Non-retryable errors (4xx, auth, schema validation) fail immediately.
 3. **Frontend visibility**: The frontend may need to display or select which models are active — so config must not live in `.env` files (which are server-only secrets).
 
 ## Decision
@@ -28,7 +28,7 @@ The router (`router.ts`) and gateway (`gateway.ts`) read exclusively from this c
 ## Consequences
 
 - **Good**: Model updates take seconds — edit one file, rebuild, done.
-- **Good**: Automatic fallback across providers (e.g., Anthropic → OpenAI → Google).
+- **Good**: Automatic fallback across providers on transient errors (e.g., Anthropic → OpenAI → Google) — for calls with `containsPhi: true` the chain is first filtered to providers with a signed BAA (`baa: true`).
 - **Good**: Frontend can import `PROVIDER_REGISTRY` and `getRoutingInfo()` to display model configuration without bundling API keys.
 - **Good**: Provider-segregated catalogs make it obvious which models belong to which vendor.
 - **Bad**: Adds a layer of indirection; you look up config.ts to see which model string runs.
@@ -38,7 +38,7 @@ The router (`router.ts`) and gateway (`gateway.ts`) read exclusively from this c
 - **Affected paths**: 
   - `packages/agents/src/config/` (New directory containing `constants.ts` and `catalog.ts` per provider, plus `routing.ts` and `types.ts`)
   - `packages/agents/src/router.ts` (Reads config, resolves models, exposes `getFallbackChain()`)
-  - `packages/agents/src/gateway.ts` (Automatic fallback loop on model errors)
+  - `packages/agents/src/gateway.ts` (Fallback loop on transient model errors, BAA filtering for PHI, `agentExecutionId` per call)
   - `packages/agents/src/index.ts` (Re-exports all config types and constants)
 - **Patterns to follow**: 
   - All model strings live in `config.ts` only.
@@ -52,9 +52,14 @@ The router (`router.ts`) and gateway (`gateway.ts`) read exclusively from this c
 
 - [x] Provider catalogs contain latest 2026 models (GPT-6, Claude Opus 5.5, Gemini 3.8 Flash).
 - [x] Router reads from config and resolves fallback chains.
-- [x] Gateway executes with automatic fallback on model errors.
+- [x] Gateway executes with automatic fallback on transient model errors only.
+- [x] PHI calls (`containsPhi: true`) route only to BAA providers; `NoCompliantModelError` otherwise.
 - [x] Package builds successfully (`pnpm build --filter @repo/agents`).
 
 ## More Information
 - Follows centralization rules in `AGENTS.md` (rules 4 and 5).
 - Supersedes any previous approach of hardcoding model strings in router.ts.
+
+## Amendment (2026-09-25)
+
+Fallback narrowed to transient errors and PHI-aware BAA filtering added to the provider catalog (`baa: boolean`), per the PHI rule in `docs/COMPLIANCE_AND_PHI.md`. Gateway calls now require `containsPhi` and return audit metadata (`agentExecutionId`, provider, model, attempts).

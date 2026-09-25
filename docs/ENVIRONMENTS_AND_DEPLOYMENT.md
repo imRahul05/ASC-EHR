@@ -133,24 +133,27 @@ Maintain discrete `.env` files:
 
 In Node.js 20+, load environment files natively without extra dependencies:
 ```bash
-node --env-file=.env.staging dist/server.js
+node --env-file=.env.staging --import ./dist/instrumentation.js dist/server.js
 ```
 
 ### 3. Environment-Aware Agent Routing in `@repo/agents`
 Add an environment override layer inside `packages/agents/src/router.ts`:
 
 ```typescript
-// In Staging / Testing: Override costly high-tier models to budget-friendly models
-export function getModelForTask(taskType: TaskType, complexity: TaskComplexity): LanguageModel {
+// Sketch — the real router takes an options object and returns a ResolvedModel.
+// In Staging / Testing: override costly high-tier models with a budget routing table.
+// PHI rules still apply: staging holds synthetic data only, and containsPhi calls
+// are always filtered to BAA providers.
+export function getModelForTask(
+  taskType: TaskType,
+  complexity: TaskComplexity,
+  options: { containsPhi: boolean },
+): ResolvedModel {
   const env = process.env.APP_ENV ?? 'development';
-  
-  if (env === 'staging' && process.env.USE_BUDGET_MODELS === 'true') {
-    // Route to fast, low-cost model for automated staging tests
-    return resolveModel({ provider: 'google', modelKey: GOOGLE_MODELS.GEMINI_3_8_FLASH });
-  }
-
-  // Production uses the full reasoning tier fallback chain
-  return getPrimaryModelForTier(resolveEffectiveTier(taskType, complexity));
+  const routing = env === 'staging' && process.env.USE_BUDGET_MODELS === 'true'
+    ? BUDGET_ROUTING_TABLE
+    : ROUTING_TABLE;
+  return resolvePrimary(resolveEffectiveTier(taskType, complexity), { ...options, routing });
 }
 ```
 

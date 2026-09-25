@@ -60,6 +60,7 @@ pnpm dev
 - `pnpm dev`: Starts all applications (Web, API, Worker) in development mode.
 - `pnpm build`: Builds all applications and packages.
 - `pnpm typecheck`: Runs strict TypeScript validation across the entire workspace.
-- `pnpm lint`: Runs ESLint checks.
+- `pnpm lint`: Runs type-aware ESLint checks (errors on `any`, `console`, floating promises).
+- `pnpm test`: Runs Vitest suites across packages.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [AGENTS.md](AGENTS.md) for strict contribution rules and project conventions.

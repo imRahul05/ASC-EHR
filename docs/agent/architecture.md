@@ -42,4 +42,16 @@ Read this before writing any code. The sole purpose of this monorepo is **centra
 
 ### 5. Shared Packages Boundaries
 - **Server/Client Boundaries**: Packages like `ui` and `api-client` are designed for browser/Node usage. Packages containing sensitive logic or Node-only APIs should never be imported by the Next.js client bundle.
-- **Strict TypeScript**: `any` is banned. Use `unknown` or proper types.
+- **Strict TypeScript**: `any` is banned. Use `unknown` or proper types. Enforced by lint (`@typescript-eslint/no-explicit-any: error`).
+
+### 6. Internal Package Strategy (Just-in-Time packages)
+- Every `@repo/*` library exports its TypeScript source directly: `"exports": { ".": "./src/index.ts" }`. Libraries have **no build step** and never point `main`/`types` at `dist/`.
+- Consumers compile them: `apps/web` via Next.js, `apps/api` and `apps/worker` via **tsup** (bundles `@repo/*`, keeps third-party deps external). Never run an app with plain `tsc` output — Node cannot load `.ts` from `node_modules`.
+- OpenTelemetry is loaded as a preload (`node --import ./dist/instrumentation.js`), never by calling `initTelemetry()` inside `server.ts` (ESM hoists imports, so instrumentation would load too late).
+- Runtime env is parsed once with `parseEnv()` from `@repo/config` (Zod). Do not read `process.env` directly in app code.
+
+### 7. TypeScript 7 + Lint
+- The compiler is TypeScript 7 (native). `check-types` uses `tsc --noEmit`.
+- `typescript-eslint` cannot load TS 7, so `@repo/eslint-config` depends on `typescript` aliased to `@typescript/typescript6` (scoped peer — only the linter sees TS 6). Do not add `typescript-eslint` anywhere else, and do not remove the alias until typescript-eslint supports TS 7.
+- Lint is type-aware and errors (not warnings) on: `any`, `console`, floating/misused promises, non-`import type` type imports, unused vars.
+- Tests: Vitest, `pnpm test` (turbo `test` task). CI is intentionally deferred until the first product features land.
