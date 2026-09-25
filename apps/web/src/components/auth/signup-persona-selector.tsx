@@ -12,9 +12,18 @@ import {
   UserCircle,
   Loader2,
   Sparkles,
-  CheckCircle2,
 } from "lucide-react";
-import { Badge, Button, Card, Input, Label, cn } from "@asc/ui";
+import {
+  Badge,
+  Button,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@asc/ui";
 import type { UserRole } from "@asc/types";
 import { signupSchema, type SignupFormData } from "@asc/validation";
 import { useAuth } from "../../hooks/use-auth";
@@ -122,6 +131,8 @@ export function SignupPersonaSelector() {
   });
 
   const selectedRole = useWatch({ control, name: "role" });
+  const selectedRoleOption = ROLE_OPTIONS.find((item) => item.role === selectedRole);
+  const roleSelectItems = ROLE_OPTIONS.map((item) => ({ value: item.role, label: item.title }));
 
   const handleSelectRole = (role: UserRole) => {
     reset({ role, password: getValues("password"), ...DEMO_PRESETS[role] });
@@ -162,51 +173,35 @@ export function SignupPersonaSelector() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-          {ROLE_OPTIONS.map((item) => {
-            const Icon = item.icon;
-            const isSelected = selectedRole === item.role;
-            return (
-              <Card
-                key={item.role}
-                onClick={() => handleSelectRole(item.role)}
-                className={cn(
-                  "cursor-pointer transition-all border p-3 flex flex-col justify-between",
-                  isSelected
-                    ? "border-foreground bg-accent/40 shadow-xs ring-1 ring-foreground/20"
-                    : "border-border/70 hover:border-foreground/40 bg-card/60"
-                )}
-              >
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div
-                      className={cn(
-                        "p-1.5 rounded-md",
-                        isSelected ? "bg-foreground text-background" : "bg-muted text-foreground"
-                      )}
-                    >
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    {isSelected && <CheckCircle2 className="h-4 w-4 text-foreground" />}
-                    {!isSelected && (
-                      <Badge variant="outline" className="text-[10px] font-normal">
-                        {item.badge}
-                      </Badge>
-                    )}
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-semibold text-foreground leading-tight">
-                      {item.title}
-                    </h4>
-                    <p className="text-[11px] text-muted-foreground line-clamp-2 mt-1">
-                      {item.description}
-                    </p>
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
+        <Select
+          items={roleSelectItems}
+          value={selectedRole}
+          onValueChange={(value) => value && handleSelectRole(value)}
+        >
+          <SelectTrigger className="w-full h-9 text-xs">
+            <SelectValue placeholder="Select your role" />
+          </SelectTrigger>
+          <SelectContent>
+            {ROLE_OPTIONS.map((item) => {
+              const Icon = item.icon;
+              return (
+                <SelectItem key={item.role} value={item.role} className="text-xs">
+                  <Icon className="h-3.5 w-3.5" />
+                  {item.title}
+                </SelectItem>
+              );
+            })}
+          </SelectContent>
+        </Select>
+
+        {selectedRoleOption && (
+          <div className="flex items-start gap-2.5 rounded-md border border-border/70 bg-muted/30 p-2.5">
+            <Badge variant="outline" className="text-[10px] font-normal shrink-0">
+              {selectedRoleOption.badge}
+            </Badge>
+            <p className="text-[11px] text-muted-foreground">{selectedRoleOption.description}</p>
+          </div>
+        )}
       </div>
 
       {/* Role-Specific Form Fields */}
