@@ -1,7 +1,9 @@
 // Shared type definitions
-// Export shared interfaces and domain types here.
 export type BaseEntity = {
   id: string;
   createdAt: string;
   updatedAt: string;
 };
+
+export * from "./auth.js";
+export * from "./case.js";
