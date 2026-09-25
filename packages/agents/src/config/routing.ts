@@ -1,40 +1,48 @@
-import type { ReasoningTier, RoutingTable, TaskType } from './types.js';
-import { OPENAI_MODELS } from './providers/openai/constants.js';
-import { ANTHROPIC_MODELS } from './providers/anthropic/constants.js';
-import { GOOGLE_MODELS } from './providers/google/constants.js';
-
 /**
- * Ordered fallback chains per tier. For calls with `containsPhi: true` the
- * gateway filters each chain down to providers whose catalog has `baa: true`.
+ * Routing: which models serve each reasoning tier, in fallback order.
+ *
+ * The first model is the primary; the rest are tried only on transient errors.
+ * For PHI calls the gateway first removes models whose provider has `baa: false`,
+ * so every tier should keep at least one BAA-covered model (checked by
+ * `validateAgentConfig`).
  */
-export const ROUTING_TABLE: RoutingTable = {
-  high: [
-    { provider: 'anthropic', modelKey: ANTHROPIC_MODELS.CLAUDE_OPUS_5_5 },
-    { provider: 'openai',    modelKey: OPENAI_MODELS.GPT_6_ASTRA },
-    { provider: 'anthropic', modelKey: ANTHROPIC_MODELS.CLAUDE_FABLE_5_1 },
-  ],
 
-  medium: [
-    { provider: 'openai',    modelKey: OPENAI_MODELS.GPT_6_SOL },
-    { provider: 'anthropic', modelKey: ANTHROPIC_MODELS.CLAUDE_SONNET_5 },
-    { provider: 'openai',    modelKey: OPENAI_MODELS.GPT_5_6_SOL },
-    { provider: 'google',    modelKey: GOOGLE_MODELS.GEMINI_3_8_FLASH },
-  ],
+import type { ModelRef } from './define.js';
+import { Models, type ProviderName } from './providers/index.js';
+import { Reasoning, type ReasoningTier } from './reasoning.js';
 
-  low: [
-    { provider: 'google',    modelKey: GOOGLE_MODELS.GEMINI_3_5_FLASH_LITE },
-    { provider: 'openai',    modelKey: OPENAI_MODELS.GPT_6_LUNA },
-    { provider: 'anthropic', modelKey: ANTHROPIC_MODELS.CLAUDE_HAIKU_4_5 },
-    { provider: 'openai',    modelKey: OPENAI_MODELS.GPT_5_6_LUNA },
-  ],
-};
+export type RoutingTable = Readonly<Record<ReasoningTier, readonly ModelRef<ProviderName>[]>>;
 
-export const TASK_TIER_MAP: Record<TaskType, ReasoningTier> = {
-  'medical-coding':       'high',
-  'diagnostic-reasoning': 'high',
-  'summarization':        'medium',
-  'data-extraction':      'low',
-  'validation':           'low',
-  'classification':       'low',
-  'general':              'medium',
-};
+export const ROUTING_PROFILES = {
+  /** Production routing. */
+  default: {
+    [Reasoning.High]: [
+      Models.anthropic.opus55,
+      Models.openai.gpt6Astra,
+      Models.anthropic.fable51,
+    ],
+    [Reasoning.Medium]: [
+      Models.openai.gpt6Sol,
+      Models.anthropic.sonnet5,
+      Models.openai.gpt56Sol,
+      Models.google.gemini38Flash,
+    ],
+    [Reasoning.Low]: [
+      Models.google.gemini35FlashLite,
+      Models.openai.gpt6Luna,
+      Models.anthropic.haiku45,
+      Models.openai.gpt56Luna,
+    ],
+  },
+
+  /** Cost-controlled routing for staging / automated tests (synthetic data only). */
+  budget: {
+    [Reasoning.High]: [Models.anthropic.sonnet5, Models.openai.gpt6Sol],
+    [Reasoning.Medium]: [Models.anthropic.haiku45, Models.google.gemini38Flash],
+    [Reasoning.Low]: [Models.google.gemini35FlashLite, Models.anthropic.haiku45],
+  },
+} as const satisfies Record<string, RoutingTable>;
+
+export type RoutingProfile = keyof typeof ROUTING_PROFILES;
+
+export const DEFAULT_ROUTING_PROFILE: RoutingProfile = 'default';

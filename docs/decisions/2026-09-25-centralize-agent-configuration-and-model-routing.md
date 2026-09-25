@@ -63,3 +63,14 @@ The router (`router.ts`) and gateway (`gateway.ts`) read exclusively from this c
 ## Amendment (2026-09-25)
 
 Fallback narrowed to transient errors and PHI-aware BAA filtering added to the provider catalog (`baa: boolean`), per the PHI rule in `docs/COMPLIANCE_AND_PHI.md`. Gateway calls now require `containsPhi` and return audit metadata (`agentExecutionId`, provider, model, attempts).
+
+## Amendment 2 (2026-09-25): typed, single-definition config
+
+The per-provider `constants.ts` + `catalog.ts` pair and the string-keyed routing entries are replaced (same three-layer idea, less duplication):
+
+- `config/reasoning.ts` — `Reasoning.Low/Medium/High` constant; tiers are never written as raw strings.
+- `config/tasks.ts` — `Task.*` constant + `TASK_PROFILES` (minimum tier, `handlesPhi`, description); compiler rejects a task without a profile. Replaces `TASK_TIER_MAP`.
+- `config/providers/<name>.ts` — one `defineProvider({ name, baa, createModel, models })` per vendor; each model is defined once and becomes a typed `ModelRef` carrying its provider. Models no longer declare a tier.
+- `config/routing.ts` — `ROUTING_PROFILES` (`default`, `budget`) map each tier to `ModelRef` objects (`Models.anthropic.opus55`), so provider/model mismatches cannot compile. Replaces `ROUTING_TABLE`.
+- `config/validate.ts` — `validateAgentConfig()` (run in tests) rejects empty tiers, routed deprecated models, duplicates, and PHI-capable tiers without a BAA model.
+- Gateway calls take `task` + optional `reasoning` override instead of `taskType` + required `complexity`.

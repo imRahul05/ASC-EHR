@@ -2,8 +2,9 @@
  * Agent Gateway — the single entry-point for all LLM calls.
  *
  * Features:
- *   • Model routing via config/ → router.ts (effective tier = max(task, requested)).
- *   • PHI guard: `containsPhi` is REQUIRED. PHI calls are routed only to
+ *   • Model routing via config/ → router.ts (effective tier = max(task minimum, optional override)).
+ *   • PHI guard: `containsPhi` is REQUIRED (and forced on for tasks whose
+ *     profile has `handlesPhi`). PHI calls are routed only to
  *     providers whose catalog has `baa: true`; if none, NoCompliantModelError
  *     is thrown before any model is called.
  *   • Fallback only on transient failures (429 / 5xx / overloaded / network /
@@ -28,16 +29,14 @@ import {
   type ToolSet,
 } from 'ai';
 
-import type { ProviderName } from './config/index.js';
+import type { ProviderName, ReasoningTier, TaskType } from './config/index.js';
 import { AgentExecutionError, isRetryableModelError } from './errors.js';
 import {
   getFallbackChain,
+  resolveContainsPhi,
   resolveEffectiveTier,
-  type ReasoningTier,
   type ResolvedModel,
   type RoutingContext,
-  type TaskComplexity,
-  type TaskType,
 } from './router.js';
 
 // ─────────────────────────────────────────────────────────────
@@ -45,11 +44,14 @@ import {
 // ─────────────────────────────────────────────────────────────
 
 export interface AgentCallParams {
-  taskType: TaskType;
-  complexity: TaskComplexity;
+  /** What kind of work this is, e.g. `Task.MedicalCoding`. Sets the minimum tier and PHI policy. */
+  task: TaskType;
+  /** Optional escalation, e.g. `Reasoning.High`. Can raise the task's tier, never lower it. */
+  reasoning?: ReasoningTier;
   /**
    * REQUIRED. Whether `messages` / `instructions` contain PHI. When true the
-   * call is only routed to providers with a signed BAA.
+   * call is only routed to providers with a signed BAA. Tasks whose profile has
+   * `handlesPhi: true` are always treated as PHI.
    */
   containsPhi: boolean;
   messages: ModelMessage[];
@@ -83,7 +85,9 @@ export interface StreamAgentParams extends ExecuteAgentParams {
 /** Audit metadata returned with every gateway result. Contains no PHI. */
 export interface AgentExecutionMeta {
   agentExecutionId: string;
+  task: TaskType;
   tier: ReasoningTier;
+  /** Effective PHI flag (caller flag OR task policy). */
   containsPhi: boolean;
   /** Provider that actually served the call. */
   provider: ProviderName;
@@ -138,29 +142,28 @@ export function createGateway(options: GatewayOptions = {}): Gateway {
   const { maxRetriesPerModel, generateExecutionId = () => crypto.randomUUID(), ...routingContext } = options;
 
   function plan(params: AgentCallParams) {
-    const tier = resolveEffectiveTier(
-      params.taskType,
-      params.complexity,
-      routingContext.taskTierMap,
-    );
-    const chain = getFallbackChain(tier, { ...routingContext, containsPhi: params.containsPhi });
+    const tier = resolveEffectiveTier(params.task, params.reasoning, routingContext.taskProfiles);
+    const containsPhi = resolveContainsPhi(params.task, params.containsPhi, routingContext.taskProfiles);
+    const chain = getFallbackChain(tier, { ...routingContext, containsPhi });
     return {
       agentExecutionId: generateExecutionId(),
+      task: params.task,
       tier,
+      containsPhi,
       chain: params.disableFallback ? chain.slice(0, 1) : chain,
     };
   }
 
   function meta(
-    base: { agentExecutionId: string; tier: ReasoningTier },
-    containsPhi: boolean,
+    base: { agentExecutionId: string; task: TaskType; tier: ReasoningTier; containsPhi: boolean },
     served: ResolvedModel,
     attempts: number,
   ): AgentExecutionMeta {
     return {
       agentExecutionId: base.agentExecutionId,
+      task: base.task,
       tier: base.tier,
-      containsPhi,
+      containsPhi: base.containsPhi,
       provider: served.provider,
       modelKey: served.modelKey,
       modelId: served.modelId,
@@ -180,7 +183,7 @@ export function createGateway(options: GatewayOptions = {}): Gateway {
       attempts += 1;
       try {
         const value = await call(candidate);
-        return { value, ...meta(planned, params.containsPhi, candidate, attempts) };
+        return { value, ...meta(planned, candidate, attempts) };
       } catch (err) {
         const retryable = isRetryableModelError(err);
         const isLast = attempts === planned.chain.length;
@@ -252,7 +255,7 @@ export function createGateway(options: GatewayOptions = {}): Gateway {
         abortSignal: params.abortSignal,
         onError: ({ error }) => (params.onError ?? noop)(error),
       });
-      return { ...meta(planned, params.containsPhi, primary, 1), result };
+      return { ...meta(planned, primary, 1), result };
     },
   };
 }

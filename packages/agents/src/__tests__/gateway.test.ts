@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { createGateway, type AgentCallParams } from '../gateway.js';
 import { AgentExecutionError, NoCompliantModelError } from '../errors.js';
+import { Reasoning, Task } from '../config/index.js';
 import { apiError, callCount, createFixture, failWith, respondWith } from './fixtures.js';
 
 const messages: AgentCallParams['messages'] = [{ role: 'user', content: 'synthetic, non-PHI test prompt' }];
@@ -22,8 +23,8 @@ describe('gateway fallback policy', () => {
   it('falls back to the next model on a retryable error (429)', async () => {
     const fixture = createFixture({ 'a-high': failWith(apiError(429)) });
     const res = await gatewayFor(fixture).executeAgentTask({
-      taskType: 'general',
-      complexity: 'high',
+      task: Task.General,
+      reasoning: Reasoning.High,
       containsPhi: false,
       messages,
     });
@@ -31,7 +32,7 @@ describe('gateway fallback policy', () => {
     expect(res.result.text).toBe('ok');
     expect(res).toMatchObject({
       agentExecutionId: 'exec-1',
-      tier: 'high',
+      tier: Reasoning.High,
       provider: 'openai',
       modelId: 'o-high',
       attempts: 2,
@@ -47,8 +48,8 @@ describe('gateway fallback policy', () => {
       'o-high': failWith(apiError(503)),
     });
     const res = await gatewayFor(fixture).executeAgentTask({
-      taskType: 'general',
-      complexity: 'high',
+      task: Task.General,
+      reasoning: Reasoning.High,
       containsPhi: false,
       messages,
     });
@@ -59,7 +60,7 @@ describe('gateway fallback policy', () => {
   it('does NOT fall back on a non-retryable error (400) and throws immediately', async () => {
     const fixture = createFixture({ 'a-high': failWith(apiError(400)) });
     const err: unknown = await gatewayFor(fixture)
-      .executeAgentTask({ taskType: 'general', complexity: 'high', containsPhi: false, messages })
+      .executeAgentTask({ task: Task.General, reasoning: Reasoning.High, containsPhi: false, messages })
       .catch((e: unknown) => e);
 
     expect(err).toBeInstanceOf(AgentExecutionError);
@@ -77,8 +78,8 @@ describe('gateway fallback policy', () => {
       const fixture = createFixture({ 'a-high': failWith(apiError(status)) });
       await expect(
         gatewayFor(fixture).executeAgentTask({
-          taskType: 'general',
-          complexity: 'high',
+          task: Task.General,
+          reasoning: Reasoning.High,
           containsPhi: false,
           messages,
         }),
@@ -91,8 +92,8 @@ describe('gateway fallback policy', () => {
     const fixture = createFixture({ 'a-high': respondWith('not json') });
     const err: unknown = await gatewayFor(fixture)
       .executeAgentObject({
-        taskType: 'general',
-        complexity: 'high',
+        task: Task.General,
+        reasoning: Reasoning.High,
         containsPhi: false,
         messages,
         schema: z.object({ code: z.string() }),
@@ -111,7 +112,7 @@ describe('gateway fallback policy', () => {
       'a-high-2': failWith(apiError(500)),
     });
     const err: unknown = await gatewayFor(fixture)
-      .executeAgentTask({ taskType: 'general', complexity: 'high', containsPhi: false, messages })
+      .executeAgentTask({ task: Task.General, reasoning: Reasoning.High, containsPhi: false, messages })
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AgentExecutionError);
     expect((err as AgentExecutionError).attempts).toBe(3);
@@ -123,8 +124,8 @@ describe('gateway fallback policy', () => {
     const fixture = createFixture({ 'a-high': failWith(apiError(429)) });
     await expect(
       gatewayFor(fixture).executeAgentTask({
-        taskType: 'general',
-        complexity: 'high',
+        task: Task.General,
+        reasoning: Reasoning.High,
         containsPhi: false,
         messages,
         disableFallback: true,
@@ -138,8 +139,8 @@ describe('PHI / BAA routing', () => {
   it('containsPhi restricts the chain to BAA providers (skips OpenAI on fallback)', async () => {
     const fixture = createFixture({ 'a-high': failWith(apiError(429)) });
     const res = await gatewayFor(fixture).executeAgentTask({
-      taskType: 'general',
-      complexity: 'high',
+      task: Task.General,
+      reasoning: Reasoning.High,
       containsPhi: true,
       messages,
     });
@@ -151,8 +152,8 @@ describe('PHI / BAA routing', () => {
   it('containsPhi picks the first BAA model even when a non-BAA model is primary', async () => {
     const fixture = createFixture();
     const res = await gatewayFor(fixture).executeAgentTask({
-      taskType: 'summarization',
-      complexity: 'medium',
+      task: Task.Summarization,
+      reasoning: Reasoning.Medium,
       containsPhi: true,
       messages,
     });
@@ -165,8 +166,8 @@ describe('PHI / BAA routing', () => {
     const fixture = createFixture();
     await expect(
       gatewayFor(fixture).executeAgentTask({
-        taskType: 'data-extraction',
-        complexity: 'low',
+        task: Task.DataExtraction,
+        reasoning: Reasoning.Low,
         containsPhi: true,
         messages,
       }),
@@ -180,8 +181,31 @@ describe('PHI / BAA routing', () => {
     const fixture = createFixture();
     const gateway = gatewayFor(fixture);
     expect(() =>
-      gateway.streamAgentTask({ taskType: 'classification', complexity: 'low', containsPhi: true, messages }),
+      gateway.streamAgentTask({ task: Task.Classification, reasoning: Reasoning.Low, containsPhi: true, messages }),
     ).toThrow(NoCompliantModelError);
+  });
+});
+
+describe('task PHI policy', () => {
+  it('routes PHI-handling tasks to BAA providers even when caller passes containsPhi: false', async () => {
+    const fixture = createFixture({ 'a-high': failWith(apiError(429)) });
+    const res = await gatewayFor(fixture).executeAgentTask({
+      task: Task.MedicalCoding,
+      containsPhi: false,
+      messages,
+    });
+    expect(res).toMatchObject({ provider: 'anthropic', modelId: 'a-high-2', containsPhi: true });
+    expect(callCount(fixture, 'o-high')).toBe(0);
+  });
+
+  it('uses the task minimum tier when no reasoning override is given', async () => {
+    const fixture = createFixture();
+    const res = await gatewayFor(fixture).executeAgentTask({
+      task: Task.Summarization,
+      containsPhi: false,
+      messages,
+    });
+    expect(res.tier).toBe(Reasoning.Medium);
   });
 });
 
@@ -192,29 +216,30 @@ describe('tier escalation and deprecated models', () => {
 
     // medical-coding implies high; requesting low must not downgrade.
     const coding = await gateway.executeAgentTask({
-      taskType: 'medical-coding',
-      complexity: 'low',
+      task: Task.MedicalCoding,
+      reasoning: Reasoning.Low,
       containsPhi: false,
       messages,
     });
-    expect(coding.tier).toBe('high');
+    expect(coding.tier).toBe(Reasoning.High);
     expect(coding.modelId).toBe('a-high');
+    expect(coding.task).toBe(Task.MedicalCoding);
 
     // data-extraction implies low; caller escalates to high.
     const extraction = await gateway.executeAgentTask({
-      taskType: 'data-extraction',
-      complexity: 'high',
+      task: Task.DataExtraction,
+      reasoning: Reasoning.High,
       containsPhi: false,
       messages,
     });
-    expect(extraction.tier).toBe('high');
+    expect(extraction.tier).toBe(Reasoning.High);
   });
 
   it('skips deprecated models in the chain', async () => {
     const fixture = createFixture();
     const res = await gatewayFor(fixture).executeAgentTask({
-      taskType: 'general',
-      complexity: 'medium',
+      task: Task.General,
+      reasoning: Reasoning.Medium,
       containsPhi: false,
       messages,
     });
@@ -228,8 +253,8 @@ describe('structured output', () => {
   it('returns the schema-typed output with execution metadata', async () => {
     const fixture = createFixture({ 'a-high': respondWith('{"code":"43239"}') });
     const res = await gatewayFor(fixture).executeAgentObject({
-      taskType: 'medical-coding',
-      complexity: 'high',
+      task: Task.MedicalCoding,
+      reasoning: Reasoning.High,
       containsPhi: true,
       messages,
       schema: z.object({ code: z.string() }),

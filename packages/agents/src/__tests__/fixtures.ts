@@ -1,17 +1,18 @@
 /**
- * Test fixtures: an injectable provider registry + routing table backed by the
- * SDK's MockLanguageModelV4, so gateway tests never hit real providers.
+ * Test fixtures: fixture providers built with the same `defineProvider` as
+ * production, backed by the SDK's MockLanguageModelV4, so gateway tests never
+ * hit real providers.
  */
 
 import { APICallError } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
 
-import type {
-  ModelEntry,
-  ProviderCatalog,
-  ProviderName,
-  ProviderRegistry,
-  RoutingTable,
+import {
+  Reasoning,
+  defineProvider,
+  type ModelSpec,
+  type ProviderRegistry,
+  type RoutingTable,
 } from '../config/index.js';
 
 type MockOptions = NonNullable<ConstructorParameters<typeof MockLanguageModelV4>[0]>;
@@ -48,100 +49,82 @@ export function apiError(statusCode: number, isRetryable?: boolean): APICallErro
   });
 }
 
-interface FixtureModel {
-  provider: ProviderName;
-  key: string;
-  deprecated?: boolean;
-}
-
-const FIXTURE_MODELS: FixtureModel[] = [
-  { provider: 'anthropic', key: 'a-high' },
-  { provider: 'anthropic', key: 'a-high-2' },
-  { provider: 'anthropic', key: 'a-med' },
-  { provider: 'openai', key: 'o-high' },
-  { provider: 'openai', key: 'o-med' },
-  { provider: 'openai', key: 'o-med-old', deprecated: true },
-  { provider: 'openai', key: 'o-low' },
-  { provider: 'google', key: 'g-med' },
-  { provider: 'google', key: 'g-low' },
-];
-
-/** Same shape as the production ROUTING_TABLE, with fixture model keys. */
-export const TEST_ROUTING: RoutingTable = {
-  high: [
-    { provider: 'anthropic', modelKey: 'a-high' },
-    { provider: 'openai', modelKey: 'o-high' },
-    { provider: 'anthropic', modelKey: 'a-high-2' },
-  ],
-  medium: [
-    { provider: 'openai', modelKey: 'o-med-old' }, // deprecated → must be skipped
-    { provider: 'openai', modelKey: 'o-med' },
-    { provider: 'anthropic', modelKey: 'a-med' },
-    { provider: 'google', modelKey: 'g-med' },
-  ],
-  low: [
-    { provider: 'google', modelKey: 'g-low' },
-    { provider: 'openai', modelKey: 'o-low' },
-  ],
-};
+const spec = (id: string, deprecated?: boolean): ModelSpec => ({
+  id,
+  label: id,
+  description: 'fixture',
+  deprecated,
+});
 
 export interface Fixture {
   registry: ProviderRegistry;
   routing: RoutingTable;
-  /** Mock model per fixture model key (model id === key). */
+  /** Mock model per fixture model id. */
   models: Record<string, MockLanguageModelV4>;
+  /** Fixture model refs, for building custom routing tables. */
+  refs: ReturnType<typeof defineFixtureProviders>['refs'];
 }
 
-/**
- * Builds a registry with the same BAA posture as production:
- * anthropic baa=true, openai/google baa=false. Every model answers "ok"
- * unless overridden via `behaviour`.
- */
+function defineFixtureProviders(createModel: (modelId: string) => MockLanguageModelV4) {
+  // Same BAA posture as production: anthropic yes, openai/google no.
+  const anthropic = defineProvider({
+    name: 'anthropic',
+    displayName: 'anthropic',
+    baa: true,
+    createModel,
+    models: { aHigh: spec('a-high'), aHigh2: spec('a-high-2'), aMed: spec('a-med') },
+  });
+  const openai = defineProvider({
+    name: 'openai',
+    displayName: 'openai',
+    baa: false,
+    createModel,
+    models: {
+      oHigh: spec('o-high'),
+      oMed: spec('o-med'),
+      oMedOld: spec('o-med-old', true),
+      oLow: spec('o-low'),
+    },
+  });
+  const google = defineProvider({
+    name: 'google',
+    displayName: 'google',
+    baa: false,
+    createModel,
+    models: { gMed: spec('g-med'), gLow: spec('g-low') },
+  });
+  return {
+    registry: { anthropic, openai, google } satisfies ProviderRegistry,
+    refs: { ...anthropic.models, ...openai.models, ...google.models },
+  };
+}
+
+/** Every fixture model answers "ok" unless overridden via `behaviour` (keyed by model id). */
 export function createFixture(behaviour: Record<string, DoGenerate> = {}): Fixture {
   const models: Record<string, MockLanguageModelV4> = {};
-  for (const m of FIXTURE_MODELS) {
-    models[m.key] = new MockLanguageModelV4({
-      provider: m.provider,
-      modelId: m.key,
-      doGenerate: behaviour[m.key] ?? respondWith('ok'),
+  const { registry, refs } = defineFixtureProviders((modelId) => {
+    const model = models[modelId];
+    if (!model) throw new Error(`No fixture model ${modelId}`);
+    return model;
+  });
+
+  for (const ref of Object.values(refs)) {
+    models[ref.id] = new MockLanguageModelV4({
+      provider: ref.provider,
+      modelId: ref.id,
+      doGenerate: behaviour[ref.id] ?? respondWith('ok'),
     });
   }
 
-  const catalog = (provider: ProviderName, baa: boolean): ProviderCatalog => {
-    const entries: Record<string, ModelEntry> = {};
-    for (const m of FIXTURE_MODELS.filter((f) => f.provider === provider)) {
-      entries[m.key] = {
-        id: m.key,
-        label: m.key,
-        tier: 'medium',
-        description: 'fixture',
-        deprecated: m.deprecated,
-      };
-    }
-    return {
-      displayName: provider,
-      providerKey: provider,
-      baa,
-      models: entries,
-      getAdapter: (modelId) => {
-        const model = models[modelId];
-        if (!model) throw new Error(`No fixture model ${modelId}`);
-        return model;
-      },
-    };
+  const routing: RoutingTable = {
+    [Reasoning.High]: [refs.aHigh, refs.oHigh, refs.aHigh2],
+    [Reasoning.Medium]: [refs.oMedOld /* deprecated → must be skipped */, refs.oMed, refs.aMed, refs.gMed],
+    [Reasoning.Low]: [refs.gLow, refs.oLow],
   };
 
-  return {
-    registry: {
-      anthropic: catalog('anthropic', true),
-      openai: catalog('openai', false),
-      google: catalog('google', false),
-    },
-    routing: TEST_ROUTING,
-    models,
-  };
+  return { registry, routing, models, refs };
 }
 
-export function callCount(fixture: Fixture, key: string): number {
-  return fixture.models[key]?.doGenerateCalls.length ?? 0;
+export function callCount(fixture: Fixture, modelId: string): number {
+  return fixture.models[modelId]?.doGenerateCalls.length ?? 0;
 }

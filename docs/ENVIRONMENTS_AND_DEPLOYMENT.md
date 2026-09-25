@@ -137,24 +137,19 @@ node --env-file=.env.staging --import ./dist/instrumentation.js dist/server.js
 ```
 
 ### 3. Environment-Aware Agent Routing in `@repo/agents`
-Add an environment override layer inside `packages/agents/src/router.ts`:
+Select a routing profile when creating the gateway:
 
 ```typescript
-// Sketch — the real router takes an options object and returns a ResolvedModel.
-// In Staging / Testing: override costly high-tier models with a budget routing table.
-// PHI rules still apply: staging holds synthetic data only, and containsPhi calls
-// are always filtered to BAA providers.
-export function getModelForTask(
-  taskType: TaskType,
-  complexity: TaskComplexity,
-  options: { containsPhi: boolean },
-): ResolvedModel {
-  const env = process.env.APP_ENV ?? 'development';
-  const routing = env === 'staging' && process.env.USE_BUDGET_MODELS === 'true'
-    ? BUDGET_ROUTING_TABLE
-    : ROUTING_TABLE;
-  return resolvePrimary(resolveEffectiveTier(taskType, complexity), { ...options, routing });
-}
+// Routing profiles live in packages/agents/src/config/routing.ts (`default`, `budget`).
+// The app picks one from its parsed env config; @repo/agents never reads process.env.
+import { createGateway } from '@repo/agents';
+
+const gateway = createGateway({
+  routingProfile: env.USE_BUDGET_MODELS ? 'budget' : 'default',
+});
+// PHI rules still apply in every profile: staging holds synthetic data only, and
+// PHI calls are always filtered to BAA providers (validateAgentConfig checks
+// that every profile keeps a BAA model for PHI tasks).
 ```
 
 ### 4. Turborepo Command Selection

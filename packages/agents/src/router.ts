@@ -1,12 +1,12 @@
 /**
  * Agent Model Router.
  *
- * Resolves a (TaskType, complexity, containsPhi) triple into an ordered,
+ * Resolves (task, optional reasoning override, containsPhi) into an ordered,
  * compliance-filtered chain of concrete LanguageModels.
  *
- * All functions accept an optional `RoutingContext` so tests (and future
- * per-tenant setups) can inject a registry / routing table instead of the
- * centralized defaults in `config/`.
+ * Every function accepts an optional `RoutingContext` so tests (and future
+ * per-tenant setups) can inject providers / routing / task profiles instead of
+ * the centralized defaults in `config/`.
  *
  * ADR: docs/decisions/2026-09-25-centralize-agent-configuration-and-model-routing.md
  */
@@ -14,32 +14,34 @@
 import type { LanguageModel } from 'ai';
 
 import {
+  DEFAULT_ROUTING_PROFILE,
   PROVIDER_REGISTRY,
-  ROUTING_TABLE,
-  TASK_TIER_MAP,
-  type FallbackEntry,
+  REASONING_TIERS,
+  ROUTING_PROFILES,
+  TASK_PROFILES,
+  maxReasoning,
+  type ModelRef,
   type ProviderName,
   type ProviderRegistry,
   type ReasoningTier,
+  type RoutingProfile,
   type RoutingTable,
+  type TaskProfiles,
   type TaskType,
 } from './config/index.js';
 import { NoAvailableModelError, NoCompliantModelError } from './errors.js';
 
-// Re-export for consumers
-export type { TaskType, ReasoningTier };
-
-/** Alias used by gateway callers for the requested reasoning tier. */
-export type TaskComplexity = ReasoningTier;
-
 /** Injectable routing configuration. Defaults to the centralized config. */
 export interface RoutingContext {
   registry?: ProviderRegistry;
+  /** Named routing profile from `ROUTING_PROFILES`. Ignored when `routing` is given. */
+  routingProfile?: RoutingProfile;
+  /** Explicit routing table (tests, per-tenant overrides). */
   routing?: RoutingTable;
-  taskTierMap?: Record<TaskType, ReasoningTier>;
+  taskProfiles?: TaskProfiles;
 }
 
-/** A routing entry resolved to a concrete adapter, with its identity for audit. */
+/** A routed model resolved to a concrete adapter, with its identity for audit. */
 export interface ResolvedModel {
   provider: ProviderName;
   modelKey: string;
@@ -53,118 +55,112 @@ export interface FallbackChainOptions extends RoutingContext {
   containsPhi: boolean;
 }
 
-const TIER_RANK: Record<ReasoningTier, number> = { low: 0, medium: 1, high: 2 };
-
-// ─────────────────────────────────────────────────────────────
-// Core resolution logic
-// ─────────────────────────────────────────────────────────────
-
-/**
- * The effective tier is the HIGHER of:
- *   - the tier implied by `taskType` (via TASK_TIER_MAP)
- *   - the explicit `complexity` requested by the caller
- *
- * Callers can escalate but never downgrade below the task's minimum tier.
- */
-export function resolveEffectiveTier(
-  taskType: TaskType,
-  complexity: TaskComplexity,
-  taskTierMap: Record<TaskType, ReasoningTier> = TASK_TIER_MAP,
-): ReasoningTier {
-  const impliedTier = taskTierMap[taskType];
-  return TIER_RANK[complexity] >= TIER_RANK[impliedTier] ? complexity : impliedTier;
+function routingTable({ routing, routingProfile = DEFAULT_ROUTING_PROFILE }: RoutingContext): RoutingTable {
+  return routing ?? ROUTING_PROFILES[routingProfile];
 }
 
 /**
- * Resolves a single FallbackEntry into a concrete model.
- * Throws if the provider or model key is unknown / deprecated.
+ * Effective tier = the HIGHER of the task's minimum tier and the caller's
+ * optional override. Callers can escalate but never downgrade.
  */
+export function resolveEffectiveTier(
+  task: TaskType,
+  reasoning?: ReasoningTier,
+  taskProfiles: TaskProfiles = TASK_PROFILES,
+): ReasoningTier {
+  return maxReasoning(taskProfiles[task].reasoning, reasoning);
+}
+
+/** PHI routing applies if the caller says so OR the task always handles PHI. */
+export function resolveContainsPhi(
+  task: TaskType,
+  containsPhi: boolean,
+  taskProfiles: TaskProfiles = TASK_PROFILES,
+): boolean {
+  return containsPhi || taskProfiles[task].handlesPhi;
+}
+
 export function resolveModel(
-  entry: FallbackEntry,
+  ref: ModelRef<ProviderName>,
   registry: ProviderRegistry = PROVIDER_REGISTRY,
 ): ResolvedModel {
-  const catalog = registry[entry.provider];
-  const modelEntry = catalog.models[entry.modelKey];
-  if (!modelEntry) {
-    throw new Error(
-      `Unknown model key "${entry.modelKey}" for provider "${entry.provider}". ` +
-        `Available: ${Object.keys(catalog.models).join(', ')}`,
-    );
+  if (ref.deprecated) {
+    throw new Error(`Model "${ref.provider}/${ref.key}" is deprecated. Remove it from routing.`);
   }
-
-  if (modelEntry.deprecated) {
-    throw new Error(`Model "${entry.modelKey}" is deprecated. Remove it from ROUTING_TABLE.`);
-  }
-
+  const provider = registry[ref.provider];
   return {
-    provider: entry.provider,
-    modelKey: entry.modelKey,
-    modelId: modelEntry.id,
-    baa: catalog.baa,
-    model: catalog.getAdapter(modelEntry.id),
+    provider: ref.provider,
+    modelKey: ref.key,
+    modelId: ref.id,
+    baa: provider.baa,
+    model: provider.createModel(ref.id),
   };
 }
 
 /**
- * Returns the ordered fallback chain for a tier: deprecated/unknown models are
- * skipped and, when `containsPhi` is true, non-BAA providers are removed.
+ * Ordered fallback chain for a tier: deprecated models are skipped and, when
+ * `containsPhi` is true, non-BAA providers are removed.
  *
  * Throws NoCompliantModelError (PHI) or NoAvailableModelError when empty, so
  * callers never receive an empty chain.
  */
-export function getFallbackChain(
-  tier: ReasoningTier,
-  { containsPhi, registry = PROVIDER_REGISTRY, routing = ROUTING_TABLE }: FallbackChainOptions,
-): ResolvedModel[] {
-  const usable = routing[tier].filter((e) => {
-    const model = registry[e.provider].models[e.modelKey];
-    return model !== undefined && !model.deprecated;
-  });
-
-  const allowed = containsPhi ? usable.filter((e) => registry[e.provider].baa) : usable;
+export function getFallbackChain(tier: ReasoningTier, options: FallbackChainOptions): ResolvedModel[] {
+  const registry = options.registry ?? PROVIDER_REGISTRY;
+  const usable = routingTable(options)[tier].filter((ref) => !ref.deprecated);
+  const allowed = options.containsPhi ? usable.filter((ref) => registry[ref.provider].baa) : usable;
 
   if (allowed.length === 0) {
-    throw containsPhi ? new NoCompliantModelError(tier) : new NoAvailableModelError(tier);
+    throw options.containsPhi ? new NoCompliantModelError(tier) : new NoAvailableModelError(tier);
   }
 
-  return allowed.map((e) => resolveModel(e, registry));
+  return allowed.map((ref) => resolveModel(ref, registry));
 }
 
-/**
- * Returns the PRIMARY (first eligible) model for a task, using the effective
- * tier (see `resolveEffectiveTier`).
- */
+/** The PRIMARY (first eligible) model for a task at its effective tier. */
 export function getModelForTask(
-  taskType: TaskType,
-  complexity: TaskComplexity,
-  options: FallbackChainOptions,
+  task: TaskType,
+  options: FallbackChainOptions & { reasoning?: ReasoningTier },
 ): ResolvedModel {
-  const tier = resolveEffectiveTier(taskType, complexity, options.taskTierMap);
-  const [primary] = getFallbackChain(tier, options);
+  const tier = resolveEffectiveTier(task, options.reasoning, options.taskProfiles);
+  const containsPhi = resolveContainsPhi(task, options.containsPhi, options.taskProfiles);
+  const [primary] = getFallbackChain(tier, { ...options, containsPhi });
   // Unreachable: getFallbackChain throws instead of returning an empty chain.
   if (!primary) throw new NoAvailableModelError(tier);
   return primary;
 }
 
+export interface RoutingInfoEntry {
+  provider: ProviderName;
+  providerDisplayName: string;
+  baa: boolean;
+  modelKey: string;
+  modelId: string;
+  modelLabel: string;
+  modelDescription: string;
+  deprecated: boolean;
+}
+
 /**
- * Returns metadata about the configured chain for a tier (unfiltered).
- * Safe for the frontend: contains no keys and no adapters.
+ * Configured chain for a tier (unfiltered). Safe for the frontend: contains
+ * no keys and no adapters.
  */
-export function getRoutingInfo(
-  tier: ReasoningTier,
-  { registry = PROVIDER_REGISTRY, routing = ROUTING_TABLE }: RoutingContext = {},
-) {
-  return routing[tier].map((e) => {
-    const catalog = registry[e.provider];
-    const model = catalog.models[e.modelKey];
-    return {
-      provider: e.provider,
-      providerDisplayName: catalog.displayName,
-      baa: catalog.baa,
-      modelKey: e.modelKey,
-      modelLabel: model?.label ?? e.modelKey,
-      modelDescription: model?.description ?? '',
-      deprecated: model?.deprecated ?? false,
-    };
-  });
+export function getRoutingInfo(tier: ReasoningTier, context: RoutingContext = {}): RoutingInfoEntry[] {
+  const registry = context.registry ?? PROVIDER_REGISTRY;
+  return routingTable(context)[tier].map((ref) => ({
+    provider: ref.provider,
+    providerDisplayName: registry[ref.provider].displayName,
+    baa: registry[ref.provider].baa,
+    modelKey: ref.key,
+    modelId: ref.id,
+    modelLabel: ref.label,
+    modelDescription: ref.description,
+    deprecated: ref.deprecated ?? false,
+  }));
+}
+
+/** Every tier's chain, lowest → highest — e.g. for an admin/settings screen. */
+export function getRoutingOverview(
+  context: RoutingContext = {},
+): { tier: ReasoningTier; models: RoutingInfoEntry[] }[] {
+  return REASONING_TIERS.map((tier) => ({ tier, models: getRoutingInfo(tier, context) }));
 }
