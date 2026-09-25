@@ -1,18 +1,33 @@
-import { Worker } from "bullmq";
+import { Worker, Job } from "bullmq";
 import { redisConnection } from "./redis.js";
+import { logger } from "@repo/logger";
 
 const QUEUE_NAME = process.env["QUEUE_NAME"] ?? "default";
 
-console.log(`Starting worker for queue: ${QUEUE_NAME}`);
+logger.info(`Starting worker for queue: ${QUEUE_NAME}`);
+
+interface BaseJobData {
+  correlationId?: string;
+  // Patient and PHI data should NOT be here in full.
+  // Pass IDs instead.
+  patientId?: string;
+  surgicalCaseId?: string;
+}
 
 const worker = new Worker(
   QUEUE_NAME,
-  async (job) => {
-    console.log(`Processing job ${job.id} of type ${job.name}`);
-    console.log("Job data:", JSON.stringify(job.data));
+  async (job: Job<BaseJobData>) => {
+    const jobLogger = logger.child({ 
+      correlationId: job.data?.correlationId ?? job.id,
+      jobId: job.id, 
+      jobName: job.name 
+    });
+    
+    jobLogger.info("Processing job");
 
     // Job processing will be implemented here.
     // Each job type will have its own processor.
+    // Example: fetch data from DB using job.data.patientId
   },
   {
     connection: redisConnection,
@@ -21,19 +36,19 @@ const worker = new Worker(
 );
 
 worker.on("completed", (job) => {
-  console.log(`Job ${job.id} completed`);
+  logger.info({ jobId: job.id }, `Job completed`);
 });
 
 worker.on("failed", (job, err) => {
-  console.error(`Job ${job?.id} failed:`, err.message);
+  logger.error({ jobId: job?.id, err }, `Job failed: ${err.message}`);
 });
 
 worker.on("error", (err) => {
-  console.error("Worker error:", err);
+  logger.error({ err }, "Worker error");
 });
 
 async function shutdown() {
-  console.log("Shutting down worker...");
+  logger.info("Shutting down worker...");
   await worker.close();
   process.exit(0);
 }

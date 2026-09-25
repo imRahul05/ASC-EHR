@@ -1,0 +1,23 @@
+{
+  "name": "@repo/audit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint --max-warnings 0",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/logger": "workspace:*"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^20.0.0",
+    "eslint": "^9.0.0",
+    "typescript": "^7.0.0"
+  }
+}
