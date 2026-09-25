@@ -20,6 +20,7 @@ import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -82,37 +83,39 @@ export function DashboardHeader() {
               </Button>
             }
           />
-          <DropdownMenuContent align="end" className="w-64">
-            <DropdownMenuLabel className="text-[11px] font-normal text-muted-foreground">
-              Instant Persona Switcher (Demo Mode)
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {ROLES_LIST.map((item) => {
-              const ItemIcon = ROLE_ICONS[item.role];
-              const isCurrent = item.role === activeRole;
-              return (
-                <DropdownMenuItem
-                  key={item.role}
-                  onClick={() => switchRole(item.role)}
-                  className={`flex items-start gap-2.5 cursor-pointer py-2 ${
-                    isCurrent ? "bg-accent font-medium" : ""
-                  }`}
-                >
-                  <ItemIcon className="h-4 w-4 mt-0.5 text-foreground shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-foreground">{item.label}</span>
-                      {isCurrent && (
-                        <Badge variant="secondary" className="text-[9px] px-1 py-0">
-                          Active
-                        </Badge>
-                      )}
+          <DropdownMenuContent align="end" sideOffset={14} className="w-64">
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="text-[11px] font-normal text-muted-foreground">
+                Instant Persona Switcher (Demo Mode)
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {ROLES_LIST.map((item) => {
+                const ItemIcon = ROLE_ICONS[item.role];
+                const isCurrent = item.role === activeRole;
+                return (
+                  <DropdownMenuItem
+                    key={item.role}
+                    onClick={() => switchRole(item.role)}
+                    className={`flex items-start gap-2.5 cursor-pointer py-2 ${
+                      isCurrent ? "bg-accent font-medium" : ""
+                    }`}
+                  >
+                    <ItemIcon className="h-4 w-4 mt-0.5 text-foreground shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-foreground">{item.label}</span>
+                        {isCurrent && (
+                          <Badge variant="secondary" className="text-[9px] px-1 py-0">
+                            Active
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">{item.desc}</p>
                     </div>
-                    <p className="text-[10px] text-muted-foreground">{item.desc}</p>
-                  </div>
-                </DropdownMenuItem>
-              );
-            })}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -154,7 +157,7 @@ export function DashboardHeader() {
               </Button>
             }
           />
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent align="end" sideOffset={14} className="w-56">
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
                 <p className="text-xs font-medium leading-none text-foreground">{user?.fullName}</p>

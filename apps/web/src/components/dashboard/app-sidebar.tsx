@@ -27,6 +27,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarRail,
   Badge,
 } from "@asc/ui";
 import type { UserRole } from "@asc/types";
@@ -88,13 +89,13 @@ export function AppSidebar() {
   const navItems = getRoleNavItems();
 
   return (
-    <Sidebar className="border-r border-border/80 bg-sidebar">
+    <Sidebar collapsible="icon" className="border-r border-border/80 bg-sidebar">
       <SidebarHeader className="border-b border-border/70 p-4">
         <Link href="/dashboard" className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded-lg bg-foreground text-background">
+          <div className="p-1.5 rounded-lg bg-foreground text-background shrink-0">
             <Activity className="h-4 w-4" />
           </div>
-          <div className="flex flex-col">
+          <div className="flex flex-col group-data-[collapsible=icon]:hidden">
             <div className="flex items-center gap-1.5">
               <span className="font-bold text-sm tracking-tight text-sidebar-foreground">
                 ASC EHR
@@ -111,7 +112,7 @@ export function AppSidebar() {
       <SidebarContent className="px-2 py-3 space-y-4">
         {/* Role Workspace Label */}
         <SidebarGroup>
-          <div className="px-2 pb-2">
+          <div className="px-2 pb-2 group-data-[collapsible=icon]:hidden">
             <Badge
               variant="outline"
               className="w-full justify-center text-[10px] uppercase font-mono py-1 tracking-wider bg-background/50"
@@ -132,6 +133,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       render={<Link href={item.href} />}
                       isActive={isActive}
+                      tooltip={item.title}
                       className="text-xs font-medium h-8 flex items-center justify-between w-full"
                     >
                       <div className="flex items-center gap-2">
@@ -153,14 +155,15 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="border-t border-border/70 p-3">
-        <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1">
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1 group-data-[collapsible=icon]:justify-center">
           <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            System Live
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+            <span className="group-data-[collapsible=icon]:hidden">System Live</span>
           </span>
-          <span className="font-mono text-[10px]">v0.1.0</span>
+          <span className="font-mono text-[10px] group-data-[collapsible=icon]:hidden">v0.1.0</span>
         </div>
       </SidebarFooter>
+      <SidebarRail />
     </Sidebar>
   );
 }

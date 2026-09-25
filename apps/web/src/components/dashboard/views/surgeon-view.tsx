@@ -73,31 +73,31 @@ export function SurgeonView() {
           <Table>
             <TableHeader>
               <TableRow className="text-xs">
-                <TableHead className="w-24">Time</TableHead>
-                <TableHead className="w-28">Room</TableHead>
-                <TableHead>Patient / MRN</TableHead>
-                <TableHead>Procedure</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Documentation</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="w-24 px-4 py-3">Time</TableHead>
+                <TableHead className="w-28 px-4 py-3">Room</TableHead>
+                <TableHead className="px-4 py-3">Patient / MRN</TableHead>
+                <TableHead className="px-4 py-3">Procedure</TableHead>
+                <TableHead className="px-4 py-3">Status</TableHead>
+                <TableHead className="px-4 py-3">Documentation</TableHead>
+                <TableHead className="text-right px-4 py-3">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {cases.map((item) => (
-                <TableRow key={item.id} className="text-xs">
-                  <TableCell className="font-medium font-mono">{item.scheduledTime}</TableCell>
-                  <TableCell>
+                <TableRow key={item.id} className="text-xs hover:bg-muted/40 transition-colors">
+                  <TableCell className="font-medium font-mono px-4 py-3">{item.scheduledTime}</TableCell>
+                  <TableCell className="px-4 py-3">
                     <Badge variant="secondary" className="text-[10px] font-normal">
                       {item.roomNumber}
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="px-4 py-3">
                     <div className="font-semibold text-foreground">{item.patientName}</div>
                     <span className="text-[10px] text-muted-foreground font-mono">
                       {item.mrn} • DOB: {item.patientDob}
                     </span>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="px-4 py-3">
                     <span className="font-medium text-foreground">{item.procedureTitle}</span>
                     {item.bowelPrepQuality && (
                       <span className="block text-[10px] text-muted-foreground">
@@ -105,7 +105,7 @@ export function SurgeonView() {
                       </span>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="px-4 py-3">
                     <Badge
                       variant={
                         item.status === "IN_PROCEDURE"
@@ -119,7 +119,7 @@ export function SurgeonView() {
                       {item.status}
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="px-4 py-3">
                     {item.reportSigned ? (
                       <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-500 font-medium">
                         <CheckCircle2 className="h-3.5 w-3.5" />
@@ -132,7 +132,7 @@ export function SurgeonView() {
                       </span>
                     )}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right px-4 py-3">
                     {!item.reportSigned ? (
                       <Button
                         size="xs"

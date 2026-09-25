@@ -1,5 +1,7 @@
 @import "@asc/ui/globals.css";
 
+@source "../../../packages/ui/src";
+
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
