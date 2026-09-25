@@ -6,19 +6,29 @@ ASC EHR is a high-performance, strictly typed medical electronic health record s
 
 ```mermaid
 flowchart TD
+    %% Node Styling Definitions
+    classDef webApp fill:#3b82f6,stroke:#2563eb,stroke-width:2px,color:#fff,rx:8px,ry:8px
+    classDef apiApp fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff,rx:8px,ry:8px
+    classDef workerApp fill:#f59e0b,stroke:#d97706,stroke-width:2px,color:#fff,rx:8px,ry:8px
+    classDef packageUI fill:#8b5cf6,stroke:#7c3aed,stroke-width:2px,color:#fff,rx:8px,ry:8px
+    classDef packageCore fill:#64748b,stroke:#475569,stroke-width:2px,color:#fff,rx:8px,ry:8px
+    classDef container fill:#f8fafc,stroke:#cbd5e1,stroke-width:2px,stroke-dasharray: 5 5,color:#334155
+
     subgraph Apps ["Apps"]
-        Web["Next.js App<br/>apps/web"]
-        API["Fastify API<br/>apps/api"]
-        Worker["BullMQ Worker<br/>apps/worker"]
+        Web["Next.js App<br/>apps/web"]:::webApp
+        API["Fastify API<br/>apps/api"]:::apiApp
+        Worker["BullMQ Worker<br/>apps/worker"]:::workerApp
     end
 
     subgraph SharedPackages ["Shared Packages"]
-        UI["@repo/ui<br/>Tailwind v4 + shadcn Base UI"]
-        APIClient["@repo/api-client<br/>Fetch wrapper"]
-        Types["@repo/types<br/>Shared TS Interfaces"]
-        Validation["@repo/validation<br/>Zod Schemas"]
-        Config["@repo/config<br/>Constants"]
+        UI["@repo/ui<br/>Tailwind v4 + shadcn Base UI"]:::packageUI
+        APIClient["@repo/api-client<br/>Fetch wrapper"]:::packageCore
+        Types["@repo/types<br/>Shared TS Interfaces"]:::packageCore
+        Validation["@repo/validation<br/>Zod Schemas"]:::packageCore
+        Config["@repo/config<br/>Constants"]:::packageCore
     end
+
+    class Apps,SharedPackages container
 
     Web -->|HTTP/SSE| API
     Web -.-> UI
