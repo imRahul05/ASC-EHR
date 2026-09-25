@@ -1,26 +1,13 @@
 /**
  * Hosting targets — WHERE models are served from.
  *
- * A target (e.g. `direct` vendor APIs, later Azure or AWS) has one or more
- * endpoints and binds each logical model it can serve to an endpoint + the
- * id/deployment name that endpoint expects. The app picks one target at startup.
+ * A target (vendor APIs `direct`, `azure`, later AWS) combines endpoints from
+ * `providers/` and binds each logical model it can serve to an endpoint + the
+ * id / deployment name that endpoint expects. The app picks one target at startup.
  */
 
-import type { LanguageModel } from 'ai';
-
-import type { ModelName } from '../models.js';
-
-export interface Endpoint {
-  displayName: string;
-  /**
-   * Whether a signed HIPAA Business Associate Agreement (BAA) covers THIS
-   * endpoint (account / resource / region). Calls with PHI are only routed to
-   * endpoints where this is `true`. Flip it only after the BAA is
-   * countersigned — this is a compliance control, not a feature toggle.
-   */
-  baa: boolean;
-  createModel: (modelId: string) => LanguageModel;
-}
+import type { ModelName } from '../models/index.js';
+import type { Endpoint } from '../providers/index.js';
 
 export interface ModelBinding<E extends string = string> {
   endpoint: E;

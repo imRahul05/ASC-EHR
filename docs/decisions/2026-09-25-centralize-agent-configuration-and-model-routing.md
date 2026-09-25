@@ -85,3 +85,14 @@ A model's API id and its BAA coverage depend on where it is served (vendor API, 
 - The app selects the target from its parsed env and passes `createGateway({ hosting })`; `validateAgentConfig()` checks every routing profile against every registered target.
 - Audit metadata reports `hostingTarget`, `endpoint`, `modelName`, `modelId`.
 
+## Amendment 4 (2026-09-25): one folder per concern, one file per vendor / SDK provider
+
+`packages/agents/src/config/` is organized as:
+
+- `models/<vendor>.ts` — WHAT: logical models per vendor (anthropic, openai, google).
+- `providers/<sdk>.ts` — HOW: one file per Vercel AI SDK provider (`@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/google`, `@ai-sdk/azure`), each owning its BAA flag and model factory. Azure OpenAI is a factory (resource + Entra ID token or key).
+- `hosting/<target>.ts` — WHERE: `directHosting` and `createAzureHosting(settings)` (GPT on Azure OpenAI by deployment name, optionally Claude on the Anthropic API).
+- `validate.ts` runs every routing profile against `direct` and an Azure-only target (`HOSTING_TARGETS_FOR_VALIDATION`); this found the `budget` profile had no Azure-deployable medium/low model, fixed by adding `gpt6Luna`.
+
+Diagrams: `packages/agents/README.md`.
+

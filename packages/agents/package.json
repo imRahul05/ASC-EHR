@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.63",
+    "@ai-sdk/azure": "^4.0.79",
     "@ai-sdk/google": "^4.0.80",
     "@ai-sdk/openai": "^4.0.75",
     "@repo/types": "workspace:*",

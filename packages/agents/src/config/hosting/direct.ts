@@ -1,35 +1,14 @@
-import { anthropic } from '@ai-sdk/anthropic';
-import { google } from '@ai-sdk/google';
-import { openai } from '@ai-sdk/openai';
-
+import { anthropicEndpoint, googleEndpoint, openaiEndpoint } from '../providers/index.js';
 import { defineHostingTarget } from './define.js';
 
-/**
- * Vendor APIs called directly. API keys are read by each SDK from its standard
- * env var (ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY).
- */
+/** Vendor APIs called directly (today's default). */
 export const directHosting = defineHostingTarget({
   name: 'direct',
   displayName: 'Vendor APIs (direct)',
   endpoints: {
-    anthropic: {
-      displayName: 'Anthropic API',
-      // Signed BAA in place with Anthropic (per GI ASC feature spec).
-      baa: true,
-      createModel: (id) => anthropic(id),
-    },
-    openai: {
-      displayName: 'OpenAI API',
-      // No BAA with OpenAI. Use Azure OpenAI (Microsoft BAA) for PHI instead.
-      baa: false,
-      createModel: (id) => openai(id),
-    },
-    google: {
-      displayName: 'Google Gemini API',
-      // No BAA for this endpoint.
-      baa: false,
-      createModel: (id) => google(id),
-    },
+    anthropic: anthropicEndpoint,
+    openai: openaiEndpoint,
+    google: googleEndpoint,
   },
   models: {
     claudeOpus55: { endpoint: 'anthropic', id: 'claude-opus-5-5' },

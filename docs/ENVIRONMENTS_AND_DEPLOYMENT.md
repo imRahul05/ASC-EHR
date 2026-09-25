@@ -142,13 +142,18 @@ Select a routing profile when creating the gateway:
 ```typescript
 // Routing profiles live in packages/agents/src/config/routing.ts (`default`, `budget`).
 // The app picks one from its parsed env config; @repo/agents never reads process.env.
-import { createGateway, directHosting } from '@repo/agents';
+import { createAzureHosting, createGateway, directHosting } from '@repo/agents';
 
 const gateway = createGateway({
   routingProfile: env.USE_BUDGET_MODELS ? 'budget' : 'default',
-  // Where models run: vendor APIs today; Azure / AWS hosting targets later
+  // Where models run: vendor APIs, or Azure OpenAI by deployment name
   // (see packages/agents/README.md → "Choosing where production runs").
-  hosting: directHosting,
+  hosting: env.AI_HOSTING_TARGET === 'azure'
+    ? createAzureHosting({
+        azureOpenAI: { resourceName: env.AZURE_OPENAI_RESOURCE, tokenProvider },
+        deployments: { gpt6Astra: env.AZURE_DEPLOYMENT_GPT6_ASTRA },
+      })
+    : directHosting,
 });
 // PHI rules still apply in every profile: staging holds synthetic data only, and
 // PHI calls are always filtered to BAA providers (validateAgentConfig checks

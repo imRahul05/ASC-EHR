@@ -7,7 +7,7 @@
  *   - a PHI-capable tier with no BAA-covered model on a hosting target
  */
 
-import { HOSTING_TARGETS, type HostingTarget } from './hosting/index.js';
+import { HOSTING_TARGETS_FOR_VALIDATION, type HostingTarget } from './hosting/index.js';
 import { REASONING_TIERS } from './reasoning.js';
 import { ROUTING_PROFILES, type RoutingTable } from './routing.js';
 import { TASK_PROFILES, type TaskProfiles, type TaskType } from './tasks.js';
@@ -20,7 +20,7 @@ export interface AgentConfigInput {
 
 /** Returns human-readable problems; empty means the config is valid. */
 export function validateAgentConfig({
-  hostingTargets = HOSTING_TARGETS,
+  hostingTargets = HOSTING_TARGETS_FOR_VALIDATION,
   routingProfiles = ROUTING_PROFILES,
   taskProfiles = TASK_PROFILES,
 }: AgentConfigInput = {}): string[] {

@@ -7,7 +7,7 @@
  * checks every target still has a BAA model for PHI-capable tiers.
  */
 
-import { Models, type ModelRef } from './models.js';
+import { Models, type ModelRef } from './models/index.js';
 import { Reasoning, type ReasoningTier } from './reasoning.js';
 
 export type RoutingTable = Readonly<Record<ReasoningTier, readonly ModelRef[]>>;
@@ -23,8 +23,8 @@ export const ROUTING_PROFILES = {
   /** Cost-controlled routing for staging / automated tests (synthetic data only). */
   budget: {
     [Reasoning.High]: [Models.claudeSonnet5, Models.gpt6Sol],
-    [Reasoning.Medium]: [Models.claudeHaiku45, Models.gemini38Flash],
-    [Reasoning.Low]: [Models.gemini35FlashLite, Models.claudeHaiku45],
+    [Reasoning.Medium]: [Models.claudeHaiku45, Models.gpt6Luna, Models.gemini38Flash],
+    [Reasoning.Low]: [Models.gemini35FlashLite, Models.claudeHaiku45, Models.gpt6Luna],
   },
 } as const satisfies Record<string, RoutingTable>;
 
