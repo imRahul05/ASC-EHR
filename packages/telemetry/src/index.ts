@@ -1,64 +1,69 @@
-import { SpanProcessor, ReadableSpan } from "@opentelemetry/sdk-trace-base";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { NodeSDK } from "@opentelemetry/sdk-node";
+import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { RedactingSpanExporter } from "./redacting-exporter.js";
 
-const SENSITIVE_KEYS = [
-  "authorization", "cookie", "x-api-key", "password", "token", "secret", 
-  "accessToken", "refreshToken", "patient.ssn", "patient.dob", "patient.address",
-  "patient.contact", "resource.text", "resource.contained", "prompt", "modelOutput", "job.data.phi"
-];
+export {
+  REDACTED,
+  RedactingSpanExporter,
+  SENSITIVE_ATTRIBUTE_KEYS,
+  isSensitiveAttributeKey,
+  redactAttributes,
+  redactSpan,
+} from "./redacting-exporter.js";
 
-// Simple redaction processor for OpenTelemetry spans
-export class RedactingSpanProcessor implements SpanProcessor {
-  constructor(private delegate: SpanProcessor) {}
+type TelemetryEnv = Readonly<Record<string, string | undefined>>;
 
-  forceFlush(): Promise<void> {
-    return this.delegate.forceFlush();
-  }
-  
-  onStart(span: any, parentContext: any): void {
-    if (this.delegate.onStart) {
-      this.delegate.onStart(span, parentContext);
-    }
-  }
+let sdk: NodeSDK | undefined;
 
-  onEnd(span: ReadableSpan): void {
-    // Redact attributes before they are exported
-    const attributes = span.attributes;
-    for (const key of Object.keys(attributes)) {
-      if (SENSITIVE_KEYS.some(k => key.toLowerCase().includes(k.toLowerCase()))) {
-        (span as any).attributes[key] = "[REDACTED]";
-      }
-    }
-    
-    if (this.delegate.onEnd) {
-      this.delegate.onEnd(span);
-    }
-  }
-
-  shutdown(): Promise<void> {
-    return this.delegate.shutdown();
-  }
+/** Tracing is exported only from deployed environments with a configured collector. */
+export function isTelemetryEnabled(env: TelemetryEnv = process.env): boolean {
+  const nodeEnv = env["NODE_ENV"];
+  const endpoint = env["OTEL_EXPORTER_OTLP_ENDPOINT"];
+  return (
+    (nodeEnv === "production" || nodeEnv === "staging") &&
+    typeof endpoint === "string" &&
+    endpoint.length > 0
+  );
 }
 
-export function initTelemetry(serviceName: string) {
-  if (process.env.NODE_ENV !== "production" && process.env.NODE_ENV !== "staging") {
-    // Do not initialize OTel in local development
-    return;
+/**
+ * Start OpenTelemetry tracing. Must run before any instrumented module is
+ * imported — call it from the app's `src/instrumentation.ts` preload
+ * (`node --import ./dist/instrumentation.js ...`).
+ *
+ * No-op unless NODE_ENV is production/staging AND OTEL_EXPORTER_OTLP_ENDPOINT is set.
+ * Every span passes through RedactingSpanExporter before leaving the process.
+ * Returns true when tracing was started.
+ */
+export function initTelemetry(serviceName: string, env: TelemetryEnv = process.env): boolean {
+  if (sdk || !isTelemetryEnabled(env)) {
+    return false;
   }
 
-  // Example basic NodeSDK setup, avoiding adding heavy azure deps yet.
-  // The actual exporter (Azure Monitor, OTLP, etc) would be configured here.
-  const sdk = new NodeSDK({
+  sdk = new NodeSDK({
     serviceName,
-    // spanProcessor: new RedactingSpanProcessor(new BatchSpanProcessor(new OTLPTraceExporter()))
+    spanProcessors: [new BatchSpanProcessor(new RedactingSpanExporter(new OTLPTraceExporter()))],
   });
-
   sdk.start();
-  
-  process.on('SIGTERM', () => {
-    sdk.shutdown()
-      .then(() => console.log('Tracing terminated'))
-      .catch((error) => console.log('Error terminating tracing', error))
-      .finally(() => process.exit(0));
-  });
+  return true;
+}
+
+/**
+ * Flush and stop tracing. Safe to call when telemetry was never started.
+ * Never throws: resolves to the shutdown error (if any) so the caller can log
+ * it with @repo/logger.
+ */
+export async function shutdownTelemetry(): Promise<Error | undefined> {
+  const current = sdk;
+  sdk = undefined;
+  if (!current) {
+    return undefined;
+  }
+  try {
+    await current.shutdown();
+    return undefined;
+  } catch (error) {
+    return error instanceof Error ? error : new Error("Telemetry shutdown failed");
+  }
 }

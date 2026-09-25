@@ -1,6 +1,7 @@
-import { z } from "zod";
+export type { HealthResponse } from "@repo/validation";
 
-export const healthResponseSchema = {
+/** Fastify response JSON schema for GET /health (fast serialization). Shape mirrors `healthResponseSchema` in @repo/validation. */
+export const healthResponseJsonSchema = {
   type: "object" as const,
   properties: {
     status: { type: "string" as const },
@@ -8,10 +9,3 @@ export const healthResponseSchema = {
   },
   required: ["status", "timestamp"],
 };
-
-export const healthResponseZod = z.object({
-  status: z.literal("ok"),
-  timestamp: z.string(),
-});
-
-export type HealthResponse = z.infer<typeof healthResponseZod>;

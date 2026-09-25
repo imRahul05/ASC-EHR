@@ -1,20 +1,16 @@
 import Fastify from "fastify";
-import { registerRoutes } from "./routes/index.js";
 import { loggerOptions } from "@repo/logger";
-import crypto from "crypto";
+import { resolveRequestId } from "./lib/request-id.js";
+import { registerRoutes } from "./routes/index.js";
 
 export function buildApp() {
   const app = Fastify({
     logger: loggerOptions,
-    genReqId: (req) => {
-      // Use provided correlation ID or generate a new one
-      const reqId = req.headers['x-correlation-id'] || req.headers['x-request-id'] || crypto.randomUUID();
-      return reqId as string;
-    }
+    // Client-supplied IDs are accepted only if well-formed (see resolveRequestId).
+    genReqId: (req) => resolveRequestId(req.headers),
   });
 
-  // Example hook to add correlationId to log context
-  app.addHook('onRequest', (request, reply, done) => {
+  app.addHook("onRequest", (request, _reply, done) => {
     request.log = request.log.child({ correlationId: request.id });
     done();
   });

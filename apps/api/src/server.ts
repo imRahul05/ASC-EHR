@@ -1,21 +1,37 @@
-import { initTelemetry } from "@repo/telemetry";
-// Initialize telemetry before anything else
-initTelemetry("api");
-
+import { apiEnvSchema, parseEnv } from "@repo/config";
+import { logger } from "@repo/logger";
+import { shutdownTelemetry } from "@repo/telemetry";
 import { buildApp } from "./app.js";
 
-const PORT = Number(process.env["PORT"] ?? 4000);
-const HOST = process.env["HOST"] ?? "0.0.0.0";
-
-async function start() {
+async function start(): Promise<void> {
+  const env = parseEnv(apiEnvSchema);
   const app = buildApp();
 
+  let shuttingDown = false;
+  const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    app.log.info({ signal }, "Shutting down API");
+    await app.close();
+    const telemetryError = await shutdownTelemetry();
+    if (telemetryError) {
+      app.log.error({ err: telemetryError }, "Telemetry shutdown failed");
+    }
+    process.exit(0);
+  };
+  process.once("SIGINT", (signal) => void shutdown(signal));
+  process.once("SIGTERM", (signal) => void shutdown(signal));
+
   try {
-    await app.listen({ port: PORT, host: HOST });
+    await app.listen({ port: env.PORT, host: env.HOST });
   } catch (err) {
     app.log.error({ err }, "Failed to start server");
     process.exit(1);
   }
 }
 
-start();
+start().catch((err: unknown) => {
+  // Env validation errors list variable names only, never values.
+  logger.fatal({ err }, "API failed to start");
+  process.exit(1);
+});

@@ -1,21 +1,21 @@
 import type { FastifyInstance } from "fastify";
-import { healthResponseSchema } from "../schemas/health.js";
+import type { HealthResponse } from "../schemas/health.js";
+import { healthResponseJsonSchema } from "../schemas/health.js";
 
-export async function healthRoute(app: FastifyInstance) {
+export function healthRoute(app: FastifyInstance): Promise<void> {
   app.get(
     "/health",
     {
       schema: {
         response: {
-          200: healthResponseSchema,
+          200: healthResponseJsonSchema,
         },
       },
     },
-    async (_request, _reply) => {
-      return {
-        status: "ok" as const,
-        timestamp: new Date().toISOString(),
-      };
-    }
+    (): HealthResponse => ({
+      status: "ok",
+      timestamp: new Date().toISOString(),
+    }),
   );
+  return Promise.resolve();
 }
