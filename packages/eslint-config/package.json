@@ -8,10 +8,10 @@
     "./next-js": "./next.js",
     "./react-internal": "./react-internal.js"
   },
-  "devDependencies": {
-    "@babel/core": "^7",
-    "@babel/eslint-parser": "^7",
-    "@babel/preset-typescript": "^7",
+  "dependencies": {
+    "@babel/core": "^7.26.9",
+    "@babel/eslint-parser": "^7.26.8",
+    "@babel/preset-typescript": "^7.26.0",
     "@eslint/js": "10.0.1",
     "@next/eslint-plugin-next": "16.3.4",
     "eslint": "10.9.1",

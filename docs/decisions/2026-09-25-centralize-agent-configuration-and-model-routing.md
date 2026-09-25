@@ -1,0 +1,60 @@
+---
+status: accepted
+date: 2026-09-25
+decision-makers: 
+---
+
+# Centralize Agent Configuration and Model Routing
+
+## Context and Problem Statement
+
+As we adopt the Vercel AI SDK for agent orchestration, hardcoding model strings directly in routing logic creates a maintenance burden. LLM models update frequently — Anthropic's lineup moved from Claude 3.5 Sonnet to Opus 5.5 in under a year, OpenAI shifted from GPT-4o to the GPT-6 Astra/Sol/Luna family, and Google moved from Gemini 1.5 to the 3.8 generation. When a model is deprecated, we must search-and-replace strings throughout the codebase.
+
+Additionally, we need:
+1. **Provider segregation**: Each provider's models listed in their own catalog for clarity.
+2. **Fallback chains**: If a model fails (rate limit, outage, deprecation), the system must automatically try the next model in a defined order.
+3. **Frontend visibility**: The frontend may need to display or select which models are active — so config must not live in `.env` files (which are server-only secrets).
+
+## Decision
+
+We will centralize all model configuration into a highly modular `packages/agents/src/config/` directory using three layers:
+
+1. **Provider Catalogs** (`config/providers/<provider>/catalog.ts`): Each provider has its own typed catalog listing every model. To eliminate string duplication and enable type-safe model references, each provider has a dedicated `constants.ts` file (e.g., `OPENAI_MODELS`). Adding a new model means adding one entry to constants and one to the catalog.
+2. **Routing Table** (`config/routing.ts`): Maps each reasoning tier (`high` / `medium` / `low`) to an ordered fallback chain of `(provider, modelKey)` pairs. The first entry is the primary; subsequent entries are fallbacks tried in order.
+3. **Task-Tier Map**: Maps each `TaskType` to its minimum reasoning tier, ensuring that critical tasks always hit capable models.
+
+The router (`router.ts`) and gateway (`gateway.ts`) read exclusively from this config. No model strings exist anywhere else.
+
+## Consequences
+
+- **Good**: Model updates take seconds — edit one file, rebuild, done.
+- **Good**: Automatic fallback across providers (e.g., Anthropic → OpenAI → Google).
+- **Good**: Frontend can import `PROVIDER_REGISTRY` and `getRoutingInfo()` to display model configuration without bundling API keys.
+- **Good**: Provider-segregated catalogs make it obvious which models belong to which vendor.
+- **Bad**: Adds a layer of indirection; you look up config.ts to see which model string runs.
+
+## Implementation Plan
+
+- **Affected paths**: 
+  - `packages/agents/src/config/` (New directory containing `constants.ts` and `catalog.ts` per provider, plus `routing.ts` and `types.ts`)
+  - `packages/agents/src/router.ts` (Reads config, resolves models, exposes `getFallbackChain()`)
+  - `packages/agents/src/gateway.ts` (Automatic fallback loop on model errors)
+  - `packages/agents/src/index.ts` (Re-exports all config types and constants)
+- **Patterns to follow**: 
+  - All model strings live in `config.ts` only.
+  - New models → add to the provider catalog → optionally add to routing table.
+  - Deprecated models → set `deprecated: true` → router skips them automatically.
+- **Patterns to avoid**: 
+  - Do NOT put model names in `.env`.
+  - Do NOT import provider SDKs directly — use gateway functions.
+
+### Verification
+
+- [x] Provider catalogs contain latest 2026 models (GPT-6, Claude Opus 5.5, Gemini 3.8 Flash).
+- [x] Router reads from config and resolves fallback chains.
+- [x] Gateway executes with automatic fallback on model errors.
+- [x] Package builds successfully (`pnpm build --filter @repo/agents`).
+
+## More Information
+- Follows centralization rules in `AGENTS.md` (rules 4 and 5).
+- Supersedes any previous approach of hardcoding model strings in router.ts.

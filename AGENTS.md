@@ -1,7 +1,18 @@
 # ASC EHR - Agent Knowledge Base
 
-## Project Overview
-ASC EHR is a monorepo application using a modern tech stack focused on high performance, strict type safety, and minimal unnecessary abstractions.
+## 🛑 STRICT RULES FOR AI AGENTS (ANTI-DUPLICATION & CENTRALIZATION)
+Read this before writing any code. The sole purpose of this monorepo is **centralization**.
+
+1. **NO DUPLICATE CODE OR TYPES:** Do not define the same interface, type, or Zod schema in `apps/web` and `apps/api`. All shared types must go to `packages/types`. All shared validation must go to `packages/validation`.
+2. **NO DUPLICATE DEPENDENCIES:** Do not install UI libraries in `apps/web`. UI components must live in `packages/ui` (shadcn + Base UI + Tailwind v4) and be imported into the web app.
+3. **NO DUPLICATE LOGIC:** If frontend and backend need the same utility, put it in a shared package (e.g., `packages/config` or `packages/api-client`).
+4. **SINGLE SOURCE OF TRUTH:** `/packages` is the center. `/apps` simply consume from `/packages`.
+5. **CENTRALIZED CONFIGURATION (NO ENV FOR CONSTANTS):** Do not scatter configuration strings (like LLM model names, feature flags, or non-sensitive settings) across files or hide them in `.env`. Put them in a centralized exported config directory (e.g., `packages/agents/src/config/`). This ensures easy maintenance and allows the frontend to import the config.
+6. **RESPECT ARCHITECTURE DECISIONS:** Always read the Architecture Decision Records (ADRs) in `docs/decisions/` before making architectural changes or creating new agent workflows. When you make an architectural decision, use the `adr-skill` to create a new ADR.
+
+*See `docs/ARCHITECTURE.md` for the architectural diagram and breakdown.*
+
+---
 
 ## Architecture & Conventions
 
@@ -12,10 +23,9 @@ ASC EHR is a monorepo application using a modern tech stack focused on high perf
 - **Packages**: Live in `/packages` (`ui`, `types`, `validation`, `api-client`, `config`).
 
 ### 2. Frontend (`apps/web`)
-- **Next.js**: Latest version, App Router, TypeScript.
+- **Next.js**: Latest version, App Router, TypeScript (v7).
 - **Styling**: Tailwind CSS v4.
-- **UI Components**: Shared from `packages/ui` using shadcn (configured with Base UI, **NOT** Radix UI).
-- Uses `Turbopack` for development.
+- **UI Components**: Shared from `packages/ui` using shadcn (Base UI, **NOT** Radix).
 
 ### 3. Backend (`apps/api`)
 - **Framework**: Fastify (latest stable).
@@ -31,6 +41,3 @@ ASC EHR is a monorepo application using a modern tech stack focused on high perf
 ### 5. Shared Packages Boundaries
 - **Server/Client Boundaries**: Packages like `ui` and `api-client` are designed for browser/Node usage. Packages containing sensitive logic or Node-only APIs should never be imported by the Next.js client bundle.
 - **Strict TypeScript**: `any` is banned. Use `unknown` or proper types.
-
-### 6. Official Setup
-- The repository was scaffolded using the official Turborepo, Next.js, and shadcn CLIs directly to maintain standard defaults and optimizations.
