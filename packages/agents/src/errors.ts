@@ -2,37 +2,41 @@
  * Gateway error types and the retry/fallback classifier.
  *
  * PHI rule: error messages built here contain only routing metadata
- * (tier, provider, model, attempt counts) — never prompt or output content.
+ * (tier, hosting target, endpoint, model, attempt counts) — never prompt or output content.
  */
 
 import { APICallError, RetryError, StreamProviderError } from 'ai';
-import type { ProviderName, ReasoningTier } from './config/index.js';
+import type { ReasoningTier } from './config/index.js';
 
 /**
  * Thrown when a call is flagged `containsPhi: true` but no model in the
- * tier's chain belongs to a provider with a signed BAA. No model is called.
+ * tier's chain is hosted on a BAA-covered endpoint. No model is called.
  */
 export class NoCompliantModelError extends Error {
   override readonly name = 'NoCompliantModelError';
   readonly tier: ReasoningTier;
+  readonly hostingTarget: string;
 
-  constructor(tier: ReasoningTier) {
+  constructor(tier: ReasoningTier, hostingTarget: string) {
     super(
-      `No BAA-covered model is configured for tier "${tier}". ` +
-        'Calls containing PHI may only be routed to providers with baa: true.',
+      `No BAA-covered model is available for tier "${tier}" on hosting "${hostingTarget}". ` +
+        'Calls containing PHI may only be routed to endpoints with baa: true.',
     );
     this.tier = tier;
+    this.hostingTarget = hostingTarget;
   }
 }
 
-/** Thrown when a tier has no usable (non-deprecated) model at all. */
+/** Thrown when a tier has no usable (non-deprecated, hosted) model at all. */
 export class NoAvailableModelError extends Error {
   override readonly name = 'NoAvailableModelError';
   readonly tier: ReasoningTier;
+  readonly hostingTarget: string;
 
-  constructor(tier: ReasoningTier) {
-    super(`No non-deprecated models available for tier "${tier}".`);
+  constructor(tier: ReasoningTier, hostingTarget: string) {
+    super(`No usable model for tier "${tier}" on hosting "${hostingTarget}".`);
     this.tier = tier;
+    this.hostingTarget = hostingTarget;
   }
 }
 
@@ -47,7 +51,7 @@ export class AgentExecutionError extends Error {
   override readonly name = 'AgentExecutionError';
   readonly agentExecutionId: string;
   readonly attempts: number;
-  readonly lastProvider: ProviderName;
+  readonly lastEndpoint: string;
   readonly lastModelId: string;
   /** Whether the final error was classified as transient (i.e. the chain was exhausted). */
   readonly retryable: boolean;
@@ -55,20 +59,20 @@ export class AgentExecutionError extends Error {
   constructor(args: {
     agentExecutionId: string;
     attempts: number;
-    lastProvider: ProviderName;
+    lastEndpoint: string;
     lastModelId: string;
     retryable: boolean;
     cause: unknown;
   }) {
     super(
       `Agent execution ${args.agentExecutionId} failed after ${args.attempts} attempt(s); ` +
-        `last model ${args.lastProvider}/${args.lastModelId} ` +
+        `last model ${args.lastEndpoint}/${args.lastModelId} ` +
         `(${args.retryable ? 'transient error, fallback chain exhausted' : 'non-retryable error'}).`,
       { cause: args.cause },
     );
     this.agentExecutionId = args.agentExecutionId;
     this.attempts = args.attempts;
-    this.lastProvider = args.lastProvider;
+    this.lastEndpoint = args.lastEndpoint;
     this.lastModelId = args.lastModelId;
     this.retryable = args.retryable;
   }

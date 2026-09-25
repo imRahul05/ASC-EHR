@@ -1,45 +1,30 @@
 /**
- * Routing: which models serve each reasoning tier, in fallback order.
+ * Routing: which LOGICAL models serve each reasoning tier, in fallback order.
  *
- * The first model is the primary; the rest are tried only on transient errors.
- * For PHI calls the gateway first removes models whose provider has `baa: false`,
- * so every tier should keep at least one BAA-covered model (checked by
- * `validateAgentConfig`).
+ * Hosting-independent: the router resolves each model through the active
+ * hosting target and skips models that target does not host. For PHI calls it
+ * also drops models whose endpoint has `baa: false` — `validateAgentConfig`
+ * checks every target still has a BAA model for PHI-capable tiers.
  */
 
-import type { ModelRef } from './define.js';
-import { Models, type ProviderName } from './providers/index.js';
+import { Models, type ModelRef } from './models.js';
 import { Reasoning, type ReasoningTier } from './reasoning.js';
 
-export type RoutingTable = Readonly<Record<ReasoningTier, readonly ModelRef<ProviderName>[]>>;
+export type RoutingTable = Readonly<Record<ReasoningTier, readonly ModelRef[]>>;
 
 export const ROUTING_PROFILES = {
   /** Production routing. */
   default: {
-    [Reasoning.High]: [
-      Models.anthropic.opus55,
-      Models.openai.gpt6Astra,
-      Models.anthropic.fable51,
-    ],
-    [Reasoning.Medium]: [
-      Models.openai.gpt6Sol,
-      Models.anthropic.sonnet5,
-      Models.openai.gpt56Sol,
-      Models.google.gemini38Flash,
-    ],
-    [Reasoning.Low]: [
-      Models.google.gemini35FlashLite,
-      Models.openai.gpt6Luna,
-      Models.anthropic.haiku45,
-      Models.openai.gpt56Luna,
-    ],
+    [Reasoning.High]: [Models.claudeOpus55, Models.gpt6Astra, Models.claudeFable51],
+    [Reasoning.Medium]: [Models.gpt6Sol, Models.claudeSonnet5, Models.gpt56Sol, Models.gemini38Flash],
+    [Reasoning.Low]: [Models.gemini35FlashLite, Models.gpt6Luna, Models.claudeHaiku45, Models.gpt56Luna],
   },
 
   /** Cost-controlled routing for staging / automated tests (synthetic data only). */
   budget: {
-    [Reasoning.High]: [Models.anthropic.sonnet5, Models.openai.gpt6Sol],
-    [Reasoning.Medium]: [Models.anthropic.haiku45, Models.google.gemini38Flash],
-    [Reasoning.Low]: [Models.google.gemini35FlashLite, Models.anthropic.haiku45],
+    [Reasoning.High]: [Models.claudeSonnet5, Models.gpt6Sol],
+    [Reasoning.Medium]: [Models.claudeHaiku45, Models.gemini38Flash],
+    [Reasoning.Low]: [Models.gemini35FlashLite, Models.claudeHaiku45],
   },
 } as const satisfies Record<string, RoutingTable>;
 

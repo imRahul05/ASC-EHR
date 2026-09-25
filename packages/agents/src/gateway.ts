@@ -5,13 +5,13 @@
  *   • Model routing via config/ → router.ts (effective tier = max(task minimum, optional override)).
  *   • PHI guard: `containsPhi` is REQUIRED (and forced on for tasks whose
  *     profile has `handlesPhi`). PHI calls are routed only to
- *     providers whose catalog has `baa: true`; if none, NoCompliantModelError
+ *     endpoints with `baa: true` on the active hosting target; if none, NoCompliantModelError
  *     is thrown before any model is called.
  *   • Fallback only on transient failures (429 / 5xx / overloaded / network /
  *     timeout). Non-retryable errors (400, 401/403, schema/validation, ...)
  *     fail immediately so a request is never fanned out to extra vendors.
  *   • Audit traceability: every call gets an `agentExecutionId` and reports
- *     which provider/model served it and how many models were attempted.
+ *     which hosting target / endpoint / model served it and how many models were attempted.
  *     Callers write this metadata to @repo/audit.
  *   • Prompts and outputs are NEVER logged here.
  *
@@ -29,7 +29,7 @@ import {
   type ToolSet,
 } from 'ai';
 
-import type { ProviderName, ReasoningTier, TaskType } from './config/index.js';
+import type { ReasoningTier, TaskType } from './config/index.js';
 import { AgentExecutionError, isRetryableModelError } from './errors.js';
 import {
   getFallbackChain,
@@ -89,9 +89,11 @@ export interface AgentExecutionMeta {
   tier: ReasoningTier;
   /** Effective PHI flag (caller flag OR task policy). */
   containsPhi: boolean;
-  /** Provider that actually served the call. */
-  provider: ProviderName;
-  modelKey: string;
+  /** Where the call was served: hosting target + endpoint (e.g. `direct` / `anthropic`). */
+  hostingTarget: string;
+  endpoint: string;
+  /** Logical model name (e.g. `claudeOpus55`) and the id sent to the endpoint. */
+  modelName: string;
   modelId: string;
   /** Number of models attempted (1 = primary succeeded). SDK-internal same-model retries are not counted. */
   attempts: number;
@@ -136,7 +138,7 @@ const noop = (): void => {};
 
 /**
  * Creates a gateway bound to a registry / routing table. The module-level
- * functions below use the centralized config; tests inject mock providers.
+ * functions below use the centralized config; tests inject a mock hosting target.
  */
 export function createGateway(options: GatewayOptions = {}): Gateway {
   const { maxRetriesPerModel, generateExecutionId = () => crypto.randomUUID(), ...routingContext } = options;
@@ -164,8 +166,9 @@ export function createGateway(options: GatewayOptions = {}): Gateway {
       task: base.task,
       tier: base.tier,
       containsPhi: base.containsPhi,
-      provider: served.provider,
-      modelKey: served.modelKey,
+      hostingTarget: served.hostingTarget,
+      endpoint: served.endpoint,
+      modelName: served.modelName,
       modelId: served.modelId,
       attempts,
     };
@@ -191,7 +194,7 @@ export function createGateway(options: GatewayOptions = {}): Gateway {
           throw new AgentExecutionError({
             agentExecutionId: planned.agentExecutionId,
             attempts,
-            lastProvider: candidate.provider,
+            lastEndpoint: candidate.endpoint,
             lastModelId: candidate.modelId,
             retryable,
             cause: err,

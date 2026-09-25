@@ -12,7 +12,7 @@ const messages: AgentCallParams['messages'] = [{ role: 'user', content: 'synthet
 function gatewayFor(fixture: ReturnType<typeof createFixture>) {
   let n = 0;
   return createGateway({
-    registry: fixture.registry,
+    hosting: fixture.hosting,
     routing: fixture.routing,
     maxRetriesPerModel: 0, // no SDK backoff in tests
     generateExecutionId: () => `exec-${++n}`,
@@ -33,7 +33,7 @@ describe('gateway fallback policy', () => {
     expect(res).toMatchObject({
       agentExecutionId: 'exec-1',
       tier: Reasoning.High,
-      provider: 'openai',
+      endpoint: 'openai',
       modelId: 'o-high',
       attempts: 2,
       containsPhi: false,
@@ -67,7 +67,7 @@ describe('gateway fallback policy', () => {
     const execErr = err as AgentExecutionError;
     expect(execErr.attempts).toBe(1);
     expect(execErr.retryable).toBe(false);
-    expect(execErr.lastProvider).toBe('anthropic');
+    expect(execErr.lastEndpoint).toBe('anthropic');
     expect(execErr.agentExecutionId).toBe('exec-1');
     expect(callCount(fixture, 'o-high')).toBe(0);
     expect(callCount(fixture, 'a-high-2')).toBe(0);
@@ -145,7 +145,7 @@ describe('PHI / BAA routing', () => {
       messages,
     });
 
-    expect(res).toMatchObject({ provider: 'anthropic', modelId: 'a-high-2', attempts: 2, containsPhi: true });
+    expect(res).toMatchObject({ endpoint: 'anthropic', modelId: 'a-high-2', attempts: 2, containsPhi: true });
     expect(callCount(fixture, 'o-high')).toBe(0);
   });
 
@@ -157,7 +157,7 @@ describe('PHI / BAA routing', () => {
       containsPhi: true,
       messages,
     });
-    expect(res).toMatchObject({ provider: 'anthropic', modelId: 'a-med', attempts: 1 });
+    expect(res).toMatchObject({ endpoint: 'anthropic', modelId: 'a-med', attempts: 1 });
     expect(callCount(fixture, 'o-med')).toBe(0);
     expect(callCount(fixture, 'g-med')).toBe(0);
   });
@@ -194,7 +194,7 @@ describe('task PHI policy', () => {
       containsPhi: false,
       messages,
     });
-    expect(res).toMatchObject({ provider: 'anthropic', modelId: 'a-high-2', containsPhi: true });
+    expect(res).toMatchObject({ endpoint: 'anthropic', modelId: 'a-high-2', containsPhi: true });
     expect(callCount(fixture, 'o-high')).toBe(0);
   });
 
@@ -261,6 +261,6 @@ describe('structured output', () => {
     });
     const code: string = res.output.code;
     expect(code).toBe('43239');
-    expect(res).toMatchObject({ agentExecutionId: 'exec-1', provider: 'anthropic', attempts: 1 });
+    expect(res).toMatchObject({ agentExecutionId: 'exec-1', endpoint: 'anthropic', attempts: 1 });
   });
 });

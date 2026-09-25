@@ -232,6 +232,8 @@ flowchart LR
     GW -.-> AuditL["@repo/audit event<br/>(no PHI payload)"]
 ```
 
+Model configuration (tiers, tasks, logical models, routing profiles, hosting targets for vendor API / Azure / AWS) is documented with diagrams in [`packages/agents/README.md`](../../packages/agents/README.md).
+
 Agents (task types to add to routing config): `hp_intake`, `procedure_note`, `discharge_instructions`, `referral_letter`, `coding_suggest`, `pathology_reconcile`, `surveillance_interval` (P3). Rules:
 - **Deterministic first, LLM second** for coding: the rules engine decides CPT/modifiers where rules are clear; the LLM proposes only where judgement is needed and must cite evidence resource IDs.
 - Every agent has an offline eval set (de-identified/synthetic) run in CI; regression blocks release (fits the staging fixture strategy in the environments ADR).

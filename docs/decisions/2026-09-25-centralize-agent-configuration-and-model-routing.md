@@ -74,3 +74,14 @@ The per-provider `constants.ts` + `catalog.ts` pair and the string-keyed routing
 - `config/routing.ts` — `ROUTING_PROFILES` (`default`, `budget`) map each tier to `ModelRef` objects (`Models.anthropic.opus55`), so provider/model mismatches cannot compile. Replaces `ROUTING_TABLE`.
 - `config/validate.ts` — `validateAgentConfig()` (run in tests) rejects empty tiers, routed deprecated models, duplicates, and PHI-capable tiers without a BAA model.
 - Gateway calls take `task` + optional `reasoning` override instead of `taskType` + required `complexity`.
+
+## Amendment 3 (2026-09-25): separate WHAT (models) from WHERE (hosting targets)
+
+A model's API id and its BAA coverage depend on where it is served (vendor API, AWS Bedrock, Azure), not on the model itself. `config/providers/*` is replaced by:
+
+- `config/models.ts` — logical models only (`Models.claudeOpus55`: vendor, label, description). No API ids.
+- `config/hosting/<target>.ts` — a hosting target lists endpoints (`baa`, SDK adapter) and binds each logical model it serves to an endpoint + model id / deployment name. `direct` (vendor APIs) is implemented; Azure/AWS are added as factories when production's cloud is chosen.
+- Routing profiles stay hosting-independent; the router skips models the active target does not host, and applies the BAA filter per endpoint.
+- The app selects the target from its parsed env and passes `createGateway({ hosting })`; `validateAgentConfig()` checks every routing profile against every registered target.
+- Audit metadata reports `hostingTarget`, `endpoint`, `modelName`, `modelId`.
+
