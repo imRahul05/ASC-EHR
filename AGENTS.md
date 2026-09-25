@@ -9,6 +9,7 @@ Read this before writing any code. The sole purpose of this monorepo is **centra
 4. **SINGLE SOURCE OF TRUTH:** `/packages` is the center. `/apps` simply consume from `/packages`.
 5. **CENTRALIZED CONFIGURATION (NO ENV FOR CONSTANTS):** Do not scatter configuration strings (like LLM model names, feature flags, or non-sensitive settings) across files or hide them in `.env`. Put them in a centralized exported config directory (e.g., `packages/agents/src/config/`). This ensures easy maintenance and allows the frontend to import the config.
 6. **RESPECT ARCHITECTURE DECISIONS:** Always read the Architecture Decision Records (ADRs) in `docs/decisions/` before making architectural changes or creating new agent workflows. When you make an architectural decision, use the `adr-skill` to create a new ADR.
+7. **COMPLIANCE & PHI HANDLING:** Never expose or log raw Protected Health Information (PHI). All data access must be audit-logged, and all code must adhere to HIPAA and SOC 2 standards. Read the full guidelines at [`docs/COMPLIANCE_AND_PHI.md`](./docs/COMPLIANCE_AND_PHI.md).
 
 *See `docs/ARCHITECTURE.md` for the architectural diagram and breakdown.*
 
