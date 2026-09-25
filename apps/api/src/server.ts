@@ -1,3 +1,7 @@
+import { initTelemetry } from "@repo/telemetry";
+// Initialize telemetry before anything else
+initTelemetry("api");
+
 import { buildApp } from "./app.js";
 
 const PORT = Number(process.env["PORT"] ?? 4000);
@@ -9,7 +13,7 @@ async function start() {
   try {
     await app.listen({ port: PORT, host: HOST });
   } catch (err) {
-    app.log.error(err);
+    app.log.error({ err }, "Failed to start server");
     process.exit(1);
   }
 }

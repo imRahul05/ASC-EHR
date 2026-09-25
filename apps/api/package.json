@@ -11,9 +11,12 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
+    "@repo/audit": "workspace:*",
+    "@repo/config": "workspace:*",
+    "@repo/logger": "workspace:*",
+    "@repo/telemetry": "workspace:*",
     "@repo/types": "workspace:*",
     "@repo/validation": "workspace:*",
-    "@repo/config": "workspace:*",
     "fastify": "^5.3.3",
     "fastify-sse-v2": "^4.0.0",
     "zod": "^3.25.67"
