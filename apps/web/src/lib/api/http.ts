@@ -1,101 +1,115 @@
-export interface HttpErrorDetails {
+import axios, {
+  type AxiosInstance,
+  type AxiosRequestConfig,
+  type AxiosResponse,
+  isAxiosError,
+} from "axios";
+
+export interface ApiErrorPayload {
+  readonly message?: string;
+  readonly code?: string;
+  readonly details?: Record<string, string>;
+}
+
+export interface ApiErrorDetails {
   readonly status: number;
   readonly message: string;
   readonly code?: string;
+  readonly details?: Record<string, string>;
 }
 
-export class HttpClientError extends Error {
+export class ApiError extends Error {
   readonly status: number;
   readonly code?: string;
+  readonly details?: Record<string, string>;
 
-  constructor(details: HttpErrorDetails) {
-    super(details.message);
-    this.name = "HttpClientError";
-    this.status = details.status;
-    this.code = details.code;
+  constructor(error: ApiErrorDetails) {
+    super(error.message);
+    this.name = "ApiError";
+    this.status = error.status;
+    this.code = error.code;
+    this.details = error.details;
   }
 }
 
-interface HttpRequestOptions {
-  readonly headers?: Record<string, string>;
-  readonly params?: Record<string, string | number | boolean>;
-  readonly signal?: AbortSignal;
-}
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
-
-async function request<TResponse>(
-  endpoint: string,
-  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
-  body?: Record<string, string | number | boolean | object | undefined>,
-  options: HttpRequestOptions = {}
-): Promise<TResponse> {
-  const url = new URL(endpoint.startsWith("http") ? endpoint : `${BASE_URL}${endpoint}`, "http://localhost:3000");
-
-  if (options.params) {
-    Object.entries(options.params).forEach(([key, val]) => {
-      url.searchParams.append(key, String(val));
-    });
-  }
-
-  const defaultHeaders: Record<string, string> = {
+const apiClient: AxiosInstance = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL ?? "",
+  timeout: 15000,
+  headers: {
     "Content-Type": "application/json",
     Accept: "application/json",
-  };
+  },
+});
 
-  const response = await fetch(url.toString(), {
-    method,
-    headers: { ...defaultHeaders, ...options.headers },
-    body: body ? JSON.stringify(body) : undefined,
-    signal: options.signal,
-  });
+// Response interceptor to normalize errors into ApiError
+apiClient.interceptors.response.use(
+  (response: AxiosResponse) => response,
+  (error: Error) => {
+    if (isAxiosError<ApiErrorPayload>(error)) {
+      const status = error.response?.status ?? 500;
+      const data = error.response?.data;
+      const message =
+        data?.message ??
+        error.message ??
+        "An unexpected network or server error occurred.";
 
-  if (!response.ok) {
-    let errorMessage = `HTTP Error: ${response.status} ${response.statusText}`;
-    try {
-      const errorJson = (await response.json()) as { message?: string; code?: string };
-      if (errorJson.message) {
-        errorMessage = errorJson.message;
-      }
-    } catch {
-      // Fallback to status text
+      return Promise.reject(
+        new ApiError({
+          status,
+          message,
+          code: data?.code ?? error.code,
+          details: data?.details,
+        })
+      );
     }
 
-    throw new HttpClientError({
-      status: response.status,
-      message: errorMessage,
-    });
+    return Promise.reject(
+      new ApiError({
+        status: 500,
+        message: error.message || "An unexpected error occurred.",
+      })
+    );
   }
-
-  return (await response.json()) as TResponse;
-}
+);
 
 export const http = {
-  get<T>(endpoint: string, options?: HttpRequestOptions): Promise<T> {
-    return request<T>(endpoint, "GET", undefined, options);
+  async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    const response = await apiClient.get<T>(url, config);
+    return response.data;
   },
-  post<T>(
-    endpoint: string,
-    body: Record<string, string | number | boolean | object | undefined>,
-    options?: HttpRequestOptions
+
+  async post<T, D = Record<string, string | number | boolean | object | undefined>>(
+    url: string,
+    data?: D,
+    config?: AxiosRequestConfig
   ): Promise<T> {
-    return request<T>(endpoint, "POST", body, options);
+    const response = await apiClient.post<T>(url, data, config);
+    return response.data;
   },
-  put<T>(
-    endpoint: string,
-    body: Record<string, string | number | boolean | object | undefined>,
-    options?: HttpRequestOptions
+
+  async put<T, D = Record<string, string | number | boolean | object | undefined>>(
+    url: string,
+    data?: D,
+    config?: AxiosRequestConfig
   ): Promise<T> {
-    return request<T>(endpoint, "PUT", body, options);
+    const response = await apiClient.put<T>(url, data, config);
+    return response.data;
   },
-  patch<T>(
-    endpoint: string,
-    body: Record<string, string | number | boolean | object | undefined>,
-    options?: HttpRequestOptions
+
+  async patch<T, D = Record<string, string | number | boolean | object | undefined>>(
+    url: string,
+    data?: D,
+    config?: AxiosRequestConfig
   ): Promise<T> {
-    return request<T>(endpoint, "PATCH", body, options);
+    const response = await apiClient.patch<T>(url, data, config);
+    return response.data;
   },
-  delete<T>(endpoint: string, options?: HttpRequestOptions): Promise<T> {
-    return request<T>(endpoint, "DELETE", undefined, options);
+
+  async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    const response = await apiClient.delete<T>(url, config);
+    return response.data;
   },
+
+  /** Direct access to underlying AxiosInstance if custom interceptors or config are required */
+  client: apiClient,
 };
