@@ -27,8 +27,9 @@ Before executing a task, classify it to determine the right approach:
 ## 5. Plan Generation
 For any non-trivial task:
 1. Write out the plan in a `<scratchpad>` or `artifact`.
-2. Review the plan against `docs/agent/architecture.md` and `docs/COMPLIANCE_AND_PHI.md`.
-3. Iterate on the plan if dependencies or boundaries are violated.
+2. **Dependency Matrix**: You MUST include an explicit Dependency Matrix in your plan showing which tasks block other tasks (e.g., Task A blocks Task B & C).
+3. Review the plan against `docs/agent/architecture.md` and `docs/COMPLIANCE_AND_PHI.md`.
+4. Iterate on the plan if dependencies or boundaries are violated.
 
 ## 6. Confirmation vs. Autonomous/Auto Mode
 - **Confirmation**: If a step involves irreversible actions (e.g., database schema drops, deleting files) or ambiguous architectural choices, ask the user for confirmation first.
