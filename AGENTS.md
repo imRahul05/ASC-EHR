@@ -32,3 +32,8 @@ To keep this file intentionally minimal and extensible, all detailed guidance, r
 **Consult when:** Executing long-running or multi-step tasks to maintain a clean git history.
 👉 [Read Incremental Commits Guide](docs/agent/incremental-commits.md)
 *(Covers atomic commits, proactive checkpointing, and commit hygiene).*
+
+### 7. Product Requirements & Target Architecture (GI ASC)
+**Consult when:** Building any clinical feature, choosing between Medplum / MindScript reuse / new code, or modelling FHIR data.
+👉 [Read Product Requirements & Architecture](docs/product/README.md)
+*(Covers phased requirements, build/reuse/Medplum matrix, target architecture, end-to-end Mermaid flows, delivery plan).*

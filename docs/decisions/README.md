@@ -23,3 +23,4 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 - [Adopt Vercel AI SDK for Agent Orchestration](2026-09-25-adopt-vercel-ai-sdk-for-agent-orchestration.md) (accepted, 2026-09-25)
 - [Centralize Agent Configuration and Model Routing](2026-09-25-centralize-agent-configuration-and-model-routing.md) (accepted, 2026-09-25)
 - [Multi-Environment Lifecycle and Deployment Strategy](2026-09-25-environment-lifecycle-and-deployment-strategy.md) (accepted, 2026-09-25)
+- [Adopt Medplum as the clinical data platform](2026-09-25-adopt-medplum-as-clinical-data-platform.md) (proposed, 2026-09-25)
