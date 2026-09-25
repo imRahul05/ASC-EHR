@@ -28,3 +28,7 @@ To keep this file intentionally minimal and extensible, all detailed guidance, r
 ### 5. Architectural Decisions (ADRs)
 **Consult when:** You need historical context on why a technical decision was made.
 👉 [Browse ADRs](docs/decisions/README.md)
+### 6. Incremental Commits & Checkpoints
+**Consult when:** Executing long-running or multi-step tasks to maintain a clean git history.
+👉 [Read Incremental Commits Guide](docs/agent/incremental-commits.md)
+*(Covers atomic commits, proactive checkpointing, and commit hygiene).*
