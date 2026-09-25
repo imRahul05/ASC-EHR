@@ -10,6 +10,7 @@ Read this before writing any code. The sole purpose of this monorepo is **centra
 5. **CENTRALIZED CONFIGURATION (NO ENV FOR CONSTANTS):** Do not scatter configuration strings (like LLM model names, feature flags, or non-sensitive settings) across files or hide them in `.env`. Put them in a centralized exported config directory (e.g., `packages/agents/src/config/`). This ensures easy maintenance and allows the frontend to import the config.
 6. **RESPECT ARCHITECTURE DECISIONS:** Always read the Architecture Decision Records (ADRs) in `docs/decisions/` before making architectural changes or creating new agent workflows. When you make an architectural decision, use the `adr-skill` to create a new ADR.
 7. **COMPLIANCE & PHI HANDLING:** Never expose or log raw Protected Health Information (PHI). All data access must be audit-logged, and all code must adhere to HIPAA and SOC 2 standards. Read the full guidelines at [`docs/COMPLIANCE_AND_PHI.md`](../COMPLIANCE_AND_PHI.md).
+8. **LOGGING, OBSERVABILITY & AUDIT:** Never use `console.log` for application logs or initialize Pino directly. You MUST use `@repo/logger` for logging, `@repo/telemetry` for tracing, and `@repo/audit` for security events. Read the architecture plan at [`docs/plan/logging-observability-audit.md`](../plan/logging-observability-audit.md) and strict rules in [`docs/COMPLIANCE_AND_PHI.md`](../COMPLIANCE_AND_PHI.md).
 
 *See `docs/ARCHITECTURE.md` for the architectural diagram and breakdown.*
 

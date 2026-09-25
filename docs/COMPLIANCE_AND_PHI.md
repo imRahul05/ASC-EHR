@@ -21,15 +21,35 @@ SOC 2 is an auditing procedure that ensures service providers securely manage da
 *   **Change Management**: Code changes must go through a documented review process (PRs, automated tests, compliance checks).
 *   **Availability & Security**: Implement rate limiting, monitoring, and alerts to prevent DDoS and ensure system availability and data integrity.
 
-## 3. PHI Audit Logging Requirements
+## 3. The 3-Layer Logging and Observability Architecture
 
-Audit logs are required to track *who* accessed *what* data, *when*, and *why*.
+**CRITICAL RULE FOR AI AGENTS:** You must strictly follow this architecture whenever you write code involving logging, tracing, or auditing. Do not initialize raw loggers or reinvent these layers.
+
+### Layer 1: Application Logging (`@repo/logger`)
+*   **Rule**: NEVER initialize Pino directly in apps or use `console.log` for application events.
+*   **Action**: Always use the shared `@repo/logger` package.
+*   **Why**: The shared logger is pre-configured with PHI-redaction rules and environment-specific formatting (e.g., `pino-pretty` in dev, structured JSON in prod).
+*   **How**: `import { logger } from "@repo/logger";`
+
+### Layer 2: Observability / Telemetry (`@repo/telemetry`)
+*   **Rule**: Application telemetry (OpenTelemetry) must remain separate from normal application logging.
+*   **Action**: Use `@repo/telemetry` for distributed tracing.
+*   **Why**: The custom telemetry processor (`RedactingSpanProcessor`) ensures PHI-redaction rules are applied to all span attributes and metadata before leaving the system.
+
+### Layer 3: Durable Audit Trail (`@repo/audit`)
+*   **Rule**: Application logs are NOT the compliance audit trail.
+*   **Action**: Use `@repo/audit` to record all security and business events.
+*   **Why**: We must track *who* (user, system, agent) did *what*, *when*, and *why* in a durable, queryable format without storing raw PHI.
+*   **How**: `import { auditClient } from "@repo/audit";`
+
+## 4. PHI Audit Logging Requirements
+
+Audit logs track security and business actions. 
 
 ### Rules for Agents and Developers:
-*   **Log Everything**: Every read and write operation involving PHI must generate an audit log entry.
-*   **Do NOT Log the PHI Itself**: The audit log should contain metadata (e.g., Patient ID, User ID, Action Type, Timestamp, IP Address) but MUST NOT contain the actual sensitive data (e.g., do not log "User viewed diagnosis: Cancer", log "User viewed diagnosis for Patient: 12345").
-*   **Immutable Logs**: Audit logs must be tamper-proof or written to an append-only store.
-*   **Agent Workflows**: When an AI agent performs an action on behalf of a user or the system, the audit log must reflect both the triggering user and the AI agent involved.
+*   **Log Everything**: Every read and write operation involving PHI must generate an audit log entry via `auditClient`.
+*   **Do NOT Log the PHI Itself**: The audit log should contain metadata (`patientId`, `actorId`, `action`, `timestamp`, `outcome`, `agentExecutionId`) but MUST NOT contain the actual sensitive data (e.g., do not log "User viewed diagnosis: Cancer", log "User viewed diagnosis for Patient: 12345").
+*   **Agent Workflows**: When an AI agent performs an action on behalf of a user or the system, the audit log must reflect both the triggering user and the AI agent involved by providing the `agentExecutionId`.
 
 ---
-**Summary for AI Agents**: If you are writing logging logic, error handling, or external API calls, you must aggressively redact PHI. If you are modifying the database or an API route, ensure it emits an audit trail event without exposing the underlying patient data.
+**Summary for AI Agents**: If you need to log something for developers, use `@repo/logger`. If you need to record a business/security event, use `@repo/audit`. Never bypass these packages to reinvent logging directly.
