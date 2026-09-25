@@ -4,6 +4,7 @@ import axios, {
   type AxiosResponse,
   isAxiosError,
 } from "axios";
+import { publicEnv } from "@asc/config/public-env";
 
 export interface ApiErrorPayload {
   readonly message?: string;
@@ -33,7 +34,7 @@ export class ApiError extends Error {
 }
 
 const apiClient: AxiosInstance = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL ?? "",
+  baseURL: publicEnv.NEXT_PUBLIC_API_URL,
   timeout: 15000,
   headers: {
     "Content-Type": "application/json",

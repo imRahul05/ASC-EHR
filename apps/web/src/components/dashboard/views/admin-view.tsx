@@ -16,59 +16,41 @@ import {
   TableRow,
 } from "@asc/ui";
 import { useDashboardData } from "../../../hooks/use-dashboard-data";
+import { KpiCard } from "../kpi-card";
 
 export function AdminView() {
-  const { metrics, auditLogs, cases } = useDashboardData();
+  const { metrics, auditLogs, cases, isLoading } = useDashboardData();
 
   return (
     <div className="space-y-6">
       {/* Executive Metrics Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-border/70 shadow-xs">
-          <CardHeader className="p-4 pb-2">
-            <CardDescription className="text-xs">OR Volume Today</CardDescription>
-            <CardTitle className="text-2xl font-bold tracking-tight">
-              {metrics?.totalCasesToday ?? 18} Cases
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0 text-[11px] text-muted-foreground">
-            Endo 1: 10 cases • Endo 2: 8 cases
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/70 shadow-xs">
-          <CardHeader className="p-4 pb-2">
-            <CardDescription className="text-xs">Turnaround Time</CardDescription>
-            <CardTitle className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-500">
-              {metrics?.averageTurnaroundMinutes ?? 11.2} min
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0 text-[11px] text-muted-foreground">
-            Target: &lt; 15 min between scopes
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/70 shadow-xs">
-          <CardHeader className="p-4 pb-2">
-            <CardDescription className="text-xs">Unbilled Hand-Off Queue</CardDescription>
-            <CardTitle className="text-2xl font-bold tracking-tight text-amber-600 dark:text-amber-500">
-              {metrics?.unbilledCasesCount ?? 4} Cases
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0 text-[11px] text-muted-foreground">
-            CPT/ICD-10 charge export pending
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/70 shadow-xs">
-          <CardHeader className="p-4 pb-2">
-            <CardDescription className="text-xs">Block Utilization</CardDescription>
-            <CardTitle className="text-2xl font-bold tracking-tight">89.4%</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0 text-[11px] text-muted-foreground">
-            Surgeon blocks on schedule
-          </CardContent>
-        </Card>
+        <KpiCard
+          label="OR Volume Today"
+          value={`${metrics?.totalCasesToday ?? 0} Cases`}
+          hint="Endo 1: 10 cases • Endo 2: 8 cases"
+          isLoading={isLoading}
+        />
+        <KpiCard
+          label="Turnaround Time"
+          value={`${metrics?.averageTurnaroundMinutes ?? 0} min`}
+          hint="Target: < 15 min between scopes"
+          tone="emerald"
+          isLoading={isLoading}
+        />
+        <KpiCard
+          label="Unbilled Hand-Off Queue"
+          value={`${metrics?.unbilledCasesCount ?? 0} Cases`}
+          hint="CPT/ICD-10 charge export pending"
+          tone="amber"
+          isLoading={isLoading}
+        />
+        <KpiCard
+          label="Block Utilization"
+          value="89.4%"
+          hint="Surgeon blocks on schedule"
+          isLoading={isLoading}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

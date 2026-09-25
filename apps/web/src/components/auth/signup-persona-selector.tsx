@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import Link from "next/link";
+import { useForm, useWatch } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Stethoscope,
   ShieldAlert,
@@ -12,9 +14,9 @@ import {
   Sparkles,
   CheckCircle2,
 } from "lucide-react";
-import { Badge, Button, Card, Input, Label } from "@asc/ui";
+import { Badge, Button, Card, Input, Label, cn } from "@asc/ui";
 import type { UserRole } from "@asc/types";
-import { signupSchema } from "@asc/validation";
+import { signupSchema, type SignupFormData } from "@asc/validation";
 import { useAuth } from "../../hooks/use-auth";
 
 const ROLE_OPTIONS = [
@@ -55,102 +57,83 @@ const ROLE_OPTIONS = [
   },
 ] as const;
 
+/** Demo auto-fill presets per role, kept as data instead of imperative per-field setState calls. */
+const DEMO_PRESETS: Record<UserRole, Partial<SignupFormData>> = {
+  SURGEON: {
+    fullName: "Dr. Marcus Brody, MD",
+    email: "m.brody@gihealth.org",
+    npi: "1829304912",
+    licenseNumber: "MD-772910-FL",
+    specialty: "Advanced Therapeutic Endoscopy",
+    department: "Endoscopy Surgical Suite",
+  },
+  ANESTHESIOLOGIST: {
+    fullName: "Dr. Rachel Kim, MD",
+    email: "r.kim@anesthesiapartners.org",
+    npi: "1948201948",
+    licenseNumber: "MD-881923-FL",
+    specialty: "Sedation & Ambulatory Anesthesia",
+    department: "Anesthesia Care Team",
+  },
+  NURSE: {
+    fullName: "David Miller, BSN, RN",
+    email: "d.miller@gihealth.org",
+    licenseNumber: "RN-901824-FL",
+    careStage: "Intra-op Circulator",
+    department: "Clinical Nursing Staff",
+  },
+  ADMIN: {
+    fullName: "Claire Davenport",
+    email: "c.davenport@gihealth.org",
+    facilityCode: "ASC-FL-991",
+    department: "Surgery Center Management",
+  },
+  PATIENT: {
+    fullName: "Eleanor Vance",
+    email: "eleanor.vance@mail.com",
+    dateOfBirth: "1962-03-15",
+    escortName: "Thomas Vance (Son)",
+    escortPhone: "(555) 442-8901",
+  },
+};
+
+const DEFAULT_PASSWORD = "Password@123";
+
+const DEFAULT_VALUES: SignupFormData = {
+  role: "SURGEON",
+  password: DEFAULT_PASSWORD,
+  ...DEMO_PRESETS.SURGEON,
+} as SignupFormData;
+
 export function SignupPersonaSelector() {
   const { signup, isSigningUp } = useAuth();
-  const [selectedRole, setSelectedRole] = useState<UserRole>("SURGEON");
+  const [formError, setFormError] = useState<string | null>(null);
 
-  // Form State
-  const [fullName, setFullName] = useState("Dr. Marcus Brody, MD");
-  const [email, setEmail] = useState("m.brody@gihealth.org");
-  const [password, setPassword] = useState("Password@123");
-  const [npi, setNpi] = useState("1829304912");
-  const [licenseNumber, setLicenseNumber] = useState("MD-772910-FL");
-  const [specialty, setSpecialty] = useState("Advanced Therapeutic Endoscopy");
-  const [careStage, setCareStage] = useState("PACU Stage 2 Recovery");
-  const [department, setDepartment] = useState("Endoscopy Services");
-  const [facilityCode, setFacilityCode] = useState("ASC-FL-991");
-  const [dateOfBirth, setDateOfBirth] = useState("1975-08-20");
-  const [escortName, setEscortName] = useState("Sarah Brody (Spouse)");
-  const [escortPhone, setEscortPhone] = useState("(555) 789-0123");
+  const {
+    register,
+    handleSubmit,
+    control,
+    reset,
+    getValues,
+    formState: { errors },
+  } = useForm<SignupFormData>({
+    resolver: zodResolver(signupSchema),
+    defaultValues: DEFAULT_VALUES,
+  });
 
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const selectedRole = useWatch({ control, name: "role" });
 
-  const handleFillDemoData = (role: UserRole) => {
-    setSelectedRole(role);
-    setFieldErrors({});
-
-    if (role === "SURGEON") {
-      setFullName("Dr. Marcus Brody, MD");
-      setEmail("m.brody@gihealth.org");
-      setNpi("1829304912");
-      setLicenseNumber("MD-772910-FL");
-      setSpecialty("Advanced Therapeutic Endoscopy");
-      setDepartment("Endoscopy Surgical Suite");
-    } else if (role === "ANESTHESIOLOGIST") {
-      setFullName("Dr. Rachel Kim, MD");
-      setEmail("r.kim@anesthesiapartners.org");
-      setNpi("1948201948");
-      setLicenseNumber("MD-881923-FL");
-      setSpecialty("Sedation & Ambulatory Anesthesia");
-      setDepartment("Anesthesia Care Team");
-    } else if (role === "NURSE") {
-      setFullName("David Miller, BSN, RN");
-      setEmail("d.miller@gihealth.org");
-      setLicenseNumber("RN-901824-FL");
-      setCareStage("Intra-op Circulator");
-      setDepartment("Clinical Nursing Staff");
-    } else if (role === "ADMIN") {
-      setFullName("Claire Davenport");
-      setEmail("c.davenport@gihealth.org");
-      setFacilityCode("ASC-FL-991");
-      setDepartment("Surgery Center Management");
-    } else if (role === "PATIENT") {
-      setFullName("Eleanor Vance");
-      setEmail("eleanor.vance@mail.com");
-      setDateOfBirth("1962-03-15");
-      setEscortName("Thomas Vance (Son)");
-      setEscortPhone("(555) 442-8901");
-    }
+  const handleSelectRole = (role: UserRole) => {
+    reset({ role, password: getValues("password"), ...DEMO_PRESETS[role] });
+    setFormError(null);
   };
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setFieldErrors({});
-
-    const payload = {
-      role: selectedRole,
-      fullName,
-      email,
-      password,
-      npi: selectedRole === "SURGEON" || selectedRole === "ANESTHESIOLOGIST" ? npi : undefined,
-      licenseNumber:
-        selectedRole === "SURGEON" || selectedRole === "ANESTHESIOLOGIST" || selectedRole === "NURSE"
-          ? licenseNumber
-          : undefined,
-      specialty: selectedRole === "SURGEON" || selectedRole === "ANESTHESIOLOGIST" ? specialty : undefined,
-      careStage: selectedRole === "NURSE" ? careStage : undefined,
-      department: selectedRole !== "PATIENT" ? department : undefined,
-      facilityCode: selectedRole === "ADMIN" ? facilityCode : undefined,
-      dateOfBirth: selectedRole === "PATIENT" ? dateOfBirth : undefined,
-      escortName: selectedRole === "PATIENT" ? escortName : undefined,
-      escortPhone: selectedRole === "PATIENT" ? escortPhone : undefined,
-    };
-
-    const parseResult = signupSchema.safeParse(payload);
-    if (!parseResult.success) {
-      const errMap: Record<string, string> = {};
-      parseResult.error.issues.forEach((issue) => {
-        const path = String(issue.path[0]);
-        errMap[path] = issue.message;
-      });
-      setFieldErrors(errMap);
-      return;
-    }
-
+  const onSubmit = async (data: SignupFormData) => {
+    setFormError(null);
     try {
-      await signup(payload);
+      await signup(data);
     } catch {
-      setFieldErrors({ form: "Registration could not be completed. Please try again." });
+      setFormError("Registration could not be completed. Please try again.");
     }
   };
 
@@ -171,7 +154,7 @@ export function SignupPersonaSelector() {
             type="button"
             variant="outline"
             size="xs"
-            onClick={() => handleFillDemoData(selectedRole)}
+            onClick={() => handleSelectRole(selectedRole)}
             className="text-xs gap-1 border-border/80"
           >
             <Sparkles className="h-3 w-3 text-amber-500" />
@@ -186,19 +169,21 @@ export function SignupPersonaSelector() {
             return (
               <Card
                 key={item.role}
-                onClick={() => handleFillDemoData(item.role)}
-                className={`cursor-pointer transition-all border p-3 flex flex-col justify-between ${
+                onClick={() => handleSelectRole(item.role)}
+                className={cn(
+                  "cursor-pointer transition-all border p-3 flex flex-col justify-between",
                   isSelected
                     ? "border-foreground bg-accent/40 shadow-xs ring-1 ring-foreground/20"
                     : "border-border/70 hover:border-foreground/40 bg-card/60"
-                }`}
+                )}
               >
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <div
-                      className={`p-1.5 rounded-md ${
+                      className={cn(
+                        "p-1.5 rounded-md",
                         isSelected ? "bg-foreground text-background" : "bg-muted text-foreground"
-                      }`}
+                      )}
                     >
                       <Icon className="h-4 w-4" />
                     </div>
@@ -225,15 +210,15 @@ export function SignupPersonaSelector() {
       </div>
 
       {/* Role-Specific Form Fields */}
-      <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4 pt-2">
+      <form onSubmit={(e) => void handleSubmit(onSubmit)(e)} className="space-y-4 pt-2">
         <div className="border-t border-border pt-4">
           <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground block mb-3">
             Step 2: Account & Credential Details
           </Label>
 
-          {fieldErrors.form && (
+          {formError && (
             <div className="p-3 mb-4 text-xs rounded-md bg-destructive/10 text-destructive border border-destructive/20">
-              {fieldErrors.form}
+              {formError}
             </div>
           )}
 
@@ -244,13 +229,12 @@ export function SignupPersonaSelector() {
               </Label>
               <Input
                 id="signup-name"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
                 disabled={isSigningUp}
                 className="h-8 text-xs"
+                {...register("fullName")}
               />
-              {fieldErrors.fullName && (
-                <p className="text-[10px] text-destructive">{fieldErrors.fullName}</p>
+              {errors.fullName && (
+                <p className="text-[10px] text-destructive">{errors.fullName.message}</p>
               )}
             </div>
 
@@ -261,13 +245,12 @@ export function SignupPersonaSelector() {
               <Input
                 id="signup-email"
                 type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
                 disabled={isSigningUp}
                 className="h-8 text-xs"
+                {...register("email")}
               />
-              {fieldErrors.email && (
-                <p className="text-[10px] text-destructive">{fieldErrors.email}</p>
+              {errors.email && (
+                <p className="text-[10px] text-destructive">{errors.email.message}</p>
               )}
             </div>
 
@@ -278,13 +261,12 @@ export function SignupPersonaSelector() {
               <Input
                 id="signup-pwd"
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
                 disabled={isSigningUp}
                 className="h-8 text-xs"
+                {...register("password")}
               />
-              {fieldErrors.password && (
-                <p className="text-[10px] text-destructive">{fieldErrors.password}</p>
+              {errors.password && (
+                <p className="text-[10px] text-destructive">{errors.password.message}</p>
               )}
             </div>
 
@@ -297,14 +279,13 @@ export function SignupPersonaSelector() {
                   </Label>
                   <Input
                     id="signup-npi"
-                    value={npi}
                     maxLength={10}
-                    onChange={(e) => setNpi(e.target.value)}
                     disabled={isSigningUp}
                     className="h-8 text-xs font-mono"
+                    {...register("npi")}
                   />
-                  {fieldErrors.npi && (
-                    <p className="text-[10px] text-destructive">{fieldErrors.npi}</p>
+                  {errors.npi && (
+                    <p className="text-[10px] text-destructive">{errors.npi.message}</p>
                   )}
                 </div>
 
@@ -314,13 +295,12 @@ export function SignupPersonaSelector() {
                   </Label>
                   <Input
                     id="signup-license"
-                    value={licenseNumber}
-                    onChange={(e) => setLicenseNumber(e.target.value)}
                     disabled={isSigningUp}
                     className="h-8 text-xs font-mono"
+                    {...register("licenseNumber")}
                   />
-                  {fieldErrors.licenseNumber && (
-                    <p className="text-[10px] text-destructive">{fieldErrors.licenseNumber}</p>
+                  {errors.licenseNumber && (
+                    <p className="text-[10px] text-destructive">{errors.licenseNumber.message}</p>
                   )}
                 </div>
 
@@ -330,10 +310,9 @@ export function SignupPersonaSelector() {
                   </Label>
                   <Input
                     id="signup-spec"
-                    value={specialty}
-                    onChange={(e) => setSpecialty(e.target.value)}
                     disabled={isSigningUp}
                     className="h-8 text-xs"
+                    {...register("specialty")}
                   />
                 </div>
               </>
@@ -348,13 +327,12 @@ export function SignupPersonaSelector() {
                   </Label>
                   <Input
                     id="signup-rn"
-                    value={licenseNumber}
-                    onChange={(e) => setLicenseNumber(e.target.value)}
                     disabled={isSigningUp}
                     className="h-8 text-xs font-mono"
+                    {...register("licenseNumber")}
                   />
-                  {fieldErrors.licenseNumber && (
-                    <p className="text-[10px] text-destructive">{fieldErrors.licenseNumber}</p>
+                  {errors.licenseNumber && (
+                    <p className="text-[10px] text-destructive">{errors.licenseNumber.message}</p>
                   )}
                 </div>
 
@@ -364,13 +342,12 @@ export function SignupPersonaSelector() {
                   </Label>
                   <Input
                     id="signup-carestage"
-                    value={careStage}
-                    onChange={(e) => setCareStage(e.target.value)}
                     disabled={isSigningUp}
                     className="h-8 text-xs"
+                    {...register("careStage")}
                   />
-                  {fieldErrors.careStage && (
-                    <p className="text-[10px] text-destructive">{fieldErrors.careStage}</p>
+                  {errors.careStage && (
+                    <p className="text-[10px] text-destructive">{errors.careStage.message}</p>
                   )}
                 </div>
               </>
@@ -384,13 +361,12 @@ export function SignupPersonaSelector() {
                 </Label>
                 <Input
                   id="signup-fac"
-                  value={facilityCode}
-                  onChange={(e) => setFacilityCode(e.target.value)}
                   disabled={isSigningUp}
                   className="h-8 text-xs font-mono"
+                  {...register("facilityCode")}
                 />
-                {fieldErrors.facilityCode && (
-                  <p className="text-[10px] text-destructive">{fieldErrors.facilityCode}</p>
+                {errors.facilityCode && (
+                  <p className="text-[10px] text-destructive">{errors.facilityCode.message}</p>
                 )}
               </div>
             )}
@@ -405,13 +381,12 @@ export function SignupPersonaSelector() {
                   <Input
                     id="signup-dob"
                     type="date"
-                    value={dateOfBirth}
-                    onChange={(e) => setDateOfBirth(e.target.value)}
                     disabled={isSigningUp}
                     className="h-8 text-xs"
+                    {...register("dateOfBirth")}
                   />
-                  {fieldErrors.dateOfBirth && (
-                    <p className="text-[10px] text-destructive">{fieldErrors.dateOfBirth}</p>
+                  {errors.dateOfBirth && (
+                    <p className="text-[10px] text-destructive">{errors.dateOfBirth.message}</p>
                   )}
                 </div>
 
@@ -421,14 +396,13 @@ export function SignupPersonaSelector() {
                   </Label>
                   <Input
                     id="signup-escort-name"
-                    value={escortName}
                     placeholder="Name of adult accompanying patient"
-                    onChange={(e) => setEscortName(e.target.value)}
                     disabled={isSigningUp}
                     className="h-8 text-xs"
+                    {...register("escortName")}
                   />
-                  {fieldErrors.escortName && (
-                    <p className="text-[10px] text-destructive">{fieldErrors.escortName}</p>
+                  {errors.escortName && (
+                    <p className="text-[10px] text-destructive">{errors.escortName.message}</p>
                   )}
                 </div>
 
@@ -438,14 +412,13 @@ export function SignupPersonaSelector() {
                   </Label>
                   <Input
                     id="signup-escort-phone"
-                    value={escortPhone}
                     placeholder="(555) 000-0000"
-                    onChange={(e) => setEscortPhone(e.target.value)}
                     disabled={isSigningUp}
                     className="h-8 text-xs"
+                    {...register("escortPhone")}
                   />
-                  {fieldErrors.escortPhone && (
-                    <p className="text-[10px] text-destructive">{fieldErrors.escortPhone}</p>
+                  {errors.escortPhone && (
+                    <p className="text-[10px] text-destructive">{errors.escortPhone.message}</p>
                   )}
                 </div>
               </>

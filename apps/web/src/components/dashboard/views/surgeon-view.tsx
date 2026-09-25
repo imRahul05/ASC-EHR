@@ -17,59 +17,42 @@ import {
   TableRow,
 } from "@asc/ui";
 import { useDashboardData } from "../../../hooks/use-dashboard-data";
+import { KpiCard } from "../kpi-card";
 
 export function SurgeonView() {
-  const { cases, metrics, updateCaseStatus } = useDashboardData();
+  const { cases, metrics, isLoading, updateCaseStatus } = useDashboardData();
 
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-border/70 shadow-xs">
-          <CardHeader className="p-4 pb-2">
-            <CardDescription className="text-xs">Today's Assigned Slate</CardDescription>
-            <CardTitle className="text-2xl font-bold tracking-tight">{cases.length} Cases</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0 text-[11px] text-muted-foreground">
-            Endo Suite 1 & 2 • Colonoscopy & EGD
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/70 shadow-xs">
-          <CardHeader className="p-4 pb-2">
-            <CardDescription className="text-xs">Pending Operative Notes</CardDescription>
-            <CardTitle className="text-2xl font-bold tracking-tight text-amber-600 dark:text-amber-500">
-              {metrics?.pendingSignatures ?? 3} Awaiting
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0 text-[11px] text-muted-foreground">
-            Attestation & signature required
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/70 shadow-xs">
-          <CardHeader className="p-4 pb-2">
-            <CardDescription className="text-xs">Adenoma Detection Rate</CardDescription>
-            <CardTitle className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-500">
-              {metrics?.adenomaDetectionRate ?? 38.6}%
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0 text-[11px] text-muted-foreground">
-            Target benchmark: &gt; 25% (Quality Passing)
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/70 shadow-xs">
-          <CardHeader className="p-4 pb-2">
-            <CardDescription className="text-xs">Cecal Intubation Rate</CardDescription>
-            <CardTitle className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-500">
-              {metrics?.cecalIntubationRate ?? 98.4}%
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0 text-[11px] text-muted-foreground">
-            Target benchmark: &gt; 95% photo-verified
-          </CardContent>
-        </Card>
+        <KpiCard
+          label="Today's Assigned Slate"
+          value={`${cases.length} Cases`}
+          hint="Endo Suite 1 & 2 • Colonoscopy & EGD"
+          isLoading={isLoading}
+        />
+        <KpiCard
+          label="Pending Operative Notes"
+          value={`${metrics?.pendingSignatures ?? 0} Awaiting`}
+          hint="Attestation & signature required"
+          tone="amber"
+          isLoading={isLoading}
+        />
+        <KpiCard
+          label="Adenoma Detection Rate"
+          value={`${metrics?.adenomaDetectionRate ?? 0}%`}
+          hint="Target benchmark: > 25% (Quality Passing)"
+          tone="emerald"
+          isLoading={isLoading}
+        />
+        <KpiCard
+          label="Cecal Intubation Rate"
+          value={`${metrics?.cecalIntubationRate ?? 0}%`}
+          hint="Target benchmark: > 95% photo-verified"
+          tone="emerald"
+          isLoading={isLoading}
+        />
       </div>
 
       {/* Procedure Schedule Table */}
