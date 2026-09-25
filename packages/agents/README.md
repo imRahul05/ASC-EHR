@@ -2,6 +2,8 @@
 
 Single entry point for every LLM call: agent definitions, model configuration, routing, hosting (vendor APIs / Azure / later AWS), PHI/BAA enforcement, fallback, and audit. `apps/api` and `apps/worker` both use it, so there is exactly one place to change models or agents.
 
+> **New here?** Start with the workflow guide [`docs/agent/ai-agents-guide.md`](../../docs/agent/ai-agents-guide.md) — which path to take, step-by-step recipes, rules and troubleshooting. This README is the detailed package reference.
+
 Three layers, each depending only on the ones below it:
 
 | Layer | Answers | Folder |
