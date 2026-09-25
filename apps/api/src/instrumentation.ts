@@ -3,6 +3,6 @@
  * so OpenTelemetry is registered BEFORE Fastify or any other module loads.
  * ESM hoists static imports, so this cannot live at the top of server.ts.
  */
-import { initTelemetry } from "@repo/telemetry";
+import { initTelemetry } from "@asc/telemetry";
 
 initTelemetry("api");

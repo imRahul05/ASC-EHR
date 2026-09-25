@@ -1,6 +1,6 @@
 // Browser/Server shared fetch client to consume the fastify API
-import { getPublicApiUrl } from "@repo/config/public-env";
-import { healthResponseSchema, type HealthResponse } from "@repo/validation";
+import { getPublicApiUrl } from "@asc/config/public-env";
+import { healthResponseSchema, type HealthResponse } from "@asc/validation";
 
 export type { HealthResponse };
 

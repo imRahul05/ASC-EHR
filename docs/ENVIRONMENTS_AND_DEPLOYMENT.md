@@ -9,8 +9,8 @@ This document provides a comprehensive analysis and operational roadmap for mana
 ### Current State Assessment
 - **Current Suitability Score: ~30%**
 - **What is already suited**:
-  - **Turborepo Monorepo Architecture**: Clean separation between `apps/web` (Next.js), `apps/api` (Fastify), `apps/worker` (BullMQ), and shared packages (`@repo/agents`, `@repo/config`, `@repo/types`, `@repo/validation`).
-  - **Centralized Model Routing**: The agent package (`@repo/agents`) already routes model invocations through a centralized catalog and gateway, making it possible to plug in environment-aware routing rules in a single place.
+  - **Turborepo Monorepo Architecture**: Clean separation between `apps/web` (Next.js), `apps/api` (Fastify), `apps/worker` (BullMQ), and shared packages (`@asc/agents`, `@asc/config`, `@asc/types`, `@asc/validation`).
+  - **Centralized Model Routing**: The agent package (`@asc/agents`) already routes model invocations through a centralized catalog and gateway, making it possible to plug in environment-aware routing rules in a single place.
 - **What is missing / unsuited today**:
   - **No Environment Selectability**: No centralized runtime configuration or environment variable validator. The applications rely on unstructured `process.env["PORT"]` without type safety or missing-variable checks.
   - **No LLM Cost Controls for Staging/Testing**: The agents currently invoke live frontier models (Claude Opus 5.5, GPT-6 Astra, Gemini 3.8 Flash). Running automated regression tests or end-to-end user testing in Staging with these models will lead to high costs and potential rate limiting.
@@ -100,8 +100,8 @@ flowchart LR
 
 To make environment selection seamless and foolproof across local machines, CI/CD, and production servers, follow this four-tier strategy:
 
-### 1. Unified Environment Variable Schema (`@repo/config/env`)
-Create a single source of truth for environment validation using Zod in `@repo/config`:
+### 1. Unified Environment Variable Schema (`@asc/config/env`)
+Create a single source of truth for environment validation using Zod in `@asc/config`:
 
 ```typescript
 // packages/config/src/env.ts
@@ -136,13 +136,13 @@ In Node.js 20+, load environment files natively without extra dependencies:
 node --env-file=.env.staging --import ./dist/instrumentation.js dist/server.js
 ```
 
-### 3. Environment-Aware Agent Routing in `@repo/agents`
+### 3. Environment-Aware Agent Routing in `@asc/agents`
 Select a routing profile when creating the gateway:
 
 ```typescript
 // Routing profiles live in packages/agents/src/config/routing.ts (`default`, `budget`).
-// The app picks one from its parsed env config; @repo/agents never reads process.env.
-import { createAzureHosting, createGateway, directHosting } from '@repo/agents';
+// The app picks one from its parsed env config; @asc/agents never reads process.env.
+import { createAzureHosting, createGateway, directHosting } from '@asc/agents';
 
 const gateway = createGateway({
   routingProfile: env.USE_BUDGET_MODELS ? 'budget' : 'default',
@@ -225,7 +225,7 @@ sequenceDiagram
 
 To transition from the current basic setup to a production-ready multi-environment setup:
 
-- [ ] **Step 1: Environment Schema (`@repo/config`)**: Implement Zod-based environment schema to validate `APP_ENV`, ports, Redis URLs, and API keys.
+- [ ] **Step 1: Environment Schema (`@asc/config`)**: Implement Zod-based environment schema to validate `APP_ENV`, ports, Redis URLs, and API keys.
 - [ ] **Step 2: Environment Templates**: Add `.env.staging.example` and `.env.production.example` to `apps/api`, `apps/worker`, and `apps/web`.
 - [ ] **Step 3: Staging Fast-Fail Checks**: Ensure `apps/api` and `apps/worker` crash on startup if required keys for that environment are missing.
 - [ ] **Step 4: AI SDK Mocking Suite**: Set up test fixtures in `packages/agents` for zero-cost automated tests.

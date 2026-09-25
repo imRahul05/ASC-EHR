@@ -14,7 +14,7 @@
  *     fail immediately so a request is never fanned out to extra vendors.
  *   • Audit traceability: every call gets an `agentExecutionId` and reports
  *     which hosting target / endpoint / model served it and how many models were attempted.
- *     Callers write this metadata to @repo/audit.
+ *     Callers write this metadata to @asc/audit.
  *   • Prompts and outputs are NEVER logged here.
  *
  * ADR: docs/decisions/2026-09-25-adopt-vercel-ai-sdk-for-agent-orchestration.md

@@ -3,13 +3,13 @@
  * as closed enums / numbers / booleans. No names, DOB, MRN, addresses or free
  * text, and `.strict()` rejects any extra field, so identifiers cannot slip in.
  *
- * Lives here, not in @repo/validation: only the server (apps/api / apps/worker)
+ * Lives here, not in @asc/validation: only the server (apps/api / apps/worker)
  * builds it from the procedure record, and keeping it beside `buildMessages`
  * keeps this agent's PHI boundary reviewable in one folder. The OUTPUT schema
- * is shared with the web app and lives in @repo/validation.
+ * is shared with the web app and lives in @asc/validation.
  */
 
-import { patientLanguageSchema } from '@repo/validation';
+import { patientLanguageSchema } from '@asc/validation';
 import { z } from 'zod';
 
 const procedureSchema = z.enum(['colonoscopy', 'egd', 'flexible-sigmoidoscopy']);

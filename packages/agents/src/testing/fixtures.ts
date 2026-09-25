@@ -7,7 +7,7 @@
 import { APICallError } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
 
-import type { AuditEventInput } from '@repo/audit';
+import type { AuditEventInput } from '@asc/audit';
 import { z } from 'zod';
 
 import {

@@ -1,5 +1,5 @@
 /**
- * Public API of @repo/agents. Internals (fixtures, eval cases, router
+ * Public API of @asc/agents. Internals (fixtures, eval cases, router
  * building blocks) are intentionally not exported.
  */
 

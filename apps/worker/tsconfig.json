@@ -1,5 +1,5 @@
 {
-  "extends": "@repo/typescript-config/node.json",
+  "extends": "@asc/typescript-config/node.json",
   "compilerOptions": {
     "noEmit": true,
     "rootDir": "src",

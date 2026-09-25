@@ -44,7 +44,7 @@ flowchart LR
 **Five decisions this doc recommends** (details in the linked sections):
 
 1. **Medplum self-hosted on Azure is the system of record** (FHIR R4). Our Fastify API becomes a thin *command* layer for GI domain logic; reads go straight to Medplum under the user's token. → [ADR](../decisions/2026-09-25-adopt-medplum-as-clinical-data-platform.md)
-2. **UI stays on `@repo/ui` (shadcn/Base UI)** using headless `@medplum/react-hooks` + `@medplum/core`. `@medplum/react` (Mantine) is allowed only in internal admin tooling; the Medplum App is our Phase-1 admin console.
+2. **UI stays on `@asc/ui` (shadcn/Base UI)** using headless `@medplum/react-hooks` + `@medplum/core`. `@medplum/react` (Mantine) is allowed only in internal admin tooling; the Medplum App is our Phase-1 admin console.
 3. **Forms are data, not code.** H&P, nursing, time-out, Aldrete, consent, VTE, adverse event = FHIR `Questionnaire`s rendered by one renderer we build once; extraction to `Observation`s via Bots.
 4. **One worklist engine = FHIR `Task`.** Sign Queue, Recovery Queue (pathology), prep escalation, eligibility failures, outstanding specimens all are `Task`s auto-created/resolved by Bots.
 5. **Move three items into Phase 1** that the spec had left out or later: *scope reprocessing log*, *basic adverse-event reporting*, *auto-fax of referring letter* (the letter is generated anyway; MindScript fax pipeline exists).

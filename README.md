@@ -22,12 +22,12 @@ flowchart TD
     end
 
     subgraph SharedPackages ["Shared Packages"]
-        UI["@repo/ui<br/>Tailwind v4 + shadcn Base UI"]:::packageUI
-        APIClient["@repo/api-client<br/>Fetch wrapper"]:::packageCore
-        Types["@repo/types<br/>Shared TS Interfaces"]:::packageCore
-        Validation["@repo/validation<br/>Zod Schemas"]:::packageCore
-        Config["@repo/config<br/>Constants"]:::packageCore
-        Agents["@repo/agents<br/>AI SDK Agents"]:::packageAI
+        UI["@asc/ui<br/>Tailwind v4 + shadcn Base UI"]:::packageUI
+        APIClient["@asc/api-client<br/>Fetch wrapper"]:::packageCore
+        Types["@asc/types<br/>Shared TS Interfaces"]:::packageCore
+        Validation["@asc/validation<br/>Zod Schemas"]:::packageCore
+        Config["@asc/config<br/>Constants"]:::packageCore
+        Agents["@asc/agents<br/>AI SDK Agents"]:::packageAI
     end
 
     class Apps,SharedPackages container

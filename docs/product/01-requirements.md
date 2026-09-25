@@ -199,7 +199,7 @@ Analytics (quality benchmarking incl. GIQuIC peer view, throughput/turnover/on-t
 | **Offline tolerance** | Anesthesia flowsheet and nursing events queue locally and sync; no silent loss |
 | **Volume sizing (to confirm)** | ~2–4 rooms × 15–30 cases/room/day; ~5 vitals/min × 30 min per sedated case — trivially within Postgres/FHIR scale |
 | **Data retention** | Per state medical-record law + CMS; images retained with record; no hard delete of clinical data |
-| **AI safety** | PHI only to BAA-covered model endpoints through `@repo/agents`; every AI output is a draft; Provenance + `agentExecutionId` on every AI-touched resource; eval suite per agent (note, coding) gated in CI |
+| **AI safety** | PHI only to BAA-covered model endpoints through `@asc/agents`; every AI output is a draft; Provenance + `agentExecutionId` on every AI-touched resource; eval suite per agent (note, coding) gated in CI |
 | **Multi-site readiness** | Every resource tagged to an `Organization` (facility) from day one |
 | **Accessibility** | WCAG 2.2 AA for staff and patient UIs |
 
@@ -213,5 +213,5 @@ Analytics (quality benchmarking incl. GIQuIC peer view, throughput/turnover/on-t
 | C2 | Map lists a **Claims Engine** (submission, status, denials); spec defers full RCM to P3 | Keep P3. P1 = export only (M09-5) |
 | C3 | Map-only rows (scope reprocessing, infection control, audit reports, VTE, prior auth, estimates, credentialing, document mgmt, roles UI) had no phase | Phased above; scope reprocessing + adverse event pulled into P1 |
 | C4 | Spec-only rows (image capture, device-integrated AIMS, PACU, duplicate detection, MFA/backup, CAHPS, kiosk, preference cards, interop, eCW bridge) missing from map | Added to [appendix](appendix-feature-traceability.md) as supplemental rows |
-| C5 | `docs/COMPLIANCE_AND_PHI.md` says "never include PHI in AI prompts" — incompatible with an AI scribe | Amend to: *PHI may go only to BAA-covered endpoints via the `@repo/agents` gateway, minimum necessary; never to non-BAA providers or logs.* Routing config must mark providers `baa: true/false` and refuse PHI tasks on non-BAA models |
+| C5 | `docs/COMPLIANCE_AND_PHI.md` says "never include PHI in AI prompts" — incompatible with an AI scribe | Amend to: *PHI may go only to BAA-covered endpoints via the `@asc/agents` gateway, minimum necessary; never to non-BAA providers or logs.* Routing config must mark providers `baa: true/false` and refuse PHI tasks on non-BAA models |
 | C6 | Existing ADR (AI SDK) already assumes Medplum FHIR CRUD, but no ADR adopts Medplum | New proposed ADR added |

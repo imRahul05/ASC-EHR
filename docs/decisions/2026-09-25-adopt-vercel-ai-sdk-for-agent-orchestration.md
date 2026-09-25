@@ -19,7 +19,7 @@ We need a standardized orchestration layer that:
 
 We will adopt the **Vercel AI SDK** (`ai`, `@ai-sdk/openai`, `@ai-sdk/anthropic`, `@ai-sdk/google`) as the exclusive foundation for all agent orchestration. 
 
-We will create a centralized gateway in the `@repo/agents` package that handles model routing and encapsulates standard tool executions. Agents will use the `tool` function provided by the SDK to interface securely with Medplum FHIR CRUD operations.
+We will create a centralized gateway in the `@asc/agents` package that handles model routing and encapsulates standard tool executions. Agents will use the `tool` function provided by the SDK to interface securely with Medplum FHIR CRUD operations.
 
 **Non-goals**: We are not adopting complex state machine orchestrators (like LangGraph) for now; the Vercel AI SDK's multi-step capabilities will handle conversational memory and multi-step tool calls natively.
 
@@ -45,7 +45,7 @@ We will create a centralized gateway in the `@repo/agents` package that handles 
 
 ### Verification
 
-- [x] Create `@repo/agents` package with the routing logic.
+- [x] Create `@asc/agents` package with the routing logic.
 - [x] Configure standard Vercel AI SDK tool definitions for Medplum FHIR resources.
 - [ ] Connect the agent gateway to a Medplum Bot (asynchronous workflow).
 - [ ] Connect the agent gateway to a Next.js Server Action (synchronous UI workflow).

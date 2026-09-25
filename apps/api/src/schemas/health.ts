@@ -1,6 +1,6 @@
-export type { HealthResponse } from "@repo/validation";
+export type { HealthResponse } from "@asc/validation";
 
-/** Fastify response JSON schema for GET /health (fast serialization). Shape mirrors `healthResponseSchema` in @repo/validation. */
+/** Fastify response JSON schema for GET /health (fast serialization). Shape mirrors `healthResponseSchema` in @asc/validation. */
 export const healthResponseJsonSchema = {
   type: "object" as const,
   properties: {

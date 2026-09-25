@@ -1,5 +1,5 @@
 import Fastify from "fastify";
-import { loggerOptions } from "@repo/logger";
+import { loggerOptions } from "@asc/logger";
 import { resolveRequestId } from "./lib/request-id.js";
 import { registerRoutes } from "./routes/index.js";
 

@@ -181,7 +181,7 @@ Generated from `Roadmap GI ASC Feature-map.xlsx` (sheet *Feature Detail*, 140 ro
 | Consents | E-signature (patient/guardian/witness) | M11 | P1 | Consent, Binary | Build [NEW] |
 | Consents | Facility & regulatory forms | M11 | P1 | Questionnaire | Configure [MP] |
 | Security | MFA, SSO, session timeout | M12 | P1 | Medplum Auth + Entra IdP | Configure [MP] |
-| Security | Break-glass access | M12 | P1 | AccessPolicy + @repo/audit | Build [NEW] |
+| Security | Break-glass access | M12 | P1 | AccessPolicy + @asc/audit | Build [NEW] |
 | Security | Encryption, BAA hosting, backup/restore | M12 | P1 | Azure Postgres PITR, Blob | Configure [MP] |
 | Ops | Downtime packet + back-entry | NFR | P1 | Search + PDF bot | Build [NEW] |
 | Quality | CAHPS vendor interface | M13 | P2 | Bulk export / SFTP bot | Build [NEW] |

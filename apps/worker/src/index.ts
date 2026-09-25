@@ -1,7 +1,7 @@
 import type { Job } from "bullmq";
 import { Worker } from "bullmq";
-import { logger } from "@repo/logger";
-import { shutdownTelemetry } from "@repo/telemetry";
+import { logger } from "@asc/logger";
+import { shutdownTelemetry } from "@asc/telemetry";
 import { env } from "./env.js";
 import { redisConnection } from "./redis.js";
 

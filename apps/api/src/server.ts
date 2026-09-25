@@ -1,6 +1,6 @@
-import { apiEnvSchema, parseEnv } from "@repo/config";
-import { logger } from "@repo/logger";
-import { shutdownTelemetry } from "@repo/telemetry";
+import { apiEnvSchema, parseEnv } from "@asc/config";
+import { logger } from "@asc/logger";
+import { shutdownTelemetry } from "@asc/telemetry";
 import { buildApp } from "./app.js";
 
 async function start(): Promise<void> {

@@ -1,5 +1,5 @@
 {
-  "name": "@repo/agents",
+  "name": "@asc/agents",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -16,15 +16,15 @@
     "@ai-sdk/azure": "^4.0.79",
     "@ai-sdk/google": "^4.0.80",
     "@ai-sdk/openai": "^4.0.75",
-    "@repo/audit": "workspace:*",
-    "@repo/types": "workspace:*",
-    "@repo/validation": "workspace:*",
+    "@asc/audit": "workspace:*",
+    "@asc/types": "workspace:*",
+    "@asc/validation": "workspace:*",
     "ai": "^7.0.114",
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@repo/eslint-config": "workspace:*",
-    "@repo/typescript-config": "workspace:*",
+    "@asc/eslint-config": "workspace:*",
+    "@asc/typescript-config": "workspace:*",
     "@types/node": "^20",
     "eslint": "^10.9.1",
     "typescript": "^7.0.0"

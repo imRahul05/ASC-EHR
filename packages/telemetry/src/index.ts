@@ -52,7 +52,7 @@ export function initTelemetry(serviceName: string, env: TelemetryEnv = process.e
 /**
  * Flush and stop tracing. Safe to call when telemetry was never started.
  * Never throws: resolves to the shutdown error (if any) so the caller can log
- * it with @repo/logger.
+ * it with @asc/logger.
  */
 export async function shutdownTelemetry(): Promise<Error | undefined> {
   const current = sdk;

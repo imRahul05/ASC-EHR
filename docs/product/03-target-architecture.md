@@ -116,8 +116,8 @@ flowchart LR
 | Kind of operation | Path | Why |
 |---|---|---|
 | Read / search / simple create-update with no GI rules (e.g. edit demographics, add allergy) | `web → Medplum` directly with user's token | AccessPolicy + AuditEvent apply automatically; zero API code |
-| **Command** with domain rules or multi-resource transaction (book case, advance case phase, sign note, time-out attest, compute codes, export charges) | `web → Fastify command → Medplum (user token, FHIR transaction Bundle)` | Rules live in one tested place (`@repo/clinical-rules`); atomic writes |
-| AI generation (H&P, note, instructions, letter, coding suggestions) | `web → Fastify (SSE)`; long jobs → BullMQ worker | Streaming UX; model routing via `@repo/agents` |
+| **Command** with domain rules or multi-resource transaction (book case, advance case phase, sign note, time-out attest, compute codes, export charges) | `web → Fastify command → Medplum (user token, FHIR transaction Bundle)` | Rules live in one tested place (`@asc/clinical-rules`); atomic writes |
+| AI generation (H&P, note, instructions, letter, coding suggestions) | `web → Fastify (SSE)`; long jobs → BullMQ worker | Streaming UX; model routing via `@asc/agents` |
 | Event reaction, small (extract QuestionnaireResponse, create/resolve Task, ACK HL7) | Medplum **Bot** on Subscription | Runs next to data; no infra |
 | Event reaction, heavy (LLM, PDF batches, exports) | Subscription rest-hook → API → BullMQ → worker | Our packages, retries, observability |
 
@@ -200,13 +200,13 @@ flowchart TD
     Bots["apps/bots (NEW)<br/>Medplum bot sources, esbuild bundle,<br/>deployed via medplum CLI"]:::newpkg
     Infra["infra/ (NEW)<br/>Terraform: Medplum on Azure + our apps"]:::newpkg
 
-    FHIR["@repo/fhir (NEW)<br/>FSH profiles, CodeSystems/ValueSets,<br/>Questionnaires-as-code, typed builders,<br/>re-export @medplum/fhirtypes"]:::newpkg
-    Rules["@repo/clinical-rules (NEW)<br/>pure fns: case gates, med-hold,<br/>Aldrete/PADSS, BBPS, withdrawal time,<br/>CPT/modifier engine, ICD sequencing"]:::newpkg
-    MPC["@repo/api-client<br/>+ Medplum client factory"]:::exist
-    Agents["@repo/agents<br/>+ note, H&P, coding, letter agents;<br/>baa flag in provider catalog"]:::exist
-    Val["@repo/validation<br/>Zod for AI output → FHIR draft"]:::exist
-    UI["@repo/ui<br/>+ calendar, Record engine, flowsheet,<br/>Questionnaire renderer, signature pad"]:::exist
-    Audit["@repo/audit · logger · telemetry"]:::exist
+    FHIR["@asc/fhir (NEW)<br/>FSH profiles, CodeSystems/ValueSets,<br/>Questionnaires-as-code, typed builders,<br/>re-export @medplum/fhirtypes"]:::newpkg
+    Rules["@asc/clinical-rules (NEW)<br/>pure fns: case gates, med-hold,<br/>Aldrete/PADSS, BBPS, withdrawal time,<br/>CPT/modifier engine, ICD sequencing"]:::newpkg
+    MPC["@asc/api-client<br/>+ Medplum client factory"]:::exist
+    Agents["@asc/agents<br/>+ note, H&P, coding, letter agents;<br/>baa flag in provider catalog"]:::exist
+    Val["@asc/validation<br/>Zod for AI output → FHIR draft"]:::exist
+    UI["@asc/ui<br/>+ calendar, Record engine, flowsheet,<br/>Questionnaire renderer, signature pad"]:::exist
+    Audit["@asc/audit · logger · telemetry"]:::exist
 
     Web --> UI & MPC & FHIR & Rules & Val
     API --> FHIR & Rules & Agents & Val & Audit & MPC
@@ -214,7 +214,7 @@ flowchart TD
     Bots --> FHIR & Rules
 ```
 
-`@repo/clinical-rules` is shared by web (instant UI feedback), API (authoritative enforcement) and bots — exactly the anti-duplication rule in `docs/agent/architecture.md`. It must be pure and exhaustively unit-tested; coding rules get golden-case fixtures reviewed by a certified coder.
+`@asc/clinical-rules` is shared by web (instant UI feedback), API (authoritative enforcement) and bots — exactly the anti-duplication rule in `docs/agent/architecture.md`. It must be pure and exhaustively unit-tested; coding rules get golden-case fixtures reviewed by a certified coder.
 
 ## 5. AI layer
 
@@ -223,13 +223,13 @@ flowchart LR
     classDef ai fill:#ef4444,color:#fff,stroke:#b91c1c
     classDef safe fill:#0f766e,color:#fff,stroke:#115e59
     In["Narration audio / text<br/>+ structured context (FHIR)"] --> Min["Minimum-necessary<br/>context builder"]:::safe
-    Min --> GW["@repo/agents gateway<br/>task → tier → BAA-only models"]:::ai
+    Min --> GW["@asc/agents gateway<br/>task → tier → BAA-only models"]:::ai
     GW --> Out["Structured output<br/>(Zod schema)"]
-    Out --> Val["@repo/validation +<br/>@repo/clinical-rules checks"]:::safe
+    Out --> Val["@asc/validation +<br/>@asc/clinical-rules checks"]:::safe
     Val --> Draft["FHIR draft Bundle<br/>status=preliminary"]
     Draft --> Human["Clinician confirm / edit"]:::safe
     Human --> Sign["Sign → final + Provenance<br/>(user + agentExecutionId)"]
-    GW -.-> AuditL["@repo/audit event<br/>(no PHI payload)"]
+    GW -.-> AuditL["@asc/audit event<br/>(no PHI payload)"]
 ```
 
 Model configuration (tiers, tasks, logical models, routing profiles, hosting targets for vendor API / Azure / AWS) is documented with diagrams in [`packages/agents/README.md`](../../packages/agents/README.md).
@@ -245,10 +245,10 @@ Agents (task types to add to routing config): `hp_intake`, `procedure_note`, `di
 |---|---|
 | Identity, MFA, SSO | Medplum Auth; Entra ID as external IdP for staff |
 | Authorization | One `AccessPolicy` per role; field-level hiding (e.g. front desk ↛ `Composition`); facility compartment |
-| Break-glass | Elevated policy for 1 h, mandatory reason, `@repo/audit` alert |
+| Break-glass | Elevated policy for 1 h, mandatory reason, `@asc/audit` alert |
 | PHI access audit | Medplum `AuditEvent` (automatic) |
-| Business / AI audit | `@repo/audit` (actor, action, resource ids, `agentExecutionId`, no PHI) |
-| Logs / traces | `@repo/logger`, `@repo/telemetry` with redaction (existing) |
+| Business / AI audit | `@asc/audit` (actor, action, resource ids, `agentExecutionId`, no PHI) |
+| Logs / traces | `@asc/logger`, `@asc/telemetry` with redaction (existing) |
 | Encryption | Azure-managed keys at rest (Postgres, Blob, Redis); TLS 1.2+; Agent uses outbound TLS websocket — no inbound firewall holes at ASC |
 | Backups | Postgres PITR; Blob soft-delete + versioning; quarterly restore test |
 | BAAs | Azure, LLM provider(s), STT vendor, SMS/fax vendor, clearinghouse |

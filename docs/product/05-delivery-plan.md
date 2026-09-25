@@ -17,8 +17,8 @@ gantt
     CI/CD, eval harness for agents           :pl4, 2026-10-05, 15d
 
     section Ported from MindScript
-    Resource calendar -> @repo/ui            :ms1, 2026-09-30, 18d
-    Record engine -> @repo/ui                :ms2, 2026-10-01, 25d
+    Resource calendar -> @asc/ui            :ms1, 2026-09-30, 18d
+    Record engine -> @asc/ui                :ms2, 2026-10-01, 25d
     Sign Queue + Recovery Queue on Task      :ms3, 2026-10-19, 12d
 
     section Clinical build
@@ -51,7 +51,7 @@ gantt
 | ID | Decision | Recommendation | Why |
 |---|---|---|---|
 | D1 | Medplum hosting | **Self-host on Azure** using Medplum's Terraform path; fallback: Medplum-hosted with BAA if platform time slips past week 3 | Matches existing Azure BAA posture; data residency under our control |
-| D2 | UI library for clinical app | `@repo/ui` + `@medplum/react-hooks` (headless); **no** `@medplum/react` in `apps/web` | Repo rule; one design system |
+| D2 | UI library for clinical app | `@asc/ui` + `@medplum/react-hooks` (headless); **no** `@medplum/react` in `apps/web` | Repo rule; one design system |
 | D3 | Admin console | Medplum App in P1 | No custom admin build |
 | D4 | Worklist engine | FHIR `Task` for all queues | One engine; MindScript Recovery/Sign Queue semantics port onto it |
 | D5 | Coding approach | Deterministic rules engine first, LLM for ambiguity with evidence citation, human coder attests | Denial risk and audit defensibility |

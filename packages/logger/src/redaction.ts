@@ -1,8 +1,8 @@
 /**
- * PHI / secret redaction rules for @repo/logger.
+ * PHI / secret redaction rules for @asc/logger.
  *
  * SENSITIVE_KEYS is the single source of truth for "keys whose values must never
- * leave the process in clear". It is shared with @repo/audit, which rejects these
+ * leave the process in clear". It is shared with @asc/audit, which rejects these
  * keys in audit `details`.
  *
  * Internal resource IDs (patientId, surgicalCaseId, encounterId, ...) are

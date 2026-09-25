@@ -4,7 +4,7 @@
  * through `runAgent` and applies the expectations to the real output.
  */
 
-import type { DischargeInstructionsOutput } from '@repo/validation';
+import type { DischargeInstructionsOutput } from '@asc/validation';
 
 import type { AgentEvalCase } from '../../define.js';
 import type { DischargeInstructionsInput } from '../input.js';

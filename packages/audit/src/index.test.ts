@@ -1,5 +1,5 @@
 import { Writable } from "node:stream";
-import { buildLogger, buildLoggerOptions } from "@repo/logger";
+import { buildLogger, buildLoggerOptions } from "@asc/logger";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {

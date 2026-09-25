@@ -8,7 +8,7 @@
 
 ## 1. TL;DR
 
-- Every LLM call goes through **`@repo/agents`**. Nothing else imports an `@ai-sdk/*` package or calls a model.
+- Every LLM call goes through **`@asc/agents`**. Nothing else imports an `@ai-sdk/*` package or calls a model.
 - An **agent** = one folder in `packages/agents/src/agents/<name>/` that declares *what it needs* (task, input, output, prompt). It never says *which model* — config decides that.
 - Apps run agents with **`runAgent(definition, input, options)`**. It validates the input, picks a compliant model, validates the output and **always writes the audit event**.
 - AI output is a **draft**. A clinician confirms it before anything is signed or sent to a patient.
@@ -29,10 +29,10 @@ flowchart LR
     Nurse["Nurse / physician<br/>apps/web"]:::ui
     Route["apps/api route or<br/>apps/worker job"]:::app
     Facts["Build agent INPUT<br/>from the case record<br/>(minimum necessary fields)"]:::app
-    Run["runAgent()<br/>@repo/agents"]:::agent
+    Run["runAgent()<br/>@asc/agents"]:::agent
     GW["Gateway<br/>tier / pin → hosting →<br/>capabilities → BAA → fallback"]:::agent
     LLM["LLM on a<br/>BAA-covered endpoint"]:::ext
-    Audit[("@repo/audit<br/>agent.run event")]:::store
+    Audit[("@asc/audit<br/>agent.run event")]:::store
     Draft["Draft output<br/>(schema-validated)"]:::app
     Review["Clinician reviews,<br/>edits, signs"]:::ui
     FHIR[("Medplum / FHIR<br/>final record")]:::store
@@ -60,7 +60,7 @@ flowchart TD
     S -->|"Quick one-off LLM call<br/>outside an agent"| DIRECT{"Is the output shown to users,<br/>stored, or does it touch PHI?"}:::q
     DIRECT -->|yes| NEW
     DIRECT -->|"no (internal tooling only)"| GWCALL["gateway.executeAgentObject()<br/>with task + containsPhi"]:::a
-    S -->|"Import an @ai-sdk package<br/>or call a model SDK in an app"| NO["STOP — not allowed.<br/>Use @repo/agents."]:::stop
+    S -->|"Import an @ai-sdk package<br/>or call a model SDK in an app"| NO["STOP — not allowed.<br/>Use @asc/agents."]:::stop
 ```
 
 Rule of thumb: **if a human will read it, store it, or it contains PHI → it is an agent.**
@@ -80,7 +80,7 @@ flowchart LR
         EV["evals/cases.ts<br/>synthetic inputs +<br/>expectations"]:::file
         T["__tests__/*.test.ts"]:::file
     end
-    OUT["@repo/validation<br/>output schema<br/>(shared with web)"]:::shared
+    OUT["@asc/validation<br/>output schema<br/>(shared with web)"]:::shared
     REG["agents/registry.ts<br/>AGENTS map"]:::reg
     VAL["validate.ts<br/>checks every agent on<br/>every hosting target"]:::reg
 
@@ -99,7 +99,7 @@ flowchart LR
 | `models` *(optional)* | pin exact models (replaces the tier chain) | `[Models.claudeOpus55]` |
 | `requires` *(optional)* | extra capabilities (structured output is automatic) | `[Capability.Vision]` |
 | `promptVersion` | `YYYY-MM-DD.N`; bump on any prompt change | `'2026-09-25.1'` |
-| `input` / `output` | Zod schemas; output lives in `@repo/validation` | — |
+| `input` / `output` | Zod schemas; output lives in `@asc/validation` | — |
 | `instructions` + `buildMessages` | the prompt; the **only** place data reaches the model | — |
 | `tools` / `maxSteps` *(optional)* | tool calling (adds `Capability.Tools` automatically) | — |
 
@@ -136,7 +136,7 @@ Worked example: a `referral-letter` agent (procedure summary for the referring p
 6. **Register** it in `agents/registry.ts` (one line) and export it from `src/index.ts`.
 7. **Evals** → `agents/referral-letter/evals/cases.ts`: 3+ synthetic cases (`AgentEvalCase`) with checks on the output.
 8. **Tests** → `agents/referral-letter/__tests__/`: copy the discharge-instructions test. At minimum: each eval input parses; `buildMessages` includes only allowed facts; invalid input throws `AgentInputError` without calling a model; a mocked valid output round-trips through `runAgent`; audit gets SUCCESS and FAILURE events.
-9. **Verify**: `pnpm -s turbo run lint check-types test --filter=@repo/agents --filter=@repo/validation`. `validateAgentConfig()` (run by the tests) proves the agent can run — with a BAA model if it handles PHI — on every hosting target.
+9. **Verify**: `pnpm -s turbo run lint check-types test --filter=@asc/agents --filter=@asc/validation`. `validateAgentConfig()` (run by the tests) proves the agent can run — with a BAA model if it handles PHI — on every hosting target.
 10. **Clinical review** of `INSTRUCTIONS` before it is used with real patients; note the reviewer in the PR.
 
 ## 6. Recipe B — call an agent from an app
@@ -144,12 +144,12 @@ Worked example: a `referral-letter` agent (procedure summary for the referring p
 Create the gateway **once** at startup with the app's hosting target and routing profile, then call `runAgent` per request.
 
 ```typescript
-// apps/api/src/lib/ai.ts — once at startup (values come from @repo/config's parsed env)
-import { createGateway, directHosting } from '@repo/agents';
+// apps/api/src/lib/ai.ts — once at startup (values come from @asc/config's parsed env)
+import { createGateway, directHosting } from '@asc/agents';
 export const gateway = createGateway({ hosting: directHosting, routingProfile: 'default' });
 
 // apps/api/src/routes/... — per request
-import { dischargeInstructionsAgent, runAgent } from '@repo/agents';
+import { dischargeInstructionsAgent, runAgent } from '@asc/agents';
 
 const { output, meta } = await runAgent(dischargeInstructionsAgent, input, {
   actor: { type: 'user', id: request.user.id },  // who triggered it (audit)
@@ -171,7 +171,7 @@ sequenceDiagram
     participant R as runAgent
     participant G as Gateway
     participant M as LLM (BAA endpoint)
-    participant AU as @repo/audit
+    participant AU as @asc/audit
 
     U->>W: "Generate discharge instructions"
     W->>A: POST /cases/:id/discharge-instructions
@@ -212,7 +212,7 @@ Long-running or batch work (e.g. letters for the day's cases) → enqueue a Bull
 | Add a provider / cloud | `config/providers/` + `config/hosting/` + validation list | See package README |
 | Cheap models in staging | `createGateway({ routingProfile: 'budget' })` | Synthetic data only in staging |
 
-After any config change: `pnpm -s turbo run test --filter=@repo/agents` — `validateAgentConfig()` fails if any tier, agent or PHI path becomes unservable on any hosting target.
+After any config change: `pnpm -s turbo run test --filter=@asc/agents` — `validateAgentConfig()` fails if any tier, agent or PHI path becomes unservable on any hosting target.
 
 ## 8. Agent lifecycle
 
@@ -231,10 +231,10 @@ stateDiagram-v2
 ## 9. Rules
 
 ### MUST
-- Route every LLM call through `@repo/agents` (`runAgent`, or the gateway for internal tooling).
+- Route every LLM call through `@asc/agents` (`runAgent`, or the gateway for internal tooling).
 - Put each agent in its own folder; register it in `agents/registry.ts`.
 - Use `.strict()` input schemas with minimum-necessary fields; render fields explicitly in `buildMessages`.
-- Put output schemas used by the web app in `@repo/validation`.
+- Put output schemas used by the web app in `@asc/validation`.
 - Bump `promptVersion` on **any** change to `INSTRUCTIONS` or `buildMessages`.
 - Pass an honest `containsPhi`, the triggering `actor`, and internal ids (`patientId`, `surgicalCaseId`) — never names or MRNs.
 - Treat output as a draft; store `agentExecutionId` + `promptVersion` with it.
@@ -246,7 +246,7 @@ stateDiagram-v2
 - Name a model inside an agent's prompt or app code (use `models` pins in the definition if truly needed).
 - `JSON.stringify` a patient/case object into a prompt, or add free-text fields "just in case".
 - Log prompts, model outputs, or `AgentExecutionError.cause`.
-- Read `process.env` inside `@repo/agents` (the app builds hosting from `@repo/config`).
+- Read `process.env` inside `@asc/agents` (the app builds hosting from `@asc/config`).
 - Set `baa: true` on a provider without a countersigned BAA covering that endpoint.
 - Let an agent sign, finalize, or send anything without clinician approval.
 
@@ -268,7 +268,7 @@ stateDiagram-v2
 - [ ] Input schema is `.strict()`, minimum necessary, no identifiers
 - [ ] `buildMessages` renders fields explicitly; no whole-object serialization
 - [ ] `promptVersion` bumped if the prompt changed
-- [ ] Output schema in `@repo/validation` (if the web renders it)
+- [ ] Output schema in `@asc/validation` (if the web renders it)
 - [ ] Eval cases + tests added/updated; `pnpm -s turbo run lint check-types test` green
 - [ ] No `@ai-sdk/*` imports outside `config/providers/`; no model names in app code
 - [ ] Clinical reviewer named in the PR for patient-facing or record-bound output

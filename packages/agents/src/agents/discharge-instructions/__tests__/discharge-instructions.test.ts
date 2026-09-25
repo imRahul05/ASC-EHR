@@ -1,5 +1,5 @@
-import { sanitizeDetails } from '@repo/audit';
-import type { DischargeInstructionsOutput } from '@repo/validation';
+import { sanitizeDetails } from '@asc/audit';
+import type { DischargeInstructionsOutput } from '@asc/validation';
 import { describe, expect, it } from 'vitest';
 
 import { Task } from '../../../config/index.js';

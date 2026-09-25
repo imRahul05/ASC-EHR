@@ -18,7 +18,7 @@ Building a clinical store, auth/MFA, RBAC, PHI access audit, realtime subscripti
 - HIPAA: access control and audit enforced at the data layer
 - Stack fit: TypeScript, Node, Postgres, Redis (same as ours)
 - Interop later (HL7/FHIR, labs, HIE, eCW bridge) without re-modelling
-- Keep our UI design system (`@repo/ui`, shadcn/Base UI) and AI layer (`@repo/agents`)
+- Keep our UI design system (`@asc/ui`, shadcn/Base UI) and AI layer (`@asc/agents`)
 
 ## Considered Options
 
@@ -32,12 +32,12 @@ Building a clinical store, auth/MFA, RBAC, PHI access audit, realtime subscripti
 Chosen option: **1 — Medplum self-hosted on Azure**, with option 2 as the fallback if platform setup is not stable by the end of week 3.
 
 Architecture rules that follow (detailed in `docs/product/03-target-architecture.md`):
-- All clinical data lives in Medplum as FHIR resources, profiled in a new `@repo/fhir` package.
+- All clinical data lives in Medplum as FHIR resources, profiled in a new `@asc/fhir` package.
 - Reads and simple writes: `apps/web` → Medplum directly with the user's token. Domain commands and AI: `apps/web` → `apps/api` → Medplum on-behalf-of the user.
-- GI rules live in a new pure package `@repo/clinical-rules`, shared by web, api and bots.
+- GI rules live in a new pure package `@asc/clinical-rules`, shared by web, api and bots.
 - Small event reactions are Medplum Bots (new `apps/bots`); heavy/AI work goes to `apps/worker` via Subscription → API → BullMQ.
 - `apps/web` uses headless `@medplum/react-hooks` + `@medplum/core`; `@medplum/react` (Mantine) is not used in the clinical app.
-- `@repo/audit` continues to record business/agent events; PHI access audit is Medplum `AuditEvent`.
+- `@asc/audit` continues to record business/agent events; PHI access audit is Medplum `AuditEvent`.
 - Every resource is tagged with the facility `Organization` for future multi-site compartments.
 
 ### Consequences

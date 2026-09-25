@@ -1,4 +1,4 @@
-import { sanitizeDetails } from '@repo/audit';
+import { sanitizeDetails } from '@asc/audit';
 import { describe, expect, it } from 'vitest';
 
 import { Task } from '../../config/index.js';
@@ -29,7 +29,7 @@ function setup(behaviour: Parameters<typeof createFixture>[0] = {}) {
   return { fixture, audit, options };
 }
 
-/** Throws in the same way @repo/audit does outside production if details are not PHI-safe. */
+/** Throws in the same way @asc/audit does outside production if details are not PHI-safe. */
 function expectPhiSafeDetails(details: Record<string, unknown> | undefined): void {
   expect(() => sanitizeDetails(details, false)).not.toThrow();
 }

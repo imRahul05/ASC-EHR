@@ -48,7 +48,7 @@ flowchart TD
 
 ## 4.2 Case state machine (Encounter case-phase)
 
-Transitions are **commands** in `apps/api`; gates are pure functions in `@repo/clinical-rules` (also run in the UI for instant feedback). Every transition writes `Encounter` + `Provenance` in one FHIR transaction; the whiteboard updates via Subscription.
+Transitions are **commands** in `apps/api`; gates are pure functions in `@asc/clinical-rules` (also run in the UI for instant feedback). Every transition writes `Encounter` + `Provenance` in one FHIR transaction; the whiteboard updates via Subscription.
 
 ```mermaid
 stateDiagram-v2
@@ -285,7 +285,7 @@ sequenceDiagram
     participant W as web
     participant A as api
     participant M as Medplum FHIR
-    participant AU as @repo/audit
+    participant AU as @asc/audit
 
     U->>W: open app
     W->>MA: OIDC login

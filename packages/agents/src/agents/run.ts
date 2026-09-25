@@ -6,7 +6,7 @@
  * details carry routing metadata only — never input values, prompts or output.
  */
 
-import { getAuditClient, type AuditClient, type AuditDetails } from '@repo/audit';
+import { getAuditClient, type AuditClient, type AuditDetails } from '@asc/audit';
 import type { z } from 'zod';
 
 import {
@@ -29,7 +29,7 @@ export interface AgentActor {
   id: string;
 }
 
-/** Where audit events go. `@repo/audit`'s client satisfies this. */
+/** Where audit events go. `@asc/audit`'s client satisfies this. */
 export type AgentAuditSink = Pick<AuditClient, 'logEvent'>;
 
 export interface RunAgentOptions {

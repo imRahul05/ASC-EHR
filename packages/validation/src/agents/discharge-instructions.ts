@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * Output of the `discharge-instructions` agent (@repo/agents): patient-facing
+ * Output of the `discharge-instructions` agent (@asc/agents): patient-facing
  * discharge instructions after a GI endoscopy. Shared because apps/api returns
  * it and apps/web renders it (and lets staff edit it before release).
  */

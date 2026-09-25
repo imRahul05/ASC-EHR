@@ -1,5 +1,5 @@
-import { isSensitiveKey, logger as baseLogger } from "@repo/logger";
-import type { Logger } from "@repo/logger";
+import { isSensitiveKey, logger as baseLogger } from "@asc/logger";
+import type { Logger } from "@asc/logger";
 
 export type ActorType = "user" | "system" | "agent";
 export type Outcome = "SUCCESS" | "FAILURE" | "DENIED";
@@ -22,7 +22,7 @@ export interface AuditEvent {
   correlationId?: string;
   outcome: Outcome;
   timestamp: string; // ISO 8601
-  /** Safe metadata only, NO PHI. Keys matching @repo/logger SENSITIVE_KEYS are rejected. */
+  /** Safe metadata only, NO PHI. Keys matching @asc/logger SENSITIVE_KEYS are rejected. */
   details?: AuditDetails;
   /** Set when disallowed `details` entries were dropped (production only). */
   detailsRedacted?: boolean;

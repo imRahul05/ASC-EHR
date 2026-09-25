@@ -1,4 +1,4 @@
-# @repo/agents
+# @asc/agents
 
 Single entry point for every LLM call: agent definitions, model configuration, routing, hosting (vendor APIs / Azure / later AWS), PHI/BAA enforcement, fallback, and audit. `apps/api` and `apps/worker` both use it, so there is exactly one place to change models or agents.
 
@@ -51,7 +51,7 @@ src/
 └── testing/fixtures.ts     mock models, hosting targets, gateway, audit recorder (tests only, not exported)
 ```
 
-Tests live in `__tests__/` next to the code they test. Agent **output** schemas that `apps/web` also uses live in `@repo/validation` (`packages/validation/src/agents/`).
+Tests live in `__tests__/` next to the code they test. Agent **output** schemas that `apps/web` also uses live in `@asc/validation` (`packages/validation/src/agents/`).
 
 | Question | Look in |
 |---|---|
@@ -201,7 +201,7 @@ flowchart LR
     classDef future fill:#f1f5f9,stroke:#94a3b8,color:#475569,stroke-dasharray: 5 5
 
     ENV[".env per environment<br/>AI_HOSTING_TARGET = direct | azure<br/>AI_ROUTING_PROFILE = default | budget<br/>Azure: resource name, deployment names"]:::env
-    CFG["@repo/config parseEnv()"]:::app
+    CFG["@asc/config parseEnv()"]:::app
     APP["apps/api · apps/worker startup<br/>hosting = directHosting<br/>or createAzureHosting(settings)"]:::app
     GW["createGateway({ hosting, routingProfile })"]:::app
 
@@ -211,12 +211,12 @@ flowchart LR
     GW -.->|aws, future| V3["Amazon Bedrock (AWS BAA)"]:::future
 ```
 
-`@repo/agents` never reads `process.env`; the app builds the hosting target from its parsed config.
+`@asc/agents` never reads `process.env`; the app builds the hosting target from its parsed config.
 
 ## Running an agent
 
 ```typescript
-import { AGENTS, createGateway, runAgent } from '@repo/agents';
+import { AGENTS, createGateway, runAgent } from '@asc/agents';
 
 const gateway = createGateway({ hosting, routingProfile: 'default' }); // once, at startup
 
@@ -227,11 +227,11 @@ const { output, meta } = await runAgent(AGENTS['discharge-instructions'], input,
   surgicalCaseId,
   gateway,                                      // defaults to defaultGateway (direct, default profile)
 });
-// output: typed by the agent's output schema (@repo/validation)
+// output: typed by the agent's output schema (@asc/validation)
 // meta:   gateway metadata + agent + promptVersion
 ```
 
-`runAgent` validates the input (`AgentInputError` lists field paths only), builds messages with the agent's `buildMessages`, calls `executeAgentObject` (the output is validated against the agent's schema), and **always** writes one `agent.run` audit event through `@repo/audit` — `SUCCESS` or `FAILURE`:
+`runAgent` validates the input (`AgentInputError` lists field paths only), builds messages with the agent's `buildMessages`, calls `executeAgentObject` (the output is validated against the agent's schema), and **always** writes one `agent.run` audit event through `@asc/audit` — `SUCCESS` or `FAILURE`:
 
 - **Actor:** the agent (`actorType: 'agent'`, `actorId: <agent name>`). The triggering user or system is in `details.triggeredByType` / `details.triggeredById`, and `agentExecutionId` links the event to the model call.
 - **Details:** routing metadata only — agent, promptVersion, task, tier, hostingTarget, endpoint, modelName, modelId, attempts, and errorName on failure. Never input values, prompts or output.
@@ -241,7 +241,7 @@ const { output, meta } = await runAgent(AGENTS['discharge-instructions'], input,
 
 1. Create `src/agents/<agent-name>/` (kebab-case, e.g. `procedure-note-summary`).
 2. `input.ts` — a `.strict()` Zod schema with only the fields the model needs: enums, numbers, booleans. No names, DOB, MRN or addresses; avoid free text.
-3. Output schema — in `@repo/validation` (`packages/validation/src/agents/<agent-name>.ts`) when the web app renders it; otherwise next to the input.
+3. Output schema — in `@asc/validation` (`packages/validation/src/agents/<agent-name>.ts`) when the web app renders it; otherwise next to the input.
 4. `prompt.ts` — `PROMPT_VERSION` (`YYYY-MM-DD.N`), `INSTRUCTIONS`, and `buildMessages(input)` rendering each field explicitly (never `JSON.stringify(input)`). Bump the version on every change.
 5. `definition.ts` — `defineAgent({ name, description, task, reasoning?, models?, requires?, promptVersion, input, output, instructions, buildMessages })`. Pick (or add) a `Task`: it sets the minimum tier and whether the agent is always routed as PHI.
 6. `evals/cases.ts` — a few synthetic `AgentEvalCase`s (input + output expectations).
@@ -261,9 +261,9 @@ Every model lists `capabilities` (`Capability.Vision`, `Capability.Tools`, `Capa
 Prefer `runAgent`. For one-off calls without an agent definition:
 
 ```typescript
-import { Capability, createAzureHosting, createGateway, Models, Reasoning, Task } from '@repo/agents';
+import { Capability, createAzureHosting, createGateway, Models, Reasoning, Task } from '@asc/agents';
 
-// At app startup (values from @repo/config's parsed env):
+// At app startup (values from @asc/config's parsed env):
 const gateway = createGateway({
   routingProfile: 'default',
   hosting: createAzureHosting({
@@ -284,7 +284,7 @@ const res = await gateway.executeAgentObject({
 });
 
 res.output;            // schema-typed result
-res.agentExecutionId;  // direct gateway callers must write their own @repo/audit event
+res.agentExecutionId;  // direct gateway callers must write their own @asc/audit event
 ```
 
 Without `hosting`, `defaultGateway` and the module-level `executeAgentTask` / `executeAgentObject` / `streamAgentTask` use `directHosting` and the `default` profile.
@@ -310,7 +310,7 @@ Without `hosting`, `defaultGateway` and the module-level `executeAgentTask` / `e
 **Add a task** — add it to `Task` and give it a profile in `TASK_PROFILES` (the compiler rejects a task without one).
 
 **Add a provider / cloud (e.g. AWS Bedrock)**
-1. `pnpm --filter @repo/agents add @ai-sdk/amazon-bedrock`
+1. `pnpm --filter @asc/agents add @ai-sdk/amazon-bedrock`
 2. `providers/amazon-bedrock.ts` — a factory returning an `Endpoint` (`baa: true` only once the AWS BAA covers the account/region).
 3. `hosting/aws.ts` — `createAwsHosting(settings)` binding logical models to Bedrock model ids.
 4. Add it to `HOSTING_TARGETS_FOR_VALIDATION` in `hosting/index.ts` so tests prove every routing profile and agent still works — and has a BAA model for PHI — on that cloud.

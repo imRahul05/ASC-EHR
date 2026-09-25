@@ -1,4 +1,4 @@
-import { dischargeInstructionsOutputSchema } from '@repo/validation';
+import { dischargeInstructionsOutputSchema } from '@asc/validation';
 
 import { Task } from '../../config/index.js';
 import { defineAgent } from '../define.js';

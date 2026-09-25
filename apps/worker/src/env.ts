@@ -1,6 +1,6 @@
-import type { WorkerEnv } from "@repo/config";
-import { parseEnv, workerEnvSchema } from "@repo/config";
-import { logger } from "@repo/logger";
+import type { WorkerEnv } from "@asc/config";
+import { parseEnv, workerEnvSchema } from "@asc/config";
+import { logger } from "@asc/logger";
 
 function loadEnv(): WorkerEnv {
   try {

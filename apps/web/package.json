@@ -11,19 +11,19 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@repo/api-client": "workspace:*",
-    "@repo/config": "workspace:*",
-    "@repo/types": "workspace:*",
-    "@repo/ui": "workspace:*",
-    "@repo/validation": "workspace:*",
+    "@asc/api-client": "workspace:*",
+    "@asc/config": "workspace:*",
+    "@asc/types": "workspace:*",
+    "@asc/ui": "workspace:*",
+    "@asc/validation": "workspace:*",
     "lucide-react": "^1.48.0",
     "next": "16.3.6",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
   "devDependencies": {
-    "@repo/eslint-config": "workspace:*",
-    "@repo/typescript-config": "workspace:*",
+    "@asc/eslint-config": "workspace:*",
+    "@asc/typescript-config": "workspace:*",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

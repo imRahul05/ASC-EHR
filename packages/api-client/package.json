@@ -1,5 +1,5 @@
 {
-  "name": "@repo/api-client",
+  "name": "@asc/api-client",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,13 +11,13 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@repo/config": "workspace:*",
-    "@repo/types": "workspace:*",
-    "@repo/validation": "workspace:*"
+    "@asc/config": "workspace:*",
+    "@asc/types": "workspace:*",
+    "@asc/validation": "workspace:*"
   },
   "devDependencies": {
-    "@repo/eslint-config": "workspace:*",
-    "@repo/typescript-config": "workspace:*",
+    "@asc/eslint-config": "workspace:*",
+    "@asc/typescript-config": "workspace:*",
     "@types/node": "^20",
     "eslint": "^10.9.1",
     "typescript": "^7.0.0"

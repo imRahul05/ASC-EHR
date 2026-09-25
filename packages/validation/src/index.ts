@@ -7,7 +7,7 @@ export const baseSchema = z.object({
   updatedAt: z.string().datetime(),
 });
 
-// GET /health — shared by apps/api (response) and @repo/api-client (parsing)
+// GET /health — shared by apps/api (response) and @asc/api-client (parsing)
 export const healthResponseSchema = z.object({
   status: z.literal("ok"),
   timestamp: z.string().datetime(),
@@ -15,7 +15,7 @@ export const healthResponseSchema = z.object({
 
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
 
-// AI agent outputs (@repo/agents) — returned by apps/api, rendered by apps/web
+// AI agent outputs (@asc/agents) — returned by apps/api, rendered by apps/web
 export {
   dischargeInstructionsOutputSchema,
   patientLanguageSchema,
