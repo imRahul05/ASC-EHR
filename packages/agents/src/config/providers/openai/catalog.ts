@@ -1,4 +1,4 @@
-import { type ProviderCatalog, type ModelEntry } from '../../types.js';
+import type { ProviderCatalog, ModelEntry } from '../../types.js';
 import { OPENAI_MODELS, type OpenAIModelId } from './constants.js';
 import { openai } from '@ai-sdk/openai';
 
@@ -38,6 +38,9 @@ const models: Record<OpenAIModelId, ModelEntry<OpenAIModelId>> = {
 export const OPENAI_CATALOG: ProviderCatalog = {
   displayName: 'OpenAI',
   providerKey: 'openai',
+  // No BAA with OpenAI. Flip only after a signed BAA.
+  // Azure OpenAI (under the Microsoft BAA) will be added later as its own provider.
+  baa: false,
   models,
   getAdapter: (modelId) => openai(modelId),
 };

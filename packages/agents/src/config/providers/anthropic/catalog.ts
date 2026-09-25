@@ -1,4 +1,4 @@
-import { type ProviderCatalog, type ModelEntry } from '../../types.js';
+import type { ProviderCatalog, ModelEntry } from '../../types.js';
 import { ANTHROPIC_MODELS, type AnthropicModelId } from './constants.js';
 import { anthropic } from '@ai-sdk/anthropic';
 
@@ -32,6 +32,8 @@ const models: Record<AnthropicModelId, ModelEntry<AnthropicModelId>> = {
 export const ANTHROPIC_CATALOG: ProviderCatalog = {
   displayName: 'Anthropic',
   providerKey: 'anthropic',
+  // Signed BAA in place with Anthropic (per GI ASC feature spec).
+  baa: true,
   models,
   getAdapter: (modelId) => anthropic(modelId),
 };

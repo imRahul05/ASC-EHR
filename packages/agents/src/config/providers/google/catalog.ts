@@ -1,4 +1,4 @@
-import { type ProviderCatalog, type ModelEntry } from '../../types.js';
+import type { ProviderCatalog, ModelEntry } from '../../types.js';
 import { GOOGLE_MODELS, type GoogleModelId } from './constants.js';
 import { google } from '@ai-sdk/google';
 
@@ -20,6 +20,8 @@ const models: Record<GoogleModelId, ModelEntry<GoogleModelId>> = {
 export const GOOGLE_CATALOG: ProviderCatalog = {
   displayName: 'Google',
   providerKey: 'google',
+  // No BAA with Google for this endpoint. Flip only after a signed BAA.
+  baa: false,
   models,
   getAdapter: (modelId) => google(modelId),
 };

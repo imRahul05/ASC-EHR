@@ -1,9 +1,13 @@
-import { type ReasoningTier, type FallbackEntry, type TaskType } from './types.js';
+import type { ReasoningTier, RoutingTable, TaskType } from './types.js';
 import { OPENAI_MODELS } from './providers/openai/constants.js';
 import { ANTHROPIC_MODELS } from './providers/anthropic/constants.js';
 import { GOOGLE_MODELS } from './providers/google/constants.js';
 
-export const ROUTING_TABLE: Record<ReasoningTier, FallbackEntry[]> = {
+/**
+ * Ordered fallback chains per tier. For calls with `containsPhi: true` the
+ * gateway filters each chain down to providers whose catalog has `baa: true`.
+ */
+export const ROUTING_TABLE: RoutingTable = {
   high: [
     { provider: 'anthropic', modelKey: ANTHROPIC_MODELS.CLAUDE_OPUS_5_5 },
     { provider: 'openai',    modelKey: OPENAI_MODELS.GPT_6_ASTRA },

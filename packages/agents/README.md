@@ -44,7 +44,34 @@ The configuration is structured in `src/config/`:
    - `constants.ts`: Contains the exact string IDs of the models to prevent typos (e.g., `GPT_6_ASTRA`).
    - `catalog.ts`: Exports a `ProviderCatalog` that lists all models for that provider, their reasoning tier (`high`, `medium`, `low`), and implements a `getAdapter` function.
 2. **`types.ts`**: Defines the shared interfaces, including the `ProviderCatalog` which enforces the `getAdapter: (modelId: string) => LanguageModel` method.
-3. **`routing.ts`**: Defines the `ROUTING_TABLE`. This maps a `ReasoningTier` to an ordered array of `(provider, modelKey)` fallback entries. If the first model fails (e.g., rate limit), the gateway automatically tries the next one in the chain.
+3. **`routing.ts`**: Defines the `ROUTING_TABLE`. This maps a `ReasoningTier` to an ordered array of `(provider, modelKey)` fallback entries. If the first model fails with a **transient** error (see retry policy below), the gateway tries the next one in the chain.
+4. **`baa` flag**: every `ProviderCatalog` declares `baa: boolean` — whether a signed HIPAA BAA covers that vendor. Current posture: Anthropic `true`; OpenAI `false`; Google `false`. Flip a flag only after the BAA is countersigned (Azure OpenAI will be added as its own provider).
+
+---
+
+## 🔐 Calling the Gateway (PHI, retries, audit)
+
+```ts
+import { executeAgentObject } from '@repo/agents';
+
+const { output, agentExecutionId, provider, modelId, attempts } = await executeAgentObject({
+  taskType: 'medical-coding',
+  complexity: 'high',
+  containsPhi: true,          // REQUIRED on every call
+  messages,
+  schema: CodingSuggestionSchema,
+});
+// write { agentExecutionId, provider, modelId, attempts, outcome } to @repo/audit — never the prompt/output
+```
+
+- **`containsPhi` (required)**: when `true`, the tier's chain is filtered to providers with `baa: true`. If none remain, `NoCompliantModelError` is thrown **before any model is called**. `getRoutingInfo(tier)` exposes `baa` per entry.
+- **Effective tier** = the higher of the task-implied tier (`TASK_TIER_MAP`) and the requested `complexity`. Deprecated models are skipped.
+- **Retry / fallback policy** (`isRetryableModelError` in `src/errors.ts`): the SDK first retries the same model (`maxRetriesPerModel`, default 2, with backoff). The gateway then falls back to the next eligible model **only** for transient failures — HTTP 408/409/429/5xx (incl. 529 overloaded), network errors, timeouts. Non-retryable errors (400, 401/403, 404, schema/validation such as `NoObjectGeneratedError`, aborts, unknown errors) fail immediately, so a request is never fanned out to extra vendors.
+- **Results**: every call returns `AgentExecutionMeta` — `agentExecutionId` (UUID), `tier`, `containsPhi`, `provider`, `modelKey`, `modelId`, `attempts` (models tried) — alongside `result` (`executeAgentTask`: the `generateText` result; `streamAgentTask`: the `streamText` result, returned synchronously, primary model only) or `output` (`executeAgentObject<T>`: typed `T`).
+- **Failures** throw `AgentExecutionError` carrying `agentExecutionId`, `attempts`, `lastProvider`, `lastModelId`, `retryable`; the SDK error is its `cause`. Do not log `cause` verbatim — some SDK errors embed request bodies or model output.
+- **No prompt/output logging** happens in this package. `streamAgentTask` replaces the SDK's default `console.error` stream error handler with a no-op (override via `onError`).
+- **Tools**: pass `tools` and `maxSteps` (mapped to the SDK v7 `stopWhen: isStepCount(n)`).
+- **Testing**: `createGateway({ registry, routing, maxRetriesPerModel, generateExecutionId })` builds a gateway over an injected registry (see `src/__tests__/fixtures.ts`, using `MockLanguageModelV4` from `ai/test`). Run `pnpm --filter @repo/agents test`.
 
 ### The Dependency Inversion Principle
 Notice that `src/router.ts` **does not** import `@ai-sdk/openai` or any other provider directly. It simply resolves the requested model from the `PROVIDER_REGISTRY` and calls `catalog.getAdapter(modelId)`. The actual initialization of the Vercel AI adapter happens natively inside each provider's `catalog.ts` file.
@@ -83,6 +110,7 @@ When you are ready to deploy to Azure (using `@ai-sdk/azure`) or AWS (`@ai-sdk/a
    export const AZURE_CATALOG: ProviderCatalog = {
      displayName: 'Azure OpenAI',
      providerKey: 'azure',
+     baa: true, // ONLY once the Microsoft BAA covering this Azure resource is signed
      models: { /* ... */ },
      getAdapter: (modelId) => azure(modelId),
    };
