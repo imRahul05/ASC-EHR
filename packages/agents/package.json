@@ -16,6 +16,7 @@
     "@ai-sdk/azure": "^4.0.79",
     "@ai-sdk/google": "^4.0.80",
     "@ai-sdk/openai": "^4.0.75",
+    "@repo/audit": "workspace:*",
     "@repo/types": "workspace:*",
     "@repo/validation": "workspace:*",
     "ai": "^7.0.114",

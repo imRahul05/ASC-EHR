@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import { isRetryableModelError } from '../errors.js';
-import { apiError, respondWith } from './fixtures.js';
+import { apiError, respondWith } from '../../testing/fixtures.js';
 
 /** Produces a real NoObjectGeneratedError from the SDK (model returns non-JSON). */
 async function realNoObjectGeneratedError(): Promise<unknown> {

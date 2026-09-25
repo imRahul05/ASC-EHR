@@ -6,7 +6,7 @@
  */
 
 import { APICallError, RetryError, StreamProviderError } from 'ai';
-import type { ReasoningTier } from './config/index.js';
+import type { ModelCapability, ReasoningTier } from '../config/index.js';
 
 /**
  * Thrown when a call is flagged `containsPhi: true` but no model in the
@@ -27,7 +27,28 @@ export class NoCompliantModelError extends Error {
   }
 }
 
-/** Thrown when a tier has no usable (non-deprecated, hosted) model at all. */
+/**
+ * Thrown when models are hosted for the call but none has every capability in
+ * `requires` (e.g. vision). No model is called.
+ */
+export class NoCapableModelError extends Error {
+  override readonly name = 'NoCapableModelError';
+  readonly tier: ReasoningTier;
+  readonly hostingTarget: string;
+  readonly requiredCapabilities: readonly ModelCapability[];
+
+  constructor(tier: ReasoningTier, hostingTarget: string, requiredCapabilities: readonly ModelCapability[]) {
+    super(
+      `No model for tier "${tier}" on hosting "${hostingTarget}" supports all of: ` +
+        `${requiredCapabilities.join(', ')}.`,
+    );
+    this.tier = tier;
+    this.hostingTarget = hostingTarget;
+    this.requiredCapabilities = requiredCapabilities;
+  }
+}
+
+/** Thrown when a tier (or model pin) has no usable (non-deprecated, hosted) model at all. */
 export class NoAvailableModelError extends Error {
   override readonly name = 'NoAvailableModelError';
   readonly tier: ReasoningTier;
@@ -50,6 +71,8 @@ export class NoAvailableModelError extends Error {
 export class AgentExecutionError extends Error {
   override readonly name = 'AgentExecutionError';
   readonly agentExecutionId: string;
+  readonly tier: ReasoningTier;
+  readonly hostingTarget: string;
   readonly attempts: number;
   readonly lastEndpoint: string;
   readonly lastModelId: string;
@@ -58,6 +81,8 @@ export class AgentExecutionError extends Error {
 
   constructor(args: {
     agentExecutionId: string;
+    tier: ReasoningTier;
+    hostingTarget: string;
     attempts: number;
     lastEndpoint: string;
     lastModelId: string;
@@ -71,6 +96,8 @@ export class AgentExecutionError extends Error {
       { cause: args.cause },
     );
     this.agentExecutionId = args.agentExecutionId;
+    this.tier = args.tier;
+    this.hostingTarget = args.hostingTarget;
     this.attempts = args.attempts;
     this.lastEndpoint = args.lastEndpoint;
     this.lastModelId = args.lastModelId;

@@ -2,9 +2,10 @@
  * Agent Model Router.
  *
  *   task (+ optional reasoning override) → effective tier
- *   routing profile[tier]                → ordered logical models
- *   hosting target                       → endpoint + id per model (unhosted models skipped)
- *   containsPhi                          → keep only BAA-covered endpoints
+ *   model pin, else routing profile[tier] → ordered logical models (deprecated skipped)
+ *   hosting target                        → endpoint + id per model (unhosted models skipped)
+ *   requires                              → keep models with every required capability
+ *   containsPhi                           → keep only BAA-covered endpoints
  *
  * Every function accepts an optional `RoutingContext` so tests (and future
  * per-tenant setups) can inject a hosting target / routing / task profiles.
@@ -20,8 +21,10 @@ import {
   REASONING_TIERS,
   ROUTING_PROFILES,
   TASK_PROFILES,
+  hasCapabilities,
   maxReasoning,
   type HostingTarget,
+  type ModelCapability,
   type ModelRef,
   type ModelVendor,
   type ReasoningTier,
@@ -29,8 +32,8 @@ import {
   type RoutingTable,
   type TaskProfiles,
   type TaskType,
-} from './config/index.js';
-import { NoAvailableModelError, NoCompliantModelError } from './errors.js';
+} from '../config/index.js';
+import { NoAvailableModelError, NoCapableModelError, NoCompliantModelError } from './errors.js';
 
 /** Injectable routing configuration. Defaults to the centralized config. */
 export interface RoutingContext {
@@ -53,7 +56,15 @@ export interface ResolvedModel {
   model: LanguageModel;
 }
 
-export interface FallbackChainOptions extends RoutingContext {
+/** Per-call model selection: what the call needs and, optionally, which models it is pinned to. */
+export interface ModelSelection {
+  /** Pinned models, in fallback order. REPLACE the tier's routing chain; every other filter still applies. */
+  models?: readonly ModelRef[];
+  /** Capabilities every candidate must have (e.g. `Capability.Vision`). */
+  requires?: readonly ModelCapability[];
+}
+
+export interface FallbackChainOptions extends RoutingContext, ModelSelection {
   /** When true, the chain is restricted to BAA-covered endpoints. */
   containsPhi: boolean;
 }
@@ -83,23 +94,24 @@ export function resolveContainsPhi(
   return containsPhi || taskProfiles[task].handlesPhi;
 }
 
-interface Candidate {
+/** A logical model located on a hosting target. No SDK model is created yet. */
+export interface EligibleModel {
   ref: ModelRef;
-  endpointName: string;
+  endpoint: string;
   modelId: string;
   baa: boolean;
   createModel: (modelId: string) => LanguageModel;
 }
 
 /** Logical model → endpoint on the target, or undefined if the target does not host it. */
-function locate(ref: ModelRef, hosting: HostingTarget): Candidate | undefined {
+function locate(ref: ModelRef, hosting: HostingTarget): EligibleModel | undefined {
   const binding = hosting.models[ref.name];
   if (!binding) return undefined;
   const endpoint = hosting.endpoints[binding.endpoint];
   if (!endpoint) return undefined;
   return {
     ref,
-    endpointName: binding.endpoint,
+    endpoint: binding.endpoint,
     modelId: binding.id,
     baa: endpoint.baa,
     createModel: endpoint.createModel,
@@ -107,30 +119,39 @@ function locate(ref: ModelRef, hosting: HostingTarget): Candidate | undefined {
 }
 
 /**
- * Ordered fallback chain for a tier on the active hosting target: deprecated
- * and unhosted models are skipped and, when `containsPhi` is true, non-BAA
- * endpoints are removed.
- *
- * Throws NoCompliantModelError (PHI) or NoAvailableModelError when empty, so
- * callers never receive an empty chain.
+ * Applies the routing filters in order — pin or tier chain, deprecated, hosting,
+ * capabilities, BAA — and throws the typed error for the first filter that
+ * leaves nothing. Pure: creates no SDK models (used by `validateAgentConfig`).
  */
-export function getFallbackChain(tier: ReasoningTier, options: FallbackChainOptions): ResolvedModel[] {
+export function selectEligibleModels(tier: ReasoningTier, options: FallbackChainOptions): EligibleModel[] {
   const hosting = options.hosting ?? DEFAULT_HOSTING_TARGET;
-  const available = routingTable(options)[tier]
+  const requires = options.requires ?? [];
+
+  const hosted = (options.models ?? routingTable(options)[tier])
     .filter((ref) => !ref.deprecated)
     .map((ref) => locate(ref, hosting))
-    .filter((c): c is Candidate => c !== undefined);
-  const allowed = options.containsPhi ? available.filter((c) => c.baa) : available;
+    .filter((c): c is EligibleModel => c !== undefined);
+  if (hosted.length === 0) throw new NoAvailableModelError(tier, hosting.name);
 
-  if (allowed.length === 0) {
-    throw options.containsPhi
-      ? new NoCompliantModelError(tier, hosting.name)
-      : new NoAvailableModelError(tier, hosting.name);
-  }
+  const capable = hosted.filter((c) => hasCapabilities(c.ref, requires));
+  if (capable.length === 0) throw new NoCapableModelError(tier, hosting.name, requires);
 
-  return allowed.map((c) => ({
-    hostingTarget: hosting.name,
-    endpoint: c.endpointName,
+  const allowed = options.containsPhi ? capable.filter((c) => c.baa) : capable;
+  if (allowed.length === 0) throw new NoCompliantModelError(tier, hosting.name);
+
+  return allowed;
+}
+
+/**
+ * Ordered fallback chain for a tier (or model pin) on the active hosting
+ * target, with SDK models created. Never empty: throws NoAvailableModelError,
+ * NoCapableModelError or NoCompliantModelError instead.
+ */
+export function getFallbackChain(tier: ReasoningTier, options: FallbackChainOptions): ResolvedModel[] {
+  const hostingTarget = (options.hosting ?? DEFAULT_HOSTING_TARGET).name;
+  return selectEligibleModels(tier, options).map((c) => ({
+    hostingTarget,
+    endpoint: c.endpoint,
     modelName: c.ref.name,
     modelId: c.modelId,
     baa: c.baa,
@@ -156,6 +177,7 @@ export interface RoutingInfoEntry {
   modelLabel: string;
   modelDescription: string;
   vendor: ModelVendor;
+  capabilities: readonly ModelCapability[];
   deprecated: boolean;
   /** Whether the active hosting target serves this model. */
   available: boolean;
@@ -178,10 +200,11 @@ export function getRoutingInfo(tier: ReasoningTier, context: RoutingContext = {}
       modelLabel: ref.label,
       modelDescription: ref.description,
       vendor: ref.vendor,
+      capabilities: ref.capabilities,
       deprecated: ref.deprecated ?? false,
       available: located !== undefined,
-      endpoint: located?.endpointName,
-      endpointDisplayName: located ? hosting.endpoints[located.endpointName]?.displayName : undefined,
+      endpoint: located?.endpoint,
+      endpointDisplayName: located ? hosting.endpoints[located.endpoint]?.displayName : undefined,
       modelId: located?.modelId,
       baa: located?.baa ?? false,
     };

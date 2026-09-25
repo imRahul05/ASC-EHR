@@ -3,6 +3,8 @@
  *
  * Features:
  *   • Model routing via config/ → router.ts (effective tier = max(task minimum, optional override)).
+ *     A per-call model pin (`models`) replaces the tier's chain; `requires` drops models
+ *     lacking a capability. Hosting, deprecation and BAA filters always apply.
  *   • PHI guard: `containsPhi` is REQUIRED (and forced on for tasks whose
  *     profile has `handlesPhi`). PHI calls are routed only to
  *     endpoints with `baa: true` on the active hosting target; if none, NoCompliantModelError
@@ -29,12 +31,13 @@ import {
   type ToolSet,
 } from 'ai';
 
-import type { ReasoningTier, TaskType } from './config/index.js';
+import type { ReasoningTier, TaskType } from '../config/index.js';
 import { AgentExecutionError, isRetryableModelError } from './errors.js';
 import {
   getFallbackChain,
   resolveContainsPhi,
   resolveEffectiveTier,
+  type ModelSelection,
   type ResolvedModel,
   type RoutingContext,
 } from './router.js';
@@ -43,7 +46,7 @@ import {
 // Public interfaces
 // ─────────────────────────────────────────────────────────────
 
-export interface AgentCallParams {
+export interface AgentCallParams extends ModelSelection {
   /** What kind of work this is, e.g. `Task.MedicalCoding`. Sets the minimum tier and PHI policy. */
   task: TaskType;
   /** Optional escalation, e.g. `Reasoning.High`. Can raise the task's tier, never lower it. */
@@ -68,7 +71,7 @@ export interface ExecuteAgentParams extends AgentCallParams {
   maxSteps?: number;
 }
 
-export interface ExecuteAgentObjectParams<T> extends AgentCallParams {
+export interface ExecuteAgentObjectParams<T> extends ExecuteAgentParams {
   /** Zod (or any SDK-supported) schema describing the structured output. */
   schema: FlexibleSchema<T>;
 }
@@ -146,7 +149,12 @@ export function createGateway(options: GatewayOptions = {}): Gateway {
   function plan(params: AgentCallParams) {
     const tier = resolveEffectiveTier(params.task, params.reasoning, routingContext.taskProfiles);
     const containsPhi = resolveContainsPhi(params.task, params.containsPhi, routingContext.taskProfiles);
-    const chain = getFallbackChain(tier, { ...routingContext, containsPhi });
+    const chain = getFallbackChain(tier, {
+      ...routingContext,
+      containsPhi,
+      models: params.models,
+      requires: params.requires,
+    });
     return {
       agentExecutionId: generateExecutionId(),
       task: params.task,
@@ -193,6 +201,8 @@ export function createGateway(options: GatewayOptions = {}): Gateway {
         if (!retryable || isLast || params.abortSignal?.aborted === true) {
           throw new AgentExecutionError({
             agentExecutionId: planned.agentExecutionId,
+            tier: planned.tier,
+            hostingTarget: candidate.hostingTarget,
             attempts,
             lastEndpoint: candidate.endpoint,
             lastModelId: candidate.modelId,
@@ -231,6 +241,8 @@ export function createGateway(options: GatewayOptions = {}): Gateway {
           instructions: params.instructions,
           messages: params.messages,
           output: Output.object({ schema: params.schema }),
+          tools: params.tools,
+          stopWhen: params.maxSteps === undefined ? undefined : isStepCount(params.maxSteps),
           maxRetries: maxRetriesPerModel,
           abortSignal: params.abortSignal,
         });
@@ -267,7 +279,8 @@ export function createGateway(options: GatewayOptions = {}): Gateway {
 // Default gateway (centralized config)
 // ─────────────────────────────────────────────────────────────
 
-const defaultGateway = createGateway();
+/** Gateway over the centralized config (`direct` hosting, `default` routing profile). */
+export const defaultGateway: Gateway = createGateway();
 
 /**
  * Execute an agent task. Falls back through the (BAA-filtered) chain on

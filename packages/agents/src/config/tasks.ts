@@ -10,6 +10,7 @@ import { Reasoning, type ReasoningTier } from './reasoning.js';
 export const Task = {
   MedicalCoding: 'medical-coding',
   DiagnosticReasoning: 'diagnostic-reasoning',
+  PatientInstructions: 'patient-instructions',
   Summarization: 'summarization',
   DataExtraction: 'data-extraction',
   Validation: 'validation',
@@ -40,6 +41,11 @@ export const TASK_PROFILES = {
     reasoning: Reasoning.High,
     handlesPhi: true,
     description: 'Clinical reasoning over patient findings.',
+  },
+  [Task.PatientInstructions]: {
+    reasoning: Reasoning.Medium,
+    handlesPhi: true,
+    description: 'Plain-language, patient-facing instructions (e.g. discharge) from structured clinical facts.',
   },
   [Task.Summarization]: {
     reasoning: Reasoning.Medium,

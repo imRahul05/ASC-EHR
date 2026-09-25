@@ -96,3 +96,14 @@ A model's API id and its BAA coverage depend on where it is served (vendor API, 
 
 Diagrams: `packages/agents/README.md`.
 
+## Amendment 5 (2026-09-25): agent layer, model capabilities, model pins
+
+The config answered "which model runs" but had no home for what an agent *is*. `packages/agents/src/` is now three layers: `config/` (catalog + policy), `runtime/` (gateway, router, errors) and `agents/` (definitions). `src/gateway.ts`, `src/router.ts` and `src/errors.ts` referenced above now live in `src/runtime/`; the public `@repo/agents` API is unchanged apart from additions.
+
+- **Agent definitions** — `defineAgent({ name, task, reasoning?, models?, requires?, promptVersion, input, output, instructions, buildMessages })`, one folder per agent (`agents/<name>/`: definition, strict minimum-necessary input schema, versioned prompt, synthetic eval cases). `buildMessages` renders typed fields individually and is the only place an agent decides what data reaches a model. Agent output schemas shared with the web app live in `@repo/validation`. All agents are listed in `AGENTS` (`agents/registry.ts`).
+- **`runAgent(definition, input, options)`** — validates input (`AgentInputError` lists field paths, never values), calls `executeAgentObject` with the agent's routing policy, and always writes one `agent.run` event through `@repo/audit` (SUCCESS and FAILURE). The agent is the audit actor; the triggering user/system and routing metadata go in PHI-free `details`. The gateway and audit sink are injectable; the default sink (`getAuditClient()`) fails closed in production before any model is called.
+- **Capabilities** — `ModelSpec.capabilities` (`Capability.Vision | Tools | StructuredOutput`). Calls and agents declare `requires`; the router drops models lacking any, after the hosting filter and before the BAA filter, and throws `NoCapableModelError` when none remain. Flags must be verified against vendor docs.
+- **Model pins** — `models` on a call or agent replaces the tier's routing chain (e.g. "coding must use Opus"); hosting, deprecation, capability and BAA filters still apply and the tier is still reported.
+- **Validation** — `validateAgentConfig()` moved from `config/validate.ts` to `src/validate.ts` (it now reads the agent registry, which depends on `config/`; keeping it in `config/` would create an import cycle). It additionally proves each registered agent can run on every hosting target × routing profile (or on every target for pinned agents), with a BAA model when its task handles PHI.
+- **First agent** — `discharge-instructions` (new `Task.PatientInstructions`: medium tier, always PHI). Its prompt is marked as requiring clinical review before production use. Running eval cases against live models is a follow-up.
+

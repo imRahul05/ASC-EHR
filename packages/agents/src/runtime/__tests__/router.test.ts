@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { NoAvailableModelError, NoCompliantModelError } from '../errors.js';
+import { NoAvailableModelError, NoCapableModelError, NoCompliantModelError } from '../errors.js';
 import {
   getFallbackChain,
   getModelForTask,
@@ -9,8 +9,8 @@ import {
   resolveContainsPhi,
   resolveEffectiveTier,
 } from '../router.js';
-import { Reasoning, Task, directHosting } from '../config/index.js';
-import { FixtureModels, createCloudFixture, createFixture } from './fixtures.js';
+import { Capability, Models, Reasoning, Task, directHosting } from '../../config/index.js';
+import { FixtureModels, createCloudFixture, createFixture } from '../../testing/fixtures.js';
 
 describe('resolveEffectiveTier', () => {
   it('uses the task minimum when no override is given', () => {
@@ -70,6 +70,73 @@ describe('getFallbackChain', () => {
     expect(budget[0]?.modelName).toBe('claudeSonnet5');
     const standard = getFallbackChain(Reasoning.High, { containsPhi: false });
     expect(standard[0]).toMatchObject({ modelName: 'claudeOpus55', modelId: 'claude-opus-5-5', hostingTarget: 'direct' });
+  });
+});
+
+describe('capability requirements', () => {
+  it('drops models lacking a required capability', () => {
+    const { hosting, routing } = createFixture();
+    const chain = getFallbackChain(Reasoning.High, {
+      containsPhi: false,
+      requires: [Capability.Vision],
+      hosting,
+      routing,
+    });
+    expect(chain.map((m) => m.modelName)).toEqual(['oHigh', 'aHigh2']);
+  });
+
+  it('applies the BAA filter after capabilities', () => {
+    const { hosting, routing } = createFixture();
+    const chain = getFallbackChain(Reasoning.High, {
+      containsPhi: true,
+      requires: [Capability.Vision],
+      hosting,
+      routing,
+    });
+    expect(chain.map((m) => m.modelName)).toEqual(['aHigh2']);
+  });
+
+  it('throws NoCapableModelError (tier, hosting, capabilities) when no hosted model qualifies', () => {
+    const { hosting, routing } = createFixture();
+    const call = () =>
+      getFallbackChain(Reasoning.Low, { containsPhi: false, requires: [Capability.Vision], hosting, routing });
+    expect(call).toThrow(NoCapableModelError);
+    expect(call).toThrow(expect.objectContaining({
+      tier: Reasoning.Low,
+      hostingTarget: 'fixture-direct',
+      requiredCapabilities: [Capability.Vision],
+    }));
+  });
+
+  it('every production model declares tools and structured output', () => {
+    for (const model of Object.values(Models)) {
+      expect(model.capabilities).toEqual(expect.arrayContaining([Capability.Tools, Capability.StructuredOutput]));
+    }
+  });
+});
+
+describe('model pin', () => {
+  it('replaces the tier chain, keeping pin order', () => {
+    const { hosting, routing } = createFixture();
+    const chain = getFallbackChain(Reasoning.Low, {
+      containsPhi: false,
+      models: [FixtureModels.aHigh2, FixtureModels.aHigh],
+      hosting,
+      routing,
+    });
+    expect(chain.map((m) => m.modelName)).toEqual(['aHigh2', 'aHigh']);
+  });
+
+  it('still applies deprecation, hosting and BAA filters to pinned models', () => {
+    const cloud = createCloudFixture();
+    const pinned = [FixtureModels.oMedOld, FixtureModels.oHigh, FixtureModels.aMed];
+    const chain = getFallbackChain(Reasoning.High, { containsPhi: true, models: pinned, ...cloud });
+    expect(chain.map((m) => m.modelName)).toEqual(['aMed']);
+
+    const { hosting, routing } = createFixture();
+    expect(() =>
+      getFallbackChain(Reasoning.High, { containsPhi: true, models: [FixtureModels.oHigh], hosting, routing }),
+    ).toThrow(NoCompliantModelError);
   });
 });
 

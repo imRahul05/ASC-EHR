@@ -7,15 +7,12 @@ import {
   Models,
   REASONING_TIERS,
   Reasoning,
-  ROUTING_PROFILES,
   TASK_PROFILES,
   Task,
   isReasoningTier,
   maxReasoning,
-  validateAgentConfig,
-} from '../config/index.js';
-import { getFallbackChain } from '../router.js';
-import { FixtureModels, createCloudFixture, createFixture } from './fixtures.js';
+} from '../index.js';
+import { getFallbackChain } from '../../runtime/router.js';
 
 describe('Reasoning helpers', () => {
   it('orders tiers lowest → highest', () => {
@@ -52,63 +49,6 @@ describe('model and hosting definitions', () => {
 
   it('every task has a profile', () => {
     for (const task of Object.values(Task)) expect(TASK_PROFILES[task]).toBeDefined();
-  });
-});
-
-describe('validateAgentConfig', () => {
-  it('production config (all routing profiles × all hosting targets) is valid', () => {
-    expect(validateAgentConfig()).toEqual([]);
-  });
-
-  it('every routing profile covers every tier', () => {
-    for (const table of Object.values(ROUTING_PROFILES)) {
-      expect(Object.keys(table).sort()).toEqual([...REASONING_TIERS].sort());
-    }
-  });
-
-  it('reports deprecated, duplicate, unhosted tiers and PHI tiers without a BAA model', () => {
-    const { hosting } = createFixture();
-    const problems = validateAgentConfig({
-      hostingTargets: { fixture: hosting },
-      routingProfiles: {
-        broken: {
-          [Reasoning.High]: [FixtureModels.oHigh, FixtureModels.oHigh],
-          [Reasoning.Medium]: [FixtureModels.oMedOld, FixtureModels.aMed],
-          [Reasoning.Low]: [],
-        },
-      },
-    });
-
-    expect(problems).toEqual(
-      expect.arrayContaining([
-        'routing "broken" tier "low" has no model available on hosting "fixture-direct"',
-        'routing "broken" tier "medium" routes deprecated model oMedOld',
-        'routing "broken" tier "high" lists oHigh twice',
-        expect.stringContaining(
-          'routing "broken" tier "high" has no BAA-covered model on hosting "fixture-direct" but serves PHI tasks',
-        ),
-      ]),
-    );
-  });
-
-  it('checks each hosting target separately', () => {
-    const direct = createFixture();
-    const cloud = createCloudFixture();
-    const problems = validateAgentConfig({
-      hostingTargets: { direct: direct.hosting, cloud: cloud.hosting },
-      routingProfiles: { fixture: direct.routing },
-    });
-    // Cloud target hosts no low-tier model; direct hosts all of them.
-    const availability = problems.filter((p) => p.includes('no model available'));
-    expect(availability).toEqual(['routing "fixture" tier "low" has no model available on hosting "fixture-cloud"']);
-  });
-
-  it('reports bindings to an unknown endpoint', () => {
-    const { hosting } = createFixture();
-    const broken = { ...hosting, models: { ...hosting.models, aHigh: { endpoint: 'nope', id: 'x' } } };
-    expect(validateAgentConfig({ hostingTargets: { broken } })).toEqual(
-      expect.arrayContaining(['hosting "fixture-direct" binds aHigh to unknown endpoint "nope"']),
-    );
   });
 });
 

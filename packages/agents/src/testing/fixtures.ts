@@ -1,19 +1,27 @@
 /**
  * Test fixtures: logical models + a mock hosting target built from the same
  * building blocks as production, backed by the SDK's MockLanguageModelV4, so
- * gateway tests never hit real providers.
+ * gateway and agent tests never hit real providers. Not exported from the package.
  */
 
 import { APICallError } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
 
+import type { AuditEventInput } from '@repo/audit';
+import { z } from 'zod';
+
 import {
+  MULTIMODAL_CAPABILITIES,
   Reasoning,
+  TEXT_CAPABILITIES,
+  Task,
   defineModels,
   type HostingTarget,
   type ModelBinding,
   type RoutingTable,
 } from '../config/index.js';
+import { defineAgent, type AgentDefinition } from '../agents/define.js';
+import { createGateway, type Gateway } from '../runtime/gateway.js';
 
 type MockOptions = NonNullable<ConstructorParameters<typeof MockLanguageModelV4>[0]>;
 export type DoGenerate = NonNullable<MockOptions['doGenerate']>;
@@ -49,17 +57,23 @@ export function apiError(statusCode: number, isRetryable?: boolean): APICallErro
   });
 }
 
-/** Logical fixture models (hosting-independent). */
+const text = TEXT_CAPABILITIES;
+const multimodal = MULTIMODAL_CAPABILITIES;
+
+/**
+ * Logical fixture models (hosting-independent). Vision: only oHigh (no BAA)
+ * and aHigh2 (BAA), so capability + BAA filters can be tested together.
+ */
 export const FixtureModels = defineModels({
-  aHigh: { vendor: 'anthropic', label: 'A high', description: 'fixture' },
-  aHigh2: { vendor: 'anthropic', label: 'A high 2', description: 'fixture' },
-  aMed: { vendor: 'anthropic', label: 'A med', description: 'fixture' },
-  oHigh: { vendor: 'openai', label: 'O high', description: 'fixture' },
-  oMed: { vendor: 'openai', label: 'O med', description: 'fixture' },
-  oMedOld: { vendor: 'openai', label: 'O med old', description: 'fixture', deprecated: true },
-  oLow: { vendor: 'openai', label: 'O low', description: 'fixture' },
-  gMed: { vendor: 'google', label: 'G med', description: 'fixture' },
-  gLow: { vendor: 'google', label: 'G low', description: 'fixture' },
+  aHigh: { vendor: 'anthropic', label: 'A high', description: 'fixture', capabilities: text },
+  aHigh2: { vendor: 'anthropic', label: 'A high 2', description: 'fixture', capabilities: multimodal },
+  aMed: { vendor: 'anthropic', label: 'A med', description: 'fixture', capabilities: text },
+  oHigh: { vendor: 'openai', label: 'O high', description: 'fixture', capabilities: multimodal },
+  oMed: { vendor: 'openai', label: 'O med', description: 'fixture', capabilities: text },
+  oMedOld: { vendor: 'openai', label: 'O med old', description: 'fixture', capabilities: text, deprecated: true },
+  oLow: { vendor: 'openai', label: 'O low', description: 'fixture', capabilities: text },
+  gMed: { vendor: 'google', label: 'G med', description: 'fixture', capabilities: text },
+  gLow: { vendor: 'google', label: 'G low', description: 'fixture', capabilities: text },
 });
 
 type FixtureModelName = keyof typeof FixtureModels;
@@ -79,16 +93,16 @@ export interface Fixture {
   hosting: HostingTarget;
   routing: RoutingTable;
   /** Mock model per model id sent to an endpoint. */
-  models: Record<string, MockLanguageModelV4>;
+  mockModels: Record<string, MockLanguageModelV4>;
 }
 
-function mockFactory(models: Record<string, MockLanguageModelV4>, behaviour: Record<string, DoGenerate>) {
+function mockFactory(mockModels: Record<string, MockLanguageModelV4>, behaviour: Record<string, DoGenerate>) {
   return (modelId: string): MockLanguageModelV4 => {
-    models[modelId] ??= new MockLanguageModelV4({
+    mockModels[modelId] ??= new MockLanguageModelV4({
       modelId,
       doGenerate: behaviour[modelId] ?? respondWith('ok'),
     });
-    return models[modelId];
+    return mockModels[modelId];
   };
 }
 
@@ -98,8 +112,8 @@ function mockFactory(models: Record<string, MockLanguageModelV4>, behaviour: Rec
  * Every model answers "ok" unless overridden via `behaviour` (keyed by model id).
  */
 export function createFixture(behaviour: Record<string, DoGenerate> = {}): Fixture {
-  const models: Record<string, MockLanguageModelV4> = {};
-  const createModel = mockFactory(models, behaviour);
+  const mockModels: Record<string, MockLanguageModelV4> = {};
+  const createModel = mockFactory(mockModels, behaviour);
 
   const bindings: Record<FixtureModelName, ModelBinding> = {
     aHigh: { endpoint: 'anthropic', id: 'a-high' },
@@ -125,7 +139,7 @@ export function createFixture(behaviour: Record<string, DoGenerate> = {}): Fixtu
       models: bindings,
     },
     routing: FIXTURE_ROUTING,
-    models,
+    mockModels,
   };
 }
 
@@ -134,8 +148,8 @@ export function createFixture(behaviour: Record<string, DoGenerate> = {}): Fixtu
  * one BAA-covered endpoint with provider-specific ids. OpenAI/Google unhosted.
  */
 export function createCloudFixture(behaviour: Record<string, DoGenerate> = {}): Fixture {
-  const models: Record<string, MockLanguageModelV4> = {};
-  const createModel = mockFactory(models, behaviour);
+  const mockModels: Record<string, MockLanguageModelV4> = {};
+  const createModel = mockFactory(mockModels, behaviour);
   return {
     hosting: {
       name: 'fixture-cloud',
@@ -148,10 +162,53 @@ export function createCloudFixture(behaviour: Record<string, DoGenerate> = {}): 
       },
     },
     routing: FIXTURE_ROUTING,
-    models,
+    mockModels,
   };
 }
 
 export function callCount(fixture: Fixture, modelId: string): number {
-  return fixture.models[modelId]?.doGenerateCalls.length ?? 0;
+  return fixture.mockModels[modelId]?.doGenerateCalls.length ?? 0;
+}
+
+/** Gateway over a fixture: no SDK backoff, sequential execution ids (`exec-1`, `exec-2`, …). */
+export function createTestGateway(fixture: Fixture): Gateway {
+  let n = 0;
+  return createGateway({
+    hosting: fixture.hosting,
+    routing: fixture.routing,
+    maxRetriesPerModel: 0,
+    generateExecutionId: () => `exec-${++n}`,
+  });
+}
+
+/** In-memory audit sink that records every event it receives. */
+export function createAuditRecorder() {
+  const events: AuditEventInput[] = [];
+  return {
+    events,
+    logEvent(event: AuditEventInput): Promise<void> {
+      events.push(event);
+      return Promise.resolve();
+    },
+  };
+}
+
+const testAgentInput = z.object({ topic: z.string() }).strict();
+const testAgentOutput = z.object({ answer: z.string() });
+
+/** Minimal synthetic agent (non-PHI task) for runAgent / validation tests. */
+export function defineTestAgent(
+  overrides: Partial<AgentDefinition<string, typeof testAgentInput, typeof testAgentOutput>> = {},
+) {
+  return defineAgent({
+    name: 'test-agent',
+    description: 'fixture',
+    task: Task.General,
+    promptVersion: '2026-01-01.1',
+    input: testAgentInput,
+    output: testAgentOutput,
+    instructions: 'synthetic',
+    buildMessages: ({ topic }) => [{ role: 'user', content: topic }],
+    ...overrides,
+  });
 }

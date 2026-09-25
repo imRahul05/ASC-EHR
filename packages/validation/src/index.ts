@@ -14,3 +14,11 @@ export const healthResponseSchema = z.object({
 });
 
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
+
+// AI agent outputs (@repo/agents) — returned by apps/api, rendered by apps/web
+export {
+  dischargeInstructionsOutputSchema,
+  patientLanguageSchema,
+  type DischargeInstructionsOutput,
+  type PatientLanguage,
+} from "./agents/discharge-instructions.js";

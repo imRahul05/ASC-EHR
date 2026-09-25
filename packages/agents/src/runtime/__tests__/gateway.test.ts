@@ -2,27 +2,25 @@ import { NoObjectGeneratedError } from 'ai';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { createGateway, type AgentCallParams } from '../gateway.js';
-import { AgentExecutionError, NoCompliantModelError } from '../errors.js';
-import { Reasoning, Task } from '../config/index.js';
-import { apiError, callCount, createFixture, failWith, respondWith } from './fixtures.js';
+import type { AgentCallParams } from '../gateway.js';
+import { AgentExecutionError, NoCapableModelError, NoCompliantModelError } from '../errors.js';
+import { Capability, Reasoning, Task } from '../../config/index.js';
+import {
+  FixtureModels,
+  apiError,
+  callCount,
+  createFixture,
+  createTestGateway,
+  failWith,
+  respondWith,
+} from '../../testing/fixtures.js';
 
 const messages: AgentCallParams['messages'] = [{ role: 'user', content: 'synthetic, non-PHI test prompt' }];
-
-function gatewayFor(fixture: ReturnType<typeof createFixture>) {
-  let n = 0;
-  return createGateway({
-    hosting: fixture.hosting,
-    routing: fixture.routing,
-    maxRetriesPerModel: 0, // no SDK backoff in tests
-    generateExecutionId: () => `exec-${++n}`,
-  });
-}
 
 describe('gateway fallback policy', () => {
   it('falls back to the next model on a retryable error (429)', async () => {
     const fixture = createFixture({ 'a-high': failWith(apiError(429)) });
-    const res = await gatewayFor(fixture).executeAgentTask({
+    const res = await createTestGateway(fixture).executeAgentTask({
       task: Task.General,
       reasoning: Reasoning.High,
       containsPhi: false,
@@ -47,7 +45,7 @@ describe('gateway fallback policy', () => {
       'a-high': failWith(apiError(529)),
       'o-high': failWith(apiError(503)),
     });
-    const res = await gatewayFor(fixture).executeAgentTask({
+    const res = await createTestGateway(fixture).executeAgentTask({
       task: Task.General,
       reasoning: Reasoning.High,
       containsPhi: false,
@@ -59,7 +57,7 @@ describe('gateway fallback policy', () => {
 
   it('does NOT fall back on a non-retryable error (400) and throws immediately', async () => {
     const fixture = createFixture({ 'a-high': failWith(apiError(400)) });
-    const err: unknown = await gatewayFor(fixture)
+    const err: unknown = await createTestGateway(fixture)
       .executeAgentTask({ task: Task.General, reasoning: Reasoning.High, containsPhi: false, messages })
       .catch((e: unknown) => e);
 
@@ -77,7 +75,7 @@ describe('gateway fallback policy', () => {
     for (const status of [401, 403]) {
       const fixture = createFixture({ 'a-high': failWith(apiError(status)) });
       await expect(
-        gatewayFor(fixture).executeAgentTask({
+        createTestGateway(fixture).executeAgentTask({
           task: Task.General,
           reasoning: Reasoning.High,
           containsPhi: false,
@@ -90,7 +88,7 @@ describe('gateway fallback policy', () => {
 
   it('does NOT fall back when structured output fails validation (NoObjectGeneratedError)', async () => {
     const fixture = createFixture({ 'a-high': respondWith('not json') });
-    const err: unknown = await gatewayFor(fixture)
+    const err: unknown = await createTestGateway(fixture)
       .executeAgentObject({
         task: Task.General,
         reasoning: Reasoning.High,
@@ -111,7 +109,7 @@ describe('gateway fallback policy', () => {
       'o-high': failWith(apiError(429)),
       'a-high-2': failWith(apiError(500)),
     });
-    const err: unknown = await gatewayFor(fixture)
+    const err: unknown = await createTestGateway(fixture)
       .executeAgentTask({ task: Task.General, reasoning: Reasoning.High, containsPhi: false, messages })
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AgentExecutionError);
@@ -123,7 +121,7 @@ describe('gateway fallback policy', () => {
   it('disableFallback tries only the primary model', async () => {
     const fixture = createFixture({ 'a-high': failWith(apiError(429)) });
     await expect(
-      gatewayFor(fixture).executeAgentTask({
+      createTestGateway(fixture).executeAgentTask({
         task: Task.General,
         reasoning: Reasoning.High,
         containsPhi: false,
@@ -138,7 +136,7 @@ describe('gateway fallback policy', () => {
 describe('PHI / BAA routing', () => {
   it('containsPhi restricts the chain to BAA providers (skips OpenAI on fallback)', async () => {
     const fixture = createFixture({ 'a-high': failWith(apiError(429)) });
-    const res = await gatewayFor(fixture).executeAgentTask({
+    const res = await createTestGateway(fixture).executeAgentTask({
       task: Task.General,
       reasoning: Reasoning.High,
       containsPhi: true,
@@ -151,7 +149,7 @@ describe('PHI / BAA routing', () => {
 
   it('containsPhi picks the first BAA model even when a non-BAA model is primary', async () => {
     const fixture = createFixture();
-    const res = await gatewayFor(fixture).executeAgentTask({
+    const res = await createTestGateway(fixture).executeAgentTask({
       task: Task.Summarization,
       reasoning: Reasoning.Medium,
       containsPhi: true,
@@ -165,21 +163,21 @@ describe('PHI / BAA routing', () => {
   it('throws NoCompliantModelError without calling any model when no BAA provider is in the tier', async () => {
     const fixture = createFixture();
     await expect(
-      gatewayFor(fixture).executeAgentTask({
+      createTestGateway(fixture).executeAgentTask({
         task: Task.DataExtraction,
         reasoning: Reasoning.Low,
         containsPhi: true,
         messages,
       }),
     ).rejects.toBeInstanceOf(NoCompliantModelError);
-    for (const key of Object.keys(fixture.models)) {
+    for (const key of Object.keys(fixture.mockModels)) {
       expect(callCount(fixture, key)).toBe(0);
     }
   });
 
   it('streamAgentTask also enforces the BAA filter (synchronously)', () => {
     const fixture = createFixture();
-    const gateway = gatewayFor(fixture);
+    const gateway = createTestGateway(fixture);
     expect(() =>
       gateway.streamAgentTask({ task: Task.Classification, reasoning: Reasoning.Low, containsPhi: true, messages }),
     ).toThrow(NoCompliantModelError);
@@ -189,7 +187,7 @@ describe('PHI / BAA routing', () => {
 describe('task PHI policy', () => {
   it('routes PHI-handling tasks to BAA providers even when caller passes containsPhi: false', async () => {
     const fixture = createFixture({ 'a-high': failWith(apiError(429)) });
-    const res = await gatewayFor(fixture).executeAgentTask({
+    const res = await createTestGateway(fixture).executeAgentTask({
       task: Task.MedicalCoding,
       containsPhi: false,
       messages,
@@ -200,7 +198,7 @@ describe('task PHI policy', () => {
 
   it('uses the task minimum tier when no reasoning override is given', async () => {
     const fixture = createFixture();
-    const res = await gatewayFor(fixture).executeAgentTask({
+    const res = await createTestGateway(fixture).executeAgentTask({
       task: Task.Summarization,
       containsPhi: false,
       messages,
@@ -212,7 +210,7 @@ describe('task PHI policy', () => {
 describe('tier escalation and deprecated models', () => {
   it('uses the higher of task-implied and requested tier', async () => {
     const fixture = createFixture();
-    const gateway = gatewayFor(fixture);
+    const gateway = createTestGateway(fixture);
 
     // medical-coding implies high; requesting low must not downgrade.
     const coding = await gateway.executeAgentTask({
@@ -237,7 +235,7 @@ describe('tier escalation and deprecated models', () => {
 
   it('skips deprecated models in the chain', async () => {
     const fixture = createFixture();
-    const res = await gatewayFor(fixture).executeAgentTask({
+    const res = await createTestGateway(fixture).executeAgentTask({
       task: Task.General,
       reasoning: Reasoning.Medium,
       containsPhi: false,
@@ -252,7 +250,7 @@ describe('tier escalation and deprecated models', () => {
 describe('structured output', () => {
   it('returns the schema-typed output with execution metadata', async () => {
     const fixture = createFixture({ 'a-high': respondWith('{"code":"43239"}') });
-    const res = await gatewayFor(fixture).executeAgentObject({
+    const res = await createTestGateway(fixture).executeAgentObject({
       task: Task.MedicalCoding,
       reasoning: Reasoning.High,
       containsPhi: true,
@@ -262,5 +260,44 @@ describe('structured output', () => {
     const code: string = res.output.code;
     expect(code).toBe('43239');
     expect(res).toMatchObject({ agentExecutionId: 'exec-1', endpoint: 'anthropic', attempts: 1 });
+  });
+});
+
+describe('model pin and capabilities', () => {
+  it('a pin replaces the tier chain but the tier is still reported', async () => {
+    const fixture = createFixture({ 'a-med': failWith(apiError(503)) });
+    const res = await createTestGateway(fixture).executeAgentTask({
+      task: Task.Classification,
+      containsPhi: false,
+      models: [FixtureModels.aMed, FixtureModels.aHigh],
+      messages,
+    });
+    expect(res).toMatchObject({ tier: Reasoning.Low, modelName: 'aHigh', attempts: 2 });
+    expect(callCount(fixture, 'g-low')).toBe(0);
+  });
+
+  it('requires filters the chain before any model is called', async () => {
+    const fixture = createFixture();
+    const gateway = createTestGateway(fixture);
+    const res = await gateway.executeAgentTask({
+      task: Task.General,
+      reasoning: Reasoning.High,
+      containsPhi: true,
+      requires: [Capability.Vision],
+      messages,
+    });
+    expect(res.modelName).toBe('aHigh2');
+    expect(callCount(fixture, 'a-high')).toBe(0);
+
+    await expect(
+      gateway.executeAgentTask({ task: Task.Classification, containsPhi: false, requires: [Capability.Vision], messages }),
+    ).rejects.toBeInstanceOf(NoCapableModelError);
+  });
+
+  it('AgentExecutionError carries tier and hosting target', async () => {
+    const fixture = createFixture({ 'a-high': failWith(apiError(400)) });
+    await expect(
+      createTestGateway(fixture).executeAgentTask({ task: Task.MedicalCoding, containsPhi: true, messages }),
+    ).rejects.toMatchObject({ tier: Reasoning.High, hostingTarget: 'fixture-direct' });
   });
 });
