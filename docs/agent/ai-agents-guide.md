@@ -198,6 +198,40 @@ sequenceDiagram
 
 Long-running or batch work (e.g. letters for the day's cases) → enqueue a BullMQ job and call `runAgent` in `apps/worker` the same way.
 
+### 6.1 Running agents in the worker (recommended for anything a clinician waits > a few seconds on)
+
+```typescript
+// apps/worker — once at startup
+import { createAzureHosting, createGateway } from '@asc/agents';
+import { createDb, createPostgresAgentRunStore } from '@asc/db';
+
+const hosting = createAzureHosting(azureSettingsFromEnv); // built from @asc/config's parsed env
+const gateway = createGateway({ hosting, maxRetriesPerModel: 2 }); // api: 1
+const runStore = createPostgresAgentRunStore(createDb({ url: env.DATABASE_URL }).db);
+
+// per job (job.data is ids only — @asc/validation job contract)
+const { output, meta } = await runAgent(dischargeInstructionsAgent, input, {
+  actor: { type: 'user', id: job.data.actorId },
+  containsPhi: true,
+  patientId: job.data.patientId,
+  surgicalCaseId: job.data.surgicalCaseId,
+  gateway,
+  executionId: `discharge-instructions:${job.id}`, // stable across job retries
+  runStore,                                          // retry of a finished job replays, no 2nd model call
+  context: { scope: { orgId, patientId, caseId }, items }, // optional: ContextItems from providers
+});
+```
+
+| Concern | Where it lives |
+|---|---|
+| Queue names, producer job options | `@asc/config` (`QUEUE_NAMES`, `QUEUE_DEFAULT_JOB_OPTIONS`) — `ai-interactive` (clinician waiting) vs `ai-background` |
+| Job data contract (ids only) | `@asc/validation` job schema |
+| Execution state (`agent_runs`, **PHI**: holds output) | `@asc/db` → Postgres (never Redis, logs, audit) |
+| Context metadata / scope + freshness checks | `@asc/agents` `context/` |
+| Workflow state (draft awaiting review) | FHIR `Task` + `Provenance` in Medplum (planned) |
+
+Vocabulary and design: [memory-skills-proposal-review.md §1](memory-skills-proposal-review.md), package details: [`packages/agents/README.md`](../../packages/agents/README.md#context-vs-execution-state).
+
 ## 7. Recipe C — config-only changes (no agent code)
 
 | I want to… | Edit | Notes |
@@ -241,6 +275,10 @@ stateDiagram-v2
 - Treat output as a draft; store `agentExecutionId` + `promptVersion` with it.
 - Add eval cases and tests; keep `validateAgentConfig()` green.
 - Get clinical review before an agent's output reaches patients or the medical record.
+- In jobs, pass a stable `executionId` (derived from the job id) and the app's `runStore`, so retries never call the model twice or create duplicate drafts.
+- Attach every retrieved fact as a `ContextItem` with source, authority, time and scope; wrap untrusted document text with `wrapUntrustedText`.
+- Keep provider calls stateless — endpoints set `store: false`; keep that when adding OpenAI-compatible endpoints.
+- Set `maxRetriesPerModel` per app (api `1`, worker `2`) and a `latencyBudget` if the task defaults don't fit.
 
 ### MUST NOT
 - Import `@ai-sdk/*` or call a model SDK outside `packages/agents/src/config/providers/`.
@@ -250,6 +288,10 @@ stateDiagram-v2
 - Read `process.env` inside `@asc/agents` (the app builds hosting from `@asc/config`).
 - Set `baa: true` on a provider without a countersigned BAA covering that endpoint.
 - Let an agent sign, finalize, or send anything without clinician approval.
+- Fall back to another model on a refusal (`ModelRefusalError` fails closed by design).
+- Use provider-side conversation state or memory (`previous_response_id`, Conversations, Interactions, memory stores) for PHI.
+- Put PHI in BullMQ job data, return values or failure reasons; put run records/output anywhere but the Postgres run store.
+- Let a model choose which patient/case a tool or context provider reads — scope comes from the run.
 
 ## 10. Troubleshooting
 
@@ -262,6 +304,11 @@ stateDiagram-v2
 | `AgentExecutionError` (`retryable: false`) | Model rejected the request or output failed the schema | Inspect `name`/metadata (not `cause` in logs); fix prompt/schema |
 | `AgentExecutionError` (`retryable: true`) | All models in the chain had transient failures | Provider outage/rate limit; retry later |
 | `AuditStoreNotConfiguredError` | Production without a durable audit store | Call `configureAuditStore()` at app startup |
+| `ModelRefusalError` (`failureKind: 'refusal'`) | Model declined (content filter / refusal); never retried elsewhere | Show "draft manually"; review input minimisation/prompt |
+| `AgentExecutionError` (`failureKind: 'timeout'`, `deadlineExceeded`) | Attempt timeout or total deadline spent | Check provider health; adjust `latencyBudget` for the task |
+| `AgentRunInProgressError` (`run-state`) | Same `executionId` is running elsewhere | Retry later; stale runs are taken over after `staleRunAfterMs` |
+| `AgentRunConflictError` (`agent-mismatch` / `scope-mismatch` / `claim-lost` / `output-invalid`) | Id reused by another agent or patient/case, run taken over, or stored output no longer valid | Use a unique, job-derived `executionId`; never share ids across cases |
+| `ContextScopeError` / `StaleContextError` (`context`) | A context item belongs to another org/patient/case, or is past its max age | Fix the provider scope; re-retrieve fresh data |
 
 ## 11. PR checklist for agent changes
 
@@ -273,6 +320,8 @@ stateDiagram-v2
 - [ ] Eval cases + tests added/updated; `pnpm -s turbo run lint check-types test` green
 - [ ] No `@ai-sdk/*` imports outside `config/providers/`; no model names in app code
 - [ ] Clinical reviewer named in the PR for patient-facing or record-bound output
+- [ ] Job-run agents pass `executionId` + `runStore`; retrieved facts are `ContextItem`s with scope/freshness
+- [ ] `phi-review` skill run on the diff (no PHI in logs, audit, telemetry, Redis)
 
 ## Related
 - Package reference and config diagrams: [`packages/agents/README.md`](../../packages/agents/README.md)

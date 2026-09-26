@@ -7,6 +7,26 @@ Legend — **Goal:** 🟢 smooth · ⚡ fast · 🔒 secure · 📈 scalable · 
 
 ---
 
+## 0. Implementation status (updated 2026-09-26)
+
+| # | Item | Status | Where |
+|---|---|---|---|
+| 1 | Latency budget (attempt timeout + total deadline) | ✅ done | `packages/agents/src/runtime/gateway.ts`, `TaskProfile.latencyBudget` |
+| 2 | Retry tuning per app | 📝 documented; apps must pass `maxRetriesPerModel` (api 1, worker 2) when they create gateways | `packages/agents/README.md`, AI Agents Guide §6.1 |
+| 3 | Model health circuit breaker | ⏸ deferred — low traffic for one ASC; revisit if outages hurt | — |
+| 4 | Provider `store: false` | ✅ done (wire-level tests) | `config/providers/{openai,azure-openai}.ts` |
+| 5 | PHI-free telemetry | ✅ done (off by default; inputs/outputs never recorded) | gateway `telemetry` option |
+| 6 | Token usage in meta + audit | ✅ done | `AgentExecutionMeta.usage` |
+| 7 | Refusal fails closed + `failureKind` | ✅ done | `ModelRefusalError`, `classifyModelError` |
+| 8 | Dev-time Claude Code skills | ✅ done | `.claude/skills/{create-agent,change-agent-prompt,add-model,phi-review}` |
+| 9 | Worker hygiene (queues, retention, sanitized errors, ids-only jobs) | ✅ done | `apps/worker`, shared contracts in `@asc/config` / `@asc/validation` |
+| 10 | Execution record + idempotent runs | ✅ done — interface + `isSameRunOwner` guard in `@asc/agents`; Postgres store in `@asc/db` (`agent_runs`) | ADR 2026-09-26 Postgres + Drizzle |
+| 11 | Approval ends run (FHIR `Task`/`Provenance`) | ⏳ needs Medplum | — |
+| 12 | Worker-run AI + SSE progress | ⏳ with first real job processor | — |
+| 13 | Context metadata + manifest + derived `containsPhi` | ✅ done (interfaces + checks); providers come with first agent | `packages/agents/src/context/` |
+| 14 | On-behalf-of retrieval | ⏳ needs Medplum access policies | — |
+| 15–17 | Cache layout, effort mapping, per-model eval gate | ⏳ with first real agent traffic | — |
+
 ## 1. What we learned about today's runtime
 
 | Finding | Where | Effect |

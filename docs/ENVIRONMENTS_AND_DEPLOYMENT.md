@@ -15,7 +15,7 @@ This document provides a comprehensive analysis and operational roadmap for mana
   - **No Environment Selectability**: No centralized runtime configuration or environment variable validator. The applications rely on unstructured `process.env["PORT"]` without type safety or missing-variable checks.
   - **No LLM Cost Controls for Staging/Testing**: The agents currently invoke live frontier models (Claude Opus 5.5, GPT-6 Astra, Gemini 3.8 Flash). Running automated regression tests or end-to-end user testing in Staging with these models will lead to high costs and potential rate limiting.
   - **No Staging Mocking / Fixtures**: No framework to record/replay agent responses or use deterministic mock language models during automated tests.
-  - **No Database / Migration Pipeline**: Database persistence and migrations (Postgres) are not yet integrated.
+  - **Database / Migration Pipeline** *(partially addressed 2026-09-26)*: `@asc/db` (Postgres + Drizzle) with SQL migrations and a local `docker-compose.yml` Postgres (`pnpm db:up`, `pnpm db:migrate`). Still missing: staging/production provisioning (Azure Postgres Flexible), migration step in deployment, backups/retention policy.
   - **No CI/CD Automation**: No GitHub Actions workflows exist to test code, build container images, or trigger staging/production deployments.
   - **HIPAA Data Isolation**: No formal policy or synthetic data generation tools to ensure zero Protected Health Information (PHI) enters Staging.
 
@@ -30,6 +30,7 @@ flowchart LR
         DevAPI["Fastify API (localhost:4000)"]
         DevWorker["BullMQ Worker"]
         DevRedis["Local Redis / Docker"]
+        DevDB["Local Postgres (docker compose)"]
         DevLLM["Sandbox / Mock Models / Personal Keys"]
     end
 
@@ -231,3 +232,20 @@ To transition from the current basic setup to a production-ready multi-environme
 - [ ] **Step 4: AI SDK Mocking Suite**: Set up test fixtures in `packages/agents` for zero-cost automated tests.
 - [ ] **Step 5: Dockerization**: Create multi-stage `Dockerfile` and `docker-compose.yml` for local staging simulation (API + Worker + Redis + Postgres).
 - [ ] **Step 6: GitHub Actions Workflow**: Add `.github/workflows/ci.yml` to automate type checking, linting, and tests on all branches.
+
+
+## Local Postgres (development)
+
+```bash
+pnpm db:up        # docker compose: postgres:17 on 127.0.0.1:5432, db asc_ehr, user/pass asc/asc (dev-only)
+pnpm db:migrate   # apply packages/db/drizzle migrations
+pnpm db:down      # stop (named volume keeps data; `docker compose down -v` wipes it)
+
+# app env (apps/api, apps/worker .env)
+DATABASE_URL=postgres://asc:asc@localhost:5432/asc_ehr
+
+# DB integration tests (skipped when unset)
+TEST_DATABASE_URL=postgres://asc:asc@localhost:5432/asc_ehr pnpm --filter @asc/db test
+```
+
+Never load real PHI locally. `agent_runs.output` holds model output (PHI) in staging/production, so those databases require encryption at rest, TLS, least-privilege roles and a retention policy (see the Postgres ADR).

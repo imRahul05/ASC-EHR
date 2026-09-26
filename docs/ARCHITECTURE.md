@@ -17,7 +17,10 @@ All shared logic acts as the single source of truth:
 - **`@asc/validation`**: Centralized Zod schemas. Both `apps/web` (for forms) and `apps/api` (for request validation) use exactly the same schemas from here.
 - **`@asc/types`**: Centralized TypeScript definitions.
 - **`@asc/api-client`**: Centralized fetching logic. 
-- **`@asc/config`**: Centralized constants and environment variables mapping.
+- **`@asc/config`**: Centralized constants and environment variables mapping (incl. queue names and producer job options).
+- **`@asc/agents`**: The only place LLMs are called: agents, model routing, gateway, context and run-state interfaces.
+- **`@asc/db`**: Postgres (Drizzle) schema, migrations and store implementations (e.g. agent run store).
+- **`@asc/audit` / `@asc/logger` / `@asc/telemetry`**: Compliance audit trail, PHI-redacting logs, tracing.
 
 ### Rule of Thumb for Agents / Developers
 > **If you are about to write a TypeScript interface, a Zod schema, or a generic utility function inside `/apps/*`, STOP.** Put it in the appropriate `/packages/*` workspace instead.
