@@ -2,6 +2,8 @@
 
 **Audience:** developers and AI coding agents extending `@asc/agents`.
 **Status:** proposal (nothing here is built yet). Anything that changes architecture should become an ADR before it lands.
+
+> **Reviewed 2026-09-26 — read the [architecture review](memory-skills-proposal-review.md) first.** It supersedes this proposal where they conflict: notably refusal handling (fail closed, no cross-vendor fallback), preference *mining* (deferred; typed config instead), the missing execution/workflow state model, and the tool data boundary.
 **Read with:** [AI Agents Guide](ai-agents-guide.md), [Compliance & PHI](../COMPLIANCE_AND_PHI.md), [agent routing ADR](../decisions/2026-09-25-centralize-agent-configuration-and-model-routing.md).
 **Facts as of:** 2026-09-26. Vendor features move fast — re-check anything marked *verify* before building on it.
 
