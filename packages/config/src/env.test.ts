@@ -22,7 +22,10 @@ describe("parseEnv", () => {
   it("applies worker defaults for an empty environment", () => {
     const env = parseEnv(workerEnvSchema, {});
     expect(env.REDIS_URL).toBe("redis://localhost:6379");
-    expect(env.QUEUE_NAME).toBe("default");
+    expect(env.INTERACTIVE_CONCURRENCY).toBe(5);
+    expect(env.BACKGROUND_CONCURRENCY).toBe(2);
+    expect(env.INTERACTIVE_RATE_LIMIT_MAX).toBe(60);
+    expect(env.BACKGROUND_RATE_LIMIT_DURATION_MS).toBe(60_000);
     expect(env.NODE_ENV).toBe("development");
   });
 

@@ -37,8 +37,15 @@ export const workerEnvSchema = z.object({
   NODE_ENV: nodeEnvSchema,
   APP_ENV: appEnvSchema,
   REDIS_URL: z.string().url().default("redis://localhost:6379"),
-  QUEUE_NAME: z.string().min(1).default("default"),
-  CONCURRENCY: z.coerce.number().int().min(1).default(5),
+  // Queue NAMES are code constants (apps/worker/src/queues.ts); only capacity
+  // knobs live in env. Concurrency is per worker process; the rate limit is
+  // enforced by BullMQ across ALL workers of a queue (jobs per duration).
+  INTERACTIVE_CONCURRENCY: z.coerce.number().int().min(1).default(5),
+  INTERACTIVE_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(60),
+  INTERACTIVE_RATE_LIMIT_DURATION_MS: z.coerce.number().int().min(1).default(60_000),
+  BACKGROUND_CONCURRENCY: z.coerce.number().int().min(1).default(2),
+  BACKGROUND_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(20),
+  BACKGROUND_RATE_LIMIT_DURATION_MS: z.coerce.number().int().min(1).default(60_000),
   LOG_LEVEL: logLevelSchema,
   OTEL_EXPORTER_OTLP_ENDPOINT: otelEndpointSchema,
 });
