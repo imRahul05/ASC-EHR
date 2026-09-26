@@ -13,6 +13,7 @@
 | 4 | [End-to-end flows](04-end-to-end-flows.md) | Mermaid flows for the whole patient journey and each critical sub-flow. |
 | 5 | [Delivery plan & open questions](05-delivery-plan.md) | Critical path to go-live, workstreams, risks, decisions still owed by physicians/business. |
 | 6 | [Medplum adoption, source map & build plan](06-medplum-adoption-and-build-plan.md) | *Exactly which Medplum packages we run / depend on / copy, PHI hardening of self-hosted Medplum, colour-coded source map (MindScript / Medplum / built / new), net-new backlog, work we can start before workflows arrive.* |
+| 7 | [Multi-tenancy design](07-multi-tenancy.md) | *Customer = Medplum Project (hard isolation), site = Organization compartment, shared platform Project; tenant rules per layer, gaps in current code, security tests.* |
 | A | [Feature traceability appendix](appendix-feature-traceability.md) | All 140 roadmap rows → phase, MindScript reuse, Medplum primitive, build type. |
 | ADR | [Adopt Medplum as clinical data platform](../decisions/2026-09-25-adopt-medplum-as-clinical-data-platform.md) | Proposed decision record. |
 

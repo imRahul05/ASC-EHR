@@ -377,6 +377,8 @@ A ~2-week foundation sprint that is **workflow-independent**:
 
 ## 9. Questions to resolve (engineering + business)
 
+> Multi-tenancy (customer isolation, sites, shared content, tenant fields in our code) is designed in [07 — Multi-tenancy](07-multi-tenancy.md); its foundation items belong in the §8 sprint.
+
 Existing spec/05 questions still gate specific items: **Q1** procedure mix (profiles, note content), **Q2** tower models (M06), **Q3** anesthesia model (flowsheet fields), **Q4** biller format (M09 export), **Q8** CPT license, **Q9** MindScript code access/stack, **Q12** pathology lab, **Q13** state rules.
 
 New Medplum/engineering questions:
