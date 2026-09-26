@@ -24,3 +24,4 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 - [Centralize Agent Configuration and Model Routing](2026-09-25-centralize-agent-configuration-and-model-routing.md) (accepted, 2026-09-25)
 - [Multi-Environment Lifecycle and Deployment Strategy](2026-09-25-environment-lifecycle-and-deployment-strategy.md) (accepted, 2026-09-25)
 - [Adopt Medplum as the clinical data platform](2026-09-25-adopt-medplum-as-clinical-data-platform.md) (proposed, 2026-09-25)
+- [Adopt Postgres with Drizzle for application data](2026-09-26-adopt-postgres-with-drizzle-for-application-data.md) (accepted, 2026-09-26)

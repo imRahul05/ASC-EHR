@@ -22,11 +22,23 @@ export const logLevelSchema = z
 
 const otelEndpointSchema = z.string().url().optional();
 
+/**
+ * App-owned Postgres (@asc/db). Optional for now: it becomes REQUIRED once the
+ * first agent job persists run records (AgentRunStore). Deployed environments
+ * must use TLS (`?sslmode=require`). The URL holds credentials — never log it.
+ */
+export const databaseUrlSchema = z
+  .string()
+  .url()
+  .refine((value) => /^postgres(ql)?:\/\//.test(value), { message: "expected a postgres:// URL" })
+  .optional();
+
 export const apiEnvSchema = z.object({
   NODE_ENV: nodeEnvSchema,
   APP_ENV: appEnvSchema,
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
   HOST: z.string().min(1).default("0.0.0.0"),
+  DATABASE_URL: databaseUrlSchema,
   LOG_LEVEL: logLevelSchema,
   OTEL_EXPORTER_OTLP_ENDPOINT: otelEndpointSchema,
 });
@@ -37,8 +49,16 @@ export const workerEnvSchema = z.object({
   NODE_ENV: nodeEnvSchema,
   APP_ENV: appEnvSchema,
   REDIS_URL: z.string().url().default("redis://localhost:6379"),
-  QUEUE_NAME: z.string().min(1).default("default"),
-  CONCURRENCY: z.coerce.number().int().min(1).default(5),
+  DATABASE_URL: databaseUrlSchema,
+  // Queue NAMES are code constants (apps/worker/src/queues.ts); only capacity
+  // knobs live in env. Concurrency is per worker process; the rate limit is
+  // enforced by BullMQ across ALL workers of a queue (jobs per duration).
+  INTERACTIVE_CONCURRENCY: z.coerce.number().int().min(1).default(5),
+  INTERACTIVE_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(60),
+  INTERACTIVE_RATE_LIMIT_DURATION_MS: z.coerce.number().int().min(1).default(60_000),
+  BACKGROUND_CONCURRENCY: z.coerce.number().int().min(1).default(2),
+  BACKGROUND_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(20),
+  BACKGROUND_RATE_LIMIT_DURATION_MS: z.coerce.number().int().min(1).default(60_000),
   LOG_LEVEL: logLevelSchema,
   OTEL_EXPORTER_OTLP_ENDPOINT: otelEndpointSchema,
 });

@@ -23,6 +23,7 @@ import {
   TASK_PROFILES,
   hasCapabilities,
   maxReasoning,
+  type EndpointProviderOptions,
   type HostingTarget,
   type ModelCapability,
   type ModelRef,
@@ -54,6 +55,8 @@ export interface ResolvedModel {
   modelId: string;
   baa: boolean;
   model: LanguageModel;
+  /** The endpoint's mandatory provider options (e.g. `store: false`); sent on every call. */
+  providerOptions?: EndpointProviderOptions;
 }
 
 /** Per-call model selection: what the call needs and, optionally, which models it is pinned to. */
@@ -101,6 +104,7 @@ export interface EligibleModel {
   modelId: string;
   baa: boolean;
   createModel: (modelId: string) => LanguageModel;
+  providerOptions?: EndpointProviderOptions;
 }
 
 /** Logical model → endpoint on the target, or undefined if the target does not host it. */
@@ -115,6 +119,7 @@ function locate(ref: ModelRef, hosting: HostingTarget): EligibleModel | undefine
     modelId: binding.id,
     baa: endpoint.baa,
     createModel: endpoint.createModel,
+    providerOptions: endpoint.providerOptions,
   };
 }
 
@@ -156,6 +161,7 @@ export function getFallbackChain(tier: ReasoningTier, options: FallbackChainOpti
     modelId: c.modelId,
     baa: c.baa,
     model: c.createModel(c.modelId),
+    providerOptions: c.providerOptions,
   }));
 }
 

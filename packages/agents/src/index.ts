@@ -20,10 +20,12 @@ export {
   type AgentStreamTaskResult,
   type AgentTaskResult,
   type AgentTextResult,
+  type AgentTokenUsage,
   type ExecuteAgentObjectParams,
   type ExecuteAgentParams,
   type Gateway,
   type GatewayOptions,
+  type GatewayTelemetryOptions,
   type StreamAgentParams,
 } from './runtime/gateway.js';
 export {
@@ -41,10 +43,14 @@ export {
 } from './runtime/router.js';
 export {
   AgentExecutionError,
+  ModelRefusalError,
   NoAvailableModelError,
   NoCapableModelError,
   NoCompliantModelError,
+  classifyModelError,
+  isRefusalError,
   isRetryableModelError,
+  type AgentFailureKind,
 } from './runtime/errors.js';
 
 // Agents: definition, execution, registry.
@@ -56,6 +62,7 @@ export {
 } from './agents/define.js';
 export {
   AGENT_RUN_ACTION,
+  AGENT_RUN_REPLAY_ACTION,
   AgentInputError,
   runAgent,
   type AgentActor,
@@ -64,6 +71,22 @@ export {
   type AgentRunResult,
   type RunAgentOptions,
 } from './agents/run.js';
+
+// Execution state: run records for idempotent retries (interface; the PHI store lives in apps).
+export {
+  AgentRunConflictError,
+  AgentRunInProgressError,
+  DEFAULT_STALE_RUN_AFTER_MS,
+  isSameRunOwner,
+  type AgentRunBeginResult,
+  type AgentRunRecord,
+  type AgentRunStart,
+  type AgentRunStatus,
+  type AgentRunStore,
+} from './state/run-store.js';
+
+// Context: typed, provenance-carrying items, providers (implemented in apps), checks, manifest.
+export * from './context/index.js';
 export { AGENTS, type AgentName } from './agents/registry.js';
 export {
   dischargeInstructionsAgent,

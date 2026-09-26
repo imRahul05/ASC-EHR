@@ -22,7 +22,7 @@ Read this before writing any code. The sole purpose of this monorepo is **centra
 - Managed with `pnpm` workspaces and Turborepo (`turbo.json`).
 - Root commands: `pnpm dev`, `pnpm build`, `pnpm lint`, `pnpm typecheck`.
 - **Apps**: Live in `/apps` (`web`, `api`, `worker`).
-- **Packages**: Live in `/packages` (`ui`, `types`, `validation`, `api-client`, `config`).
+- **Packages**: Live in `/packages` (`ui`, `types`, `validation`, `api-client`, `config`, `agents`, `db`, `audit`, `logger`, `telemetry`).
 
 ### 2. Frontend (`apps/web`)
 - **Next.js**: Latest version, App Router, TypeScript (v7).
@@ -39,6 +39,22 @@ Read this before writing any code. The sole purpose of this monorepo is **centra
 ### 4. Background Jobs (`apps/worker`)
 - **Queueing**: BullMQ backed by Redis.
 - **Responsibilities**: Dedicated node process for offloading heavy, asynchronous, or scheduled background tasks from the API.
+
+### 4a. Data (`packages/db`)
+- **Postgres + Drizzle ORM** (postgres.js driver) for app-owned operational data — see [ADR](../decisions/2026-09-26-adopt-postgres-with-drizzle-for-application-data.md). The clinical record lives in Medplum, not here.
+- Schema in `packages/db/src/schema/`, SQL migrations in `packages/db/drizzle/` (`pnpm db:generate`, `pnpm db:migrate`). Local DB: `pnpm db:up` (docker compose).
+- Store implementations of package interfaces live here (e.g. `createPostgresAgentRunStore` implements `@asc/agents`' `AgentRunStore`), so `apps/api` and `apps/worker` share one implementation.
+- `@asc/db` never reads `process.env`; apps pass `DATABASE_URL` from `parseEnv()`.
+
+### 4b. Where shared code goes (quick map)
+| Kind | Package |
+|---|---|
+| Zod schemas (API bodies, job data contracts, agent outputs) | `@asc/validation` |
+| Plain TS types (no schema) | `@asc/types` |
+| Constants, env parsing, queue names + job options | `@asc/config` |
+| LLM calls, agents, routing, context & run-state interfaces | `@asc/agents` |
+| Database schema, migrations, store implementations | `@asc/db` |
+| Logging / tracing / audit | `@asc/logger` / `@asc/telemetry` / `@asc/audit` |
 
 ### 5. Shared Packages Boundaries
 - **Server/Client Boundaries**: Packages like `ui` and `api-client` are designed for browser/Node usage. Packages containing sensitive logic or Node-only APIs should never be imported by the Next.js client bundle.

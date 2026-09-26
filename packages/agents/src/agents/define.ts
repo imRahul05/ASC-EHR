@@ -16,6 +16,7 @@ import {
   type ReasoningTier,
   type TaskType,
 } from '../config/index.js';
+import type { RunContext } from '../context/types.js';
 
 export interface AgentDefinition<
   Name extends string = string,
@@ -39,14 +40,19 @@ export interface AgentDefinition<
   output: Output;
   instructions: string;
   /**
-   * The ONLY place the agent decides what data reaches the model. Build
-   * messages from individual typed fields (minimum necessary PHI); never
-   * serialize the whole input object.
+   * Where the agent decides what input and context reach the model (tool
+   * results are the other governed path). Build messages from individual
+   * typed fields (minimum necessary PHI); never serialize the whole input
+   * object or a context value. Render `trust: 'untrusted-text'` items only
+   * through `wrapUntrustedText`.
+   *
+   * `context` is the run's context when the caller passed one; agents that
+   * need none just omit the parameter.
    *
    * Method syntax on purpose: its bivariant parameter lets every definition
    * be assigned to `AnyAgentDefinition`.
    */
-  buildMessages(input: z.output<Input>): ModelMessage[];
+  buildMessages(input: z.output<Input>, context?: RunContext): ModelMessage[];
   tools?: ToolSet;
   /** Tool-loop step limit; only meaningful with `tools`. */
   maxSteps?: number;
