@@ -89,6 +89,8 @@ export class ModelRefusalError extends Error {
  *
  * - `input`       the agent's input schema rejected the input (no model called)
  * - `no-model`    routing left no model: none hosted, capable or BAA-covered (no model called)
+ * - `context`     run context out of scope or stale (no model called)
+ * - `run-state`   the run record forbids this call: in progress elsewhere, or a conflict
  * - `refusal`     the model refused / content filter (never retried on another model)
  * - `validation`  the output failed the schema, or the SDK rejected the prompt
  * - `timeout`     an attempt timed out or the call's deadline was spent
@@ -99,6 +101,8 @@ export class ModelRefusalError extends Error {
 export type AgentFailureKind =
   | 'input'
   | 'no-model'
+  | 'context'
+  | 'run-state'
   | 'refusal'
   | 'validation'
   | 'timeout'

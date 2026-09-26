@@ -16,7 +16,8 @@
  *     overall deadline (once spent, no further model is tried).
  *   • Stateless providers: each endpoint's mandatory `providerOptions`
  *     (e.g. OpenAI / Azure `store: false`) are sent on every call.
- *   • Audit traceability: every call gets an `agentExecutionId` and reports
+ *   • Audit traceability: every call gets an `agentExecutionId` (generated, or the
+ *     caller's `executionId`) and reports
  *     which hosting target / endpoint / model served it, how many models were
  *     attempted and the token usage. Callers write this metadata to @asc/audit.
  *   • Prompts and outputs are NEVER logged here, and telemetry never records them.
@@ -75,6 +76,11 @@ export interface AgentCallParams extends ModelSelection {
   disableFallback?: boolean;
   /** Caller cancellation. An aborted call is never retried on another model. */
   abortSignal?: AbortSignal;
+  /**
+   * Caller-supplied `agentExecutionId` (e.g. derived from a queue job id, so a
+   * retry keeps its id). Must contain no PHI. Defaults to `generateExecutionId()`.
+   */
+  executionId?: string;
 }
 
 export interface ExecuteAgentParams extends AgentCallParams {
@@ -166,7 +172,10 @@ export interface GatewayOptions extends RoutingContext {
   latencyBudget?: LatencyBudget;
   /** AI SDK telemetry. Off by default; prompts and outputs are never recorded. */
   telemetry?: GatewayTelemetryOptions;
-  /** Generator for `agentExecutionId`. Defaults to Web Crypto `crypto.randomUUID()` (global in Node >= 19). */
+  /**
+   * Generator for `agentExecutionId` when the call has no `executionId`.
+   * Defaults to Web Crypto `crypto.randomUUID()` (global in Node >= 19).
+   */
   generateExecutionId?: () => string;
 }
 
@@ -259,7 +268,7 @@ export function createGateway(options: GatewayOptions = {}): Gateway {
       requires: params.requires,
     });
     return {
-      agentExecutionId: generateExecutionId(),
+      agentExecutionId: params.executionId ?? generateExecutionId(),
       task: params.task,
       tier,
       containsPhi,

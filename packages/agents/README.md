@@ -48,7 +48,15 @@ src/
 │   └── hosting/            WHERE — which providers serve which models, with real ids / deployment names
 │       ├── direct.ts           vendor APIs (default today)
 │       └── azure.ts            createAzureHosting(settings): GPT on Azure OpenAI (+ Claude on Anthropic API)
-└── testing/fixtures.ts     mock models, hosting targets, gateway, audit recorder (tests only, not exported)
+├── context/                CONTEXT of one run (interfaces + pure checks; providers live in apps)
+│   ├── types.ts                ContextItem (value + provenance metadata), RunScope, ContextProvider
+│   ├── assert.ts               assertContextScope / assertContextFresh (+ typed errors, keys only)
+│   ├── manifest.ts             buildContextManifest, containsPhiFromContext, computeContentHash
+│   └── untrusted.ts            wrapUntrustedText — untrusted document text as delimited data
+├── state/run-store.ts      EXECUTION STATE: AgentRunStore interface (a PHI store, implemented in apps)
+└── testing/                tests only, not exported
+    ├── fixtures.ts             mock models, hosting targets, gateway, audit recorder, context items
+    └── run-store.ts            InMemoryAgentRunStore — reference implementation of the store contract
 ```
 
 Tests live in `__tests__/` next to the code they test. Agent **output** schemas that `apps/web` also uses live in `@asc/validation` (`packages/validation/src/agents/`).
@@ -234,8 +242,39 @@ const { output, meta } = await runAgent(AGENTS['discharge-instructions'], input,
 `runAgent` validates the input (`AgentInputError` lists field paths only), builds messages with the agent's `buildMessages`, calls `executeAgentObject` (the output is validated against the agent's schema), and **always** writes one `agent.run` audit event through `@asc/audit` — `SUCCESS` or `FAILURE`:
 
 - **Actor:** the agent (`actorType: 'agent'`, `actorId: <agent name>`). The triggering user or system is in `details.triggeredByType` / `details.triggeredById`, and `agentExecutionId` links the event to the model call.
-- **Details:** routing metadata only — agent, promptVersion, task, tier, hostingTarget, endpoint, modelName, modelId, attempts; on success the token counts (`inputTokens`, `outputTokens`, `cachedInputTokens`, `totalTokens` — numbers only, omitted when the provider reports none); on failure `errorName`, `failureKind` (`input` · `no-model` · `refusal` · `validation` · `timeout` · `aborted` · `provider` · `unknown`, derived from error types — never messages), `retryable` and `deadlineExceeded`. Never input values, prompts, output or error messages.
+- **Details:** routing metadata only — agent, promptVersion, task, tier, hostingTarget, endpoint, modelName, modelId, attempts; on success the token counts (`inputTokens`, `outputTokens`, `cachedInputTokens`, `totalTokens` — numbers only, omitted when the provider reports none); on failure `errorName`, `failureKind` (`input` · `no-model` · `context` · `run-state` · `refusal` · `validation` · `timeout` · `aborted` · `provider` · `unknown`, derived from error types — never messages), `retryable` and `deadlineExceeded`; with context, `contextItems` + `contextManifestHash`; with a run store, `runClaim`. Never input values, context values, prompts, output or error messages.
 - **Sink:** defaults to `getAuditClient()`, resolved before any model is called, so production without a durable audit store fails closed. Tests inject `audit`. If the audit write fails, that error propagates — audit loss is never silent.
+
+### Context vs execution state
+
+Two different things, never called "memory" (vocabulary: [review §1](../../docs/agent/memory-skills-proposal-review.md)):
+
+| | **Context** (`context/`) | **Execution state** (`state/`) |
+|---|---|---|
+| What | the facts sent to the model for ONE run | the progress of one run: status, claim, served model, attempts, usage, output |
+| Persisted | never; only a **manifest** (metadata, no values) | yes — an `AgentRunRecord` per `executionId` |
+| Lives in | apps' `ContextProvider`s (Medplum on behalf of the user, org config, knowledge) | apps' `AgentRunStore` (Postgres) |
+
+```typescript
+const { output, meta } = await runAgent(agent, input, {
+  actor, containsPhi: false, patientId, surgicalCaseId, gateway,
+  executionId: `discharge:${job.id}`, // stable across job retries → becomes agentExecutionId
+  runStore,                           // apps' AgentRunStore (PHI store)
+  staleRunAfterMs: 10 * 60_000,       // optional; default DEFAULT_STALE_RUN_AFTER_MS
+  context: { scope: { orgId, patientId, caseId: surgicalCaseId }, items }, // from ContextProviders
+});
+```
+
+**Context** — each `ContextItem` carries `source`, `authority`, `effectiveAt` / `retrievedAt`, `maxAgeMs` / `validUntil`, `scope`, `sensitivity`, `trust` and `contentHash` (`computeContentHash(value)`: SHA-256 over key-sorted JSON). Before any model call `runAgent` throws `ContextScopeError` if an item belongs to another org / patient / case (or the scope disagrees with `patientId` / `surgicalCaseId`) and `StaleContextError` if an item is past `validUntil` or older than `maxAgeMs` — both list keys only, audited as `failureKind: 'context'`. A `phi` item forces PHI routing (`containsPhi` is escalated, never lowered). The context is passed to `buildMessages(input, context)`; render `trust: 'untrusted-text'` items only through `wrapUntrustedText(key, text)`. Item keys are static names (`labs.inr`), never data.
+
+**Execution state** — with `runStore`, the run is claimed (`begin`) before any model call and its validated output persisted (`succeed`) before `runAgent` returns. A retry with the same `executionId`:
+- **succeeded** → the stored output is re-validated and returned with `meta.replayed: true`, **no model call**. Audited as a separate action `agent.run.replay` (`replayed: true`, `attempts: 0`, no tokens) — returning stored PHI is a disclosure worth auditing, while `agent.run` SUCCESS stays exactly one per generated output.
+- **running** → `AgentRunInProgressError` (`failureKind: 'run-state'`), no model call — unless the record is older than `staleRunAfterMs` (crashed worker), then it is taken over (`claim + 1`). Keep this above the gateway's total deadline.
+- **failed** → re-run under the same id (`claim + 1`).
+
+`claim` is a fencing token: a caller whose run was taken over cannot overwrite it (`AgentRunConflictError`, `claim-lost`). An id reused by another agent is `agent-mismatch`; by the same agent for another org / patient / case it is `scope-mismatch` — the stored output (PHI) is never replayed to, nor the record taken over by, another scope (`isSameRunOwner`; the Postgres store's `begin` must apply the same rule). Without `executionId`, a run store still records the run under a generated id.
+
+> ⚠️ **The run store is a PHI store**: succeeded records hold the model output. Implement it in the apps on encrypted, BAA-covered Postgres in the org compartment, with retention. Never put records or output in Redis / job return values, logs, telemetry or audit details. `InMemoryAgentRunStore` (`src/testing/`) is the reference implementation for tests only.
 
 ### Add an agent
 

@@ -21,6 +21,7 @@ import {
   type RoutingTable,
 } from '../config/index.js';
 import { defineAgent, type AgentDefinition } from '../agents/define.js';
+import type { ContextItem } from '../context/types.js';
 import { createGateway, type Gateway, type GatewayOptions } from '../runtime/gateway.js';
 
 type MockOptions = NonNullable<ConstructorParameters<typeof MockLanguageModelV4>[0]>;
@@ -64,6 +65,20 @@ export function hang(): DoGenerate {
         reject(abortSignal.reason instanceof Error ? abortSignal.reason : new Error('aborted'));
       });
     });
+}
+
+/** doGenerate implementation that rejects its first call with `error`, then answers `text` (a provider that recovers). */
+export function failOnceThen(error: Error, text: string): DoGenerate {
+  let calls = 0;
+  return () =>
+    ++calls === 1
+      ? Promise.reject(error)
+      : Promise.resolve({
+          content: [{ type: 'text' as const, text }],
+          finishReason: { unified: 'stop' as const, raw: undefined },
+          usage: USAGE,
+          warnings: [],
+        });
 }
 
 /** doGenerate implementation that rejects with the given error. */
@@ -239,4 +254,23 @@ export function defineTestAgent(
     buildMessages: ({ topic }) => [{ role: 'user', content: topic }],
     ...overrides,
   });
+}
+
+/**
+ * Synthetic context item: org-1 / patient-1 / case-1, retrieved now, PHI,
+ * from the record. The value is a canary so tests can assert it never leaks.
+ */
+export function contextItem(overrides: Partial<ContextItem> = {}): ContextItem {
+  return {
+    key: 'labs.inr',
+    value: { reading: 'CANARY-VALUE' },
+    source: { system: 'fhir', resourceType: 'Observation', id: 'obs-1', version: '3' },
+    authority: 'record',
+    retrievedAt: new Date().toISOString(),
+    scope: { orgId: 'org-1', patientId: 'patient-1', caseId: 'case-1' },
+    sensitivity: 'phi',
+    trust: 'operator',
+    contentHash: 'sha256:fixture',
+    ...overrides,
+  };
 }

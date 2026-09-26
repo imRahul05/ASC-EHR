@@ -301,3 +301,21 @@ describe('model pin and capabilities', () => {
     ).rejects.toMatchObject({ tier: Reasoning.High, hostingTarget: 'fixture-direct' });
   });
 });
+
+describe('execution id', () => {
+  it('uses the caller-supplied executionId, else generates one', async () => {
+    const gateway = createTestGateway(createFixture());
+    const call = { task: Task.General, containsPhi: false, messages } as const;
+
+    expect((await gateway.executeAgentTask({ ...call, executionId: 'job-42' })).agentExecutionId).toBe('job-42');
+    expect((await gateway.executeAgentTask(call)).agentExecutionId).toBe('exec-1');
+    expect(gateway.streamAgentTask({ ...call, executionId: 'job-43' }).agentExecutionId).toBe('job-43');
+  });
+
+  it('is carried by AgentExecutionError', async () => {
+    const fixture = createFixture({ 'o-med': failWith(apiError(400)) });
+    await expect(
+      createTestGateway(fixture).executeAgentTask({ task: Task.General, containsPhi: false, messages, executionId: 'job-42' }),
+    ).rejects.toMatchObject({ agentExecutionId: 'job-42' });
+  });
+});
