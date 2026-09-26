@@ -1,0 +1,33 @@
+# Local development services. NOT used for staging/production (Azure Postgres
+# Flexible Server with encryption at rest, TLS and least-privilege roles — see
+# docs/decisions/2026-09-26-adopt-postgres-with-drizzle-for-application-data.md).
+#
+#   pnpm db:up        start Postgres (waits until healthy)
+#   pnpm db:migrate   apply packages/db/drizzle migrations
+#   pnpm db:down      stop (data persists in the named volume; add -v to wipe)
+#
+# Never load real PHI into this database.
+name: asc-ehr
+
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      # DEV-ONLY credentials for a local, throwaway database. Never reuse them anywhere else.
+      POSTGRES_DB: asc_ehr
+      POSTGRES_USER: asc
+      POSTGRES_PASSWORD: asc
+    ports:
+      # Bound to localhost only. URL: postgres://asc:asc@localhost:5432/asc_ehr
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U asc -d asc_ehr"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:
