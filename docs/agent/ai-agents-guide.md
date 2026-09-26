@@ -3,6 +3,7 @@
 **Audience:** AI coding agents and human developers.
 **Read this before** you add an AI feature, create or change an agent, change which model runs, or call an LLM from any app.
 **Package reference** (all types, folder map, config diagrams): [`packages/agents/README.md`](../../packages/agents/README.md).
+**Memory, skills, caching & roadmap** (proposal): [memory-skills-and-modern-techniques.md](memory-skills-and-modern-techniques.md).
 
 ---
 

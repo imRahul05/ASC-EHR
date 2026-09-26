@@ -37,6 +37,8 @@ To keep this file intentionally minimal and extensible, all detailed guidance, r
 **Consult when:** Adding any AI feature, creating or changing an agent or prompt, changing which model runs, or calling an LLM from any app.
 👉 [Read AI Agents Guide](docs/agent/ai-agents-guide.md)
 *(Covers when to create an agent, step-by-step recipes, runAgent usage, config-only changes, MUST/MUST NOT rules, troubleshooting, PR checklist).*
+👉 [Read Memory, Skills & Modern Techniques](docs/agent/memory-skills-and-modern-techniques.md)
+*(Proposal: where agent memory lives, runtime vs dev-time skills, caching/effort/batch/evals, roadmap).*
 
 ### 8. Product Requirements & Target Architecture (GI ASC)
 **Consult when:** Building any clinical feature, choosing between Medplum / MindScript reuse / new code, or modelling FHIR data.
