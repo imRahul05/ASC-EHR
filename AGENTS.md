@@ -41,6 +41,7 @@ Dev-time skills (`.claude/skills/`, never loaded at runtime): `create-agent`, `c
 👉 [Read Memory, Skills & Modern Techniques](docs/agent/memory-skills-and-modern-techniques.md)
 *(Proposal: where agent memory lives, runtime vs dev-time skills, caching/effort/batch/evals, roadmap).*
 👉 [Read Agent Platform Action Plan](docs/agent/agent-platform-action-plan.md) — *prioritised changes from the proposal + [review](docs/agent/memory-skills-proposal-review.md); start here.*
+👉 [Read Memory Tools Evaluation](docs/agent/memory-tools-evaluation.md) — *Mem0, Langfuse, Supermemory: what fits the PHI/gateway architecture (adopt Langfuse for evals/tracing; no external clinical memory).*
 
 ### 8. Product Requirements & Target Architecture (GI ASC)
 **Consult when:** Building any clinical feature, choosing between Medplum / MindScript reuse / new code, or modelling FHIR data.
