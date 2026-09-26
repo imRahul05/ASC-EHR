@@ -25,5 +25,10 @@ export function createAzureOpenAIEndpoint(settings: AzureOpenAIEndpointSettings)
     // Confirm the resource's subscription/region is in scope before production PHI.
     baa: true,
     createModel: (deploymentName) => azure(deploymentName),
+    // `azure(id)` is the Responses API model, which defaults to `store: true`
+    // (server-side retention of prompts + outputs — PHI on this BAA path).
+    // @ai-sdk/azure reads the `azure` key and falls back to `openai` only when
+    // `azure` is absent, so both are set: neither lookup can miss it.
+    providerOptions: { azure: { store: false }, openai: { store: false } },
   };
 }

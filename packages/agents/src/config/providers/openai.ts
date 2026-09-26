@@ -8,4 +8,7 @@ export const openaiEndpoint: Endpoint = {
   // No BAA with OpenAI. For PHI use Azure OpenAI (Microsoft BAA) — see azure-openai.ts.
   baa: false,
   createModel: (modelId) => openai(modelId),
+  // `openai(id)` is the Responses API model, which defaults to `store: true`
+  // (server-side retention of prompts + outputs). Always stateless.
+  providerOptions: { openai: { store: false } },
 };

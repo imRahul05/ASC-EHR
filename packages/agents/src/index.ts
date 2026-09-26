@@ -20,10 +20,12 @@ export {
   type AgentStreamTaskResult,
   type AgentTaskResult,
   type AgentTextResult,
+  type AgentTokenUsage,
   type ExecuteAgentObjectParams,
   type ExecuteAgentParams,
   type Gateway,
   type GatewayOptions,
+  type GatewayTelemetryOptions,
   type StreamAgentParams,
 } from './runtime/gateway.js';
 export {
@@ -41,10 +43,14 @@ export {
 } from './runtime/router.js';
 export {
   AgentExecutionError,
+  ModelRefusalError,
   NoAvailableModelError,
   NoCapableModelError,
   NoCompliantModelError,
+  classifyModelError,
+  isRefusalError,
   isRetryableModelError,
+  type AgentFailureKind,
 } from './runtime/errors.js';
 
 // Agents: definition, execution, registry.

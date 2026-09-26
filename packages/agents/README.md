@@ -40,7 +40,7 @@ src/
 │   │   ├── anthropic.ts        claudeOpus55, claudeSonnet5, …
 │   │   ├── openai.ts           gpt6Astra, gpt6Sol, …
 │   │   └── google.ts           gemini38Flash, …
-│   ├── providers/          HOW   — one file per Vercel AI SDK provider (@ai-sdk/*): BAA flag + model factory
+│   ├── providers/          HOW   — one file per Vercel AI SDK provider (@ai-sdk/*): BAA flag + model factory + mandatory providerOptions
 │   │   ├── anthropic.ts        @ai-sdk/anthropic   (BAA ✔)
 │   │   ├── openai.ts           @ai-sdk/openai      (no BAA)
 │   │   ├── google.ts           @ai-sdk/google      (no BAA)
@@ -174,8 +174,8 @@ flowchart TD
     F{"PHI?"}:::gate
     G["Keep only providers with baa: true"]:::gate
     X["NoCompliantModelError<br/>no model called"]:::gate
-    L["Try model 1 → 2 → …<br/>fall back ONLY on transient errors<br/>(429, 5xx, timeout, network)"]:::step
-    OK["Result + audit metadata<br/>agentExecutionId, task, tier, containsPhi,<br/>hostingTarget, endpoint, modelName, modelId, attempts"]:::ok
+    L["Try model 1 → 2 → …<br/>fall back ONLY on transient errors<br/>(429, 5xx, timeout, network)<br/>within the latency budget"]:::step
+    OK["Result + audit metadata<br/>agentExecutionId, task, tier, containsPhi,<br/>hostingTarget, endpoint, modelName, modelId, attempts, usage"]:::ok
     ERR["AgentExecutionError<br/>(same metadata, SDK error in cause)"]:::gate
 
     A --> B --> C --> D --> E
@@ -234,7 +234,7 @@ const { output, meta } = await runAgent(AGENTS['discharge-instructions'], input,
 `runAgent` validates the input (`AgentInputError` lists field paths only), builds messages with the agent's `buildMessages`, calls `executeAgentObject` (the output is validated against the agent's schema), and **always** writes one `agent.run` audit event through `@asc/audit` — `SUCCESS` or `FAILURE`:
 
 - **Actor:** the agent (`actorType: 'agent'`, `actorId: <agent name>`). The triggering user or system is in `details.triggeredByType` / `details.triggeredById`, and `agentExecutionId` links the event to the model call.
-- **Details:** routing metadata only — agent, promptVersion, task, tier, hostingTarget, endpoint, modelName, modelId, attempts, and errorName on failure. Never input values, prompts or output.
+- **Details:** routing metadata only — agent, promptVersion, task, tier, hostingTarget, endpoint, modelName, modelId, attempts; on success the token counts (`inputTokens`, `outputTokens`, `cachedInputTokens`, `totalTokens` — numbers only, omitted when the provider reports none); on failure `errorName`, `failureKind` (`input` · `no-model` · `refusal` · `validation` · `timeout` · `aborted` · `provider` · `unknown`, derived from error types — never messages), `retryable` and `deadlineExceeded`. Never input values, prompts, output or error messages.
 - **Sink:** defaults to `getAuditClient()`, resolved before any model is called, so production without a durable audit store fails closed. Tests inject `audit`. If the audit write fails, that error propagates — audit loss is never silent.
 
 ### Add an agent
@@ -289,9 +289,22 @@ res.agentExecutionId;  // direct gateway callers must write their own @asc/audit
 
 Without `hosting`, `defaultGateway` and the module-level `executeAgentTask` / `executeAgentObject` / `streamAgentTask` use `directHosting` and the `default` profile.
 
-- **Fallback only on transient errors** (408/409/429/5xx/529, network, timeout). Non-retryable errors (400, 401/403, schema/`NoObjectGeneratedError`, aborts, unknown) throw `AgentExecutionError` immediately. The SDK retries the same model first (`maxRetriesPerModel`, default 2).
+- **Fallback only on transient errors** (408/409/429/5xx/529, network, timeout). Non-retryable errors (400, 401/403, schema/`NoObjectGeneratedError`, refusals, aborts, unknown) throw `AgentExecutionError` immediately. `AgentExecutionError.failureKind` says why, without PHI.
+- **Refusals fail closed.** A `content-filter` finish (Anthropic `refusal`, OpenAI/Azure content filter) throws `AgentExecutionError` (`failureKind: 'refusal'`, cause `ModelRefusalError`) — for text calls too — and is never retried on another model or vendor.
+- **Same-model retries:** the SDK retries the same model first (`maxRetriesPerModel`, SDK default 2, backoff 2s → 4s) before falling back. Set it per app: **interactive apps (`apps/api`) `1`** — fail over after ~2s instead of ~6s; **background workers `2`**.
+- **Latency budget:** each model in the chain gets `attemptTimeoutMs` (incl. its same-model retries); a timed-out attempt falls back like any transient error. The whole call gets `totalTimeoutMs`; once spent, no further model is tried (`failureKind: 'timeout'`, `deadlineExceeded: true`). A caller `abortSignal` still wins and is never retried elsewhere. Defaults `DEFAULT_LATENCY_BUDGET` = 60s / 120s; override per gateway (`latencyBudget`) and per task (`TASK_PROFILES[task].latencyBudget`, which wins per field). Streams are bounded by `totalTimeoutMs` only.
+- **Stateless providers:** an endpoint's `providerOptions` are sent on every call. OpenAI and Azure OpenAI declare `store: false` (their Responses API otherwise retains prompts and outputs server-side). Never use `previousResponseId` / conversations for PHI.
+- **Token usage:** `executeAgentTask` / `executeAgentObject` metadata has `usage` (`inputTokens`, `outputTokens`, `cachedInputTokens`, `totalTokens`) for the serving model, summed over tool steps; failed attempts are not counted. Streams leave it undefined (read `result.totalUsage` after the stream ends).
+- **Telemetry:** `createGateway({ telemetry: { isEnabled: true } })` turns on AI SDK telemetry (off by default). `recordInputs` / `recordOutputs` are always `false` and cannot be overridden; `functionId` is the task name.
 - **Prompts and outputs are never logged.** Never log `AgentExecutionError.cause` verbatim.
 - **Streaming** (`streamAgentTask`) uses the first eligible model only (no mid-stream failover).
+
+```typescript
+// apps/api — interactive: fail over fast, default 60s / 120s budget
+createGateway({ hosting, maxRetriesPerModel: 1 });
+// apps/worker — background: retry more, allow longer
+createGateway({ hosting, maxRetriesPerModel: 2, latencyBudget: { attemptTimeoutMs: 120_000, totalTimeoutMs: 300_000 } });
+```
 - **Settings screen:** `getRoutingOverview({ hosting })` returns each tier's models with label, capabilities, availability on the target, provider endpoint and BAA flag — no keys or adapters.
 
 ## Common changes
@@ -311,7 +324,7 @@ Without `hosting`, `defaultGateway` and the module-level `executeAgentTask` / `e
 
 **Add a provider / cloud (e.g. AWS Bedrock)**
 1. `pnpm --filter @asc/agents add @ai-sdk/amazon-bedrock`
-2. `providers/amazon-bedrock.ts` — a factory returning an `Endpoint` (`baa: true` only once the AWS BAA covers the account/region).
+2. `providers/amazon-bedrock.ts` — a factory returning an `Endpoint` (`baa: true` only once the AWS BAA covers the account/region). If the provider keeps server-side state by default, turn it off in the endpoint's `providerOptions` and add a test like the `store: false` ones in `runtime/__tests__/gateway-hardening.test.ts`.
 3. `hosting/aws.ts` — `createAwsHosting(settings)` binding logical models to Bedrock model ids.
 4. Add it to `HOSTING_TARGETS_FOR_VALIDATION` in `hosting/index.ts` so tests prove every routing profile and agent still works — and has a BAA model for PHI — on that cloud.
 

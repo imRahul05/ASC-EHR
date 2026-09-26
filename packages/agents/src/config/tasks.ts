@@ -20,6 +20,23 @@ export const Task = {
 
 export type TaskType = (typeof Task)[keyof typeof Task];
 
+/**
+ * How long a gateway call may take. Unset fields fall back to the gateway's
+ * `latencyBudget` option, then to `DEFAULT_LATENCY_BUDGET`.
+ */
+export interface LatencyBudget {
+  /** Max time for ONE model in the chain (incl. the SDK's same-model retries) before falling back. */
+  attemptTimeoutMs?: number;
+  /** Max time for the whole call across all models. Once spent, no further model is tried. */
+  totalTimeoutMs?: number;
+}
+
+/** 60s per model, 120s per call. */
+export const DEFAULT_LATENCY_BUDGET = {
+  attemptTimeoutMs: 60_000,
+  totalTimeoutMs: 120_000,
+} as const satisfies Required<LatencyBudget>;
+
 export interface TaskProfile {
   /** Minimum reasoning tier. Callers may escalate, never downgrade. */
   reasoning: ReasoningTier;
@@ -29,6 +46,8 @@ export interface TaskProfile {
    */
   handlesPhi: boolean;
   description: string;
+  /** Optional task-specific latency budget; overrides the gateway's per field. */
+  latencyBudget?: LatencyBudget;
 }
 
 export const TASK_PROFILES = {

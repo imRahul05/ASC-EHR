@@ -3,7 +3,8 @@
  * (structured output, validated against the output schema) → audit.
  *
  * Every run writes exactly one audit event, on success AND failure. Audit
- * details carry routing metadata only — never input values, prompts or output.
+ * details carry routing metadata, token counts and a failure kind only — never
+ * input values, prompts, output or error messages.
  */
 
 import { getAuditClient, type AuditClient, type AuditDetails } from '@asc/audit';
@@ -14,11 +15,13 @@ import {
   NoAvailableModelError,
   NoCapableModelError,
   NoCompliantModelError,
+  type AgentFailureKind,
 } from '../runtime/errors.js';
 import {
   defaultGateway,
   type AgentExecutionMeta,
   type AgentObjectResult,
+  type AgentTokenUsage,
   type Gateway,
 } from '../runtime/gateway.js';
 import { requiredCapabilities, type AgentDefinition } from './define.js';
@@ -136,6 +139,7 @@ export async function runAgent<Name extends string, Input extends z.ZodTypeAny, 
     modelName: execution.modelName,
     modelId: execution.modelId,
     attempts: execution.attempts,
+    ...usageDetails(execution.usage),
   });
   return { output, meta: { ...execution, agent: definition.name, promptVersion: definition.promptVersion } };
 }
@@ -153,18 +157,34 @@ function executionIdOf(error: unknown): string | undefined {
   return error instanceof AgentExecutionError ? error.agentExecutionId : undefined;
 }
 
-/** PHI-free failure metadata: error name plus whatever routing facts the error carries. */
+/** Token counts only (numbers); providers that report nothing add nothing. */
+function usageDetails(usage: AgentTokenUsage | undefined): AuditDetails {
+  const details: AuditDetails = {};
+  if (!usage) return details;
+  for (const key of ['inputTokens', 'outputTokens', 'cachedInputTokens', 'totalTokens'] as const) {
+    const value = usage[key];
+    if (value !== undefined) details[key] = value;
+  }
+  return details;
+}
+
+/**
+ * PHI-free failure metadata: error name, failure kind (from error types only,
+ * never messages) plus whatever routing facts the error carries.
+ */
 function failureDetails(error: unknown): AuditDetails {
   const errorName = error instanceof Error ? error.name : 'UnknownError';
   if (error instanceof AgentExecutionError) {
     return {
       errorName,
+      failureKind: error.failureKind,
       tier: error.tier,
       hostingTarget: error.hostingTarget,
       endpoint: error.lastEndpoint,
       modelId: error.lastModelId,
       attempts: error.attempts,
       retryable: error.retryable,
+      deadlineExceeded: error.deadlineExceeded,
     };
   }
   if (
@@ -172,7 +192,14 @@ function failureDetails(error: unknown): AuditDetails {
     error instanceof NoCapableModelError ||
     error instanceof NoAvailableModelError
   ) {
-    return { errorName, tier: error.tier, hostingTarget: error.hostingTarget, attempts: 0 };
+    return {
+      errorName,
+      failureKind: 'no-model' satisfies AgentFailureKind,
+      tier: error.tier,
+      hostingTarget: error.hostingTarget,
+      attempts: 0,
+    };
   }
-  return { errorName, attempts: 0 };
+  const failureKind: AgentFailureKind = error instanceof AgentInputError ? 'input' : 'unknown';
+  return { errorName, failureKind, attempts: 0 };
 }

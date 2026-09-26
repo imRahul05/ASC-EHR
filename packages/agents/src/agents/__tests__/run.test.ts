@@ -12,6 +12,8 @@ import {
   createTestGateway,
   defineTestAgent,
   failWith,
+  hang,
+  refuse,
   respondWith,
 } from '../../testing/fixtures.js';
 import { AgentInputError, runAgent, type RunAgentOptions } from '../run.js';
@@ -46,7 +48,50 @@ describe('runAgent', () => {
       agentExecutionId: 'exec-1',
       modelName: 'oMed',
       attempts: 1,
+      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
     });
+  });
+
+  it('audits success with numeric token usage only', async () => {
+    const { audit, options } = setup({ 'o-med': respondWith('{"answer":"42"}') });
+    await runAgent(defineTestAgent(), { topic: 'synthetic' }, options);
+
+    const [event] = audit.events;
+    expect(event).toMatchObject({
+      outcome: 'SUCCESS',
+      details: { modelId: 'o-med', attempts: 1, inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+    });
+    // The provider reported no cache reads: the key is omitted, never undefined.
+    expect(event?.details).not.toHaveProperty('cachedInputTokens');
+    expectPhiSafeDetails(event?.details);
+  });
+
+  it('a refusal is audited as failureKind "refusal" and never reaches a second model', async () => {
+    const { fixture, audit, options } = setup({ 'o-med': refuse() });
+    await expect(runAgent(defineTestAgent(), { topic: 'synthetic' }, options)).rejects.toBeInstanceOf(
+      AgentExecutionError,
+    );
+
+    expect(callCount(fixture, 'a-med')).toBe(0);
+    expect(callCount(fixture, 'g-med')).toBe(0);
+    const [event] = audit.events;
+    expect(event).toMatchObject({
+      outcome: 'FAILURE',
+      details: { failureKind: 'refusal', retryable: false, attempts: 1, modelId: 'o-med' },
+    });
+    expectPhiSafeDetails(event?.details);
+  });
+
+  it('audits a timeout as failureKind "timeout" with the deadline flag', async () => {
+    const { fixture, audit, options } = setup({ 'o-med': hang() });
+    const gateway = createTestGateway(fixture, { latencyBudget: { attemptTimeoutMs: 5_000, totalTimeoutMs: 20 } });
+    await expect(
+      runAgent(defineTestAgent(), { topic: 'synthetic' }, { ...options, gateway }),
+    ).rejects.toBeInstanceOf(AgentExecutionError);
+
+    expect(audit.events[0]?.details).toMatchObject({ failureKind: 'timeout', deadlineExceeded: true, attempts: 1 });
+    expect(callCount(fixture, 'a-med')).toBe(0);
+    expectPhiSafeDetails(audit.events[0]?.details);
   });
 
   it('uses the agent model pin', async () => {
@@ -72,7 +117,11 @@ describe('runAgent', () => {
     expect((err as AgentInputError).message).not.toContain('Synthetic Name');
     expect(Object.values(fixture.mockModels).every((m) => m.doGenerateCalls.length === 0)).toBe(true);
     expect(audit.events).toMatchObject([
-      { outcome: 'FAILURE', agentExecutionId: undefined, details: { errorName: 'AgentInputError', attempts: 0 } },
+      {
+        outcome: 'FAILURE',
+        agentExecutionId: undefined,
+        details: { errorName: 'AgentInputError', failureKind: 'input', attempts: 0 },
+      },
     ]);
   });
 
@@ -95,6 +144,7 @@ describe('runAgent', () => {
         triggeredByType: 'user',
         triggeredById: 'user-1',
         errorName: 'AgentExecutionError',
+        failureKind: 'provider',
         tier: 'medium',
         hostingTarget: 'fixture-direct',
         endpoint: 'openai',
@@ -110,7 +160,12 @@ describe('runAgent', () => {
     const { audit, options } = setup();
     const agent = defineTestAgent({ task: Task.MedicalCoding, models: [FixtureModels.oHigh] });
     await expect(runAgent(agent, { topic: 'synthetic' }, options)).rejects.toBeInstanceOf(NoCompliantModelError);
-    expect(audit.events[0]?.details).toMatchObject({ errorName: 'NoCompliantModelError', tier: 'high', attempts: 0 });
+    expect(audit.events[0]?.details).toMatchObject({
+      errorName: 'NoCompliantModelError',
+      failureKind: 'no-model',
+      tier: 'high',
+      attempts: 0,
+    });
   });
 
   it('propagates an audit write failure (audit loss is never silent)', async () => {

@@ -2,6 +2,7 @@ import {
   generateText,
   InvalidPromptError,
   NoObjectGeneratedError,
+  NoOutputGeneratedError,
   Output,
   RetryError,
   TypeValidationError,
@@ -10,8 +11,8 @@ import { MockLanguageModelV4 } from 'ai/test';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { isRetryableModelError } from '../errors.js';
-import { apiError, respondWith } from '../../testing/fixtures.js';
+import { classifyModelError, isRefusalError, isRetryableModelError, ModelRefusalError } from '../errors.js';
+import { apiError, refuse, respondWith } from '../../testing/fixtures.js';
 
 /** Produces a real NoObjectGeneratedError from the SDK (model returns non-JSON). */
 async function realNoObjectGeneratedError(): Promise<unknown> {
@@ -20,6 +21,22 @@ async function realNoObjectGeneratedError(): Promise<unknown> {
     prompt: 'synthetic',
     output: Output.object({ schema: z.object({ a: z.string() }) }),
   }).catch((e: unknown) => e);
+}
+
+/**
+ * A real NoObjectGeneratedError for a refused structured output (finish reason
+ * `content-filter`). The SDK throws it lazily, when `output` is read.
+ */
+async function realRefusedObjectError(): Promise<unknown> {
+  const error = await generateText({
+    model: new MockLanguageModelV4({ doGenerate: refuse() }),
+    prompt: 'synthetic',
+    output: Output.object({ schema: z.object({ a: z.string() }) }),
+  })
+    .then((result) => result.output)
+    .catch((e: unknown) => e);
+  expect(NoObjectGeneratedError.isInstance(error)).toBe(true);
+  return error;
 }
 
 describe('isRetryableModelError', () => {
@@ -68,9 +85,44 @@ describe('isRetryableModelError', () => {
     expect(isRetryableModelError(new InvalidPromptError({ prompt: {}, message: 'bad' }))).toBe(false);
   });
 
+  it('refusals are NOT retryable (never shopped to another vendor)', async () => {
+    expect(isRetryableModelError(new ModelRefusalError())).toBe(false);
+    expect(isRetryableModelError(await realRefusedObjectError())).toBe(false);
+  });
+
   it('unknown errors fail closed (no fallback)', () => {
     expect(isRetryableModelError(new Error('boom'))).toBe(false);
     expect(isRetryableModelError('boom')).toBe(false);
     expect(isRetryableModelError(undefined)).toBe(false);
+  });
+});
+
+describe('classifyModelError (PHI-free failure kind)', () => {
+  it('refusals: content-filter finish, refused structured output, Azure content_filter 400', async () => {
+    const azureFiltered = apiError(400);
+    Object.defineProperty(azureFiltered, 'data', { value: { error: { code: 'content_filter' } } });
+
+    expect(classifyModelError(new ModelRefusalError())).toBe('refusal');
+    expect(classifyModelError(await realRefusedObjectError())).toBe('refusal');
+    expect(classifyModelError(azureFiltered)).toBe('refusal');
+    expect(isRefusalError(azureFiltered)).toBe(true);
+    expect(isRefusalError(apiError(400))).toBe(false);
+  });
+
+  it('validation, provider, timeout, aborted and unknown', async () => {
+    expect(classifyModelError(await realNoObjectGeneratedError())).toBe('validation');
+    expect(classifyModelError(new NoOutputGeneratedError())).toBe('validation');
+    expect(classifyModelError(new TypeValidationError({ value: {}, cause: new Error('bad') }))).toBe('validation');
+    expect(classifyModelError(apiError(429))).toBe('provider');
+    expect(classifyModelError(apiError(400))).toBe('provider');
+    expect(classifyModelError(new DOMException('timed out', 'TimeoutError'))).toBe('timeout');
+    expect(classifyModelError(new DOMException('aborted', 'AbortError'))).toBe('aborted');
+    expect(classifyModelError(new RetryError({ message: 'x', reason: 'abort', errors: [apiError(503)] }))).toBe(
+      'aborted',
+    );
+    expect(
+      classifyModelError(new RetryError({ message: 'x', reason: 'maxRetriesExceeded', errors: [apiError(503)] })),
+    ).toBe('provider');
+    expect(classifyModelError(new Error('boom'))).toBe('unknown');
   });
 });
