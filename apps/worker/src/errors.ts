@@ -18,7 +18,7 @@ export class SanitizedJobError extends Error {
   }
 }
 
-/** Job data failed its contract (jobs.ts). Never retried: it would fail again. */
+/** Job data failed its contract (`baseJobDataSchema` in @asc/validation). Never retried: it would fail again. */
 export class InvalidJobDataError extends UnrecoverableError {
   readonly code = "INVALID_JOB_DATA";
 

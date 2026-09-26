@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 /**
+ * Background job contracts, shared by producers (apps/api) and apps/worker.
+ *
  * Job data contract: IDENTIFIERS ONLY.
  *
  * Job data lives in Redis (and in the failed set for days), so it must never
@@ -9,33 +11,21 @@ import { z } from "zod";
  * `.strict()` rejects unknown keys, and ids are restricted to an id-like
  * alphabet so free text cannot be smuggled in through an id field.
  */
-const idSchema = z
-  .string()
-  .min(1)
-  .max(128)
-  .regex(/^[A-Za-z0-9._:/-]+$/);
+export const JOB_DATA_ID_PATTERN = /^[A-Za-z0-9._:/-]+$/;
+
+export const jobDataIdSchema = z.string().min(1).max(128).regex(JOB_DATA_ID_PATTERN);
 
 export const baseJobDataSchema = z
   .object({
-    correlationId: idSchema.optional(),
+    correlationId: jobDataIdSchema.optional(),
     /** User who triggered the job, for audit (`actorId`). */
-    actorId: idSchema.optional(),
-    patientId: idSchema.optional(),
-    surgicalCaseId: idSchema.optional(),
+    actorId: jobDataIdSchema.optional(),
+    patientId: jobDataIdSchema.optional(),
+    surgicalCaseId: jobDataIdSchema.optional(),
   })
   .strict();
 
 export type BaseJobData = z.infer<typeof baseJobDataSchema>;
-
-/**
- * Job return values are stored in Redis like job data: status and ids only,
- * never generated text. Results belong in the system of record.
- */
-export interface JobResult {
-  status: "completed";
-  /** Ids of records the job created/updated, e.g. `{ documentId: "..." }`. */
-  resourceIds?: Record<string, string>;
-}
 
 /** Job names are static identifiers (they are stored in Redis and logged). */
 export const jobNameSchema = z

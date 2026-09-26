@@ -1,63 +1,25 @@
 import type { DefaultJobOptions, WorkerOptions } from "bullmq";
-import type { WorkerEnv } from "@asc/config";
+import type { QueueKind, WorkerEnv } from "@asc/config";
+import {
+  QUEUE_DEFAULT_JOB_OPTIONS,
+  QUEUE_REMOVE_ON_COMPLETE,
+  QUEUE_REMOVE_ON_FAIL,
+} from "@asc/config";
 
 /**
- * Queue topology for AI work.
- *
- * Two queues so a background batch (e.g. re-coding a day of cases) can never
- * starve work a clinician is actively waiting on. Each queue has its own worker,
- * concurrency and rate limit.
- *
- * Producers (apps/api, later) enqueue with `QUEUE_DEFAULT_JOB_OPTIONS[queue]`.
- * TODO: move names + job options + the job data contract to a shared package
- * once apps/api starts enqueueing (apps must not import each other).
+ * Worker-side queue settings. Queue names, producer job options and retention
+ * are shared from @asc/config (queues.ts); the job data contract from
+ * @asc/validation (jobs.ts).
  */
-export const QUEUE_NAMES = {
-  /** A clinician is waiting on the result (drafts, summaries in the UI). */
-  interactive: "ai-interactive",
-  /** Nobody is waiting: batch, backfills, scheduled re-processing. */
-  background: "ai-background",
-} as const;
 
-export type QueueKind = keyof typeof QUEUE_NAMES;
-export type QueueName = (typeof QUEUE_NAMES)[QueueKind];
+/**
+ * Compile-time check that the shared producer options (typed structurally in
+ * @asc/config, which does not depend on bullmq) stay assignable to BullMQ's.
+ */
+export const PRODUCER_JOB_OPTIONS: Readonly<Record<QueueKind, DefaultJobOptions>> =
+  QUEUE_DEFAULT_JOB_OPTIONS;
 
 const MINUTE_MS = 60_000;
-const HOUR_S = 60 * 60;
-const DAY_S = 24 * HOUR_S;
-
-/**
- * Keep finished jobs only as long as ops needs them, so job data/results do not
- * accumulate in Redis. Job data is ids only (see jobs.ts) and failedReason is
- * sanitized (see errors.ts), so the failed set holds no PHI either.
- * Eviction is best-effort: BullMQ evicts when the next job finishes.
- */
-const REMOVE_ON_COMPLETE = { age: HOUR_S, count: 1_000 } as const;
-const REMOVE_ON_FAIL = { age: 7 * DAY_S, count: 5_000 } as const;
-
-/**
- * Default options for producers. Retries re-run model calls (new spend, and
- * possibly a duplicate draft until execution records/idempotency exist), so
- * attempts stay low; the agents gateway already falls back across models.
- */
-export const QUEUE_DEFAULT_JOB_OPTIONS = {
-  interactive: {
-    // The clinician is waiting: one retry, fast backoff, then fail visibly.
-    attempts: 2,
-    backoff: { type: "exponential", delay: 2_000 },
-    removeOnComplete: REMOVE_ON_COMPLETE,
-    removeOnFail: REMOVE_ON_FAIL,
-    stackTraceLimit: 5,
-  },
-  background: {
-    // Rides out short provider outages / 429 windows: 15s, 30s.
-    attempts: 3,
-    backoff: { type: "exponential", delay: 15_000 },
-    removeOnComplete: REMOVE_ON_COMPLETE,
-    removeOnFail: REMOVE_ON_FAIL,
-    stackTraceLimit: 5,
-  },
-} as const satisfies Record<QueueKind, DefaultJobOptions>;
 
 /**
  * Lock / stall tuning. A job's lock is renewed every lockDuration/2 while the
@@ -107,8 +69,8 @@ export function buildWorkerOptions(
   return {
     ...capacity,
     ...LOCK_SETTINGS[kind],
-    // Safety net for producers that forget the defaults above.
-    removeOnComplete: REMOVE_ON_COMPLETE,
-    removeOnFail: REMOVE_ON_FAIL,
+    // Safety net for producers that forget QUEUE_DEFAULT_JOB_OPTIONS.
+    removeOnComplete: QUEUE_REMOVE_ON_COMPLETE,
+    removeOnFail: QUEUE_REMOVE_ON_FAIL,
   };
 }

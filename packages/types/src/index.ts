@@ -7,3 +7,4 @@ export type BaseEntity = {
 
 export * from "./auth.js";
 export * from "./case.js";
+export * from "./jobs.js";

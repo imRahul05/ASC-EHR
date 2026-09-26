@@ -2,12 +2,14 @@ import type { Job } from "bullmq";
 import { Worker } from "bullmq";
 import { logger } from "@asc/logger";
 import { shutdownTelemetry } from "@asc/telemetry";
+import type { QueueKind } from "@asc/config";
+import { QUEUE_NAMES } from "@asc/config";
+import type { JobResult } from "@asc/types";
+import type { BaseJobData } from "@asc/validation";
+import { baseJobDataSchema, jobNameSchema } from "@asc/validation";
 import { env } from "./env.js";
 import { InvalidJobDataError, withSanitizedErrors } from "./errors.js";
-import type { BaseJobData, JobResult } from "./jobs.js";
-import { baseJobDataSchema, jobNameSchema } from "./jobs.js";
-import type { QueueKind } from "./queues.js";
-import { buildWorkerOptions, QUEUE_NAMES } from "./queues.js";
+import { buildWorkerOptions } from "./queues.js";
 import { redisConnection } from "./redis.js";
 
 function processJob(job: Job<BaseJobData, JobResult>): Promise<JobResult> {
