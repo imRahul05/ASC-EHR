@@ -37,6 +37,7 @@ To keep this file intentionally minimal and extensible, all detailed guidance, r
 **Consult when:** Adding any AI feature, creating or changing an agent or prompt, changing which model runs, or calling an LLM from any app.
 👉 [Read AI Agents Guide](docs/agent/ai-agents-guide.md)
 *(Covers when to create an agent, step-by-step recipes, runAgent usage, config-only changes, MUST/MUST NOT rules, troubleshooting, PR checklist).*
+Dev-time skills (`.claude/skills/`, never loaded at runtime): `create-agent`, `change-agent-prompt`, `add-model`, `phi-review`.
 👉 [Read Memory, Skills & Modern Techniques](docs/agent/memory-skills-and-modern-techniques.md)
 *(Proposal: where agent memory lives, runtime vs dev-time skills, caching/effort/batch/evals, roadmap).*
 👉 [Read Agent Platform Action Plan](docs/agent/agent-platform-action-plan.md) — *prioritised changes from the proposal + [review](docs/agent/memory-skills-proposal-review.md); start here.*
