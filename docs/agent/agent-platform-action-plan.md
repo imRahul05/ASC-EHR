@@ -25,7 +25,8 @@ Legend — **Goal:** 🟢 smooth · ⚡ fast · 🔒 secure · 📈 scalable · 
 | 12 | Worker-run AI + SSE progress | ⏳ with first real job processor | — |
 | 13 | Context metadata + manifest + derived `containsPhi` | ✅ done (interfaces + checks); providers come with first agent | `packages/agents/src/context/` |
 | 14 | On-behalf-of retrieval | ⏳ needs Medplum access policies | — |
-| 15–17 | Cache layout, effort mapping, per-model eval gate | ⏳ with first real agent traffic | — |
+| 15 | Cache layout + provider cache options | ✅ done — Anthropic breakpoint after instructions, OpenAI cache key (in-memory), cache read/write tokens audited; below the model minimum it is a no-op | ADR 2026-09-27 prompt caching |
+| 16–17 | Effort mapping, per-model eval gate | ⏳ with first real agent traffic | — |
 
 ## 1. What we learned about today's runtime
 

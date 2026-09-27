@@ -26,6 +26,7 @@ Developer-time workflow; never loaded at runtime. Source of truth: `docs/agent/a
   - Keep derived clinical facts computed in code, not delegated to the model.
   - Keep the "use ONLY the facts provided" and "no names or identifiers" rules.
   - Clinical rules (hold days, timing thresholds, codes) belong in code or structured input, not new prose the model must remember.
+  - Keep `INSTRUCTIONS` static - it is the cached prompt prefix. No ids, dates, timestamps or case data there; those go in `buildMessages`.
 - [ ] **Bump `PROMPT_VERSION`** - format `YYYY-MM-DD.N`. Same day as the current version: increment `N`. New day: today's date with `.1`. Required for ANY change to `INSTRUCTIONS` or `buildMessages`, including wording, whitespace-significant formatting and lookup-table text. `defineAgent` rejects a malformed version.
 - [ ] `A/input.ts` - only if fields changed; keep `.strict()`.
 - [ ] Output schema in `packages/validation/src/agents/<name>.ts` - only if the output shape changed. A shape change also affects `apps/web`/`apps/api` consumers; call it out and check them with `grep -rn "<OutputSchemaName>" apps packages`.
