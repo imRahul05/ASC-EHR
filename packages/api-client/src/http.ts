@@ -26,13 +26,37 @@ export interface RequestOptions {
   readonly signal?: AbortSignal;
 }
 
-function buildUrl(path: string, query?: RequestOptions["query"]): string {
+/**
+ * Bearer token of the signed-in session, held in memory only (never browser storage, LM-004).
+ * Set by the app on sign-in, cleared on logout.
+ */
+let accessToken: string | null = null;
+
+export function setAccessToken(token: string | null): void {
+  accessToken = token;
+}
+
+/** Authorization header for the current session (empty when signed out). */
+export function authHeaders(): Record<string, string> {
+  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+}
+
+export function buildUrl(path: string, query?: RequestOptions["query"]): string {
   const url = new URL(path, getPublicApiUrl());
   for (const [key, value] of Object.entries(query ?? {})) url.searchParams.set(key, value);
   return url.toString();
 }
 
-async function toApiError(response: Response): Promise<ApiError> {
+/** Drops undefined values so optional filters can be passed straight through as `query`. */
+export function toQuery(params: object): Record<string, string> {
+  const entries = Object.entries(params as Record<string, unknown>).filter(
+    (entry): entry is [string, string | number | boolean] =>
+      typeof entry[1] === "string" || typeof entry[1] === "number" || typeof entry[1] === "boolean",
+  );
+  return Object.fromEntries(entries.map(([key, value]) => [key, String(value)]));
+}
+
+export async function toApiError(response: Response): Promise<ApiError> {
   const body: unknown = await response.json().catch(() => undefined);
   const payload = apiErrorPayloadSchema.safeParse(body);
   const data = payload.success ? payload.data : {};
@@ -52,7 +76,7 @@ async function request<T>(method: HttpMethod, path: string, body?: unknown, opti
     response = await fetch(buildUrl(path, options.query), {
       method,
       signal,
-      headers: { Accept: "application/json", "Content-Type": "application/json", ...options.headers },
+      headers: { Accept: "application/json", "Content-Type": "application/json", ...authHeaders(), ...options.headers },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch (error) {
