@@ -20,6 +20,8 @@ ruleTester.run("max-hooks-per-component", rule, {
     `function List() { const [items] = useState([]); return items.map(() => null); }`,
     // Custom limits.
     { code: `function A() { useState(); useState(); useState(); }`, options: [{ useState: 3 }] },
+    // Object.prototype names are not hooks (regression: `toString` was counted via `in`).
+    `function ids() { a.toString(); b.toString(); c.toString(); d.valueOf(); e.valueOf(); }`,
   ],
   invalid: [
     {
