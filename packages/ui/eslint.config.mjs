@@ -1,1 +1,3 @@
-import { config } from "@asc/eslint-config/base"; export default config;
+import { config } from "@asc/eslint-config/react-internal";
+
+export default config;

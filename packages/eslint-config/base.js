@@ -36,11 +36,21 @@ export const config = tseslint.config(
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
       "no-console": "error",
+      // Env is read only inside @asc/config (parseEnv / publicEnv / getProcessEnv).
+      "no-restricted-properties": [
+        "error",
+        {
+          object: "process",
+          property: "env",
+          message: "Read env through @asc/config (parseEnv, publicEnv, getProcessEnv) — only @asc/config touches process.env.",
+        },
+      ],
     },
   },
   {
     files: ["**/*.test.ts", "**/*.spec.ts"],
     rules: {
+      "no-restricted-properties": "off",
       "@typescript-eslint/no-unsafe-assignment": "off",
       "@typescript-eslint/no-unsafe-member-access": "off",
     },

@@ -5,8 +5,13 @@
   "private": true,
   "exports": {
     "./base": "./base.js",
+    "./app": "./app.js",
     "./next-js": "./next.js",
-    "./react-internal": "./react-internal.js"
+    "./react-internal": "./react-internal.js",
+    "./plugin": "./plugin.js"
+  },
+  "scripts": {
+    "test": "node --test \"rules/*.test.js\""
   },
   "dependencies": {
     "@eslint/js": "10.0.1",
