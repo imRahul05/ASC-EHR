@@ -39,6 +39,7 @@ T3 and T4 usually run in parallel (different workspaces, both only need T1/T2).
 | Wave | ID | Phase | Lane | Size | Source mix | File |
 |---|---|---|---|---|---|---|
 | 0 | P00 | Repo hygiene, guardrails, dependency baseline | Platform | S | NEW | [P00](phases/P00-repo-hygiene.md) |
+| 0 | P00b | Library upgrades: zod 4, bullmq 6, ioredis 6 | Platform | S | NEW | [P00b](phases/P00b-library-upgrades.md) |
 | 0 | P01 | CI pipeline + agent eval gate | Platform | S | NEW | [P01](phases/P01-ci.md) |
 | 1 | P02 | Local Medplum stack + `apps/bots` skeleton + seed | Platform | M | MP | [P02](phases/P02-local-medplum.md) |
 | 1 | P03 | `@asc/fhir` package (types, identifiers, builders) | Domain | S | MP+NEW | [P03](phases/P03-fhir-package.md) |
@@ -77,6 +78,7 @@ gantt
     axisFormat %b %d
     section Wave 0
     P00 hygiene            :p00, 2026-09-28, 2d
+    P00b upgrades          :p00b, after p00, 2d
     P01 CI                 :p01, after p00, 2d
     section Wave 1
     P02 local Medplum      :p02, 2026-09-29, 3d
@@ -120,6 +122,7 @@ Dates are targets for sequencing, not commitments; `PROGRESS.md` holds actuals.
 | Phase | Depends on (must be `done`) | Unblocks | Safe in parallel with |
 |---|---|---|---|
 | P00 | — | everything | P02, P03, P06 |
+| P00b | P00 | Wave 2 (P07–P13) | P01, P02, P03, P06 |
 | P01 | P00 | all merges (gate) | P02, P03, P06, P09 |
 | P02 | — | P04, P06 (config parity), P08, P12 | P00, P03, P06 |
 | P03 | — | P04, P07, P08, P11, P14 | P00, P02, P06, P09 |
@@ -175,6 +178,8 @@ flowchart LR
     classDef w4 fill:#dc2626,color:#fff,stroke:#991b1b
 
     P00[P00 hygiene]:::w0 --> P01[P01 CI]:::w0
+    P00 --> P00b[P00b upgrades]:::w0
+    P00b --> P07
     P02[P02 local Medplum]:::w1 --> P04[P04 clients]:::w1
     P03[P03 @asc/fhir]:::w1 --> P04
     P04 --> P05[P05 auth + roles]:::w1
@@ -357,7 +362,7 @@ Queried from the npm registry on **2026-09-27**. Pin exact versions for `@medplu
 
 **Excluded on purpose:** `cmdk` (depends on Radix — use Base UI Combobox/Autocomplete), `@microsoft/fetch-event-source` (unmaintained), `@medplum/react` in `apps/web`, any second UI kit.
 
-**Upgrade decisions owed in P00** (latest vs repo): `zod` 4.6.5 vs 3.25 · `bullmq` 6.3.9 vs 5.53 · `ioredis` 6.0.0 vs 5.6 · `@opentelemetry/sdk-node` 0.222 vs 0.57 · `react` 19.3.0 vs 19.2.8. Recommendation: upgrade **before** Wave 2 in one dedicated commit each, or pin and record why — never mid-slice.
+**Upgrade decision (P00-Q1, decided 2026-09-28):** upgrade `zod` 3.25 → 4.6.5 and `bullmq` 5.53 → 6.3.9 (+ `ioredis` 5.6 → 6.0.0) in phase [P00b](phases/P00b-library-upgrades.md) **before** Wave 2, one commit per library. **Deferred:** `@opentelemetry/sdk-node` 0.57 → 0.222 (revisit with P06/P26) and `react` 19.2.8 → 19.3.0. Never upgrade mid-slice.
 
 ---
 
@@ -376,4 +381,4 @@ Per-phase questions live in each phase file. Blocking questions across phases:
 | Q12 | Pathology lab + interface | P23 | ops |
 | Q-MS4 / Q-MS5 | faxagnet + Integuru hosting, BAA, outbound fax | P24 | MindScript team |
 | Q-MS6 | Shared SSO with MindScript | P05 | eng lead |
-| P00-Q1 | Library upgrades (§5.2) | P07+ | eng lead |
+| ~~P00-Q1~~ | Library upgrades (§5.2) — **decided 2026-09-28**: zod 4 + bullmq 6 + ioredis 6 in P00b; OTel deferred | — | eng lead |

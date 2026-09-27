@@ -1,0 +1,85 @@
+/**
+ * Fixture tests for the app boundary rules (LEARNING_MISTAKES.md LM-001, LM-005, LM-006):
+ * lint small probe files through the real config blocks and assert which rules fire.
+ */
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { ESLint } from "eslint";
+import tseslint from "typescript-eslint";
+import { appBoundaryConfig } from "../app.js";
+import { PROCESS_ENV_RULE } from "../base.js";
+
+/** @param {{ browser?: boolean }} options */
+function linter(options) {
+  return new ESLint({
+    overrideConfigFile: true,
+    overrideConfig: [
+      {
+        files: ["**/*.ts", "**/*.tsx"],
+        languageOptions: { parser: tseslint.parser, parserOptions: { ecmaFeatures: { jsx: true } } },
+        rules: { "no-restricted-properties": PROCESS_ENV_RULE },
+      },
+      appBoundaryConfig(options),
+    ],
+  });
+}
+
+/** @returns {Promise<string[]>} "ruleId:line" for each message */
+async function lint(code, { browser = false, file = "src/probe.tsx" } = {}) {
+  const [result] = await linter({ browser }).lintText(code, { filePath: file });
+  return (result?.messages ?? []).map((m) => `${m.ruleId}:${m.line}`);
+}
+
+describe("app boundary rules", () => {
+  it("blocks libraries that a package already wraps", async () => {
+    const code = [
+      'import axios from "axios";',
+      'import { z } from "zod";',
+      'import { Sun } from "lucide-react";',
+      'import { useTheme } from "next-themes";',
+      'import * as Dialog from "@radix-ui/react-dialog";',
+      'import { anthropic } from "@ai-sdk/anthropic";',
+    ].join("\n");
+    assert.deepEqual(await lint(code), [1, 2, 3, 4, 5, 6].map((line) => `no-restricted-imports:${line}`));
+  });
+
+  it("blocks exported types and Zod schemas in apps", async () => {
+    const code = [
+      "export interface Leaked { id: string }",
+      "export type AlsoLeaked = { id: string };",
+      "const schema = z.object({});",
+      "interface Props { id: string }",
+    ].join("\n");
+    assert.deepEqual(await lint(code), [
+      "no-restricted-syntax:1",
+      "no-restricted-syntax:2",
+      "no-restricted-syntax:3",
+    ]);
+  });
+
+  it("blocks process.env outside @asc/config", async () => {
+    assert.deepEqual(await lint("const url = process.env.API_URL;"), ["no-restricted-properties:1"]);
+  });
+
+  it("requires leaf subpaths of Node-style packages in browser code only", async () => {
+    const code = 'import { loginSchema } from "@asc/validation";\nimport { API_ROUTES } from "@asc/config";';
+    assert.deepEqual(await lint(code, { browser: true }), ["no-restricted-imports:1", "no-restricted-imports:2"]);
+    assert.deepEqual(await lint(code, { browser: false }), []);
+  });
+
+  it("allows the sanctioned alternatives", async () => {
+    const code = [
+      'import { http } from "@asc/api-client";',
+      'import { loginSchema } from "@asc/validation/auth";',
+      'import { API_ROUTES } from "@asc/config/api";',
+      'import { Sun } from "@asc/ui/icons";',
+      'import { ThemeToggle } from "@asc/ui";',
+      "interface Props { readonly id: string }",
+    ].join("\n");
+    assert.deepEqual(await lint(code, { browser: true }), []);
+  });
+
+  it("only applies to app source files", async () => {
+    assert.deepEqual(await lint('import axios from "axios";', { file: "scripts/tool.ts" }), []);
+  });
+});

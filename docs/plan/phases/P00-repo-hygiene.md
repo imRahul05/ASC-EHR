@@ -9,7 +9,7 @@
 | Requirements | NFR (maintainability); architecture rules 1–5 |
 | Branch | `phase/P00-repo-hygiene` |
 
-> **Status (2026-09-27):** T1–T4 delivered in PR #9, with more than planned: MSW mocks, in-memory auth + route guard, config-driven forms, `asc/max-hooks-per-component`, env only via `@asc/config`, and the fix for web pages returning 500 (LM-005). Remaining: **T5** library-upgrade decision (Q1). Details in `PROGRESS.md`.
+> **Status: DONE (2026-09-28).** T1–T4 delivered in PR #9 (plus MSW mocks, in-memory auth + route guard, config-driven forms, `asc/max-hooks-per-component`, env only via `@asc/config`, and the fix for web pages returning 500 — LM-005). Boundary lint fixture tests added in the P00 close-out PR. T5 decided: zod 4 + bullmq 6 + ioredis 6 in [P00b](P00b-library-upgrades.md); OpenTelemetry deferred.
 
 ## Goal
 Remove existing rule breaks before feature work copies them, and add lint guardrails so agents cannot repeat them. Establish `PROGRESS.md` / `LEARNING_MISTAKES.md` protocol (docs already added with this plan).
@@ -52,14 +52,14 @@ AGENTS.md                                     EDIT  session protocol (done in pl
 None. `axios` moves from `apps/web` to `@asc/api-client` (or drop for native `fetch` — Q2).
 
 ## Acceptance
-- [ ] `grep -rn "from \"axios\"" apps/` → empty
-- [ ] `grep -rnE "export (interface|type) |z\.object\(" apps/*/src` → empty (or allow-listed, e.g. Next page props)
-- [ ] Lint fails on a deliberately bad import (add a lint test fixture)
-- [ ] Login/dashboard still work with mocks (`pnpm dev`, manual smoke)
-- [ ] PROGRESS.md: P00 `done`; LEARNING_MISTAKES LM-001 marked "guarded by lint"
+- [x] `grep -rn "from \"axios\"" apps/` → empty
+- [x] `grep -rnE "export (interface|type) |z\.object\(" apps/*/src` → empty (or allow-listed, e.g. Next page props)
+- [x] Lint fails on a deliberately bad import — fixture tests in `packages/eslint-config/rules/app-boundaries.test.js`
+- [x] Login/dashboard still work with mocks (`pnpm dev`, verified in browser with Playwright)
+- [x] PROGRESS.md: P00 `done`; LEARNING_MISTAKES LM-001 marked "guarded by lint"
 
 ## Open questions
 | ID | Question | Blocks | Default if unanswered |
 |---|---|---|---|
-| Q1 | Upgrade `zod` 3→4, `bullmq` 5→6, `ioredis` 5→6, OTel 0.57→0.222 now? | P07+ | Upgrade zod + bullmq before Wave 2 (AI SDK 7 supports zod 4); OTel later |
-| Q2 | Keep axios or use native `fetch` in `@asc/api-client`? | T2 | Native `fetch` (one less dep; SSE needs fetch anyway) |
+| Q1 | Upgrade `zod` 3→4, `bullmq` 5→6, `ioredis` 5→6, OTel 0.57→0.222 now? | P07+ | **Decided 2026-09-28:** zod + bullmq + ioredis in P00b before Wave 2; OTel later |
+| Q2 | Keep axios or use native `fetch` in `@asc/api-client`? | T2 | **Done:** native `fetch` (PR #9) |
