@@ -12,6 +12,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@asc/config": "workspace:*",
     "@asc/logger": "workspace:*"
   },
   "devDependencies": {

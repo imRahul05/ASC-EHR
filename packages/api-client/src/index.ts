@@ -1,17 +1,6 @@
-// Browser/Server shared fetch client to consume the fastify API
-import { getPublicApiUrl } from "@asc/config/public-env";
-import { healthResponseSchema, type HealthResponse } from "@asc/validation";
-
-export type { HealthResponse };
-
-export async function fetchHealth(): Promise<HealthResponse> {
-  const res = await fetch(`${getPublicApiUrl()}/health`);
-  if (!res.ok) {
-    throw new Error("Failed to fetch health status");
-  }
-  const parsed = healthResponseSchema.safeParse(await res.json());
-  if (!parsed.success) {
-    throw new Error("Unexpected health response shape");
-  }
-  return parsed.data;
-}
+// Browser/Server shared client for apps/api. Apps import request functions from here;
+// they never create their own HTTP client (see LEARNING_MISTAKES.md LM-001).
+export { ApiError, http, type RequestOptions } from "./http";
+export * from "./auth";
+export * from "./dashboard";
+export * from "./health";

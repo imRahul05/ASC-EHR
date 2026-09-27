@@ -1,3 +1,4 @@
+import { getProcessEnv } from "@asc/config/runtime";
 import pino from "pino";
 import type { Bindings, DestinationStream, LoggerOptions } from "pino";
 
@@ -27,9 +28,9 @@ export function resolveLogLevel(level: string | undefined): string {
   return normalized && VALID_LEVELS.has(normalized) ? normalized : "info";
 }
 
-/** Builds pino options for the given environment (defaults to process.env). */
+/** Builds pino options for the given environment (defaults to the process env via @asc/config). */
 export function buildLoggerOptions(
-  env: { NODE_ENV?: string; LOG_LEVEL?: string } = process.env,
+  env: { NODE_ENV?: string; LOG_LEVEL?: string } = getProcessEnv(),
 ): LoggerOptions {
   const isDev = env.NODE_ENV === "development";
   return {

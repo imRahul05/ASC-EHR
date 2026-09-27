@@ -1,21 +1,14 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Stethoscope,
-  ShieldAlert,
-  HeartPulse,
-  Building2,
-  UserCircle,
-  Loader2,
-  Sparkles,
-} from "lucide-react";
+import { Building2, HeartPulse, Loader2, ShieldAlert, Sparkles, Stethoscope, UserCircle } from "@asc/ui/icons";
 import {
   Badge,
   Button,
+  cn,
+  FormField,
   Input,
   Label,
   Select,
@@ -23,149 +16,124 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  type FieldConfig,
 } from "@asc/ui";
 import type { UserRole } from "@asc/types";
-import { signupSchema, type SignupFormData } from "@asc/validation";
+import { SIGNUP_ROLE_FIELDS, signupSchema, type SignupFormData } from "@asc/validation/auth";
 import { useAuth } from "../../hooks/use-auth";
+import { SIGNUP_SAMPLE_PASSWORD, SIGNUP_SAMPLES } from "./signup-samples";
+
+type SignupFieldName = Exclude<keyof SignupFormData, "role" | "department">;
 
 const ROLE_OPTIONS = [
   {
-    role: "SURGEON" as UserRole,
+    role: "SURGEON",
     title: "Gastroenterologist / Proceduralist",
     icon: Stethoscope,
     badge: "MD / DO",
     description: "GI endoscopy documentation, operative note attestation & quality tracking.",
   },
   {
-    role: "ANESTHESIOLOGIST" as UserRole,
+    role: "ANESTHESIOLOGIST",
     title: "Anesthesiology Provider",
     icon: ShieldAlert,
     badge: "MD / CRNA",
     description: "Pre-procedure airway scoring, ASA physical status & sedation care.",
   },
   {
-    role: "NURSE" as UserRole,
+    role: "NURSE",
     title: "Clinical Nurse (Pre-Op / PACU / OR)",
     icon: HeartPulse,
     badge: "BSN / RN",
     description: "Intake vitals, Universal Protocol time-out & post-op Aldrete recovery.",
   },
   {
-    role: "ADMIN" as UserRole,
+    role: "ADMIN",
     title: "ASC Center Administration",
     icon: Building2,
     badge: "Ops / Billing",
     description: "OR scheduling, digital whiteboard, billing hand-off & HIPAA audit review.",
   },
   {
-    role: "PATIENT" as UserRole,
+    role: "PATIENT",
     title: "Patient Portal Access",
     icon: UserCircle,
     badge: "Outpatient",
     description: "Bowel prep tracking, NPO countdown, escort driver setup & care instructions.",
   },
-] as const;
+] as const satisfies readonly { role: UserRole; title: string; icon: unknown; badge: string; description: string }[];
 
-/** Demo auto-fill presets per role, kept as data instead of imperative per-field setState calls. */
-const DEMO_PRESETS: Record<UserRole, Partial<SignupFormData>> = {
-  SURGEON: {
-    fullName: "Dr. Marcus Brody, MD",
-    email: "m.brody@gihealth.org",
-    npi: "1829304912",
-    licenseNumber: "MD-772910-FL",
-    specialty: "Advanced Therapeutic Endoscopy",
-    department: "Endoscopy Surgical Suite",
-  },
-  ANESTHESIOLOGIST: {
-    fullName: "Dr. Rachel Kim, MD",
-    email: "r.kim@anesthesiapartners.org",
-    npi: "1948201948",
-    licenseNumber: "MD-881923-FL",
-    specialty: "Sedation & Ambulatory Anesthesia",
-    department: "Anesthesia Care Team",
-  },
-  NURSE: {
-    fullName: "David Miller, BSN, RN",
-    email: "d.miller@gihealth.org",
-    licenseNumber: "RN-901824-FL",
-    careStage: "Intra-op Circulator",
-    department: "Clinical Nursing Staff",
-  },
-  ADMIN: {
-    fullName: "Claire Davenport",
-    email: "c.davenport@gihealth.org",
-    facilityCode: "ASC-FL-991",
-    department: "Surgery Center Management",
-  },
-  PATIENT: {
-    fullName: "Eleanor Vance",
-    email: "eleanor.vance@mail.com",
-    dateOfBirth: "1962-03-15",
-    escortName: "Thomas Vance (Son)",
-    escortPhone: "(555) 442-8901",
-  },
+/** How each input looks. Which inputs a role sees comes from SIGNUP_ROLE_FIELDS in @asc/validation. */
+const FIELD_UI: Readonly<Record<SignupFieldName, FieldConfig<SignupFieldName>>> = {
+  fullName: { name: "fullName", label: "Full Legal Name", autoComplete: "name" },
+  email: { name: "email", label: "Email Address", type: "email", autoComplete: "email" },
+  password: { name: "password", label: "Password", type: "password", autoComplete: "new-password" },
+  npi: { name: "npi", label: "10-Digit National Provider Identifier (NPI)", mono: true, maxLength: 10 },
+  licenseNumber: { name: "licenseNumber", label: "License Number", mono: true },
+  specialty: { name: "specialty", label: "Clinical Specialty" },
+  careStage: { name: "careStage", label: "Primary Stage of Care" },
+  facilityCode: { name: "facilityCode", label: "ASC Facility Identifier", mono: true },
+  dateOfBirth: { name: "dateOfBirth", label: "Date of Birth", type: "date" },
+  escortName: { name: "escortName", label: "Escort / Responsible Adult Driver Name", placeholder: "Name of adult accompanying patient" },
+  escortPhone: { name: "escortPhone", label: "Escort Contact Phone Number", type: "tel", placeholder: "(555) 000-0000" },
 };
 
-const DEFAULT_PASSWORD = "Password@123";
+const COMMON_FIELDS: readonly SignupFieldName[] = ["fullName", "email", "password"];
 
-const DEFAULT_VALUES: SignupFormData = {
-  role: "SURGEON",
-  password: DEFAULT_PASSWORD,
-  ...DEMO_PRESETS.SURGEON,
-} as SignupFormData;
+function fieldsForRole(role: UserRole): readonly FieldConfig<SignupFieldName>[] {
+  const roleFields = SIGNUP_ROLE_FIELDS[role].map((rule) => rule.field).filter((name) => name !== "department");
+  return [...COMMON_FIELDS, ...roleFields].map((name) => FIELD_UI[name]);
+}
+
+function sampleValues(role: UserRole, password: string): SignupFormData {
+  return { role, password, fullName: "", email: "", ...SIGNUP_SAMPLES[role] };
+}
+
+const ROLE_SELECT_ITEMS = ROLE_OPTIONS.map((item) => ({ value: item.role, label: item.title }));
 
 export function SignupPersonaSelector() {
   const { signup, isSigningUp } = useAuth();
-  const [formError, setFormError] = useState<string | null>(null);
-
   const {
     register,
     handleSubmit,
     control,
     reset,
     getValues,
+    setError,
     formState: { errors },
   } = useForm<SignupFormData>({
     resolver: zodResolver(signupSchema),
-    defaultValues: DEFAULT_VALUES,
+    defaultValues: sampleValues("SURGEON", SIGNUP_SAMPLE_PASSWORD),
   });
 
   const selectedRole = useWatch({ control, name: "role" });
-  const selectedRoleOption = ROLE_OPTIONS.find((item) => item.role === selectedRole);
-  const roleSelectItems = ROLE_OPTIONS.map((item) => ({ value: item.role, label: item.title }));
+  const selectedOption = ROLE_OPTIONS.find((item) => item.role === selectedRole);
 
-  const handleSelectRole = (role: UserRole) => {
-    reset({ role, password: getValues("password"), ...DEMO_PRESETS[role] });
-    setFormError(null);
-  };
+  const selectRole = (role: UserRole) => reset(sampleValues(role, getValues("password")));
 
   const onSubmit = async (data: SignupFormData) => {
-    setFormError(null);
     try {
       await signup(data);
     } catch {
-      setFormError("Registration could not be completed. Please try again.");
+      setError("root", { message: "Registration could not be completed. Please try again." });
     }
   };
 
   return (
     <div className="space-y-6">
-      {/* Role Picker Section */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
             <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Step 1: Select Your Role
             </Label>
-            <p className="text-xs text-muted-foreground">
-              Choose the role you will perform at the Ambulatory Surgery Center:
-            </p>
+            <p className="text-xs text-muted-foreground">Choose the role you will perform at the Ambulatory Surgery Center:</p>
           </div>
           <Button
             type="button"
             variant="outline"
             size="xs"
-            onClick={() => handleSelectRole(selectedRole)}
+            onClick={() => selectRole(selectedRole)}
             className="text-xs gap-1 border-border/80"
           >
             <Sparkles className="h-3 w-3 text-amber-500" />
@@ -173,251 +141,58 @@ export function SignupPersonaSelector() {
           </Button>
         </div>
 
-        <Select
-          items={roleSelectItems}
-          value={selectedRole}
-          onValueChange={(value) => value && handleSelectRole(value)}
-        >
-          <SelectTrigger className="w-full h-9 text-xs">
+        <Select items={ROLE_SELECT_ITEMS} value={selectedRole} onValueChange={(value) => value && selectRole(value)}>
+          <SelectTrigger className="w-full h-9 text-xs" data-testid="signup-role-select">
             <SelectValue placeholder="Select your role" />
           </SelectTrigger>
           <SelectContent>
-            {ROLE_OPTIONS.map((item) => {
-              const Icon = item.icon;
-              return (
-                <SelectItem key={item.role} value={item.role} className="text-xs">
-                  <Icon className="h-3.5 w-3.5" />
-                  {item.title}
-                </SelectItem>
-              );
-            })}
+            {ROLE_OPTIONS.map(({ role, title, icon: Icon }) => (
+              <SelectItem key={role} value={role} className="text-xs">
+                <Icon className="h-3.5 w-3.5" />
+                {title}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
-        {selectedRoleOption && (
+        {selectedOption && (
           <div className="flex items-start gap-2.5 rounded-md border border-border/70 bg-muted/30 p-2.5">
             <Badge variant="outline" className="text-[10px] font-normal shrink-0">
-              {selectedRoleOption.badge}
+              {selectedOption.badge}
             </Badge>
-            <p className="text-[11px] text-muted-foreground">{selectedRoleOption.description}</p>
+            <p className="text-[11px] text-muted-foreground">{selectedOption.description}</p>
           </div>
         )}
       </div>
 
-      {/* Role-Specific Form Fields */}
-      <form onSubmit={(e) => void handleSubmit(onSubmit)(e)} className="space-y-4 pt-2">
+      <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} className="space-y-4 pt-2" noValidate>
         <div className="border-t border-border pt-4">
           <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground block mb-3">
             Step 2: Account & Credential Details
           </Label>
 
-          {formError && (
-            <div className="p-3 mb-4 text-xs rounded-md bg-destructive/10 text-destructive border border-destructive/20">
-              {formError}
+          {errors.root && (
+            <div role="alert" className="p-3 mb-4 text-xs rounded-md bg-destructive/10 text-destructive border border-destructive/20">
+              {errors.root.message}
             </div>
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label htmlFor="signup-name" className="text-xs font-medium">
-                Full Legal Name
-              </Label>
-              <Input
-                id="signup-name"
-                disabled={isSigningUp}
-                className="h-8 text-xs"
-                {...register("fullName")}
-              />
-              {errors.fullName && (
-                <p className="text-[10px] text-destructive">{errors.fullName.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="signup-email" className="text-xs font-medium">
-                Email Address
-              </Label>
-              <Input
-                id="signup-email"
-                type="email"
-                disabled={isSigningUp}
-                className="h-8 text-xs"
-                {...register("email")}
-              />
-              {errors.email && (
-                <p className="text-[10px] text-destructive">{errors.email.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="signup-pwd" className="text-xs font-medium">
-                Password
-              </Label>
-              <Input
-                id="signup-pwd"
-                type="password"
-                disabled={isSigningUp}
-                className="h-8 text-xs"
-                {...register("password")}
-              />
-              {errors.password && (
-                <p className="text-[10px] text-destructive">{errors.password.message}</p>
-              )}
-            </div>
-
-            {/* Clinician Specific: NPI & License */}
-            {(selectedRole === "SURGEON" || selectedRole === "ANESTHESIOLOGIST") && (
-              <>
-                <div className="space-y-1">
-                  <Label htmlFor="signup-npi" className="text-xs font-medium">
-                    10-Digit National Provider Identifier (NPI)
-                  </Label>
-                  <Input
-                    id="signup-npi"
-                    maxLength={10}
-                    disabled={isSigningUp}
-                    className="h-8 text-xs font-mono"
-                    {...register("npi")}
-                  />
-                  {errors.npi && (
-                    <p className="text-[10px] text-destructive">{errors.npi.message}</p>
-                  )}
-                </div>
-
-                <div className="space-y-1">
-                  <Label htmlFor="signup-license" className="text-xs font-medium">
-                    State Medical License #
-                  </Label>
-                  <Input
-                    id="signup-license"
-                    disabled={isSigningUp}
-                    className="h-8 text-xs font-mono"
-                    {...register("licenseNumber")}
-                  />
-                  {errors.licenseNumber && (
-                    <p className="text-[10px] text-destructive">{errors.licenseNumber.message}</p>
-                  )}
-                </div>
-
-                <div className="space-y-1">
-                  <Label htmlFor="signup-spec" className="text-xs font-medium">
-                    Clinical Specialty
-                  </Label>
-                  <Input
-                    id="signup-spec"
-                    disabled={isSigningUp}
-                    className="h-8 text-xs"
-                    {...register("specialty")}
-                  />
-                </div>
-              </>
-            )}
-
-            {/* Nurse Specific: License & Stage */}
-            {selectedRole === "NURSE" && (
-              <>
-                <div className="space-y-1">
-                  <Label htmlFor="signup-rn" className="text-xs font-medium">
-                    Registered Nurse License #
-                  </Label>
-                  <Input
-                    id="signup-rn"
-                    disabled={isSigningUp}
-                    className="h-8 text-xs font-mono"
-                    {...register("licenseNumber")}
-                  />
-                  {errors.licenseNumber && (
-                    <p className="text-[10px] text-destructive">{errors.licenseNumber.message}</p>
-                  )}
-                </div>
-
-                <div className="space-y-1">
-                  <Label htmlFor="signup-carestage" className="text-xs font-medium">
-                    Primary Stage of Care
-                  </Label>
-                  <Input
-                    id="signup-carestage"
-                    disabled={isSigningUp}
-                    className="h-8 text-xs"
-                    {...register("careStage")}
-                  />
-                  {errors.careStage && (
-                    <p className="text-[10px] text-destructive">{errors.careStage.message}</p>
-                  )}
-                </div>
-              </>
-            )}
-
-            {/* Admin Specific: Facility Code */}
-            {selectedRole === "ADMIN" && (
-              <div className="space-y-1">
-                <Label htmlFor="signup-fac" className="text-xs font-medium">
-                  ASC Facility Identifier
-                </Label>
+            {fieldsForRole(selectedRole).map((field) => (
+              <FormField key={field.name} id={`signup-${field.name}`} label={field.label} error={errors[field.name]?.message}>
                 <Input
-                  id="signup-fac"
+                  id={`signup-${field.name}`}
+                  type={field.type ?? "text"}
+                  placeholder={field.placeholder}
+                  autoComplete={field.autoComplete}
+                  maxLength={field.maxLength}
                   disabled={isSigningUp}
-                  className="h-8 text-xs font-mono"
-                  {...register("facilityCode")}
+                  aria-invalid={errors[field.name] ? true : undefined}
+                  className={cn("h-8 text-xs", field.mono && "font-mono")}
+                  {...register(field.name)}
                 />
-                {errors.facilityCode && (
-                  <p className="text-[10px] text-destructive">{errors.facilityCode.message}</p>
-                )}
-              </div>
-            )}
-
-            {/* Patient Specific: DOB, Escort Name & Phone */}
-            {selectedRole === "PATIENT" && (
-              <>
-                <div className="space-y-1">
-                  <Label htmlFor="signup-dob" className="text-xs font-medium">
-                    Date of Birth
-                  </Label>
-                  <Input
-                    id="signup-dob"
-                    type="date"
-                    disabled={isSigningUp}
-                    className="h-8 text-xs"
-                    {...register("dateOfBirth")}
-                  />
-                  {errors.dateOfBirth && (
-                    <p className="text-[10px] text-destructive">{errors.dateOfBirth.message}</p>
-                  )}
-                </div>
-
-                <div className="space-y-1">
-                  <Label htmlFor="signup-escort-name" className="text-xs font-medium">
-                    Escort / Responsible Adult Driver Name
-                  </Label>
-                  <Input
-                    id="signup-escort-name"
-                    placeholder="Name of adult accompanying patient"
-                    disabled={isSigningUp}
-                    className="h-8 text-xs"
-                    {...register("escortName")}
-                  />
-                  {errors.escortName && (
-                    <p className="text-[10px] text-destructive">{errors.escortName.message}</p>
-                  )}
-                </div>
-
-                <div className="space-y-1">
-                  <Label htmlFor="signup-escort-phone" className="text-xs font-medium">
-                    Escort Contact Phone Number
-                  </Label>
-                  <Input
-                    id="signup-escort-phone"
-                    placeholder="(555) 000-0000"
-                    disabled={isSigningUp}
-                    className="h-8 text-xs"
-                    {...register("escortPhone")}
-                  />
-                  {errors.escortPhone && (
-                    <p className="text-[10px] text-destructive">{errors.escortPhone.message}</p>
-                  )}
-                </div>
-              </>
-            )}
+              </FormField>
+            ))}
           </div>
         </div>
 
@@ -437,10 +212,7 @@ export function SignupPersonaSelector() {
         <div className="text-center pt-2">
           <p className="text-xs text-muted-foreground">
             Already have an active credential or demo session?{" "}
-            <Link
-              href="/login"
-              className="font-medium text-foreground underline-offset-4 hover:underline"
-            >
+            <Link href="/login" className="font-medium text-foreground underline-offset-4 hover:underline">
               Sign In with 1-Click Demo
             </Link>
           </p>

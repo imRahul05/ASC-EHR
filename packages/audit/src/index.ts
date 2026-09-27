@@ -1,3 +1,4 @@
+import { isProductionEnv } from "@asc/config/runtime";
 import { isSensitiveKey, logger as baseLogger } from "@asc/logger";
 import type { Logger } from "@asc/logger";
 
@@ -120,7 +121,7 @@ export function sanitizeDetails(
 }
 
 export interface AuditClientOptions {
-  /** Defaults to `process.env.NODE_ENV === "production"` at construction. */
+  /** Defaults to `isProductionEnv()` from @asc/config at construction. */
   production?: boolean;
 }
 
@@ -131,7 +132,7 @@ export class AuditClient {
     private readonly store: AuditStore,
     options: AuditClientOptions = {},
   ) {
-    this.production = options.production ?? process.env.NODE_ENV === "production";
+    this.production = options.production ?? isProductionEnv();
   }
 
   /**
@@ -155,7 +156,7 @@ export class AuditClient {
  * A non-durable store passed explicitly in production is also refused.
  */
 export function createAuditClient(store?: AuditStore, options: AuditClientOptions = {}): AuditClient {
-  const production = options.production ?? process.env.NODE_ENV === "production";
+  const production = options.production ?? isProductionEnv();
   const resolved = store ?? new LoggerAuditStore();
   if (production && resolved.durable !== true) {
     throw new AuditStoreNotConfiguredError();

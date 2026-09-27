@@ -5,7 +5,9 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./public-env": "./src/public-env.ts"
+    "./public-env": "./src/public-env.ts",
+    "./api": "./src/api.ts",
+    "./runtime": "./src/runtime.ts"
   },
   "scripts": {
     "lint": "eslint --max-warnings 0",
