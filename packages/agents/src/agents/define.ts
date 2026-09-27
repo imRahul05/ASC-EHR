@@ -80,7 +80,20 @@ export function defineAgent<const Name extends string, Input extends z.ZodTypeAn
   if (!PROMPT_VERSION.test(definition.promptVersion)) {
     throw new Error(`Agent "${definition.name}" promptVersion must look like YYYY-MM-DD.N.`);
   }
+  if (promptCacheKey(definition).length > MAX_PROMPT_CACHE_KEY_LENGTH) {
+    throw new Error(`Agent name "${definition.name}" is too long for a prompt-cache key.`);
+  }
   return definition;
+}
+
+const MAX_PROMPT_CACHE_KEY_LENGTH = 64;
+
+/**
+ * Prompt-cache key of an agent: `name@promptVersion`. Shared by every run of
+ * the same prompt, changed by every prompt bump. No PHI, no run/patient ids.
+ */
+export function promptCacheKey(definition: Pick<AnyAgentDefinition, 'name' | 'promptVersion'>): string {
+  return `${definition.name}@${definition.promptVersion}`;
 }
 
 /** Everything a model must support to run this agent. */

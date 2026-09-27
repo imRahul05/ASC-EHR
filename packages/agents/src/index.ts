@@ -56,6 +56,7 @@ export {
 // Agents: definition, execution, registry.
 export {
   defineAgent,
+  promptCacheKey,
   type AgentDefinition,
   type AgentEvalCase,
   type AnyAgentDefinition,

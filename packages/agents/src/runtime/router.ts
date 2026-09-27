@@ -23,6 +23,7 @@ import {
   TASK_PROFILES,
   hasCapabilities,
   maxReasoning,
+  type EndpointPromptCache,
   type EndpointProviderOptions,
   type HostingTarget,
   type ModelCapability,
@@ -57,6 +58,8 @@ export interface ResolvedModel {
   model: LanguageModel;
   /** The endpoint's mandatory provider options (e.g. `store: false`); sent on every call. */
   providerOptions?: EndpointProviderOptions;
+  /** The endpoint's prompt-cache options; applied to calls with a `promptCacheKey`. */
+  promptCache?: EndpointPromptCache;
 }
 
 /** Per-call model selection: what the call needs and, optionally, which models it is pinned to. */
@@ -105,6 +108,7 @@ export interface EligibleModel {
   baa: boolean;
   createModel: (modelId: string) => LanguageModel;
   providerOptions?: EndpointProviderOptions;
+  promptCache?: EndpointPromptCache;
 }
 
 /** Logical model → endpoint on the target, or undefined if the target does not host it. */
@@ -120,6 +124,7 @@ function locate(ref: ModelRef, hosting: HostingTarget): EligibleModel | undefine
     baa: endpoint.baa,
     createModel: endpoint.createModel,
     providerOptions: endpoint.providerOptions,
+    promptCache: endpoint.promptCache,
   };
 }
 
@@ -162,6 +167,7 @@ export function getFallbackChain(tier: ReasoningTier, options: FallbackChainOpti
     baa: c.baa,
     model: c.createModel(c.modelId),
     providerOptions: c.providerOptions,
+    promptCache: c.promptCache,
   }));
 }
 

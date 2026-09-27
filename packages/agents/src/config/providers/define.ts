@@ -24,4 +24,27 @@ export interface Endpoint {
    * retains prompts and outputs server-side).
    */
   providerOptions?: EndpointProviderOptions;
+  /**
+   * How this endpoint caches a call's stable prompt prefix (the agent's
+   * instructions). Applied only when the call has a `promptCacheKey`. Omit for
+   * providers that cache prefixes automatically with nothing to configure.
+   */
+  promptCache?: EndpointPromptCache;
+}
+
+/**
+ * Provider-specific prompt-cache options. Caching is performance only: it must
+ * never keep conversation state at the provider (see `store: false`).
+ */
+export interface EndpointPromptCache {
+  /**
+   * Options attached to the instructions (system) message — a cache breakpoint
+   * at the end of the shared prefix, before the per-case messages.
+   */
+  instructions?: EndpointProviderOptions;
+  /**
+   * Call-level options for a cache key. The key is non-PHI (agent name + prompt
+   * version), so calls sharing a prefix are routed to the same cache.
+   */
+  call?: (cacheKey: string) => EndpointProviderOptions;
 }
