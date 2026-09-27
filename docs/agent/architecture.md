@@ -11,8 +11,10 @@ Read this before writing any code. The sole purpose of this monorepo is **centra
 6. **RESPECT ARCHITECTURE DECISIONS:** Always read the Architecture Decision Records (ADRs) in `docs/decisions/` before making architectural changes or creating new agent workflows. When you make an architectural decision, use the `adr-skill` to create a new ADR.
 7. **COMPLIANCE & PHI HANDLING:** Never expose or log raw Protected Health Information (PHI). All data access must be audit-logged, and all code must adhere to HIPAA and SOC 2 standards. Read the full guidelines at [`docs/COMPLIANCE_AND_PHI.md`](../COMPLIANCE_AND_PHI.md).
 8. **LOGGING, OBSERVABILITY & AUDIT:** Never use `console.log` for application logs or initialize Pino directly. You MUST use `@asc/logger` for logging, `@asc/telemetry` for tracing, and `@asc/audit` for security events. Read the architecture plan at [`docs/plan/logging-observability-audit.md`](../plan/logging-observability-audit.md) and strict rules in [`docs/COMPLIANCE_AND_PHI.md`](../COMPLIANCE_AND_PHI.md).
+9. **CLEAN FRONTEND CODE:** Keep components small and declarative: group related state (one object / `useReducer` / react-hook-form), derive values instead of syncing them with effects, and render repeated fields or items from a config array with `.map()`. Budget per component: `useState` ≤ 2, `useEffect` ≤ 1, `useRef` ≤ 2 (lint rule `asc/max-hooks-per-component`). Browser code imports leaf subpaths (`@asc/validation/auth`). See [`ui-guidelines.md` §3a](ui-guidelines.md#3a-hooks-state-and-config-driven-ui-clean-components).
+10. **RULES ARE LINT-ENFORCED:** `@asc/eslint-config` blocks the boundary violations above (banned imports and exported types/Zod in `apps/*`, `process.env` outside `@asc/config`). Fix the code; never disable the rule. If a correction was needed, log it in [`LEARNING_MISTAKES.md`](../../LEARNING_MISTAKES.md).
 
-*See `docs/ARCHITECTURE.md` for the architectural diagram and breakdown.*
+*See `docs/ARCHITECTURE.md` for the architectural diagram and breakdown. UI rules: [`ui-guidelines.md`](ui-guidelines.md). Planned packages (`@asc/fhir`, `@asc/clinical-rules`, `apps/bots`) and the full target tree: [implementation plan §4](../plan/implementation-plan.md#4-target-repository-structure-end-of-phase-1). Before coding, read [`LEARNING_MISTAKES.md`](../../LEARNING_MISTAKES.md).*
 
 ---
 

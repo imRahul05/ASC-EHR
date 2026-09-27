@@ -14,6 +14,17 @@ export function getPublicApiUrl(): string {
   return value && value.length > 0 ? value : DEFAULT_PUBLIC_API_URL;
 }
 
+/**
+ * Dev-only API mocking (MSW in apps/web). On by default in development so the
+ * UI works without apps/api; never on in production builds. Opt out with
+ * NEXT_PUBLIC_API_MOCKING=disabled.
+ */
+export function isApiMockingEnabled(): boolean {
+  if (typeof process === "undefined") return false;
+  if (process.env.NODE_ENV === "production") return false;
+  return process.env.NEXT_PUBLIC_API_MOCKING !== "disabled";
+}
+
 export const publicEnv = {
   get NEXT_PUBLIC_API_URL(): string {
     return getPublicApiUrl();

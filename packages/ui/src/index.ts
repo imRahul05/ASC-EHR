@@ -15,3 +15,7 @@ export * from "./components/ui/table";
 export * from "./components/ui/tabs";
 export * from "./components/ui/tooltip";
 export * from "./lib/utils";
+export * from "./components/form/form-field";
+export * from "./components/metrics/kpi-card";
+export * from "./components/theme/theme-provider";
+export * from "./components/theme/theme-toggle";

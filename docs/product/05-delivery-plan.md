@@ -1,5 +1,7 @@
 # 05 — Delivery Plan, Decisions, Risks & Open Questions
 
+> **Execution plan moved (2026-09-27):** day-to-day sequencing now lives in the phase-wise [implementation plan](../plan/implementation-plan.md) with live status in [`PROGRESS.md`](../../PROGRESS.md). The Gantt in §5.1 is kept for history; decisions, risks and open questions below remain current.
+
 Assumptions: today 2026-09-25; go-live **early December 2026** (conflict C1 — confirm); team size unknown (plan below assumes ~5 engineers + 1 clinical informaticist/RN SME + part-time certified coder). Every workstream ships behind the same rule: **Medplum first, MindScript port second, new code last.**
 
 ## 5.1 Critical path
@@ -19,7 +21,8 @@ gantt
     section Ported from MindScript
     Resource calendar -> @asc/ui            :ms1, 2026-09-30, 18d
     Record engine -> @asc/ui                :ms2, 2026-10-01, 25d
-    Sign Queue + Recovery Queue on Task      :ms3, 2026-10-19, 12d
+    Worklists on Task (sign, specimen, cancel):ms3, 2026-10-19, 12d
+    Verification + coding checks -> rules    :ms4, 2026-10-12, 15d
 
     section Clinical build
     Registration + scheduling + whiteboard   :c1, 2026-10-12, 25d
@@ -53,7 +56,7 @@ gantt
 | D1 | Medplum hosting | **Self-host on Azure** using Medplum's Terraform path; fallback: Medplum-hosted with BAA if platform time slips past week 3 | Matches existing Azure BAA posture; data residency under our control |
 | D2 | UI library for clinical app | `@asc/ui` + `@medplum/react-hooks` (headless); **no** `@medplum/react` in `apps/web` | Repo rule; one design system |
 | D3 | Admin console | Medplum App in P1 | No custom admin build |
-| D4 | Worklist engine | FHIR `Task` for all queues | One engine; MindScript Recovery/Sign Queue semantics port onto it |
+| D4 | Worklist engine | FHIR `Task` for all queues | One engine; MindScript worklist UX ports onto it (its Recovery queue is cancelled-appointment follow-up; pathology tracking is new — see [06](06-mindscript-integration.md)) |
 | D5 | Coding approach | Deterministic rules engine first, LLM for ambiguity with evidence citation, human coder attests | Denial risk and audit defensibility |
 | D6 | PHI to LLMs | Allowed only to BAA endpoints via gateway; amend `COMPLIANCE_AND_PHI.md` | Scribe impossible otherwise (conflict C5) |
 | D7 | P1 additions | Scope reprocessing log, adverse event form, referring-letter fax | Low cost, high survey/commercial value |
@@ -85,12 +88,12 @@ From the spec (still open):
 
 New from this analysis:
 8. **CPT license** — who holds AMA license for embedded use? → business, week 1
-9. **MindScript code access + stack** — can calendar / Record engine / queues be copied or only re-implemented? → engineering lead, week 1
+9. ~~MindScript stack~~ **Answered in part (2026-09-27)** by the [dev-team overview](../MindScript-How-It-Works.md): React/Tailwind/shadcn/Drizzle → UI + pure logic are copy-and-adapt. Still open: repo access for this team and the Q-MS list in [06 §7](06-mindscript-integration.md#7-open-questions-for-the-mindscript-team) → engineering lead, week 1
 10. **Medplum hosting** decision D1 ratified → engineering lead, week 1
 11. **Patient monitors / anesthesia machines** — model, HL7 gateway availability → anesthesia/biomed, week 4 (P1.5)
 12. **Pathology lab** — which lab; interface options (HL7, Health Gorilla, fax only)? → ops, week 3
 13. **State specifics** — FL VTE registry format (map row), H&P window, record retention, adverse-event reporting → compliance, week 3
 14. **Patient instruction languages** → physicians, week 4
-15. **Speech-to-text vendor under BAA** + procedure-room mic hardware → engineering, week 2
+15. **Speech-to-text vendor under BAA** + procedure-room mic hardware — candidate: Deepgram Nova-3-medical (used by MindScript, browser-direct with short-lived token); confirm BAA (Q-MS7) → engineering, week 2
 16. **Label printing** (specimen jars, wristbands) — printer models → ops, week 4
 17. **Team size / staffing** to confirm the plan is feasible → business, week 1

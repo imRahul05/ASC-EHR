@@ -1,3 +1,4 @@
+import { getProcessEnv } from "@asc/config/runtime";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
@@ -17,7 +18,7 @@ type TelemetryEnv = Readonly<Record<string, string | undefined>>;
 let sdk: NodeSDK | undefined;
 
 /** Tracing is exported only from deployed environments with a configured collector. */
-export function isTelemetryEnabled(env: TelemetryEnv = process.env): boolean {
+export function isTelemetryEnabled(env: TelemetryEnv = getProcessEnv()): boolean {
   const nodeEnv = env["NODE_ENV"];
   const endpoint = env["OTEL_EXPORTER_OTLP_ENDPOINT"];
   return (
@@ -36,7 +37,7 @@ export function isTelemetryEnabled(env: TelemetryEnv = process.env): boolean {
  * Every span passes through RedactingSpanExporter before leaving the process.
  * Returns true when tracing was started.
  */
-export function initTelemetry(serviceName: string, env: TelemetryEnv = process.env): boolean {
+export function initTelemetry(serviceName: string, env: TelemetryEnv = getProcessEnv()): boolean {
   if (sdk || !isTelemetryEnabled(env)) {
     return false;
   }

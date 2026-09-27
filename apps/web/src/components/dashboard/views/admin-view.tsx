@@ -1,6 +1,6 @@
 "use client";
 
-import { History, DollarSign } from "lucide-react";
+import { History, DollarSign } from "@asc/ui/icons";
 import {
   Badge,
   Card,
@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@asc/ui";
 import { useDashboardData } from "../../../hooks/use-dashboard-data";
-import { KpiCard } from "../kpi-card";
+import { KpiCard } from "@asc/ui";
 
 export function AdminView() {
   const { metrics, auditLogs, cases, isLoading } = useDashboardData();

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight } from "lucide-react";
+import { ArrowRight } from "@asc/ui/icons";
 import { Badge, Button, Card, CardContent } from "@asc/ui";
 import type { CaseStatus, GICase } from "@asc/types";
 import { useDashboardData } from "../../../hooks/use-dashboard-data";

@@ -5,11 +5,20 @@ To keep this file intentionally minimal and extensible, all detailed guidance, r
 
 **CRITICAL INSTRUCTION:** You MUST consult the relevant documentation below *before* starting work when your task matches these categories.
 
+## ⚡ Session protocol (MANDATORY for every coding agent)
+
+1. **Read first:** [`LEARNING_MISTAKES.md`](LEARNING_MISTAKES.md) (mistakes already corrected — do not repeat them) and [`PROGRESS.md`](PROGRESS.md) (what is done / in progress / next).
+2. **Pick work from the plan:** [`docs/plan/implementation-plan.md`](docs/plan/implementation-plan.md) → the phase file in [`docs/plan/phases/`](docs/plan/phases/). Only start a phase whose dependencies are `done`.
+3. **Respect package boundaries:** use the "where does it go" table in the plan §4. Code, types and schemas go in their owning `packages/*`, never in `apps/*`.
+4. **On finish:** update `PROGRESS.md` (status, PR, next up) in the same branch.
+5. **When corrected** by the user, a reviewer, lint or tests: fix it **and** add or update an entry in `LEARNING_MISTAKES.md` in the same commit.
+
 ## 📚 Agent Guidance Directory
 
 ### 1. Monorepo Architecture & Conventions
 **Consult when:** Creating new apps/packages, modifying shared code, or adding dependencies.
 👉 [Read Architecture Guidelines](docs/agent/architecture.md)
+👉 [Read UI Guidelines](docs/agent/ui-guidelines.md) — *any change in `apps/web` or `packages/ui`: layers, data hooks, SSE/realtime, AI draft UX, clinical UX, PHI in the browser.*
 *(Includes rules on anti-duplication, Turborepo boundaries, and stack conventions).*
 
 ### 2. Agent Orchestration & Planning
@@ -45,5 +54,7 @@ Dev-time skills (`.claude/skills/`, never loaded at runtime): `create-agent`, `c
 
 ### 8. Product Requirements & Target Architecture (GI ASC)
 **Consult when:** Building any clinical feature, choosing between Medplum / MindScript reuse / new code, or modelling FHIR data.
+👉 [Read Phase-wise Implementation Plan](docs/plan/implementation-plan.md) — *27 short phases with dependency matrices, target file tree, Medplum/npm versions; live status in [`PROGRESS.md`](PROGRESS.md).*
 👉 [Read Product Requirements & Architecture](docs/product/README.md)
 *(Covers phased requirements, build/reuse/Medplum matrix, target architecture, end-to-end Mermaid flows, delivery plan).*
+👉 [Read MindScript — How It Works](docs/MindScript-How-It-Works.md) + [MindScript integration & wiring](docs/product/06-mindscript-integration.md) — *consult before porting anything from MindScript or wiring faxagnet / eCW (Integuru) / Deepgram.*

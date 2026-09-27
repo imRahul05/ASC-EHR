@@ -2,9 +2,22 @@
   "extends": "@asc/typescript-config/base.json",
   "compilerOptions": {
     "noEmit": true,
-    "lib": ["es2022", "DOM", "DOM.Iterable"],
-    "types": ["node"]
+    "lib": [
+      "es2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "node"
+    ],
+    "module": "esnext",
+    "moduleResolution": "bundler"
   },
-  "include": ["src"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }

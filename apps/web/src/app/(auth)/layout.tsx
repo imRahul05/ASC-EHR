@@ -1,17 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Activity, Moon, Sun } from "lucide-react";
-import { useTheme } from "next-themes";
-import { Button } from "@asc/ui";
+import { Activity } from "@asc/ui/icons";
+import { ThemeToggle } from "@asc/ui";
 
 interface AuthLayoutProps {
   readonly children: React.ReactNode;
 }
 
 export default function AuthLayout({ children }: AuthLayoutProps) {
-  const { theme, setTheme } = useTheme();
-
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       {/* Auth Top Header */}
@@ -36,16 +33,7 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
         </Link>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="text-muted-foreground hover:text-foreground"
-            aria-label="Toggle theme"
-          >
-            <Sun className="h-3.5 w-3.5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-            <Moon className="absolute h-3.5 w-3.5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-          </Button>
+          <ThemeToggle />
         </div>
       </header>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, AlertCircle, Clock, MapPin, Phone, Car } from "lucide-react";
+import { CheckCircle2, AlertCircle, Clock, MapPin, Phone, Car } from "@asc/ui/icons";
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@asc/ui";
 import { useAuth } from "../../../hooks/use-auth";
 import { useDashboardData } from "../../../hooks/use-dashboard-data";

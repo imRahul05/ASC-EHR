@@ -1,9 +1,6 @@
 "use client";
 
-import { useTheme } from "next-themes";
 import {
-  Moon,
-  Sun,
   LogOut,
   ChevronDown,
   Stethoscope,
@@ -12,7 +9,7 @@ import {
   Building2,
   UserCircle,
   Bell,
-} from "lucide-react";
+} from "@asc/ui/icons";
 import {
   Avatar,
   AvatarFallback,
@@ -26,6 +23,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   SidebarTrigger,
+  ThemeToggle,
 } from "@asc/ui";
 import type { UserRole } from "@asc/types";
 import { useAuth } from "../../hooks/use-auth";
@@ -48,7 +46,6 @@ const ROLES_LIST: readonly { role: UserRole; label: string; desc: string }[] = [
 
 export function DashboardHeader() {
   const { user, switchRole, logout } = useAuth();
-  const { theme, setTheme } = useTheme();
 
   const activeRole: UserRole = user?.role ?? "SURGEON";
   const RoleIcon = ROLE_ICONS[activeRole];
@@ -95,7 +92,7 @@ export function DashboardHeader() {
                 return (
                   <DropdownMenuItem
                     key={item.role}
-                    onClick={() => switchRole(item.role)}
+                    onClick={() => void switchRole(item.role)}
                     className={`flex items-start gap-2.5 cursor-pointer py-2 ${
                       isCurrent ? "bg-accent font-medium" : ""
                     }`}
@@ -125,16 +122,7 @@ export function DashboardHeader() {
         </Button>
 
         {/* Dark/Light mode toggle */}
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          className="text-muted-foreground hover:text-foreground"
-          aria-label="Toggle theme"
-        >
-          <Sun className="h-3.5 w-3.5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-          <Moon className="absolute h-3.5 w-3.5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-        </Button>
+        <ThemeToggle />
 
         {/* User Profile Menu */}
         <DropdownMenu>

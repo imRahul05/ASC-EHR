@@ -1,1 +1,3 @@
-import { config } from "@asc/eslint-config/base"; export default config;
+import { config } from "@asc/eslint-config/app";
+
+export default config;

@@ -1,4 +1,4 @@
-import type { DashboardMetricSummary } from "@asc/types";
+import type { DashboardMetricSummary, RecentAuditLogItem } from "@asc/types";
 
 export const MOCK_METRIC_SUMMARY: DashboardMetricSummary = {
   totalCasesToday: 18,
@@ -12,14 +12,6 @@ export const MOCK_METRIC_SUMMARY: DashboardMetricSummary = {
   unbilledCasesCount: 4,
 };
 
-export interface RecentAuditLogItem {
-  readonly id: string;
-  readonly timestamp: string;
-  readonly actor: string;
-  readonly action: string;
-  readonly patientMrn: string;
-  readonly severity: "INFO" | "WARNING" | "CRITICAL";
-}
 
 export const MOCK_AUDIT_LOGS: readonly RecentAuditLogItem[] = [
   {

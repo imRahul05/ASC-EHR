@@ -1,0 +1,74 @@
+import { HTTP_TIMEOUT_MS } from "@asc/config/api";
+import { getPublicApiUrl } from "@asc/config/public-env";
+import type { ApiErrorDetails } from "@asc/types";
+import { apiErrorPayloadSchema } from "@asc/validation/api-error";
+
+/** Every failed request from @asc/api-client rejects with this error. */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code?: string;
+  readonly details?: Record<string, string>;
+
+  constructor(error: ApiErrorDetails) {
+    super(error.message);
+    this.name = "ApiError";
+    this.status = error.status;
+    this.code = error.code;
+    this.details = error.details;
+  }
+}
+
+type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+
+export interface RequestOptions {
+  readonly query?: Readonly<Record<string, string>>;
+  readonly headers?: Readonly<Record<string, string>>;
+  readonly signal?: AbortSignal;
+}
+
+function buildUrl(path: string, query?: RequestOptions["query"]): string {
+  const url = new URL(path, getPublicApiUrl());
+  for (const [key, value] of Object.entries(query ?? {})) url.searchParams.set(key, value);
+  return url.toString();
+}
+
+async function toApiError(response: Response): Promise<ApiError> {
+  const body: unknown = await response.json().catch(() => undefined);
+  const payload = apiErrorPayloadSchema.safeParse(body);
+  const data = payload.success ? payload.data : {};
+  return new ApiError({
+    status: response.status,
+    message: data.message ?? `Request failed with status ${response.status}`,
+    code: data.code,
+    details: data.details,
+  });
+}
+
+async function request<T>(method: HttpMethod, path: string, body?: unknown, options: RequestOptions = {}): Promise<T> {
+  const timeout = AbortSignal.timeout(HTTP_TIMEOUT_MS);
+  const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
+  let response: Response;
+  try {
+    response = await fetch(buildUrl(path, options.query), {
+      method,
+      signal,
+      headers: { Accept: "application/json", "Content-Type": "application/json", ...options.headers },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Network request failed";
+    throw new ApiError({ status: 0, message, code: "NETWORK_ERROR" });
+  }
+  if (!response.ok) throw await toApiError(response);
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
+}
+
+/** JSON HTTP client for apps/api. Paths come from `API_ROUTES` in @asc/config. */
+export const http = {
+  get: <T>(path: string, options?: RequestOptions) => request<T>("GET", path, undefined, options),
+  post: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>("POST", path, body, options),
+  put: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>("PUT", path, body, options),
+  patch: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>("PATCH", path, body, options),
+  delete: <T>(path: string, options?: RequestOptions) => request<T>("DELETE", path, undefined, options),
+};

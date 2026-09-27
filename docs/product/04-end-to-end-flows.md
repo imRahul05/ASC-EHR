@@ -306,7 +306,7 @@ flowchart LR
     classDef p1 fill:#2563eb,color:#fff,stroke:#1d4ed8
     classDef p2 fill:#16a34a,color:#fff,stroke:#15803d
     Sign["Note signed"] --> Letter["referral_letter agent<br/>draft, MD approves"]:::p1
-    Letter --> PDF["PDF Bot"]:::p1 --> Fax["Fax pipeline [MS] / eFax bot [MP]"]:::p1 --> Ref["Referring MD"]
+    Letter --> PDF["PDF Bot"]:::p1 --> Fax["faxagnet [MS service] / eFax bot [MP]"]:::p1 --> Ref["Referring MD"]
     Path["Path resulted"] --> Letter2["Result letter"]:::p1 --> Fax
     Disc["Discharge"] --> Instr["Instructions print / SMS link"]:::p1
     Sched["Case booked"] --> Rem["Prep reminder sequence<br/>T-7, T-3, T-1 + confirm"]:::p2 --> SMS["Twilio / Vapi"]:::p2

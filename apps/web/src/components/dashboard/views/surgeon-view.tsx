@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Clock, FileEdit, FileText } from "lucide-react";
+import { CheckCircle2, Clock, FileEdit, FileText } from "@asc/ui/icons";
 import {
   Badge,
   Button,
@@ -17,7 +17,7 @@ import {
   TableRow,
 } from "@asc/ui";
 import { useDashboardData } from "../../../hooks/use-dashboard-data";
-import { KpiCard } from "../kpi-card";
+import { KpiCard } from "@asc/ui";
 
 export function SurgeonView() {
   const { cases, metrics, isLoading, updateCaseStatus } = useDashboardData();

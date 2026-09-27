@@ -4,11 +4,17 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./auth": "./src/auth.ts",
+    "./api-error": "./src/api-error.ts",
+    "./health": "./src/health.ts",
+    "./jobs": "./src/jobs.ts",
+    "./agents/discharge-instructions": "./src/agents/discharge-instructions.ts"
   },
   "scripts": {
     "lint": "eslint --max-warnings 0",
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "zod": "^3.25.67"

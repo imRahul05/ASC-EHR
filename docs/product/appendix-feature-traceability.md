@@ -80,7 +80,7 @@ Generated from `Roadmap GI ASC Feature-map.xlsx` (sheet *Feature Detail*, 140 ro
 | Case Record | Circulating Nurse Note | Equipment used | New | M04 | P1 | Questionnaire, Procedure | Build [NEW] |  |
 | Case Record | Specimen Tracking | Specimen ID ⇄ patient/procedure linkage | New | M10 | P1 | Specimen, ServiceRequest, Task | Build [NEW] |  |
 | Case Record | Specimen Tracking | Pathology lab hand-off tracking | New | M10 | P1 | Specimen, ServiceRequest, Task | Build [NEW] |  |
-| Case Record | Specimen Tracking | Feeds closed-loop pathology follow-up | Yes -- Recovery Queue engine | M10 | P1 | Specimen, ServiceRequest, Task | Port [MS] |  |
+| Case Record | Specimen Tracking | Feeds closed-loop pathology follow-up | Pattern only (MindScript Recovery queue = cancelled appts) | M10 | P1 | Specimen, ServiceRequest, Task | Build [NEW] | Corrected 2026-09-27, see 06 F3 |
 | Case Record | Recovery/PACU Note | Aldrete score calculation | New | M08 | P1 | Observation, Questionnaire | Build [NEW] |  |
 | Case Record | Recovery/PACU Note | Discharge-readiness criteria checklist | New | M08 | P1 | Observation, Questionnaire | Build [NEW] |  |
 | Case Record | Recovery/PACU Note | Vitals at recovery intervals | Yes -- reuse | M08 | P1 | Observation, Questionnaire | Port [MS] |  |
@@ -115,7 +115,7 @@ Generated from `Roadmap GI ASC Feature-map.xlsx` (sheet *Feature Detail*, 140 ro
 | Compliance | GIQuIC Export | Map to EGD Data Collection Form | Yes, strong | M13 | P2 | Search / Bulk export; scheduled bot | Port [MS] |  |
 | Compliance | GIQuIC Export | Submission/export mechanism | New | M13 | P2 | Search / Bulk export; scheduled bot | Build [NEW] |  |
 | Compliance | GIQuIC Export | MIPS QCDR reporting flag | New | M13 | P2 | Search / Bulk export; scheduled bot | Build [NEW] | Same data, second reporting obligation satisfied |
-| Compliance | Sign Queue | Incomplete-chart flagging | Yes -- exists in MindScript today | M12 | P1 | Task | Port [MS] |  |
+| Compliance | Sign Queue | Incomplete-chart flagging | Yes -- exists in MindScript today (not in overview; confirm Q-MS2) | M12 | P1 | Task | Port [MS] | If absent: Build on Task |
 | Compliance | Sign Queue | Regulatory-deadline countdown per chart | New | M12 | P1 | Task | Build [NEW] |  |
 | Compliance | Sign Queue | Role-based worklist view | New | M12 | P1 | Task | Build [NEW] |  |
 | Compliance | Infection Control & Adverse Event Tracking | Internal infection surveillance log | New | X2 | P1 incident form / P2 surveillance | AdverseEvent, Questionnaire, Task | Build [NEW] | NEW -- dropped earlier, restored |
@@ -123,8 +123,8 @@ Generated from `Roadmap GI ASC Feature-map.xlsx` (sheet *Feature Detail*, 140 ro
 | Compliance | Infection Control & Adverse Event Tracking | NHSN OPC-SSI-ready data capture | New | X2 | P1 incident form / P2 surveillance | AdverseEvent, Questionnaire, Task | Build [NEW] | Voluntary federally; not FL-mandated. Build capture now, enroll later if needed. |
 | Compliance | Audit Logging | Access/action audit trail | New | M12 | P1 | AuditEvent (automatic) | Configure [MP] | NEW -- HIPAA requirement, no prior row |
 | Compliance | Audit Logging | Exportable audit reports | New | M12 | P1 | AuditEvent (automatic) | Build [NEW] | NEW |
-| Patient Experience | Recovery Queue (pathology variant) | Auto-resolve on pathology result arrival | Yes -- same engine | M10 | P1 | Task, DiagnosticReport, Bot | Port [MS] |  |
-| Patient Experience | Recovery Queue (pathology variant) | Unresolved-result alerting | Yes | M10 | P1 | Task, DiagnosticReport, Bot | Port [MS] |  |
+| Patient Experience | Recovery Queue (pathology variant) | Auto-resolve on pathology result arrival | Pattern only | M10 | P1 | Task, DiagnosticReport, Bot | Build [NEW] | Corrected 2026-09-27, see 06 F3 |
+| Patient Experience | Recovery Queue (pathology variant) | Unresolved-result alerting | Pattern only | M10 | P1 | Task, DiagnosticReport, Bot | Build [NEW] | Corrected 2026-09-27, see 06 F3 |
 | Patient Experience | Patient Messaging | Two-way texting infrastructure | Possible shared infra w/ Vapi stack | M14 | P2 | Communication; Twilio bot | Configure [MP] |  |
 | Patient Experience | Patient Messaging | Bowel-prep reminder sequence | New | M14 | P2 | Communication; Twilio bot | Build [NEW] |  |
 | Patient Experience | Patient Messaging | Pre-op instruction delivery | New | M14 | P2 | Communication; Twilio bot | Build [NEW] |  |
@@ -189,6 +189,6 @@ Generated from `Roadmap GI ASC Feature-map.xlsx` (sheet *Feature Detail*, 140 ro
 | Engagement | Check-in kiosk | M14 | P2 | Patient AccessPolicy | Build [NEW] |
 | Preference cards | Preference cards & order sets | M16 | P2 | PlanDefinition / ActivityDefinition | Build [NEW] |
 | Interop | HL7/FHIR interfaces, bidirectional lab, HIE | M20 | P3 | FHIR API, Agent, Health Gorilla | Configure [MP] |
-| Interop | eCW bridge (Integuru) | M20 | P3 | FHIR API | Build [NEW] |
+| Interop | eCW bridge (Integuru) | M20 | P3 (read slice P1.5/P2 candidate) | FHIR API, DocumentReference | Port [MS] |
 | AI | Ambient documentation across full case; real-time coding/compliance checks; surveillance CDS | M21 | P3 | CDS Hooks | Build [NEW] |
 | Expansion | Additional specialties (pain, pulm, ortho) | M22 | P3 | Profiles + Questionnaires | Build [NEW] |

@@ -141,7 +141,7 @@ Requirement IDs: `M<module>-<n>`. Each module lists **must**, then GI-specific *
 |---|---|---|
 | M10-1 | Specimen logged at capture: ID/label, container, site, **linked to the polyp/finding** | spec + map |
 | M10-2 | Pathology requisition generated; routed to lab (P1: printed/PDF/fax requisition; P2+: electronic HL7/Health Gorilla) | spec |
-| M10-3 | Outstanding-specimen tracking until result; alert on overdue | spec + map (Recovery Queue engine) |
+| M10-3 | Outstanding-specimen tracking until result; alert on overdue | spec + map (new on FHIR `Task`; MindScript Recovery queue is cancelled-appointment follow-up — see [06](06-mindscript-integration.md)) |
 | M10-4 | Result reconciliation: auto-resolve when result arrives, map histology (adenoma/SSL/hyperplastic/cancer) back to finding → **feeds ADR and surveillance interval** | spec + map |
 
 **AC:** no case can be closed with a specimen lacking a result or a documented disposition; lost-specimen report exists.
@@ -158,14 +158,14 @@ Procedure consent, anesthesia consent, patient rights, HIPAA acknowledgment, fin
 | M12-4 | Immutable audit of every PHI read/write + exportable audit reports |
 | M12-5 | Encryption at rest/in transit; BAA-covered hosting and LLM endpoints only |
 | M12-6 | Backup, point-in-time restore, tested restore; RPO ≤ 15 min, RTO ≤ 4 h (proposal) |
-| M12-7 | **Sign Queue**: incomplete/unsigned charts per role with regulatory-deadline countdown (map; MindScript has it) |
+| M12-7 | **Sign Queue**: incomplete/unsigned charts per role with regulatory-deadline countdown (map says MindScript has it; not in the MindScript overview — confirm Q-MS2) |
 
 ### Recommended P1 additions (not in spec as P1)
 | ID | Requirement | Why P1 |
 |---|---|---|
 | X1 | **Scope reprocessing log** — scope serial ⇄ case ⇄ HLD/AER cycle timestamp, traceability report | Map marks "non-negotiable"; outbreak traceability (esp. duodenoscopes) is asked by surveyors; cheap to build as data |
 | X2 | **Adverse event / incident report** (basic form + worklist) | Accreditation (AAAHC/TJC) expects it from day one; it is one Questionnaire |
-| X3 | **Referring-letter auto-send via fax** | Letter already generated in M05-5; MindScript fax pipeline exists; referral volume = revenue |
+| X3 | **Referring-letter auto-send via fax** | Letter already generated in M05-5; Wybit fax engine (faxagnet) exists — outbound support to confirm (Q-MS4), fallback Medplum eFax bot; referral volume = revenue |
 
 ---
 

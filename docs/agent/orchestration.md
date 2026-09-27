@@ -39,3 +39,11 @@ For any non-trivial task:
 - When using sub-agents, give them clear, constrained prompts.
 - Do not let a sub-agent "guess" the architecture; provide them with the necessary boundaries or point them to this `docs/agent/` folder.
 - Always verify the output of a sub-agent (e.g., via a diff review or running tests) before considering that sub-task complete.
+
+## 8. Executing a plan phase with sub-agents
+- The unit of work is a **phase** from [`docs/plan/phases/`](../plan/phases/); the orchestrating agent owns the phase, its branch (`phase/Pxx-<slug>`) and `PROGRESS.md`.
+- Each phase task touches **one workspace**. Give each sub-agent exactly one task, the phase file, [`LEARNING_MISTAKES.md`](../../LEARNING_MISTAKES.md), and the relevant guide (architecture, UI, AI agents, compliance).
+- Run tasks in the order of the phase's **task dependency matrix**; tasks listed as "parallel with" may run concurrently **only if they touch different workspaces** (isolate each in its own worktree).
+- Contracts first: `@asc/validation`/`@asc/types` tasks finish before server or UI tasks start.
+- Verify every sub-agent result (diff + `pnpm turbo run lint check-types test --filter=<workspace>`) before merging it into the phase branch.
+- Sub-agents never edit `PROGRESS.md`; they report corrections they received so the orchestrator can log them in `LEARNING_MISTAKES.md`.

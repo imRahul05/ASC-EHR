@@ -15,7 +15,7 @@ import {
   FileCheck2,
   Clock,
   HeartPulse,
-} from "lucide-react";
+} from "@asc/ui/icons";
 import {
   Sidebar,
   SidebarContent,

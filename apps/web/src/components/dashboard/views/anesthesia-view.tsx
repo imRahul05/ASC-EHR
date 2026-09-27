@@ -1,6 +1,6 @@
 "use client";
 
-import { ShieldAlert, CheckCircle2, AlertTriangle, Activity } from "lucide-react";
+import { ShieldAlert, CheckCircle2, AlertTriangle, Activity } from "@asc/ui/icons";
 import {
   Badge,
   Button,
