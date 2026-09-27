@@ -36,6 +36,13 @@ flowchart TB
         Ref["Referring physicians<br/>(fax / Direct / eCW)"]:::ext
         Reg["GIQuIC, CMS HQR, CAHPS vendor"]:::ext
         SMS["SMS / voice (Twilio / Vapi)"]:::ext
+        STT["Speech-to-text under BAA<br/>(candidate: Deepgram Nova-3-medical)"]:::ext
+    end
+
+    subgraph Wybit ["Wybit / MindScript family (see 06)"]
+        FAXAG["faxagnet<br/>fax engine"]:::ext
+        ING["Integuru<br/>eCW automation"]:::ext
+        ECW["eClinicalWorks<br/>clinic EHR + MindScript scribe"]:::ext
     end
 
     Doc & Anes & RN & Front & Coder --> EHR
@@ -48,6 +55,10 @@ flowchart TB
     EHR -->|837 / CSV / SFTP| Biller
     EHR <-->|requisition / results| Lab
     EHR -->|letters| Ref
+    EHR <-->|"referral fax in, letters out (confirm)"| FAXAG
+    FAXAG -->|fax| Ref
+    EHR <-->|"referral docs, prior notes;<br/>signed note write-back"| ING --> ECW
+    EHR -->|"audio (short-lived token)"| STT
     EHR -->|P2 exports| Reg
     EHR <--> SMS
 ```
@@ -89,7 +100,10 @@ flowchart LR
     end
 
     LLM["LLM (BAA)"]:::ext
-    Ext["Clearinghouse · Lab · Fax · SMS · Biller SFTP"]:::ext
+    Ext["Clearinghouse · Lab · SMS · Biller SFTP"]:::ext
+    FAXAG["faxagnet (Wybit fax engine)"]:::ext
+    ING["Integuru → eCW"]:::ext
+    STT["STT (BAA)"]:::ext
 
     Web -->|"reads, simple writes<br/>(user token)"| MPS
     Web -->|"WebSocket subscriptions"| MPS
@@ -106,6 +120,10 @@ flowchart LR
     MPS --- PG & MRedis & Blob
     MPS -->|Bots| Ext
     Worker --> Ext
+    API -->|"allowlisted proxy,<br/>signed service token"| FAXAG
+    Worker --> FAXAG
+    Worker --> ING
+    Web -.->|"audio, token from API"| STT
     Cap -->|DICOM| Agent
     Mon -->|HL7 ORU| Agent
     Agent -->|"outbound websocket"| MPS
@@ -120,6 +138,9 @@ flowchart LR
 | AI generation (H&P, note, instructions, letter, coding suggestions) | `web → Fastify (SSE)`; long jobs → BullMQ worker | Streaming UX; model routing via `@asc/agents` |
 | Event reaction, small (extract QuestionnaireResponse, create/resolve Task, ACK HL7) | Medplum **Bot** on Subscription | Runs next to data; no infra |
 | Event reaction, heavy (LLM, PDF batches, exports) | Subscription rest-hook → API → BullMQ → worker | Our packages, retries, observability |
+| Fax (referral inbox, outbound letters) | `web → apps/api fax proxy → faxagnet`; outbound via worker | Reuses the Wybit fax engine with MindScript's proxy pattern (allowlist, short-lived signed token, no cookies) — see [06 §5](06-mindscript-integration.md#5-how-the-systems-wire-together) |
+| eCW clinic data (referral docs, prior notes, note write-back) | `worker → Integuru → eCW` | Ported from MindScript `lib/ecw/*`; results stored as FHIR `DocumentReference` |
+| Live narration speech-to-text | `web → STT vendor` with a short-lived token issued by `apps/api` (audited) | MindScript-proven pattern; decision pending ([06 §5.3](06-mindscript-integration.md#53-speech-to-text-decision)) |
 
 ## 3. FHIR data model (core of a case)
 
@@ -185,6 +206,7 @@ Key modeling choices:
 - **Intent on `ServiceRequest`** (screening/surveillance/diagnostic) set at booking — the coding engine reads it; nobody retypes it.
 - **Signed = `Composition.status=final` + `Provenance` signature.** Changes after sign = new version + addendum `Provenance`; Medplum `_history` keeps every version.
 - **Every resource carries `meta.account` / facility `Organization`** → AccessPolicy compartments make multi-site a config change later.
+- **eCW patient ID on `Patient.identifier`** (per-practice system) so ASC EHR and MindScript resolve the same patient without sharing a database.
 - Profiles authored in FSH in `packages/fhir/profiles`, compiled to `StructureDefinition`s, uploaded to Medplum; types generated for TS.
 
 ## 4. Monorepo layout (additions)
@@ -238,6 +260,7 @@ Agents (task types to add to routing config): `hp_intake`, `procedure_note`, `di
 - **Deterministic first, LLM second** for coding: the rules engine decides CPT/modifiers where rules are clear; the LLM proposes only where judgement is needed and must cite evidence resource IDs.
 - Every agent has an offline eval set (de-identified/synthetic) run in CI; regression blocks release (fits the staging fixture strategy in the environments ADR).
 - Speech-to-text vendor must also be under BAA.
+- **Pipeline shape follows MindScript** (draft-first, code verification, critic + targeted regeneration, parallel coding/guideline branches, "model picks IDs, code builds text") — see [06 §4](06-mindscript-integration.md#4-ai-pipeline-mindscript-design-applied-to-procedure_note).
 
 ## 6. Security & compliance mapping
 
@@ -251,7 +274,7 @@ Agents (task types to add to routing config): `hp_intake`, `procedure_note`, `di
 | Logs / traces | `@asc/logger`, `@asc/telemetry` with redaction (existing) |
 | Encryption | Azure-managed keys at rest (Postgres, Blob, Redis); TLS 1.2+; Agent uses outbound TLS websocket — no inbound firewall holes at ASC |
 | Backups | Postgres PITR; Blob soft-delete + versioning; quarterly restore test |
-| BAAs | Azure, LLM provider(s), STT vendor, SMS/fax vendor, clearinghouse |
+| BAAs | Azure, LLM provider(s), STT vendor (Deepgram?), SMS vendor, fax (faxagnet hosting), Integuru, clearinghouse |
 
 ## 7. Deployment
 

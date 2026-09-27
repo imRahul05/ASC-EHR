@@ -12,6 +12,7 @@
 | 3 | [Target architecture](03-target-architecture.md) | *How it fits together:* system context, containers, FHIR data model, package layout, security, Azure deployment. |
 | 4 | [End-to-end flows](04-end-to-end-flows.md) | Mermaid flows for the whole patient journey and each critical sub-flow. |
 | 5 | [Delivery plan & open questions](05-delivery-plan.md) | Critical path to go-live, workstreams, risks, decisions still owed by physicians/business. |
+| 6 | [MindScript integration](06-mindscript-integration.md) | *What MindScript really is* (from the dev team's [How It Works](../MindScript-How-It-Works.md)), which earlier reuse claims were wrong, and how faxagnet, Integuru/eCW, Deepgram and MindScript code wire into this repo. |
 | A | [Feature traceability appendix](appendix-feature-traceability.md) | All 140 roadmap rows → phase, MindScript reuse, Medplum primitive, build type. |
 | ADR | [Adopt Medplum as clinical data platform](../decisions/2026-09-25-adopt-medplum-as-clinical-data-platform.md) | Proposed decision record. |
 
@@ -30,7 +31,7 @@ flowchart LR
     classDef nb fill:#f59e0b,color:#fff,stroke:#b45309
     classDef no fill:#94a3b8,color:#fff,stroke:#475569
 
-    MS["MindScript reuse<br/>40 yes + 9 partial of 140 rows<br/>calendar UI, Record engine,<br/>sign-lock, Sign Queue,<br/>Recovery Queue, dx-code binding,<br/>fax pipeline, note-gen"]:::ms
+    MS["MindScript reuse<br/>40 yes + 9 partial of 140 rows<br/>Record engine, sign-lock + pre-sign checks,<br/>dx-code binding + CCI, AI note pipeline,<br/>GI constitution + guideline advisor,<br/>eCW via Integuru, faxagnet (service)"]:::ms
     MP["Medplum gives us<br/>FHIR R4 store, auth + MFA + SSO,<br/>access policies, AuditEvent,<br/>subscriptions, Bots, Binary storage,<br/>HL7v2 / DICOM on-prem Agent,<br/>Questionnaire, Task, eligibility,<br/>eFax, labs examples"]:::mp
     NB["We build new<br/>GI content + rules, AIMS flowsheet,<br/>case state machine + whiteboard,<br/>AI note + coding agents,<br/>scope reprocessing log,<br/>charge export, GIQuIC mapping"]:::nb
     NO["We do NOT build<br/>FHIR server, IdP, RBAC engine,<br/>audit store, HL7 parser,<br/>DICOM listener, admin console,<br/>RCM / claims adjudication,<br/>ONC certification scope"]:::no
@@ -48,5 +49,7 @@ flowchart LR
 3. **Forms are data, not code.** H&P, nursing, time-out, Aldrete, consent, VTE, adverse event = FHIR `Questionnaire`s rendered by one renderer we build once; extraction to `Observation`s via Bots.
 4. **One worklist engine = FHIR `Task`.** Sign Queue, Recovery Queue (pathology), prep escalation, eligibility failures, outstanding specimens all are `Task`s auto-created/resolved by Bots.
 5. **Move three items into Phase 1** that the spec had left out or later: *scope reprocessing log*, *basic adverse-event reporting*, *auto-fax of referring letter* (the letter is generated anyway; MindScript fax pipeline exists).
+
+**MindScript reality check (2026-09-27):** the dev-team overview changes several reuse assumptions — MindScript's "Recovery queue" is cancelled-appointment follow-up (not pathology), Sign Queue is unconfirmed, fax is a separate service (faxagnet), and an eCW bridge already exists. See [06](06-mindscript-integration.md).
 
 **Biggest risks to December go-live:** AIMS (highest liability, new time-series capability), scope-tower image capture (hardware unknown), CPT licensing + biller file format (unknown), and schedule (~10 weeks). See [delivery plan](05-delivery-plan.md).

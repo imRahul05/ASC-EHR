@@ -47,3 +47,4 @@ Dev-time skills (`.claude/skills/`, never loaded at runtime): `create-agent`, `c
 **Consult when:** Building any clinical feature, choosing between Medplum / MindScript reuse / new code, or modelling FHIR data.
 👉 [Read Product Requirements & Architecture](docs/product/README.md)
 *(Covers phased requirements, build/reuse/Medplum matrix, target architecture, end-to-end Mermaid flows, delivery plan).*
+👉 [Read MindScript — How It Works](docs/MindScript-How-It-Works.md) + [MindScript integration & wiring](docs/product/06-mindscript-integration.md) — *consult before porting anything from MindScript or wiring faxagnet / eCW (Integuru) / Deepgram.*
