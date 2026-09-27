@@ -9,6 +9,8 @@
 | Requirements | NFR (maintainability); architecture rules 1–5 |
 | Branch | `phase/P00-repo-hygiene` |
 
+> **Status (2026-09-27):** T1–T4 delivered in PR #9, with more than planned: MSW mocks, in-memory auth + route guard, config-driven forms, `asc/max-hooks-per-component`, env only via `@asc/config`, and the fix for web pages returning 500 (LM-005). Remaining: **T5** library-upgrade decision (Q1). Details in `PROGRESS.md`.
+
 ## Goal
 Remove existing rule breaks before feature work copies them, and add lint guardrails so agents cannot repeat them. Establish `PROGRESS.md` / `LEARNING_MISTAKES.md` protocol (docs already added with this plan).
 

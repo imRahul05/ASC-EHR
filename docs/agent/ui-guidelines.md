@@ -23,6 +23,9 @@ apps/web/src/features/<domain>/       FEATURE    compose @asc/ui + data hooks; r
 | Type or Zod schema? | `@asc/types` / `@asc/validation` — never in `apps/web` |
 | Clinical rule (gate, score, conflict)? | `@asc/clinical-rules` — UI calls it for instant feedback; API re-checks |
 | Third-party UI lib? | Install in `@asc/ui` only, never `apps/web` |
+| Icons / theme? | `@asc/ui/icons` (lucide re-export) · `ThemeProvider` / `ThemeToggle` from `@asc/ui` — never `lucide-react` / `next-themes` in an app |
+| Importing `@asc/validation` or `@asc/config` in browser code? | Use the **leaf subpath** (`@asc/validation/auth`, `@asc/config/public-env`, `@asc/config/api`). Their root entries use NodeNext `.js` re-exports that Turbopack can't resolve (lint-enforced) |
+| Fake API data during development? | MSW handlers in `apps/web/src/mocks` (on by default in dev, `NEXT_PUBLIC_API_MOCKING=disabled` to turn off). UI code never imports mock data — it calls `@asc/api-client` like production |
 
 **Before creating a component:** search `packages/ui/CATALOG.md` and `packages/ui/src/index.ts`. Extending an existing component beats a near-duplicate.
 
@@ -75,6 +78,47 @@ export function StatusChip({ phase, size = "sm", className }: StatusChipProps) {
 - Mutations are **optimistic** only when the server rule cannot reject in normal use (e.g. toggling a row); gated transitions show pending state and wait.
 - React 19: `useOptimistic` for optimistic rows, `useActionState` for simple server actions, `use()` + Suspense for promise data in Server Components.
 
+## 3a. Hooks, state and config-driven UI (clean components)
+
+Components stay small and declarative. Hooks are for synchronising with something, not for storing every value. **Enforced by lint** (`asc/max-hooks-per-component`, per component or custom hook): `useState` ≤ 2 · `useEffect` ≤ 1 · `useLayoutEffect` ≤ 1 · `useRef` ≤ 2. Hitting a limit means restructure, not disable. See [`LEARNING_MISTAKES.md`](../../LEARNING_MISTAKES.md) LM-003.
+
+| Instead of… | Do this |
+|---|---|
+| Several `useState` for related values (`email`, `password`, `errors`, `showX`…) | **One object state** `useState<FormState>()` or **`useReducer`**; for forms, **react-hook-form** owns field values and errors (`setError("root", …)` for server errors) |
+| `useState` + `useEffect` to keep a derived value in sync | **Derive during render** (`const selected = items.find(...) ?? items[0]`); `useMemo` only if measured slow |
+| `useEffect` to fetch data | TanStack Query / Medplum hooks (§3) |
+| `useEffect` reacting to a user action | Run the logic in the **event handler** |
+| `useState` + `useEffect` subscribing to browser/external state (media query, online status) | **`useSyncExternalStore`** (see `@asc/ui` `useIsMobile`) |
+| `useRef` to hold data between renders | State, props or the query cache; refs are for DOM nodes / imperative handles |
+| 10 hand-written field blocks, `if (role === …)` chains | A **config array/map** + `.map()` (below) |
+| `if / else if` chains mapping a value to behaviour | A `Record<Key, Value>` lookup (e.g. `CASE_FILTERS[role]`) |
+| One-off constants inline in JSX (`15000`, `"/auth/login"`) | Named constants in `@asc/config` or at module top |
+
+**Config-driven forms.** Describe fields as data with `FieldConfig` from `@asc/ui`, render with `FormField`, validate with the shared Zod schema. When the set of fields depends on something (role, procedure), keep that mapping **once** in `@asc/validation` so the schema and the form read the same source.
+
+```tsx
+// apps/web — signup (abridged). No useState at all: RHF owns values + errors.
+const FIELD_UI: Record<SignupFieldName, FieldConfig<SignupFieldName>> = {
+  fullName: { name: "fullName", label: "Full Legal Name", autoComplete: "name" },
+  npi: { name: "npi", label: "NPI", mono: true, maxLength: 10 },
+  // …one entry per field
+};
+
+const fields = fieldsForRole(role); // from SIGNUP_ROLE_FIELDS in @asc/validation (also drives the schema)
+
+{fields.map((field) => (
+  <FormField key={field.name} id={`signup-${field.name}`} label={field.label} error={errors[field.name]?.message}>
+    <Input id={`signup-${field.name}`} type={field.type ?? "text"} {...register(field.name)} />
+  </FormField>
+))}
+```
+
+Other rules of thumb:
+- A component that grows past ~150 lines or mixes data loading with layout → split into a container (feature hook + composition) and presentational pieces.
+- Extract a custom hook (`useXyz` in `features/<domain>/`) when logic is reused or a component needs more than its hook budget; the budget applies to the hook too.
+- Prefer `const` lookups and pure helpers at module scope over functions re-created in render.
+- No `alert()`/`confirm()`; use `@asc/ui` dialogs and toasts.
+
 ## 4. Required async states (every data view)
 
 Use `@asc/ui` `AsyncState` set; each view handles all five:
@@ -123,7 +167,7 @@ Rules:
 // apps/web/src/features/note/note-progress.tsx
 "use client";
 import { useEventStream } from "@asc/api-client/react";
-import { noteJobEvents } from "@asc/validation";
+import { noteJobEvents } from "@asc/validation/sse"; // browser code imports leaf subpaths (§1)
 import { DraftBanner, StreamingText, AsyncState } from "@asc/ui";
 
 export function NoteProgress({ jobId }: { readonly jobId: string }) {
@@ -188,6 +232,7 @@ Base UI primitives give keyboard + ARIA; keep them. Label every input; `aria-liv
 ## 9. PHI in the browser
 
 - No PHI in URLs, page titles, analytics, console, error messages, or `localStorage`/`sessionStorage`.
+- **No auth tokens or user profiles in browser storage.** The session lives in memory (`useAuthStore`); signed-in areas are wrapped in `RequireAuth` until Medplum sign-in (P05) replaces the mock. Only non-sensitive UI preferences (e.g. `theme`) may use `localStorage` (LM-004).
 - Offline queue (AIMS/room tablet) is the only local PHI store: encrypted, purged on sync and logout ([P20](../plan/phases/P20-aims-flowsheet.md)).
 - Logout clears Query cache, Medplum client, zustand stores, offline keys.
 - Whiteboard in public-facing areas: initials + case number only.
@@ -203,6 +248,8 @@ Base UI primitives give keyboard + ARIA; keep them. Label every input; `aria-liv
 ## 11. Agent pre-PR checklist (UI)
 
 - [ ] No types, Zod schemas, fetch clients or UI libraries added under `apps/web`
+- [ ] Hook budget respected (§3a): related state grouped, derived values computed in render, forms/lists rendered from config with `.map()`
+- [ ] Browser code imports leaf subpaths of `@asc/validation` / `@asc/config`; page actually loads in `pnpm dev` (not only typecheck)
 - [ ] New component listed in `packages/ui/CATALOG.md`
 - [ ] All five async states handled; error boundary + Suspense per segment
 - [ ] Realtime via the correct channel (§5); no `EventSource`, no polling
