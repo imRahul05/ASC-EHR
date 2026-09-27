@@ -17,11 +17,11 @@
 
 ## 1. Snapshot (update on every phase change)
 
-| Updated | 2026-09-27 |
+| Updated | 2026-09-28 |
 |---|---|
 | Current wave | 0 |
-| In progress | P00 in review (PR #9) — only the library-upgrade decision (P00-Q1) is left |
-| Ready to start | P02, P03, P06 (needs Azure access); P01 and P09 once PR #9 merges |
+| In progress | — |
+| Ready to start | P00b, P01, P02, P03, P09, P06 (needs Azure access) |
 | Blocked | P13 soft-blocked on Q-MS1 (fallback allowed) |
 | Go-live target | 2026-12-07 |
 
@@ -29,8 +29,9 @@
 
 | ID | Phase | Status | Depends on | Owner | Branch | PR | Started | Finished |
 |---|---|---|---|---|---|---|---|---|
-| P00 | Repo hygiene, guardrails | review (T1–T4 done; T5 upgrade decision open) | — | Claude (session fe18af87) | `worktree-docs-mindscript-wiring` | #9 | 2026-09-27 | |
-| P01 | CI + eval gate | pending | P00 | | | | | |
+| P00 | Repo hygiene, guardrails | done | — | Claude (session fe18af87) | `worktree-docs-mindscript-wiring`, `worktree-p00-close` | #9 (+ close-out PR) | 2026-09-27 | 2026-09-28 |
+| P00b | Library upgrades (zod 4, bullmq 6, ioredis 6) | ready | P00 | | | | | |
+| P01 | CI + eval gate | ready | P00 | | | | | |
 | P02 | Local Medplum + bots skeleton | ready | — | | | | | |
 | P03 | `@asc/fhir` | ready | — | | | | | |
 | P04 | Medplum clients | pending | P02, P03 | | | | | |
@@ -38,7 +39,7 @@
 | P06 | Azure infra (dev) | ready (external: subscription/BAA) | — | | | | | |
 | P07 | `@asc/clinical-rules` | pending | P03 | | | | | |
 | P08 | Terminology + profiles | pending | P02, P03 | | | | | |
-| P09 | UI clinical kit | pending | P00 | | | | | |
+| P09 | UI clinical kit | ready | P00 | | | | | |
 | P10 | Realtime SSE | pending | P04 | | | | | |
 | P11 | Questionnaire renderer | pending | P03, P09 | | | | | |
 | P12 | Worklists on Task | pending | P05, P07 | | | | | |
@@ -63,6 +64,7 @@ Work completed before this plan existed, grouped from git history (`origin/main`
 
 | Date | Area | What | Ref |
 |---|---|---|---|
+| 2026-09-28 | P00 | Closed: boundary lint fixture tests (`app-boundaries.test.js`: banned imports, exported types/Zod, `process.env`, browser subpaths); decision P00-Q1 recorded → new phase P00b | close-out PR |
 | 2026-09-27 | P00 | Web HTTP client, `ApiError`, auth/dashboard request functions moved to `@asc/api-client` (fetch, timeout from config, tests); API/dashboard types to `@asc/types`; error schema + data-driven signup schema (`SIGNUP_ROLE_FIELDS`) to `@asc/validation`; API routes/timeout/runtime env helpers in `@asc/config` | PR #9 |
 | 2026-09-27 | P00 | Lint guardrails: app boundaries (banned imports, no exported types/Zod in apps), browser leaf-subpath imports, `process.env` only in `@asc/config`, custom `asc/max-hooks-per-component` rule (+ tests) | PR #9 |
 | 2026-09-27 | P00/P05/P09 (partial) | Mock layer → MSW (`apps/web/src/mocks`); auth session in memory only + `RequireAuth` guard; login/signup rebuilt config-driven (`FieldConfig` + `FormField`); icons/theme/`KpiCard` via `@asc/ui`; `useIsMobile` → `useSyncExternalStore`; audit/logger/telemetry env via `@asc/config/runtime` | PR #9 |
@@ -87,7 +89,7 @@ Work completed before this plan existed, grouped from git history (`origin/main`
 |---|---|---|---|---|
 | Q-MS1 | Access to `Wybit-LLC/MindScript` source | P13, P16, P19, P22, P24 | eng lead | open |
 | D1/Q10 | Medplum self-host vs hosted | P06, P26 | eng lead | open (recommend self-host) |
-| P00-Q1 | Upgrade zod 4 / bullmq 6 / ioredis 6 / OTel before Wave 2? | P07+ | eng lead | open |
+| P00-Q1 | Upgrade zod 4 / bullmq 6 / ioredis 6 / OTel before Wave 2? | P07+ | eng lead | **decided 2026-09-28** → P00b; OTel deferred |
 | Q4 | Biller file format | P22 | business | open |
 | Q8 | CPT licence | P08, P22 | business | open |
 | Q15/Q-MS7 | STT vendor + BAA | P18 | eng | open |
@@ -97,7 +99,7 @@ Full lists: [implementation plan §6](docs/plan/implementation-plan.md#6-cross-p
 
 ## 5. Next up
 
-1. Merge PR #9 (P00) and decide P00-Q1 library upgrades (zod 4, bullmq 6, …) — unblocks P01, P09.
+1. **P00b** library upgrades (zod 4, bullmq 6, ioredis 6) — must land before Wave 2. In parallel: **P01** CI.
 2. In parallel: **P02** local Medplum, **P03** `@asc/fhir`.
 3. Escalate week-1 questions: Q-MS1, D1, Azure subscription/BAA (P06), Q8 CPT licence.
 
@@ -105,6 +107,7 @@ Full lists: [implementation plan §6](docs/plan/implementation-plan.md#6-cross-p
 
 | Date | Decision | Where recorded |
 |---|---|---|
+| 2026-09-28 | Upgrade zod 4 + bullmq 6 + ioredis 6 before Wave 2 (P00b); defer OpenTelemetry 0.222 and React 19.3 | [P00b](docs/plan/phases/P00b-library-upgrades.md) |
 | 2026-09-27 | Execution follows `docs/plan/implementation-plan.md`; 05 Gantt superseded for scheduling | this file |
 | 2026-09-27 | SSE client = fetch + `eventsource-parser` (bearer auth); `cmdk` excluded (Radix) | [UI guidelines](docs/agent/ui-guidelines.md) |
 | 2026-09-27 | Dev API mocks = MSW intercepting real `@asc/api-client` fetches (UI never imports mock data) | [UI guidelines §1](docs/agent/ui-guidelines.md) |
