@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@asc/
 import { SignupPersonaSelector } from "../../../components/auth/signup-persona-selector";
 
 export const metadata: Metadata = {
-  title: "Clinical Onboarding & Registration - ASC EHR",
+  title: "Create account",
   description: "Register role-based credentials or patient portal access for ASC GI procedures",
 };
 

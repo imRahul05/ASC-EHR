@@ -4,7 +4,7 @@ import { DemoLoginBar } from "../../../components/auth/demo-login-bar";
 import { LoginForm } from "../../../components/auth/login-form";
 
 export const metadata: Metadata = {
-  title: "Clinical Login - ASC EHR",
+  title: "Sign in",
   description: "Secure access to Ambulatory Surgery Center GI Clinical EHR",
 };
 

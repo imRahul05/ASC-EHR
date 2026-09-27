@@ -1,9 +1,10 @@
 import { setupWorker } from "msw/browser";
 import { authHandlers } from "./handlers/auth";
-import { dashboardHandlers } from "./handlers/dashboard";
+import { clinicalHandlers } from "./handlers/clinical";
 
 /**
  * Dev-only fake apps/api. @asc/api-client makes real fetch calls; this service
- * worker answers them until the real endpoints exist. Synthetic data only.
+ * worker answers them from the in-memory demo DB (./db) until the real endpoints
+ * exist. Synthetic data only; a full reload re-seeds.
  */
-export const worker = setupWorker(...authHandlers, ...dashboardHandlers);
+export const worker = setupWorker(...authHandlers, ...clinicalHandlers);

@@ -2,7 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
-import { ThemeProvider, TooltipProvider } from "@asc/ui";
+import { ThemeProvider, Toaster, TooltipProvider } from "@asc/ui";
 import { MockProvider } from "../mocks/mock-provider";
 
 const QUERY_DEFAULTS = {
@@ -25,7 +25,10 @@ export function Providers({ children }: ProvidersProps) {
     <ThemeProvider>
       <MockProvider>
         <QueryClientProvider client={queryClient}>
-          <TooltipProvider>{children}</TooltipProvider>
+          <TooltipProvider>
+            {children}
+            <Toaster />
+          </TooltipProvider>
         </QueryClientProvider>
       </MockProvider>
     </ThemeProvider>

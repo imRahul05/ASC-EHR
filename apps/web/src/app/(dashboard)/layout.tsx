@@ -1,22 +1,23 @@
 "use client";
 
 import { SidebarInset, SidebarProvider } from "@asc/ui";
-import { RequireAuth } from "../../components/auth/require-auth";
-import { AppSidebar } from "../../components/dashboard/app-sidebar";
-import { DashboardHeader } from "../../components/dashboard/dashboard-header";
+import { RequireAuth } from "@/components/auth/require-auth";
+import { AppSidebar } from "@/components/shell/app-sidebar";
+import { TopBar } from "@/components/shell/top-bar";
 
 interface DashboardLayoutProps {
   readonly children: React.ReactNode;
 }
 
+/** Signed-in shell: role nav, top bar (⌘K, persona switcher, theme, user menu), page area. */
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
     <RequireAuth>
       <SidebarProvider>
         <AppSidebar />
-        <SidebarInset>
-          <DashboardHeader />
-          <div className="flex-1 p-4 sm:p-6 overflow-y-auto">{children}</div>
+        <SidebarInset className="min-w-0 bg-background">
+          <TopBar />
+          <div className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</div>
         </SidebarInset>
       </SidebarProvider>
     </RequireAuth>
