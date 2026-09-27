@@ -8,4 +8,6 @@ export const googleEndpoint: Endpoint = {
   // No BAA for this endpoint.
   baa: false,
   createModel: (modelId) => google(modelId),
+  // No `promptCache`: Gemini caches prefixes implicitly. Explicit `cachedContent`
+  // is a stored server-side resource — not used (vendors compute, we store).
 };

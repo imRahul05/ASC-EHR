@@ -44,7 +44,7 @@ import {
   type AgentRunStart,
   type AgentRunStore,
 } from '../state/run-store.js';
-import { requiredCapabilities, type AgentDefinition } from './define.js';
+import { promptCacheKey, requiredCapabilities, type AgentDefinition } from './define.js';
 
 /** Who triggered the run. The agent itself is recorded as the audit actor. */
 export interface AgentActor {
@@ -236,6 +236,7 @@ export async function runAgent<Name extends string, Input extends z.ZodTypeAny, 
       requires: requiredCapabilities(definition),
       containsPhi,
       instructions: definition.instructions,
+      promptCacheKey: promptCacheKey(definition),
       messages: definition.buildMessages(validInput, context),
       schema: definition.output,
       tools: definition.tools,
@@ -314,7 +315,7 @@ function executionIdOf(error: unknown): string | undefined {
 function usageDetails(usage: AgentTokenUsage | undefined): AuditDetails {
   const details: AuditDetails = {};
   if (!usage) return details;
-  for (const key of ['inputTokens', 'outputTokens', 'cachedInputTokens', 'totalTokens'] as const) {
+  for (const key of ['inputTokens', 'outputTokens', 'cachedInputTokens', 'cacheWriteTokens', 'totalTokens'] as const) {
     const value = usage[key];
     if (value !== undefined) details[key] = value;
   }

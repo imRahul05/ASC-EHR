@@ -278,6 +278,7 @@ stateDiagram-v2
 - In jobs, pass a stable `executionId` (derived from the job id) and the app's `runStore`, so retries never call the model twice or create duplicate drafts.
 - Attach every retrieved fact as a `ContextItem` with source, authority, time and scope; wrap untrusted document text with `wrapUntrustedText`.
 - Keep provider calls stateless — endpoints set `store: false`; keep that when adding OpenAI-compatible endpoints.
+- Keep `INSTRUCTIONS` static (they are the cached prompt prefix): no ids, dates or case data — those go in `buildMessages`. The cache key is `name@promptVersion`, so a prompt bump starts a fresh cache.
 - Set `maxRetriesPerModel` per app (api `1`, worker `2`) and a `latencyBudget` if the task defaults don't fit.
 
 ### MUST NOT
@@ -290,6 +291,7 @@ stateDiagram-v2
 - Let an agent sign, finalize, or send anything without clinician approval.
 - Fall back to another model on a refusal (`ModelRefusalError` fails closed by design).
 - Use provider-side conversation state or memory (`previous_response_id`, Conversations, Interactions, memory stores) for PHI.
+- Use stored or extended provider caches (Gemini `cachedContent`, OpenAI `promptCacheRetention: '24h'`) or top-level Anthropic automatic caching without an ADR.
 - Put PHI in BullMQ job data, return values or failure reasons; put run records/output anywhere but the Postgres run store.
 - Let a model choose which patient/case a tool or context provider reads — scope comes from the run.
 

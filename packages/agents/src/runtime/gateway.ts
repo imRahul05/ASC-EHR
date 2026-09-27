@@ -16,6 +16,9 @@
  *     overall deadline (once spent, no further model is tried).
  *   • Stateless providers: each endpoint's mandatory `providerOptions`
  *     (e.g. OpenAI / Azure `store: false`) are sent on every call.
+ *   • Prompt caching: calls with a non-PHI `promptCacheKey` get the serving
+ *     endpoint's `promptCache` options (e.g. an Anthropic breakpoint after the
+ *     instructions). Cache-only — never provider-side conversation state.
  *   • Audit traceability: every call gets an `agentExecutionId` (generated, or the
  *     caller's `executionId`) and reports
  *     which hosting target / endpoint / model served it, how many models were
@@ -34,12 +37,14 @@ import {
   type FlexibleSchema,
   type LanguageModelUsage,
   type ModelMessage,
+  type SystemModelMessage,
   type ToolSet,
 } from 'ai';
 
 import {
   DEFAULT_LATENCY_BUDGET,
   TASK_PROFILES,
+  type EndpointProviderOptions,
   type LatencyBudget,
   type ReasoningTier,
   type TaskProfiles,
@@ -71,7 +76,15 @@ export interface AgentCallParams extends ModelSelection {
    */
   containsPhi: boolean;
   messages: ModelMessage[];
+  /** Stable instructions shared by every call of this kind. Put per-case data in `messages`, never here. */
   instructions?: string;
+  /**
+   * Enables prompt caching of the stable prefix (`instructions`) on endpoints
+   * that support it. Identifies the prefix, e.g. `discharge-instructions@2026-09-25.1`
+   * (runAgent sets agent name + prompt version). Must contain no PHI and no
+   * patient/org/case ids: it is sent to the provider. Letters, digits and `._@:-`, max 64.
+   */
+  promptCacheKey?: string;
   /** When true, only the first eligible model is tried (no fallback). */
   disableFallback?: boolean;
   /** Caller cancellation. An aborted call is never retried on another model. */
@@ -113,6 +126,8 @@ export interface AgentTokenUsage {
   outputTokens?: number;
   /** Input tokens read from the provider's prompt cache. */
   cachedInputTokens?: number;
+  /** Input tokens written to the provider's prompt cache (billed at a premium by Anthropic). */
+  cacheWriteTokens?: number;
   totalTokens?: number;
 }
 
@@ -173,6 +188,11 @@ export interface GatewayOptions extends RoutingContext {
   /** AI SDK telemetry. Off by default; prompts and outputs are never recorded. */
   telemetry?: GatewayTelemetryOptions;
   /**
+   * Prompt caching for calls that pass a `promptCacheKey`. Default true.
+   * Set false to send no cache options at all (e.g. while investigating cost).
+   */
+  promptCaching?: boolean;
+  /**
    * Generator for `agentExecutionId` when the call has no `executionId`.
    * Defaults to Web Crypto `crypto.randomUUID()` (global in Node >= 19).
    */
@@ -210,8 +230,31 @@ function toTokenUsage(usage: LanguageModelUsage): AgentTokenUsage {
     inputTokens: usage.inputTokens,
     outputTokens: usage.outputTokens,
     cachedInputTokens: usage.inputTokenDetails.cacheReadTokens,
+    cacheWriteTokens: usage.inputTokenDetails.cacheWriteTokens,
     totalTokens: usage.totalTokens,
   };
+}
+
+/** Opaque identifier charset: rejects free text (spaces, names, sentences) by construction. */
+const PROMPT_CACHE_KEY = /^[A-Za-z0-9._@:-]{1,64}$/;
+
+function assertPromptCacheKey(key: string | undefined): void {
+  if (key !== undefined && !PROMPT_CACHE_KEY.test(key)) {
+    throw new TypeError('Invalid promptCacheKey: use letters, digits and ._@:- only (max 64), and no PHI.');
+  }
+}
+
+/** Merges provider options per provider key (e.g. `openai`); later layers win. */
+function mergeProviderOptions(
+  ...layers: (EndpointProviderOptions | undefined)[]
+): EndpointProviderOptions | undefined {
+  const merged: Record<string, EndpointProviderOptions[string]> = {};
+  for (const layer of layers) {
+    for (const [provider, options] of Object.entries(layer ?? {})) {
+      merged[provider] = { ...merged[provider], ...options };
+    }
+  }
+  return Object.keys(merged).length > 0 ? merged : undefined;
 }
 
 /**
@@ -223,6 +266,7 @@ export function createGateway(options: GatewayOptions = {}): Gateway {
     maxRetriesPerModel,
     latencyBudget,
     telemetry,
+    promptCaching = true,
     generateExecutionId = () => crypto.randomUUID(),
     ...routingContext
   } = options;
@@ -243,11 +287,25 @@ export function createGateway(options: GatewayOptions = {}): Gateway {
    * Settings shared by every SDK call. `recordInputs` / `recordOutputs` are
    * hard-coded false (not configurable): spans must never carry prompts or
    * outputs. `functionId` is the task name — no PHI.
+   *
+   * Provider options: the endpoint's cache options for this call, then its
+   * mandatory options (`store: false`) last, so caching can never override them.
    */
   function sdkSettings(params: AgentCallParams, served: ResolvedModel) {
+    const cacheKey = promptCaching ? params.promptCacheKey : undefined;
+    const cache = cacheKey === undefined ? undefined : served.promptCache;
+    const instructionOptions = cache?.instructions;
+    const instructions: string | SystemModelMessage | undefined =
+      params.instructions !== undefined && instructionOptions
+        ? { role: 'system', content: params.instructions, providerOptions: instructionOptions }
+        : params.instructions;
     return {
       model: served.model,
-      providerOptions: served.providerOptions,
+      instructions,
+      providerOptions: mergeProviderOptions(
+        cacheKey === undefined ? undefined : cache?.call?.(cacheKey),
+        served.providerOptions,
+      ),
       maxRetries: maxRetriesPerModel,
       telemetry: {
         isEnabled: telemetry?.isEnabled ?? false,
@@ -259,6 +317,7 @@ export function createGateway(options: GatewayOptions = {}): Gateway {
   }
 
   function plan(params: AgentCallParams) {
+    assertPromptCacheKey(params.promptCacheKey);
     const tier = resolveEffectiveTier(params.task, params.reasoning, taskProfiles);
     const containsPhi = resolveContainsPhi(params.task, params.containsPhi, taskProfiles);
     const chain = getFallbackChain(tier, {
@@ -359,7 +418,6 @@ export function createGateway(options: GatewayOptions = {}): Gateway {
       const { value, ...execution } = await runWithFallback(params, async (served, abortSignal) => {
         const result = await generateText<ToolSet>({
           ...sdkSettings(params, served),
-          instructions: params.instructions,
           messages: params.messages,
           tools: params.tools,
           stopWhen: params.maxSteps === undefined ? undefined : isStepCount(params.maxSteps),
@@ -376,7 +434,6 @@ export function createGateway(options: GatewayOptions = {}): Gateway {
       const { value, ...execution } = await runWithFallback(params, async (served, abortSignal) => {
         const result = await generateText({
           ...sdkSettings(params, served),
-          instructions: params.instructions,
           messages: params.messages,
           output: Output.object({ schema: params.schema }),
           tools: params.tools,
@@ -402,7 +459,6 @@ export function createGateway(options: GatewayOptions = {}): Gateway {
 
       const result = streamText<ToolSet>({
         ...sdkSettings(params, primary),
-        instructions: params.instructions,
         messages: params.messages,
         tools: params.tools,
         stopWhen: params.maxSteps === undefined ? undefined : isStepCount(params.maxSteps),

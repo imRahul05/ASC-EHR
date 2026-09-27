@@ -30,5 +30,8 @@ export function createAzureOpenAIEndpoint(settings: AzureOpenAIEndpointSettings)
     // @ai-sdk/azure reads the `azure` key and falls back to `openai` only when
     // `azure` is absent, so both are set: neither lookup can miss it.
     providerOptions: { azure: { store: false }, openai: { store: false } },
+    // No `promptCache` yet: Azure OpenAI caches prefixes automatically. Add a
+    // `promptCacheKey` only after confirming the resource's API version accepts it
+    // (an unknown parameter is a 400, which would fail PHI calls closed).
   };
 }

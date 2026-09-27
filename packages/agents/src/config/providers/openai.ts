@@ -11,4 +11,9 @@ export const openaiEndpoint: Endpoint = {
   // `openai(id)` is the Responses API model, which defaults to `store: true`
   // (server-side retention of prompts + outputs). Always stateless.
   providerOptions: { openai: { store: false } },
+  // OpenAI caches prefixes automatically; the key keeps calls sharing a prefix
+  // on the same cache. `in_memory` retention: no extended (24h) cache storage.
+  promptCache: {
+    call: (cacheKey) => ({ openai: { promptCacheKey: cacheKey, promptCacheRetention: 'in_memory' } }),
+  },
 };
