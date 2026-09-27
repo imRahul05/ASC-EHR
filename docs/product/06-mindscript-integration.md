@@ -7,6 +7,175 @@ Docs 01–05 were written before we had a description of MindScript. They assume
 
 ---
 
+## 0. Big picture: one patient journey, three sources
+
+Every step of the GI ASC journey is assembled from three sources. Read each row left to right: **who acts → what MindScript gives → what Medplum gives → what we write**. Items marked *(confirm)* depend on open questions in §7.
+
+**Legend:** 🟦 MindScript (port code, call service, or reuse proven pattern) · 🟪 Medplum (configure FHIR platform) · 🟧 Our custom code (GI wedge + ASC workflow) · ⬛ journey step.
+
+### 0.1 Journey × source
+
+```mermaid
+block-beta
+  columns 4
+
+  H0["Journey step (who)"]
+  H1["From MindScript"]
+  H2["From Medplum"]
+  H3["Our custom code"]
+
+  S1["1 · Referral arrives<br/>front desk"]
+  M1["faxagnet inbox + attach<br/>chart-review facts with sources"]
+  P1["DocumentReference + Binary<br/>Task: referral intake"]
+  N1["Referral intake worklist<br/>fax proxy route in apps/api"]
+
+  S2["2 · Register + eligibility<br/>front desk"]
+  M2["eCW patient-ID match pattern<br/>(one patient per eCW ID)"]
+  P2["Patient · Coverage · RelatedPerson<br/>eligibility 270/271 bot"]
+  N2["Duplicate-match rules<br/>registration UI"]
+
+  S3["3 · Book case<br/>scheduler"]
+  M3["Calendar UI (confirm)<br/>cancelled-appt follow-up queue"]
+  P3["Appointment · Slot · Location<br/>Device · Subscriptions"]
+  N3["Block templates · conflict check<br/>case state machine · whiteboard"]
+
+  S4["4 · Pre-procedure H&P<br/>pre-admission RN / MD"]
+  M4["Pre-visit brief · Record editors<br/>meds + allergy rows · eCW prior notes"]
+  P4["Questionnaire · AllergyIntolerance<br/>MedicationStatement · extraction Bot"]
+  N4["hp_intake agent · med-hold rules<br/>ASA / airway · readiness gate"]
+
+  S5["5 · Pre-op + consent<br/>pre-op RN"]
+  M5["Signed-record lock pattern"]
+  P5["Consent · QuestionnaireResponse<br/>Provenance signatures"]
+  N5["Questionnaire renderer<br/>signature pad · time-out attestation"]
+
+  S6["6 · Procedure room<br/>GI MD · RN · anesthesia"]
+  M6["Live STT pattern (Deepgram)<br/>mid-visit precompute"]
+  P6["Observation events · Specimen · Media<br/>Agent DICOM / HL7 (P1.5)"]
+  N6["Event taps · GI findings model<br/>AIMS flowsheet (offline queue)"]
+
+  S7["7 · AI note draft<br/>system, under 60 s"]
+  M7["Draft-first pipeline · GI constitution<br/>verification · critic · guideline advisor"]
+  P7["Composition (preliminary)<br/>Provenance + agentExecutionId"]
+  N7["procedure_note agent via @asc/agents<br/>BullMQ jobs · GI content"]
+
+  S8["8 · PACU + discharge<br/>PACU RN"]
+  M8["Vitals row · note-gen pattern"]
+  P8["Observation · CarePlan<br/>Communication"]
+  N8["Aldrete / PADSS · discharge gate<br/>discharge_instructions agent"]
+
+  S9["9 · Review + sign<br/>GI MD"]
+  M9["Record engine edits · pre-sign checks<br/>sign lock · Sign Queue (confirm)"]
+  P9["Composition final · Task<br/>AuditEvent · _history"]
+  N9["Sign command · deadline countdown<br/>role worklists"]
+
+  S10["10 · Coding + charge<br/>coder"]
+  M10["dx → code binding · CCI checks<br/>coding eval cases"]
+  P10["ChargeItem · Claim<br/>CPT CodeSystem (licensed)"]
+  N10["GI coding rules engine · coding_suggest<br/>coder queue · biller export"]
+
+  S11["11 · Letters + clinic chart<br/>system"]
+  M11["faxagnet send (confirm)<br/>Integuru eCW note write-back"]
+  P11["PDF Bot · eFax bot (fallback)<br/>Communication"]
+  N11["referral_letter agent<br/>send + write-back jobs"]
+
+  S12["12 · Pathology loop<br/>RN · GI MD"]
+  M12["Worklist pattern<br/>guideline advisor (verbatim text)"]
+  P12["Specimen · DiagnosticReport<br/>Task · Bot"]
+  N12["Histology → polyp reconcile<br/>surveillance interval · result letters"]
+
+  S13["13 · Quality (P2)<br/>admin"]
+  M13["—"]
+  P13["Bulk export · search"]
+  N13["GIQuIC export · ADR per MD<br/>ASCQR tracking"]
+
+  S1 --> S2
+  S2 --> S3
+  S3 --> S4
+  S4 --> S5
+  S5 --> S6
+  S6 --> S7
+  S7 --> S8
+  S8 --> S9
+  S9 --> S10
+  S10 --> S11
+  S11 --> S12
+  S12 --> S13
+
+  classDef head fill:#0f172a,color:#fff,stroke:#0f172a
+  classDef step fill:#1e293b,color:#fff,stroke:#334155
+  classDef ms fill:#0ea5e9,color:#fff,stroke:#0369a1
+  classDef mp fill:#7c3aed,color:#fff,stroke:#5b21b6
+  classDef nb fill:#f59e0b,color:#111,stroke:#b45309
+  class H0 head
+  class H1 ms
+  class H2 mp
+  class H3 nb
+  class S1,S2,S3,S4,S5,S6,S7,S8,S9,S10,S11,S12,S13 step
+  class M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13 ms
+  class P1,P2,P3,P4,P5,P6,P7,P8,P9,P10,P11,P12,P13 mp
+  class N1,N2,N3,N4,N5,N6,N7,N8,N9,N10,N11,N12,N13 nb
+```
+
+### 0.2 How it comes together (runtime layers)
+
+Top to bottom is a request's path. Colour shows where the code comes from; every layer serves the same GI ASC purpose — **the clinician narrates and confirms, the system writes the structured, signed, billable record**.
+
+```mermaid
+block-beta
+  columns 5
+
+  L1["USERS"]:1
+  U1["Front desk<br/>scheduler"] U2["Pre-op / PACU RN"] U3["GI MD · anesthesia"] U4["Coder · admin"]
+
+  L2["CLIENTS"]:1
+  C1["apps/web (Next.js)<br/>workstation · room tablet · whiteboard"]:2
+  C2["@asc/ui<br/>Record engine · calendar ← ported"]:1
+  C3["Medplum App<br/>admin console"]:1
+
+  L3["OUR SERVICES"]:1
+  A1["apps/api (Fastify)<br/>commands · SSE · fax proxy · STT token"]:2
+  A2["apps/worker (BullMQ)<br/>AI jobs · PDF · letters · eCW sync"]:2
+
+  L4["SHARED LOGIC"]:1
+  G1["@asc/agents<br/>procedure_note · hp_intake · coding_suggest"]
+  G2["@asc/clinical-rules<br/>gates · med-hold · coding · verification"]
+  G3["MindScript content<br/>GI constitution · checks · guideline snippets"]
+  G4["@asc/validation · @asc/audit<br/>@asc/logger · @asc/db"]
+
+  L5["PLATFORM"]:1
+  F1["Medplum FHIR R4<br/>system of record"]
+  F2["Auth · MFA · AccessPolicy<br/>AuditEvent"]
+  F3["Subscriptions · Bots<br/>Binary · Agent"]
+  F4["Postgres · Redis · Blob<br/>(Azure)"]
+
+  L6["EXTERNAL"]:1
+  E1["faxagnet<br/>(Wybit fax)"]
+  E2["Integuru → eCW<br/>(clinic chart)"]
+  E3["LLM + STT<br/>under BAA"]
+  E4["Lab · biller · clearinghouse<br/>GIQuIC"]
+
+  classDef layer fill:#0f172a,color:#fff,stroke:#0f172a
+  classDef user fill:#334155,color:#fff,stroke:#1e293b
+  classDef ms fill:#0ea5e9,color:#fff,stroke:#0369a1
+  classDef mp fill:#7c3aed,color:#fff,stroke:#5b21b6
+  classDef nb fill:#f59e0b,color:#111,stroke:#b45309
+  classDef ext fill:#94a3b8,color:#111,stroke:#475569
+  class L1,L2,L3,L4,L5,L6 layer
+  class U1,U2,U3,U4 user
+  class C1,A1,A2,G1,G2,G4 nb
+  class C2,G3,E1,E2 ms
+  class C3,F1,F2,F3,F4 mp
+  class E3,E4 ext
+```
+
+**How the pieces meet:**
+- **MindScript → our packages.** UI engines (Record editors, calendar) are copied into `@asc/ui`; verification, checks, coding binding and GI constitution content go into `@asc/clinical-rules` / `@asc/agents`. faxagnet and Integuru stay running services we call.
+- **Medplum → everything stored.** Every clinical fact is a FHIR resource; auth, audit, worklists (`Task`) and live updates come free.
+- **Our code → the GI wedge.** Case state machine, AIMS, GI findings/coding rules, agents and the procedure-room UX — the parts no one else has.
+
+---
+
 ## 1. What changes, in one screen
 
 | # | Finding | Effect on our plan |

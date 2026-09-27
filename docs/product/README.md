@@ -52,4 +52,6 @@ flowchart LR
 
 **MindScript reality check (2026-09-27):** the dev-team overview changes several reuse assumptions — MindScript's "Recovery queue" is cancelled-appointment follow-up (not pathology), Sign Queue is unconfirmed, fax is a separate service (faxagnet), and an eCW bridge already exists. See [06](06-mindscript-integration.md).
 
+**Big picture diagram:** the full GI ASC journey, colour-coded by source (MindScript · Medplum · our code), and the runtime layer stack are in [06 §0](06-mindscript-integration.md#0-big-picture-one-patient-journey-three-sources).
+
 **Biggest risks to December go-live:** AIMS (highest liability, new time-series capability), scope-tower image capture (hardware unknown), CPT licensing + biller file format (unknown), and schedule (~10 weeks). See [delivery plan](05-delivery-plan.md).
