@@ -1,5 +1,7 @@
 # 05 — Delivery Plan, Decisions, Risks & Open Questions
 
+> **Execution plan moved (2026-09-27):** day-to-day sequencing now lives in the phase-wise [implementation plan](../plan/implementation-plan.md) with live status in [`PROGRESS.md`](../../PROGRESS.md). The Gantt in §5.1 is kept for history; decisions, risks and open questions below remain current.
+
 Assumptions: today 2026-09-25; go-live **early December 2026** (conflict C1 — confirm); team size unknown (plan below assumes ~5 engineers + 1 clinical informaticist/RN SME + part-time certified coder). Every workstream ships behind the same rule: **Medplum first, MindScript port second, new code last.**
 
 ## 5.1 Critical path

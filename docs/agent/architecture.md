@@ -12,7 +12,7 @@ Read this before writing any code. The sole purpose of this monorepo is **centra
 7. **COMPLIANCE & PHI HANDLING:** Never expose or log raw Protected Health Information (PHI). All data access must be audit-logged, and all code must adhere to HIPAA and SOC 2 standards. Read the full guidelines at [`docs/COMPLIANCE_AND_PHI.md`](../COMPLIANCE_AND_PHI.md).
 8. **LOGGING, OBSERVABILITY & AUDIT:** Never use `console.log` for application logs or initialize Pino directly. You MUST use `@asc/logger` for logging, `@asc/telemetry` for tracing, and `@asc/audit` for security events. Read the architecture plan at [`docs/plan/logging-observability-audit.md`](../plan/logging-observability-audit.md) and strict rules in [`docs/COMPLIANCE_AND_PHI.md`](../COMPLIANCE_AND_PHI.md).
 
-*See `docs/ARCHITECTURE.md` for the architectural diagram and breakdown.*
+*See `docs/ARCHITECTURE.md` for the architectural diagram and breakdown. UI rules: [`ui-guidelines.md`](ui-guidelines.md). Planned packages (`@asc/fhir`, `@asc/clinical-rules`, `apps/bots`) and the full target tree: [implementation plan §4](../plan/implementation-plan.md#4-target-repository-structure-end-of-phase-1). Before coding, read [`LEARNING_MISTAKES.md`](../../LEARNING_MISTAKES.md).*
 
 ---
 
