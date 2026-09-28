@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Button } from "@asc/ui";
 import { ArrowRight, Sparkles } from "@asc/ui/icons";
+import { DemoExplainer } from "../guide/demo-explainer";
 import { ProductMock } from "./product-mock";
 
 /** Hero: one sharp line, one sentence, two actions, the product itself. The only gradient on the site is the glow here. */
@@ -38,6 +39,7 @@ export function LandingHero() {
             </Button>
           </div>
           <p className="mt-4 text-xs text-muted-foreground">No sign-up. Five personas. Synthetic data only.</p>
+          <DemoExplainer withSignIn className="mt-3" />
         </div>
 
         <div id="product" className="relative mx-auto mt-16 max-w-5xl scroll-mt-24 sm:mt-20">
