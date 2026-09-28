@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ApiError } from "@asc/api-client";
+import { medClassFor } from "@asc/clinical-rules";
 import { useConvertReferral, useCreatePatient, useDuplicateCheck } from "@asc/api-client/react";
 import type { Patient, Referral } from "@asc/types";
 import { AiBadge, Button, Checkbox, cn, FormField, Input, OptionSelect, SectionCard, SegmentedControl, Switch, toast } from "@asc/ui";
@@ -11,6 +12,7 @@ import { Loader2, TriangleAlert, UserPlus } from "@asc/ui/icons";
 import {
   EMPTY_PATIENT_REGISTRATION,
   patientRegistrationSchema,
+  parseMedicationText,
   toCreatePatientPayload,
   type PatientRegistrationFormData,
 } from "@asc/validation/patient";
@@ -62,7 +64,8 @@ export function RegistrationForm({ defaults, referral, onCreated }: Registration
         setError("root", { message: "Possible duplicate chart found. Link the referral / open the existing chart, or confirm this is a different person." });
         return;
       }
-      const payload = toCreatePatientPayload(data, referral?.id);
+      const medications = parseMedicationText(data.medications).map((med) => ({ ...med, medClass: medClassFor(med.name) }));
+      const payload = { ...toCreatePatientPayload(data, referral?.id), medications };
       const patient = referral ? (await convert.mutateAsync({ patient: payload })).patient : await create.mutateAsync(payload);
       toast.success(`Registered ${patient.mrn}`, { description: referral ? "Referral converted — run eligibility next." : "Run eligibility next." });
       onCreated(patient, "created");

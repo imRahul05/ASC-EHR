@@ -40,6 +40,7 @@ export function registrationDefaultsFromReferral(referral: Referral): PatientReg
     payer: factValue(referral, "payer"),
     memberId: factValue(referral, "memberId"),
     referringProvider: factValue(referral, "referringProvider"),
+    medications: factValue(referral, "medications"),
     allergies: factValue(referral, "allergies"),
   };
 }

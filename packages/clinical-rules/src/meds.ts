@@ -14,6 +14,21 @@ export const HOLD_RULES_BY_CLASS: Readonly<Record<MedicationClass, HoldRule | nu
   other: null,
 };
 
+/** Drug-name keywords → class (synthetic formulary for the mock; first match wins). */
+const MED_CLASS_KEYWORDS: readonly (readonly [RegExp, MedicationClass])[] = [
+  [/warfarin|apixaban|rivaroxaban|dabigatran|edoxaban|enoxaparin|heparin/i, "anticoagulant"],
+  [/clopidogrel|prasugrel|ticagrelor/i, "antiplatelet"],
+  [/semaglutide|liraglutide|dulaglutide|tirzepatide|exenatide/i, "glp1"],
+  [/insulin/i, "insulin"],
+  [/metformin|glipizide|glyburide|glimepiride|sitagliptin|empagliflozin|dapagliflozin/i, "oral_hypoglycemic"],
+  [/ferrous|iron/i, "iron"],
+];
+
+/** Classify a medication by name (e.g. from a referral) so its hold rule applies; unknown → "other". */
+export function medClassFor(name: string): MedicationClass {
+  return MED_CLASS_KEYWORDS.find(([pattern]) => pattern.test(name))?.[1] ?? "other";
+}
+
 export function holdRuleFor(medClass: MedicationClass): HoldRule | null {
   return HOLD_RULES_BY_CLASS[medClass];
 }

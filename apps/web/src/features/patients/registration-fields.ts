@@ -52,10 +52,11 @@ export const REGISTRATION_SECTIONS = [
   },
   {
     id: "clinical",
-    title: "Referral & allergies",
-    description: "Medications are reconciled by nursing at pre-procedure.",
+    title: "Referral, medications & allergies",
+    description: "Hold rules apply from the medication list; nursing confirms each hold at pre-procedure.",
     fields: [
       { name: "referringProvider", label: "Referring provider" },
+      { name: "medications", label: "Medications (comma-separated)", placeholder: "warfarin 5 mg daily, metformin 500 mg BID" },
       { name: "allergies", label: "Allergies (comma-separated, reaction in brackets)", placeholder: "penicillin (rash), sulfa" },
     ],
   },

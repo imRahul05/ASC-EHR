@@ -4,6 +4,7 @@ import {
   aldreteTotal,
   dischargeGate,
   findScheduleConflicts,
+  medClassFor,
   medHoldCheck,
   nextPhase,
   PHASE_GROUP,
@@ -102,6 +103,15 @@ describe("medHoldCheck", () => {
   it("requires holds to be confirmed", () => {
     expect(medHoldCheck([med("pending")]).ok).toBe(false);
     expect(medHoldCheck([med("confirmed")]).ok).toBe(true);
+  });
+});
+
+describe("medClassFor", () => {
+  it("classifies referral medications so hold rules apply", () => {
+    expect(medClassFor("warfarin")).toBe("anticoagulant");
+    expect(medClassFor("Semaglutide")).toBe("glp1");
+    expect(medClassFor("ferrous sulfate")).toBe("iron");
+    expect(medClassFor("lisinopril")).toBe("other");
   });
 });
 

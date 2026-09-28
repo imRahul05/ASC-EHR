@@ -36,6 +36,8 @@ export const patientRegistrationSchema = z
     escortPhone: optionalText,
     escortConfirmed: z.boolean(),
     referringProvider: optionalText,
+    /** Free-text medication list as written on a referral, e.g. "warfarin 5 mg daily, metformin 500 mg BID". */
+    medications: optionalText,
     /** Free-text allergy list as written on a referral, e.g. "penicillin (rash), sulfa". "NKDA" = none. */
     allergies: optionalText,
   })
@@ -75,6 +77,7 @@ export const EMPTY_PATIENT_REGISTRATION: PatientRegistrationFormData = {
   escortPhone: "",
   escortConfirmed: false,
   referringProvider: "",
+  medications: "",
   allergies: "",
 };
 
@@ -93,6 +96,21 @@ export function parseAllergyText(text: string): { substance: string; reaction: s
       const substance = (match?.[1] ?? part).trim();
       const reaction = (match?.[2] ?? "unknown").trim();
       return { substance, reaction, severity: /anaphyla/i.test(reaction) ? "severe" : "moderate" };
+    });
+}
+
+const DOSE = /^(.*?)\s+(\d[\d.,]*\s*(?:mg|mcg|g|mL|units?|IU))\b\s*(.*)$/i;
+
+/** "warfarin 5 mg daily (AFib), levothyroxine 75 mcg" → [{ name: "warfarin", dose: "5 mg", frequency: "daily" }, …]. */
+export function parseMedicationText(text: string): { name: string; dose: string; frequency: string }[] {
+  return text
+    .split(/[,;]/)
+    .map((part) => part.replace(/\(.*?\)/g, "").trim())
+    .filter((part) => part !== "" && !/^(none|no medications?)$/i.test(part))
+    .map((part) => {
+      const match = DOSE.exec(part);
+      if (!match) return { name: part, dose: "", frequency: "" };
+      return { name: (match[1] ?? part).trim(), dose: (match[2] ?? "").trim(), frequency: (match[3] ?? "").trim() };
     });
 }
 
