@@ -1,48 +1,26 @@
 import type { Metadata } from "next";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, Separator } from "@asc/ui";
-import { DemoLoginBar } from "../../../components/auth/demo-login-bar";
-import { LoginForm } from "../../../components/auth/login-form";
+import { DemoLoginBar } from "@/components/auth/demo-login-bar";
+import { LoginForm } from "@/components/auth/login-form";
 
 export const metadata: Metadata = {
   title: "Sign in",
-  description: "Secure access to Ambulatory Surgery Center GI Clinical EHR",
+  description: "Sign in to the GI ambulatory surgery center EHR.",
 };
 
 export default function LoginPage() {
   return (
-    <Card className="border border-border/80 shadow-sm bg-card">
-      <CardHeader className="space-y-1 pb-4">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg font-bold tracking-tight">
-            Sign In to Workstation
-          </CardTitle>
-          <span className="text-[11px] font-mono text-muted-foreground uppercase">
-            Facility #8821
-          </span>
-        </div>
-        <CardDescription className="text-xs">
-          Enter clinical credentials or select an instant demo persona to explore role-specific workflows.
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent className="space-y-6">
-        {/* Instant Demo Switcher */}
-        <DemoLoginBar />
-
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <Separator className="w-full" />
-          </div>
-          <div className="relative flex justify-center text-[10px] uppercase font-mono">
-            <span className="bg-card px-2 text-muted-foreground">
-              Or Authenticate with Credentials
-            </span>
-          </div>
-        </div>
-
-        {/* Credentials Form */}
-        <LoginForm />
-      </CardContent>
-    </Card>
+    <div className="space-y-8" data-testid="login-page">
+      <div className="space-y-2">
+        <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
+        <p className="text-sm text-muted-foreground">Pick a demo persona to walk the full patient journey, or use your email.</p>
+      </div>
+      <DemoLoginBar />
+      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <span className="h-px flex-1 bg-border" />
+        or with email
+        <span className="h-px flex-1 bg-border" />
+      </div>
+      <LoginForm />
+    </div>
   );
 }
