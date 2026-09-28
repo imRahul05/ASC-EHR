@@ -1,0 +1,222 @@
+/* Landing hero only: aurora canvas, journey line and its timed event cards. Colours derive from the theme tokens. */
+
+.hero {
+  --hero-teal: oklch(0.72 0.12 195);
+  --hero-rose: oklch(0.7 0.17 350);
+  --hero-blob-opacity: 0.32;
+}
+
+:global(.dark) .hero {
+  --hero-teal: oklch(0.68 0.12 195);
+  --hero-rose: oklch(0.64 0.18 350);
+  --hero-blob-opacity: 0.4;
+}
+
+/* ---------- Canvas ---------- */
+
+.canvas {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  /* Fade into the page so the next section starts on the plain background. */
+  mask-image: linear-gradient(to bottom, black 70%, transparent);
+}
+
+.blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: var(--hero-blob-opacity);
+  will-change: transform;
+  animation: drift 26s ease-in-out infinite alternate;
+}
+
+.blobViolet {
+  top: -18%;
+  left: 38%;
+  width: 46rem;
+  height: 34rem;
+  background: var(--primary);
+}
+
+.blobTeal {
+  top: 30%;
+  left: -12%;
+  width: 36rem;
+  height: 30rem;
+  background: var(--hero-teal);
+  animation-duration: 32s;
+  animation-direction: alternate-reverse;
+}
+
+.blobRose {
+  top: 44%;
+  right: -10%;
+  width: 34rem;
+  height: 28rem;
+  background: var(--hero-rose);
+  animation-duration: 29s;
+}
+
+@keyframes drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(6%, 8%, 0) scale(1.12);
+  }
+  100% {
+    transform: translate3d(-8%, -4%, 0) scale(0.94);
+  }
+}
+
+.grid {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(color-mix(in oklch, var(--foreground) 16%, transparent) 1px, transparent 1.5px);
+  background-size: 24px 24px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black, transparent);
+}
+
+/* ---------- Journey line ---------- */
+
+.trackFaint,
+.track {
+  stroke: color-mix(in oklch, var(--foreground) 14%, transparent);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.trackFaint {
+  stroke-dasharray: 2 8;
+}
+
+.station {
+  fill: var(--background);
+  stroke: color-mix(in oklch, var(--foreground) 22%, transparent);
+  stroke-width: 2;
+}
+
+.stationLit {
+  fill: var(--primary);
+  stroke: var(--background);
+  stroke-width: 3;
+}
+
+.ping {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 2;
+}
+
+.pulse {
+  fill: var(--background);
+  stroke: var(--primary);
+  stroke-width: 3;
+}
+
+.staticOnly {
+  display: none;
+}
+
+/* ---------- Event cards ---------- */
+
+.cardSlot {
+  position: absolute;
+  bottom: 0.5rem;
+  left: 50%;
+  width: min(100%, 19rem);
+  transform: translateX(-50%);
+}
+
+@media (min-width: 640px) {
+  .cardSlot {
+    /* Anchor at the station, shifted by the same share of its own width so edge cards stay inside the frame. */
+    left: var(--x);
+    width: 17rem;
+    transform: translateX(calc(var(--x) * -1));
+  }
+}
+
+.card {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.875rem;
+  background: color-mix(in oklch, var(--card) 82%, transparent);
+  backdrop-filter: blur(12px);
+  box-shadow:
+    0 1px 2px color-mix(in oklch, var(--foreground) 6%, transparent),
+    0 12px 32px -12px color-mix(in oklch, var(--primary) 35%, transparent);
+  opacity: 0;
+  animation: card-slot 16s linear infinite both;
+  animation-delay: var(--delay);
+}
+
+@keyframes card-slot {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  2% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  11% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  12.5%,
+  100% {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.99);
+  }
+}
+
+/* ---------- Page-load sequence (the one orchestrated entrance) ---------- */
+
+.rise {
+  animation: rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: var(--rise-delay, 0s);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+/* ---------- Reduced motion: still picture, fully drawn journey, one card ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .blob,
+  .rise {
+    animation: none;
+  }
+
+  .motionOnly {
+    display: none;
+  }
+
+  .staticOnly {
+    display: inline;
+  }
+
+  .card {
+    animation: none;
+  }
+
+  .cardStatic .card {
+    opacity: 1;
+  }
+}

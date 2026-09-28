@@ -1,48 +1,65 @@
+import type { CSSProperties } from "react";
 import Link from "next/link";
-import { Button } from "@asc/ui";
-import { ArrowRight, Sparkles } from "@asc/ui/icons";
+import { Button, cn } from "@asc/ui";
+import { ArrowRight } from "@asc/ui/icons";
 import { DemoExplainer } from "../guide/demo-explainer";
+import { HeroJourney } from "./hero-journey";
+import styles from "./landing-hero.module.css";
 import { ProductMock } from "./product-mock";
 
-/** Hero: one sharp line, one sentence, two actions, the product itself. The only gradient on the site is the glow here. */
+const riseDelay = (seconds: number) => ({ "--rise-delay": `${seconds}s` }) as CSSProperties;
+
+/**
+ * Hero: fills the first screen. Aurora canvas, the headline, and the patient journey drawn live underneath it —
+ * a pulse runs referral → recall and each stop shows what the product did. The product screenshot follows below.
+ */
 export function LandingHero() {
   return (
-    <section aria-labelledby="hero-title" className="relative isolate overflow-hidden">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute top-[-18rem] left-1/2 -z-10 h-[40rem] w-[64rem] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,var(--color-primary),transparent)] opacity-[0.14] blur-3xl dark:opacity-[0.22]"
-      />
-      <div className="mx-auto max-w-6xl px-4 pt-20 pb-16 sm:px-6 sm:pt-28">
-        <div className="mx-auto max-w-3xl text-center">
-          <Link
-            href="#ai"
-            className="inline-flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-1 text-xs text-muted-foreground shadow-xs outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
+    <section aria-labelledby="hero-title" className={cn(styles.hero, "relative isolate overflow-hidden")}>
+      <div aria-hidden className={styles.canvas}>
+        <span className={cn(styles.blob, styles.blobViolet)} />
+        <span className={cn(styles.blob, styles.blobTeal)} />
+        <span className={cn(styles.blob, styles.blobRose)} />
+        <span className={styles.grid} />
+      </div>
+
+      <div className="mx-auto flex min-h-[calc(100svh-3.5rem)] max-w-6xl flex-col justify-between gap-10 px-4 pt-16 pb-8 sm:px-6 sm:pt-24 lg:pt-28">
+        <div className="grid items-end gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:gap-14">
+          <h1
+            id="hero-title"
+            className={cn(
+              styles.rise,
+              "text-[clamp(2.75rem,6.2vw,5.5rem)] leading-[0.95] font-semibold tracking-[-0.055em] text-balance",
+            )}
           >
-            <Sparkles aria-hidden className="size-3.5 text-primary" />
-            AI-native EHR for GI ambulatory surgery centers
-            <ArrowRight aria-hidden className="size-3" />
-          </Link>
-          <h1 id="hero-title" className="mt-7 text-[2.75rem] leading-[1.02] font-semibold tracking-[-0.045em] text-balance sm:text-6xl lg:text-7xl">
-            From faxed referral
-            <br className="hidden sm:block" /> to five‑year recall.
+            From faxed referral to five&#8209;year recall.
           </h1>
-          <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-pretty text-muted-foreground">
-            One record for the whole endoscopy day. AI reads the fax, drafts the note and suggests the codes —
-            every gate is checked, and every signature stays human.
-          </p>
-          <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Button render={<Link href="/login" />} nativeButton={false} size="lg" className="h-11 px-5 text-[15px]" data-testid="landing-sign-in">
-              Try the live demo <ArrowRight aria-hidden />
-            </Button>
-            <Button render={<Link href="#workflow" />} nativeButton={false} size="lg" variant="ghost" className="h-11 px-5 text-[15px]">
-              See the patient journey
-            </Button>
+
+          <div style={riseDelay(0.15)} className={cn(styles.rise, "max-w-md lg:pb-3")}>
+            <p className="text-lg leading-relaxed text-pretty text-muted-foreground">
+              The EHR for GI ambulatory surgery centers. One record for the whole endoscopy day: AI reads the fax,
+              drafts the note and suggests the codes, every gate is checked, and every signature stays human.
+            </p>
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+              <Button render={<Link href="/login" />} nativeButton={false} size="lg" className="h-11 px-5 text-[15px]" data-testid="landing-sign-in">
+                Try the live demo <ArrowRight aria-hidden />
+              </Button>
+              <Button render={<Link href="#workflow" />} nativeButton={false} size="lg" variant="outline" className="h-11 bg-background/60 px-5 text-[15px] backdrop-blur">
+                See the patient journey
+              </Button>
+            </div>
+            <p className="mt-4 text-xs text-muted-foreground">No sign-up. Five personas. Synthetic data only.</p>
+            <DemoExplainer withSignIn className="mt-2" />
           </div>
-          <p className="mt-4 text-xs text-muted-foreground">No sign-up. Five personas. Synthetic data only.</p>
-          <DemoExplainer withSignIn className="mt-3" />
         </div>
 
-        <div id="product" className="relative mx-auto mt-16 max-w-5xl scroll-mt-24 sm:mt-20">
+        <div style={riseDelay(0.35)} className={styles.rise}>
+          <HeroJourney />
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
+        <div id="product" className="relative mx-auto max-w-5xl scroll-mt-24">
           <ProductMock />
         </div>
       </div>
