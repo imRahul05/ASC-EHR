@@ -1,4 +1,4 @@
-import { formatTime24 } from "@asc/clinical-rules/time"
+import { formatDateTime, formatTime24, toIsoDate, todayIsoDate } from "@asc/clinical-rules/time"
 import { Circle, type LucideIcon } from "lucide-react"
 import type { ReactNode } from "react"
 import { cn } from "../../lib/utils"
@@ -14,7 +14,7 @@ const TONE_CLASS = {
 
 export interface TimelineItem {
   readonly id: string
-  /** ISO time; rendered as 24 h clock. */
+  /** ISO time; rendered as 24 h clock (with the date when it is not today). */
   readonly at: string
   readonly title: ReactNode
   readonly description?: ReactNode
@@ -26,6 +26,8 @@ export interface TimelineProps {
   readonly items: readonly TimelineItem[]
   readonly className?: string
 }
+
+const timeLabel = (iso: string) => (toIsoDate(new Date(iso)) === todayIsoDate() ? formatTime24(iso) : formatDateTime(iso))
 
 /** Vertical time-ordered list (procedure events, audit trail, phase history). */
 export function Timeline({ items, className }: TimelineProps) {
@@ -43,7 +45,7 @@ export function Timeline({ items, className }: TimelineProps) {
               <div className="flex items-baseline justify-between gap-2">
                 <p className="text-sm font-medium text-foreground">{item.title}</p>
                 <time dateTime={item.at} className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                  {formatTime24(item.at)}
+                  {timeLabel(item.at)}
                 </time>
               </div>
               {item.description && <p className="text-xs text-muted-foreground">{item.description}</p>}
