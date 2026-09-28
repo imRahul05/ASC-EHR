@@ -20,6 +20,7 @@ import {
 } from "@asc/ui";
 import { Check, ChevronDown, ChevronRight, LogOut, RotateCcw } from "@asc/ui/icons";
 import type { UserRole } from "@asc/types";
+import { HelpButton } from "../../features/guide/help-button";
 import { useAuth } from "../../hooks/use-auth";
 import { CommandMenu } from "./command-menu";
 import { ROLE_LABEL, routeTitle } from "./nav-config";
@@ -84,6 +85,7 @@ export function TopBar() {
 
       <div className="flex items-center gap-1.5">
         <CommandMenu />
+        <HelpButton />
         <RoleSwitcher role={role} onSwitch={(next) => void switchRole(next)} />
         <ThemeToggle className="size-8" />
         <DropdownMenu>

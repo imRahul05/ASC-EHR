@@ -14,6 +14,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@asc/ui";
+import { TabHint } from "../guide/tab-hint";
 import { CASE_TABS } from "./case-tabs";
 import { GatePanel } from "./gate-panel";
 import { PhaseHistory } from "./phase-history";
@@ -82,6 +83,7 @@ export function CaseWorkspace({ caseId }: CaseWorkspaceProps) {
           </TabsList>
           {CASE_TABS.map(({ id, Component }) => (
             <TabsContent key={id} value={id}>
+              <TabHint tabId={id} />
               <Component caseId={caseId} />
             </TabsContent>
           ))}

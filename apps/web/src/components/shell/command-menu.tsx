@@ -5,7 +5,8 @@ import { useEffect, useState } from "react";
 import { useSearch } from "@asc/api-client/react";
 import { formatDateTime } from "@asc/clinical-rules/time";
 import { Button, CommandPalette, Kbd, type CommandGroup } from "@asc/ui";
-import { Search, Stethoscope, UserRound } from "@asc/ui/icons";
+import { CircleHelp, Map as MapIcon, Search, Sparkles, Stethoscope, UserRound } from "@asc/ui/icons";
+import { openHelp, showWelcome, startTour } from "../../features/guide/guide-store";
 import { useAuth } from "../../hooks/use-auth";
 import { NAV_BY_ROLE } from "./nav-config";
 
@@ -38,6 +39,11 @@ export function CommandMenu() {
   }, []);
 
   const needle = palette.query.trim().toLowerCase();
+  const helpItems = [
+    { id: "help-page", label: "Help for this page", icon: CircleHelp, onSelect: openHelp },
+    { id: "help-tour", label: "Start guided tour", icon: MapIcon, onSelect: () => startTour() },
+    { id: "help-welcome", label: "Show welcome", icon: Sparkles, onSelect: showWelcome },
+  ];
   const groups: CommandGroup[] = [
     {
       id: "pages",
@@ -46,6 +52,7 @@ export function CommandMenu() {
         .filter((item) => item.title.toLowerCase().includes(needle))
         .map((item) => ({ id: `page-${item.key}`, label: item.title, icon: item.icon, onSelect: () => router.push(item.href) })),
     },
+    { id: "help", label: "Help", items: helpItems.filter((item) => item.label.toLowerCase().includes(needle)) },
     {
       id: "patients",
       label: "Patients",
