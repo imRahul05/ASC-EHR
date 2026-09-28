@@ -75,7 +75,7 @@ export function CodingTab({ caseId }: CodingTabProps) {
       </SectionCard>
       <div className="grid gap-4 lg:grid-cols-[20rem_minmax(0,1fr)]">
         <AttestCard coding={data} noteStatus={detail.summary.noteStatus} patientName={detail.case.patient.displayName} caseNumber={detail.case.caseNumber} />
-        <ChargeExportCard coding={data} />
+        <ChargeExportCard coding={data} patientName={detail.case.patient.displayName} caseNumber={detail.case.caseNumber} />
       </div>
     </div>
   );

@@ -5,7 +5,22 @@ import { ApiError } from "@asc/api-client";
 import { useExportCharges } from "@asc/api-client/react";
 import { formatDateTime } from "@asc/clinical-rules/time";
 import type { CaseCoding, ChargeExport, ChargeLine } from "@asc/types";
-import { Badge, Button, DataTable, SectionCard, SegmentedControl, toast, type DataTableColumn } from "@asc/ui";
+import {
+  Badge,
+  Button,
+  DataTable,
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  SectionCard,
+  SegmentedControl,
+  toast,
+  type DataTableColumn,
+} from "@asc/ui";
 import { FileOutput, LoaderCircle } from "@asc/ui/icons";
 
 type ExportFormat = ChargeExport["format"];
@@ -43,11 +58,14 @@ const LINE_COLUMNS: readonly DataTableColumn<PreviewLine & { readonly n: number;
 
 interface ChargeExportCardProps {
   readonly coding: CaseCoding;
+  readonly patientName: string;
+  readonly caseNumber: string;
 }
 
-/** Charge hand-off: preview the 837-like rows, pick a format, export (case → Exported). */
-export function ChargeExportCard({ coding }: ChargeExportCardProps) {
+/** Charge hand-off: preview the 837-like rows, pick a format, confirm, export (case → Exported). */
+export function ChargeExportCard({ coding, patientName, caseNumber }: ChargeExportCardProps) {
   const [format, setFormat] = useState<ExportFormat>("837P");
+  const [confirming, setConfirming] = useState(false);
   const exportCharges = useExportCharges(coding.caseId);
   const exported = coding.export;
   const rows = (exported ? exported.lines : previewLines(coding)).map((line, index) => ({ ...line, n: index + 1 }));
@@ -57,7 +75,10 @@ export function ChargeExportCard({ coding }: ChargeExportCardProps) {
     exportCharges.mutate(
       { format },
       {
-        onSuccess: (result) => toast.success(`${result.format} batch ${result.batchId} sent`),
+        onSuccess: (result) => {
+          setConfirming(false);
+          toast.success(`${result.format} batch ${result.batchId} sent`);
+        },
         onError: (error) => toast.error(error instanceof ApiError ? error.message : "Could not export charges"),
       },
     );
@@ -75,8 +96,8 @@ export function ChargeExportCard({ coding }: ChargeExportCardProps) {
         ) : (
           <>
             <SegmentedControl aria-label="Export format" size="sm" className="mr-auto w-auto" options={FORMATS} value={format} onValueChange={setFormat} data-testid="coding-export-format" />
-            <Button onClick={onExport} disabled={!canExport || rows.length === 0 || exportCharges.isPending} data-testid="coding-export-button">
-              {exportCharges.isPending ? <LoaderCircle className="animate-spin" /> : <FileOutput />}
+            <Button onClick={() => setConfirming(true)} disabled={!canExport || rows.length === 0 || exportCharges.isPending} data-testid="coding-export-button">
+              <FileOutput />
               Export charges
             </Button>
           </>
@@ -92,6 +113,23 @@ export function ChargeExportCard({ coding }: ChargeExportCardProps) {
         empty={<p className="text-center text-sm text-muted-foreground">Accept at least one CPT code to build a claim line.</p>}
         data-testid="coding-export-lines"
       />
+      <Dialog open={confirming} onOpenChange={setConfirming}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Export charges for {patientName}?</DialogTitle>
+            <DialogDescription>
+              {patientName} · {caseNumber}: send {rows.length} claim line(s) as {format} to billing. Exported charges cannot be recalled from here.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>Not yet</DialogClose>
+            <Button onClick={onExport} disabled={exportCharges.isPending} data-testid="coding-export-confirm">
+              {exportCharges.isPending ? <LoaderCircle className="animate-spin" /> : <FileOutput />}
+              Export {format}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SectionCard>
   );
 }
