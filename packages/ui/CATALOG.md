@@ -36,6 +36,7 @@ Colours come from tokens only (see "Tokens" below); never hex in components.
 | `FormField` + `FieldConfig` | config-driven fields: `FIELDS.map(f => <FormField id label error>…</FormField>)` |
 | `ThemeProvider`, `ThemeToggle` | theme (never import next-themes in an app) |
 | `CommandPalette` | `<CommandPalette open onOpenChange query onQueryChange groups={[{ id, label, items: [{ id, label, hint, icon, onSelect }] }]} isLoading />` — Base UI Dialog, arrow keys + Enter |
+| `OptionSelect<T>` + `SelectOption` | `<OptionSelect id options={[{ value, label, hint? }]} value onValueChange invalid? />` — config-driven Base UI select; wire to RHF with `Controller` |
 
 ## Clinical kit
 
@@ -58,6 +59,22 @@ Colours come from tokens only (see "Tokens" below); never hex in components.
 | `AiBadge` | `label?` (default "AI draft") | per-field AI marker |
 | `ProvenanceChip` | `provenance: AiProvenance, editedBy?` | agent / prompt version / time tooltip |
 | `GapChip` | `chip: GapChip (from @asc/types), onResolve?(chip)` | blocking chips disable signing |
+| `SignaturePad` | `label, onChange(dataUrl \| null), disabled?, height?` | canvas signature (mouse/pen/touch), ink = `currentColor`; pair with a typed signer name |
+| `Sparkline` | `values: number[], label, min?, max?, className?` (colour via `text-*` token) | vitals mini trend, KPI tiles |
+| `useNow()` | hook → `number` (ms), shared 15 s tick via `useSyncExternalStore` | live elapsed timers (whiteboard, room) |
+| `SegmentedControl<T>` | `options: { value, label, hint? }[], value \| null, onValueChange, aria-label, size?` | radio-group row (scores 0–2, small filters); arrow keys |
+| `TrendChart` | `points: { key, label, value }[], title, formatValue, target?: { value, label }, domain?, height?` | single-series 30-day trend, crosshair tooltip, dashed target line (`chart-1`) |
+| `TargetBarList` | `rows: { id, label, value, hint? }[], max, formatValue, targets?: { value, label }[]` | horizontal bars vs benchmark lines (ADR by surgeon) |
+| `SourceDocument` | `text (pages split by \f), highlight?: { start, end }, header?` | fax / scanned doc rendered as paper; highlight = AI source span |
+| `ConfidenceBadge` (+ `confidenceTone`) | `value: 0–1` | AI confidence % + word (high ≥ 0.9 · check ≥ 0.85 · low) |
+| `RoomTimeGrid` | `rooms: { id, name, status? }[], items: { id, roomId, start, durationMin, phase, title, subtitle?, meta?, label }[], date, startHour?, endHour?, slotMinutes?, now?, onItemClick?, onSlotClick?` | schedule day board by room; blocks tinted by phase group; empty-slot click to book |
+| `StaleBadge` | `refreshing?, stale?` | async "stale" state: background refetch / out-of-date marker (renders nothing when fresh) |
+| `OfflineBanner` + `useOnlineStatus()` | `queuedCount?` | async "offline" state; renders only while the browser is offline |
+| `EligibilityChip` | `status: EligibilityStatus \| null \| undefined` | 270/271 result chip (Eligible · Inactive · Pending · Check failed · Not verified) |
+| `ElapsedTime` (+ `formatClock`) | `since (ms \| ISO), until?, label?` — own 1 s clock, `m:ss` | procedure timer, AI generation elapsed (use `useNow` for minute-level) |
+| `PipelineSteps` | `steps: { id, label, status: pending\|active\|done\|failed\|skipped, hint?, group? }[]` | job progress; same `group` = parallel branches in one row (draft-first note pipeline) |
+| `TapTile` | `label, detail?, icon?, done?, disabled?, onClick` | room-mode tap target (≥ 64 px, `aria-pressed`) for event taps / time-out items |
+| `OfflineQueueBadge` | `online, queued` | always-visible connection + queue pill (pair with `useOnlineStatus`) |
 
 ## Tokens (Tailwind classes)
 

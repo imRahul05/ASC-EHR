@@ -47,3 +47,23 @@ export * from "./components/clinical/provenance-chip";
 export * from "./components/clinical/section-card";
 export * from "./components/clinical/stat-card";
 export * from "./components/clinical/timeline";
+export * from "./components/clinical/signature-pad";
+export * from "./components/clinical/sparkline";
+export * from "./hooks/use-now";
+export * from "./components/form/segmented-control";
+export * from "./components/charts/trend-chart";
+export * from "./components/charts/target-bar-list";
+// Owner A (front desk): selects, fax source preview, AI confidence, schedule grid, async status
+export * from "./components/form/option-select";
+export * from "./components/clinical/source-document";
+export * from "./components/clinical/confidence-badge";
+export * from "./components/clinical/room-time-grid";
+export * from "./components/clinical/stale-badge";
+export * from "./components/clinical/offline-banner";
+export * from "./components/clinical/eligibility-chip";
+export * from "./hooks/use-online-status";
+// Owner C (procedure room & AI note): timers, pipeline progress, room tap targets, offline queue pill
+export * from "./components/clinical/elapsed-time";
+export * from "./components/clinical/pipeline-steps";
+export * from "./components/clinical/tap-tile";
+export * from "./components/clinical/offline-queue-badge";

@@ -904,6 +904,8 @@ export interface AgentSetting {
   readonly promptVersion: string;
   readonly enabled: boolean;
   readonly description: string;
+  /** Agent input may contain PHI (routes only to BAA-covered models). Unknown = treat as true. */
+  readonly containsPhi?: boolean;
 }
 
 export interface AdminOverview {
