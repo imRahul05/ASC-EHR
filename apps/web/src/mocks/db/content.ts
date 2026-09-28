@@ -13,7 +13,7 @@ export function buildPreVisitBrief(procedureCase: ProcedureCase, patient: Patien
     ...(patient.medications.some((m) => m.medClass === "glp1") ? ["GLP-1 agonist — confirm last dose; aspiration risk"] : []),
   ];
   return {
-    summary: `${procedureCase.intent[0]?.toUpperCase() ?? ""}${procedureCase.intent.slice(1)} ${procedureCase.procedureLabel.toLowerCase()} — ${procedureCase.indication}. ${patient.medications.length} active medication(s), ${patient.allergies.length} allergy record(s). No prior sedation complications on file.`,
+    summary: `${procedureCase.intent[0]?.toUpperCase() ?? ""}${procedureCase.intent.slice(1)} ${procedureCase.procedureLabel.toLowerCase()} — ${procedureCase.indication.replace(/\.$/, "")}. ${patient.medications.length} active medication(s), ${patient.allergies.length} allergy record(s). No prior sedation complications on file.`,
     flags,
     provenance: { agent: "pre_visit_brief", model: "Tier: balanced (BAA-hosted)", promptVersion: "pre_visit_brief@1.1.0", generatedAt },
   };
