@@ -81,7 +81,7 @@ export function WhiteboardBoard() {
 
       <div className={cn("flex flex-wrap gap-4 text-muted-foreground", tv ? "text-base" : "text-xs")}>
         <span className="inline-flex items-center gap-1.5">
-          <CalendarClock aria-hidden className="size-3.5" /> {upcoming} upcoming today
+          <CalendarClock aria-hidden className="size-3.5" /> {upcoming} not yet confirmed
         </span>
         <span className="inline-flex items-center gap-1.5">
           <CircleCheckBig aria-hidden className="size-3.5" /> {done} discharged
@@ -95,7 +95,7 @@ export function WhiteboardBoard() {
           icon={CalendarClock}
         />
       ) : (
-        <div className={cn("grid gap-3 sm:grid-cols-2 lg:grid-cols-3", tv ? "xl:grid-cols-6" : "2xl:grid-cols-6")}>
+        <div className={cn("grid gap-3 sm:grid-cols-2 lg:grid-cols-3", tv ? "xl:grid-cols-7" : "2xl:grid-cols-7")}>
           {WHITEBOARD_COLUMNS.map((column) => {
             const group = PHASE_GROUP[column.phase];
             const Icon = PHASE_GROUP_ICON[group];
@@ -123,7 +123,7 @@ export function WhiteboardBoard() {
                     <WhiteboardCard
                       key={card.caseId}
                       card={card}
-                      elapsedMin={elapsed(card.phaseEnteredAt)}
+                      elapsedMin={column.showScheduled ? null : elapsed(card.phaseEnteredAt)}
                       warnAfterMin={column.warnAfterMin}
                       tv={tv}
                     />

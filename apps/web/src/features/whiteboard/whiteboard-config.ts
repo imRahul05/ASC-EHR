@@ -13,14 +13,17 @@ import {
 
 /**
  * Whiteboard columns (day-of phases, docs/product/07 §4). `warnAfterMin` highlights a card that has
- * waited longer than the usual time in that phase (icon + text, not colour alone).
+ * waited longer than the usual time in that phase (icon + text, not colour alone). `showScheduled` columns
+ * show the booked start instead of time in phase (patients not here yet, so check-in starts from the board).
  */
 export const WHITEBOARD_COLUMNS: readonly {
   readonly id: string;
   readonly title: string;
   readonly phase: CasePhase;
   readonly warnAfterMin: number;
+  readonly showScheduled?: boolean;
 }[] = [
+  { id: "expected", title: "Expected", phase: "CONFIRMED", warnAfterMin: 0, showScheduled: true },
   { id: "arrived", title: "Arrived", phase: "ARRIVED", warnAfterMin: 20 },
   { id: "pre-op", title: "Pre-op", phase: "PRE_OP", warnAfterMin: 45 },
   { id: "ready", title: "Ready", phase: "READY_FOR_PROCEDURE", warnAfterMin: 30 },
@@ -29,7 +32,8 @@ export const WHITEBOARD_COLUMNS: readonly {
   { id: "discharge", title: "Ready for discharge", phase: "READY_FOR_DISCHARGE", warnAfterMin: 30 },
 ];
 
-export const UPCOMING_PHASES: readonly CasePhase[] = ["SCHEDULED", "CONFIRMED"];
+/** Booked but not yet confirmed — counted in the summary line, not shown as a column. */
+export const UPCOMING_PHASES: readonly CasePhase[] = ["SCHEDULED"];
 
 type Flag = WhiteboardCard["flags"][number];
 
