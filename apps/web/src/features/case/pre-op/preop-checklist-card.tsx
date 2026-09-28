@@ -83,7 +83,13 @@ export function PreOpChecklistCard({ detail }: PreOpChecklistCardProps) {
           title="NPO"
           done={readiness.npoConfirmed}
           testId="preop-npo"
-          detail={npoSince ? `NPO since ${formatTime24(npoSince)} · ${formatDuration(minutesBetween(npoSince))}` : "Last oral intake not recorded"}
+          detail={
+            npoSince
+              ? `NPO since ${formatTime24(npoSince)} · ${formatDuration(minutesBetween(npoSince))}`
+              : readiness.npoConfirmed
+                ? "Confirmed with the patient"
+                : "Last oral intake not recorded"
+          }
         >
           {!readiness.npoConfirmed && (
             <Button className="min-h-11" disabled={save.isPending} onClick={() => update({ npoConfirmed: true }, "NPO confirmed")} data-testid="preop-npo-confirm">

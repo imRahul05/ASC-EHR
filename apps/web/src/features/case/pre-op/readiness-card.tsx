@@ -1,6 +1,6 @@
 "use client";
 
-import { PHASE_ACTION_LABEL, readinessGate } from "@asc/clinical-rules";
+import { isPhaseAtLeast, PHASE_ACTION_LABEL, readinessGate } from "@asc/clinical-rules";
 import type { CaseDetail } from "@asc/types";
 import { Button, GateChecklist, SectionCard } from "@asc/ui";
 import { ArrowRight, CircleCheck } from "@asc/ui/icons";
@@ -21,6 +21,7 @@ export function ReadinessCard({ detail }: ReadinessCardProps) {
   const { setTab } = useCaseTab(detail.case.phase);
   const result = readinessGate(detail.case, detail.hp, detail.consents, detail.patient.medications);
   const needsPreProcedure = result.reasons.some((reason) => PRE_PROCEDURE_CODES.has(reason.code));
+  const markedReady = isPhaseAtLeast(detail.case.phase, "READY_FOR_PROCEDURE");
 
   return (
     <SectionCard
@@ -28,7 +29,8 @@ export function ReadinessCard({ detail }: ReadinessCardProps) {
       description={
         result.ok ? (
           <span className="inline-flex items-center gap-1 text-success">
-            <CircleCheck aria-hidden className="size-3.5" /> Ready — use “{PHASE_ACTION_LABEL.READY_FOR_PROCEDURE}” in the Next panel.
+            <CircleCheck aria-hidden className="size-3.5" />
+            {markedReady ? "Marked ready for the procedure." : `Ready — use “${PHASE_ACTION_LABEL.READY_FOR_PROCEDURE}” in the Next panel.`}
           </span>
         ) : (
           `${result.reasons.length} item(s) outstanding`
