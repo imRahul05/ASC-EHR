@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@asc/api-client": "workspace:*",
+    "@asc/clinical-rules": "workspace:*",
     "@asc/config": "workspace:*",
     "@asc/types": "workspace:*",
     "@asc/ui": "workspace:*",

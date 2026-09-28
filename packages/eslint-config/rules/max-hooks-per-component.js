@@ -93,7 +93,8 @@ export default {
       CallExpression(node) {
         const name = hookName(node.callee);
         const frame = stack[stack.length - 1];
-        if (!name || !frame || !(name in limits)) return;
+        // Own-property check: `in` would also match Object.prototype members (toString, valueOf…).
+        if (!name || !frame || !Object.hasOwn(limits, name)) return;
         frame.counts[name] = (frame.counts[name] ?? 0) + 1;
       },
     };

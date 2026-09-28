@@ -25,3 +25,7 @@ export * from "./auth.js";
 
 // API error body
 export * from "./api-error.js";
+
+// Front desk: patient registration and case booking forms
+export * from "./patient.js";
+export * from "./schedule.js";

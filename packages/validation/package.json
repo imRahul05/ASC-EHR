@@ -6,6 +6,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./auth": "./src/auth.ts",
+    "./escort": "./src/escort.ts",
+    "./patient": "./src/patient.ts",
+    "./schedule": "./src/schedule.ts",
     "./api-error": "./src/api-error.ts",
     "./health": "./src/health.ts",
     "./jobs": "./src/jobs.ts",

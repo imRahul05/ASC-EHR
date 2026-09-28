@@ -12,9 +12,9 @@ import { useAuth } from "../../hooks/use-auth";
 const LOGIN_FIELDS: readonly FieldConfig<keyof LoginFormData>[] = [
   {
     name: "email",
-    label: "Clinical Email Address",
+    label: "Email",
     type: "email",
-    placeholder: "provider@center.org",
+    placeholder: "you@center.org",
     autoComplete: "username",
     icon: Mail,
   },
@@ -80,13 +80,13 @@ export function LoginForm() {
             autoComplete={field.autoComplete}
             disabled={isLoggingIn}
             aria-invalid={errors[field.name] ? true : undefined}
-            className={cn("pl-9 text-sm", field.type === "password" && "pr-9")}
+            className={cn("h-9 pl-9 text-sm", field.type === "password" && "pr-9")}
             {...register(field.name)}
           />
           {field.type === "password" && (
             <button
               type="button"
-              className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+              className="absolute top-2.5 right-2.5 rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
               onClick={() => setShowPassword((shown) => !shown)}
               aria-label={showPassword ? "Hide password" : "Show password"}
             >
@@ -96,22 +96,22 @@ export function LoginForm() {
         </FormField>
       ))}
 
-      <Button type="submit" disabled={isLoggingIn} className="w-full h-9 font-medium text-sm">
+      <Button type="submit" disabled={isLoggingIn} variant="outline" className="h-9 w-full font-medium" data-testid="login-submit">
         {isLoggingIn ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Authenticating Session...
+            Signing in…
           </>
         ) : (
-          "Sign In to Center"
+          "Sign in with email"
         )}
       </Button>
 
       <div className="text-center pt-2">
         <p className="text-xs text-muted-foreground">
-          Need an account?{" "}
+          New here?{" "}
           <Link href="/signup" className="font-medium text-foreground underline-offset-4 hover:underline">
-            Register clinical role or patient portal
+            Create an account
           </Link>
         </p>
       </div>

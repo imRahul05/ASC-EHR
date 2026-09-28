@@ -1,32 +1,19 @@
 import type { Metadata } from "next";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@asc/ui";
-import { SignupPersonaSelector } from "../../../components/auth/signup-persona-selector";
+import { SignupPersonaSelector } from "@/components/auth/signup-persona-selector";
 
 export const metadata: Metadata = {
-  title: "Clinical Onboarding & Registration - ASC EHR",
-  description: "Register role-based credentials or patient portal access for ASC GI procedures",
+  title: "Create account",
+  description: "Create a staff or patient-portal account for the GI ambulatory surgery center EHR.",
 };
 
 export default function SignupPage() {
   return (
-    <Card className="border border-border/80 shadow-sm bg-card">
-      <CardHeader className="space-y-1 pb-4">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg font-bold tracking-tight">
-            Role-Based Clinical Onboarding
-          </CardTitle>
-          <span className="text-[11px] font-mono text-muted-foreground uppercase">
-            Multi-Persona
-          </span>
-        </div>
-        <CardDescription className="text-xs">
-          Select your facility role to configure specialized documentation privileges and workflows.
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent>
-        <SignupPersonaSelector />
-      </CardContent>
-    </Card>
+    <div className="space-y-8" data-testid="signup-page">
+      <div className="space-y-2">
+        <h1 className="text-2xl font-semibold tracking-tight">Create your account</h1>
+        <p className="text-sm text-muted-foreground">Choose your role — the fields and your home screen follow from it.</p>
+      </div>
+      <SignupPersonaSelector />
+    </div>
   );
 }

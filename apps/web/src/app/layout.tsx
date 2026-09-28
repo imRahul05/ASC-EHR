@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ASC EHR - Ambulatory Surgery Center System",
-  description: "High-performance GI Ambulatory Surgery Center EHR with multi-persona workflows",
+  title: { default: "ASC EHR — GI Ambulatory Surgery Center", template: "%s · ASC EHR" },
+  description: "End-to-end GI ambulatory surgery center EHR: referral to recall, with reviewable AI drafts.",
 };
 
 interface RootLayoutProps {
@@ -29,7 +29,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-background text-foreground selection:bg-foreground selection:text-background font-sans">
+      <body className="min-h-full flex flex-col bg-background text-foreground selection:bg-primary/20 font-sans">
         <Providers>{children}</Providers>
       </body>
     </html>
