@@ -379,7 +379,8 @@ export const caseHandlers = [
     const actor = actorFrom(request);
     const at = payload.at ?? new Date().toISOString();
     state.events.set(caseId, [...events, { id: newId("evt"), caseId, type: payload.type, at, by: actor.ref, ...(payload.note ? { note: payload.note } : {}) }]);
-    const anesthesia = state.anesthesia.get(caseId);
+    // A new case has no stored anesthesia record yet — start from the default so sedation times stay in sync.
+    const anesthesia = state.anesthesia.get(caseId) ?? caseDetail(caseId)?.anesthesia;
     if (anesthesia && payload.type === "SEDATION_START") state.anesthesia.set(caseId, { ...anesthesia, sedationStart: at });
     if (anesthesia && payload.type === "SEDATION_END") state.anesthesia.set(caseId, { ...anesthesia, sedationEnd: at });
     audit(actor, "procedure.event", { type: "ProcedureCase", id: caseId }, `Event ${payload.type}`);
