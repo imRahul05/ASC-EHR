@@ -85,7 +85,8 @@ export function NoteTab({ caseId }: NoteTabProps) {
       )}
       {gen.status === "completed" && gen.codingSuggestionCount !== null && (
         <p className="text-xs text-muted-foreground" role="status" data-testid="note-pipeline-summary">
-          AI pipeline completed · {gen.codingSuggestionCount} coding suggestions ready for the coder after you sign.
+          AI pipeline completed · {gen.codingSuggestionCount} coding suggestions{" "}
+          {note?.status === "signed" ? "sent to the coder." : "ready for the coder after you sign."}
         </p>
       )}
 

@@ -63,7 +63,7 @@ export function NoteSectionCard({ caseId, section, provenance, gaps, suggestions
             <UserPen aria-hidden /> Edited
           </Badge>
         ) : (
-          <AiBadge />
+          <AiBadge label={locked ? "AI-drafted" : undefined} />
         )}
         {!edited && <ConfidenceBadge value={section.confidence} />}
         <ProvenanceChip provenance={provenance} editedBy={section.editedBy?.name} />
