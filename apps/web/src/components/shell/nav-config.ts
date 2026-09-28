@@ -5,6 +5,7 @@ import {
   FileHeart,
   HeartHandshake,
   Inbox,
+  LifeBuoy,
   LayoutDashboard,
   ListChecks,
   Microscope,
@@ -33,6 +34,7 @@ const ROUTES = {
   audit: { href: "/audit", title: "Audit log", icon: ScrollText },
   admin: { href: "/admin", title: "Admin", icon: Settings2 },
   "my-care": { href: "/my-care", title: "My procedure", icon: HeartHandshake },
+  guide: { href: "/guide", title: "Help center", icon: LifeBuoy },
 } as const satisfies Record<string, { href: string; title: string; icon: LucideIcon }>;
 
 type RouteKey = keyof typeof ROUTES;
@@ -58,15 +60,25 @@ export const NAV_BY_ROLE: Readonly<Record<UserRole, readonly NavItem[]>> = {
     nav("quality"),
     nav("audit"),
     nav("admin"),
+    nav("guide"),
   ],
-  NURSE: [nav("dashboard"), nav("whiteboard"), nav("schedule"), nav("patients"), nav("worklist")],
-  SURGEON: [nav("dashboard"), nav("schedule"), nav("patients"), nav("worklist", "Sign queue"), nav("pathology"), nav("quality")],
-  ANESTHESIOLOGIST: [nav("dashboard"), nav("whiteboard"), nav("schedule"), nav("patients")],
+  NURSE: [nav("dashboard"), nav("whiteboard"), nav("schedule"), nav("patients"), nav("worklist"), nav("guide")],
+  SURGEON: [
+    nav("dashboard"),
+    nav("schedule"),
+    nav("patients"),
+    nav("worklist", "Sign queue"),
+    nav("pathology"),
+    nav("quality"),
+    nav("guide"),
+  ],
+  ANESTHESIOLOGIST: [nav("dashboard"), nav("whiteboard"), nav("schedule"), nav("patients"), nav("guide")],
   PATIENT: [
     { key: "my-care", href: "/my-care", title: "My procedure", icon: HeartHandshake },
     { key: "my-care-prep", href: "/my-care?view=prep", title: "Prep", icon: ClipboardList },
     { key: "my-care-escort", href: "/my-care?view=escort", title: "Escort", icon: UsersRound },
     { key: "my-care-results", href: "/my-care?view=results", title: "Results & instructions", icon: FileHeart },
+    nav("guide"),
   ],
 };
 
