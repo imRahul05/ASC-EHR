@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import type { AuditQuery, IsoDate, PatientSearchQuery, WorklistQuery } from "@asc/types";
 import {
   addAnesthesiaEntry,
@@ -124,6 +124,20 @@ export const useScheduleConflictCheck = () => useClinicalMutation(checkScheduleC
 
 export function useCase(caseId: string) {
   return useQuery({ queryKey: queryKeys.cases.detail(caseId), queryFn: () => getCase(caseId) });
+}
+
+/**
+ * Several case details at once (same cache entries as `useCase`), e.g. to follow seeded demo cases.
+ * Returns one result per id, in order; `enabled: false` fetches nothing.
+ */
+export function useCaseDetails(caseIds: readonly string[], options: { readonly enabled?: boolean } = {}) {
+  return useQueries({
+    queries: caseIds.map((caseId) => ({
+      queryKey: queryKeys.cases.detail(caseId),
+      queryFn: () => getCase(caseId),
+      enabled: options.enabled ?? true,
+    })),
+  });
 }
 
 export const useTransitionCase = (caseId: string) => useCaseCommand(caseId, transitionCase);
