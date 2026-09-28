@@ -67,3 +67,8 @@ export * from "./components/clinical/elapsed-time";
 export * from "./components/clinical/pipeline-steps";
 export * from "./components/clinical/tap-tile";
 export * from "./components/clinical/offline-queue-badge";
+// Onboarding & help (welcome, guided tour, page help, hint strips)
+export * from "./components/guide/welcome-dialog";
+export * from "./components/guide/tour-checklist";
+export * from "./components/guide/help-sheet";
+export * from "./components/guide/hint-strip";

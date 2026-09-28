@@ -76,6 +76,15 @@ Colours come from tokens only (see "Tokens" below); never hex in components.
 | `TapTile` | `label, detail?, icon?, done?, disabled?, onClick` | room-mode tap target (≥ 64 px, `aria-pressed`) for event taps / time-out items |
 | `OfflineQueueBadge` | `online, queued` | always-visible connection + queue pill (pair with `useOnlineStatus`) |
 
+## Onboarding & help
+
+| Component | Props (all readonly) | Usage |
+|---|---|---|
+| `WelcomeDialog` | `open, onOpenChange, title, intro, highlights: { id, title, description, icon? }[], note?, primaryLabel, onPrimary, secondaryLabel, onSecondary` | first-run intro with two ways in (focus trap, Esc closes) |
+| `TourChecklist` | `steps: { id, title, description, badge, done, autoHint? }[], collapsed, onCollapsedChange, onGo(id), onToggleDone(id, done), onDismiss, pendingStepId?, title?, completeMessage?` | floating bottom-right guided-demo checklist; collapses to a pill, Esc minimises |
+| `HelpSheet` | `open, onOpenChange, title, eyebrow?, purpose, steps: string[], records?: { id, label, hint?, onSelect }[], roles: string[], mocked, production, footer?` | right-side contextual help for the current screen |
+| `HintStrip` | `title, children, onDismiss, actionLabel?, onAction?, data-testid?` | quiet dismissable one-line hint at the top of a section |
+
 ## Tokens (Tailwind classes)
 
 `bg-background` `bg-card` `bg-muted` `text-muted-foreground` `border-border` · accent `bg-primary` `text-primary`
