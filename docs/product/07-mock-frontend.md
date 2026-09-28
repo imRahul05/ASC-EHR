@@ -240,3 +240,24 @@ anesthesia `usr_anesthesia_01`, `stf_crna_02`; nurses `usr_nurse_01`, `stf_nurse
 
 **Navigation note:** the session is in memory, so a hard reload (or a plain `<a href>`) signs you out — always use
 `next/link` / `router.push`.
+
+---
+
+## 8. Onboarding & help
+
+A first-time user can learn every feature without anyone explaining. All copy lives in one config module,
+`apps/web/src/features/guide/guide-content.ts` (route help, per-tab help, tour steps, FAQ, shortcuts); presentational
+pieces are in `@asc/ui` (`WelcomeDialog`, `TourChecklist`, `HelpSheet`, `HintStrip`).
+
+| Piece | Where | Behaviour |
+|---|---|---|
+| Explainer | `/` hero + `/login` (under persona cards) | "New here? How the demo works" dialog; login says "Start with Front desk to follow the full story" |
+| Welcome | after first sign-in | intro + 3 highlights; *Start guided tour* / *Explore on my own*; reopen from Help (?) or ⌘K |
+| Guided tour | floating bottom-right checklist | 12 steps from §6 on seeded cases (`case_109` confirm, `case_107` pre-op, `case_104` time-out, `case_103` anesthesia + procedure, `case_106` note, `case_102` discharge, `case_113` coding, `case_115` pathology, portal). *Take me there* switches persona in-app (`switchRole`) and routes; steps with a case tick themselves when the case reaches the target (phase, note signed, charges exported) via `useCaseDetails`, others via *Mark done*. Collapsible, dismissable, resumable; auto-minimises on phones |
+| Page help | top-bar `?` button and `?` key (ignored while typing) | right sheet: purpose, *Try this*, demo records, who sees it, demo vs production; case workspace shows help for the open tab |
+| Tab hints | top of each case tab | one-line "How this tab works", dismissable per tab |
+| Help center | `/guide` (every role's nav + ⌘K) | features by journey stage with *Open* / *As <persona>*, personas table, shortcuts, reset demo data, start/restart tour, FAQ |
+
+Persistence: one `localStorage` key `asc-ehr.guide.v1` holding UI flags only — welcome seen, tour status, collapsed,
+done step ids, hidden hint ids (LM-004: never PHI, tokens or profiles). Read through `useSyncExternalStore`; every
+access is wrapped in try/catch, so blocked storage just means the guide forgets between reloads.
