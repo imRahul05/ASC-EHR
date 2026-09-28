@@ -26,14 +26,14 @@ export function SectionCard({
 }: SectionCardProps) {
   const hasHeader = title !== undefined || actions !== undefined
   return (
-    <section data-testid={testId} className={cn("rounded-xl border border-border bg-card text-card-foreground shadow-xs", className)}>
+    <section data-testid={testId} className={cn("min-w-0 rounded-xl border border-border bg-card text-card-foreground shadow-xs", className)}>
       {hasHeader && (
-        <div className="flex items-start justify-between gap-3 border-b border-border/70 px-4 py-3">
-          <div className="min-w-0 space-y-0.5">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/70 px-4 py-3">
+          <div className="min-w-0 flex-1 basis-40 space-y-0.5">
             {title && <h2 className="text-sm font-semibold tracking-tight">{title}</h2>}
             {description && <p className="text-xs text-muted-foreground">{description}</p>}
           </div>
-          {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+          {actions && <div className="flex max-w-full shrink-0 flex-wrap items-center gap-2">{actions}</div>}
         </div>
       )}
       <div className={cn("p-4", contentClassName)}>{children}</div>
