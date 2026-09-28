@@ -64,6 +64,7 @@ Work completed before this plan existed, grouped from git history (`origin/main`
 
 | Date | Area | What | Ref |
 |---|---|---|---|
+| 2026-09-29 | Web | Landing hero redesigned: full-viewport aurora canvas (violet/teal/rose), left-aligned headline, animated patient-journey line (referral → recall) with timed event cards; reduced-motion shows a static drawn journey. Rest of landing unchanged | branch `new-landing-page` |
 | 2026-09-28 | P00 | Closed: boundary lint fixture tests (`app-boundaries.test.js`: banned imports, exported types/Zod, `process.env`, browser subpaths); decision P00-Q1 recorded → new phase P00b | close-out PR |
 | 2026-09-27 | P00 | Web HTTP client, `ApiError`, auth/dashboard request functions moved to `@asc/api-client` (fetch, timeout from config, tests); API/dashboard types to `@asc/types`; error schema + data-driven signup schema (`SIGNUP_ROLE_FIELDS`) to `@asc/validation`; API routes/timeout/runtime env helpers in `@asc/config` | PR #9 |
 | 2026-09-27 | P00 | Lint guardrails: app boundaries (banned imports, no exported types/Zod in apps), browser leaf-subpath imports, `process.env` only in `@asc/config`, custom `asc/max-hooks-per-component` rule (+ tests) | PR #9 |
