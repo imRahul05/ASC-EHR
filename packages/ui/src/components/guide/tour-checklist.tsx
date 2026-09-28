@@ -86,7 +86,7 @@ export function TourChecklist({
         if (event.key === "Escape") onCollapsedChange(true)
       }}
       className={cn(
-        "fixed right-4 bottom-4 z-40 flex max-h-[min(36rem,calc(100dvh-6rem))] w-[min(23rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-sm",
+        "fixed right-4 bottom-4 z-40 flex max-h-[min(30rem,60dvh)] w-[min(23rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-sm",
         className
       )}
       data-testid="tour-checklist"
