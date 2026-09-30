@@ -12,6 +12,7 @@ const riseDelay = (seconds: number) => ({ "--rise-delay": `${seconds}s` }) as CS
 /**
  * Hero: fills the first screen. Aurora canvas, the headline, and the patient journey drawn live underneath it —
  * a pulse runs referral → recall and each stop shows what the product did. The product screenshot follows below.
+ * Height is capped at 56rem so tall monitors (24"/27") keep the laptop spacing instead of opening a gap mid-hero.
  */
 export function LandingHero() {
   return (
@@ -23,7 +24,7 @@ export function LandingHero() {
         <span className={styles.grid} />
       </div>
 
-      <div className="mx-auto flex min-h-[calc(100svh-3.5rem)] max-w-6xl flex-col justify-between gap-10 px-4 pt-16 pb-8 sm:px-6 sm:pt-24 lg:pt-28">
+      <div className="mx-auto flex min-h-[min(calc(100svh-3.5rem),56rem)] max-w-6xl flex-col justify-between gap-10 px-4 pt-16 pb-8 sm:px-6 sm:pt-24 lg:pt-28">
         <div className="grid items-end gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:gap-14">
           <h1
             id="hero-title"
