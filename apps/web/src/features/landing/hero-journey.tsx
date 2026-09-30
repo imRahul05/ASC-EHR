@@ -1,4 +1,6 @@
-import type { CSSProperties } from "react";
+"use client";
+
+import { useRef, useState, type CSSProperties } from "react";
 import { AiBadge, cn } from "@asc/ui";
 import {
   CalendarCheck,
@@ -11,6 +13,7 @@ import {
   Stethoscope,
 } from "@asc/ui/icons";
 import styles from "./landing-hero.module.css";
+import { JOURNEY_STOPS, PRODUCT_ANCHOR, openChapter, scrollToAnchor } from "./landing-journey";
 
 /** One stop on the journey line. `event` is what the product just did there (synthetic). */
 const STATIONS = [
@@ -69,22 +72,46 @@ function pingFrames(index: number) {
 
 const pct = (value: number, total: number) => `${(value / total) * 100}%`;
 
+/** A station click opens its walkthrough chapter when there is one, otherwise the matching workflow step. */
+function goToStop(index: number) {
+  const stop = JOURNEY_STOPS[index];
+  if (stop.chapter) {
+    openChapter(stop.chapter);
+    scrollToAnchor(PRODUCT_ANCHOR);
+  } else {
+    scrollToAnchor(stop.stepAnchor);
+  }
+}
+
 /**
  * The hero's moving part: a pulse travels referral → recall and each stop shows what the product did there.
- * Decorative (aria-hidden); the same journey is told in text in the workflow section.
+ * The drawing is decorative (aria-hidden); each station is also a button. Hovering or focusing one freezes the
+ * loop (SMIL via the svg, cards via a CSS class) and pins its card; clicking jumps to its chapter or workflow step.
+ * The svg's animated children never change props, so pinning re-renders without restarting the timeline.
  */
 export function HeroJourney({ className }: { readonly className?: string }) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [pinned, setPinned] = useState<number | null>(null);
   const dur = `${CYCLE_S}s`;
   const fade = { keyTimes: `0;${ARRIVE_END};${FADE_AT};${FADE_DONE};1`, opacity: "1;1;1;0;0" };
 
+  const pin = (index: number) => {
+    svgRef.current?.pauseAnimations();
+    setPinned(index);
+  };
+  const release = () => {
+    svgRef.current?.unpauseAnimations();
+    setPinned(null);
+  };
+
   return (
-    <div aria-hidden className={cn("pointer-events-none relative select-none", className)} data-testid="landing-hero-journey">
-      {/* Event lane: one card per station, each visible for its 2 s slot. */}
-      <div className="relative h-28 sm:h-24">
+    <div className={cn("relative select-none", pinned !== null && styles.journeyPinned, className)} data-testid="landing-hero-journey">
+      {/* Event lane: one card per station, each visible for its 2 s slot (or only the pinned one while a station is held). */}
+      <div aria-hidden className="pointer-events-none relative h-28 sm:h-24">
         {STATIONS.map((station, index) => (
           <div
             key={station.label}
-            className={cn(styles.cardSlot, index === 3 && styles.cardStatic)}
+            className={cn(styles.cardSlot, index === 3 && styles.cardStatic, pinned === index && styles.cardPinned)}
             style={{ "--x": pct(POINTS[index].x, VIEW_W), "--delay": `${index * (CYCLE_S / STATIONS.length)}s` } as CSSProperties}
           >
             <div className={styles.card}>
@@ -104,7 +131,7 @@ export function HeroJourney({ className }: { readonly className?: string }) {
       </div>
 
       <div className="relative">
-        <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} className="block h-auto w-full overflow-visible" fill="none">
+        <svg ref={svgRef} aria-hidden viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} className="pointer-events-none block h-auto w-full overflow-visible" fill="none">
           <defs>
             <linearGradient id="hero-journey-stroke" x1="0" x2="1" y1="0" y2="0">
               <stop offset="0" stopColor="var(--hero-teal)" />
@@ -154,6 +181,11 @@ export function HeroJourney({ className }: { readonly className?: string }) {
             );
           })}
 
+          {/* Held station: lit and a little larger, drawn over whatever state the frozen timeline is in. */}
+          {POINTS.map((point, index) => (
+            <circle key={STATIONS[index].label} cx={point.x} cy={point.y} r="7" className={cn(styles.stationHeld, pinned === index && styles.stationHeldOn)} />
+          ))}
+
           <g className={styles.motionOnly}>
             <animate attributeName="opacity" dur={dur} repeatCount="indefinite" keyTimes={fade.keyTimes} values={fade.opacity} />
             <circle r="16" fill="var(--primary)" opacity="0.35" filter="url(#hero-journey-glow)">
@@ -169,16 +201,35 @@ export function HeroJourney({ className }: { readonly className?: string }) {
           </g>
         </svg>
 
-        {/* Station names (HTML so they stay legible at any width). */}
-        {POINTS.map((point, index) => (
-          <span
-            key={STATIONS[index].label}
-            className="absolute hidden -translate-x-1/2 pt-4 text-xs font-medium whitespace-nowrap text-muted-foreground sm:block"
-            style={{ left: pct(point.x, VIEW_W), top: pct(point.y, VIEW_H) }}
-          >
-            {STATIONS[index].label}
-          </span>
-        ))}
+        {/* Station hit targets (40 px, centred on the point) with their names below — HTML so they stay legible; names hide on phones. */}
+        {POINTS.map((point, index) => {
+          const station = STATIONS[index];
+          return (
+            <button
+              key={station.label}
+              type="button"
+              aria-label={`${station.label}: ${station.event}`}
+              className="absolute size-10 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              style={{ left: pct(point.x, VIEW_W), top: pct(point.y, VIEW_H) }}
+              onPointerEnter={() => pin(index)}
+              onPointerLeave={release}
+              onFocus={() => pin(index)}
+              onBlur={release}
+              onClick={() => goToStop(index)}
+            >
+              {/* top-full sits 20 px below the point; -mt-1 keeps the old 16 px label offset. */}
+              <span
+                aria-hidden
+                className={cn(
+                  "absolute top-full left-1/2 -mt-1 hidden -translate-x-1/2 text-xs font-medium whitespace-nowrap transition-colors sm:block motion-reduce:transition-none",
+                  pinned === index ? "text-foreground" : "text-muted-foreground",
+                )}
+              >
+                {station.label}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
