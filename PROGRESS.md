@@ -64,6 +64,7 @@ Work completed before this plan existed, grouped from git history (`origin/main`
 
 | Date | Area | What | Ref |
 |---|---|---|---|
+| 2026-09-30 | Web | Landing hero height capped at 56rem (`min(100svh - nav, 56rem)`) so 24"/27" monitors no longer open a large gap between headline and journey line; laptop/tablet/mobile unchanged | branch `worktree-fix-hero-tall-screens` |
 | 2026-09-30 | Deploy | Env-driven web ↔ api wiring: `CORS_ORIGINS` allowlist (`@fastify/cors`, deny by default when deployed), production web build fails without `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_API_MOCKING=enabled` opt-in for the hosted demo, `buildUrl` keeps a base path; guide `docs/DEPLOYMENT_CONFIGURATION.md` + ADR | branch `worktree-feat-env-driven-api-url-cors`, LM-010 |
 | 2026-09-30 | Fix | Vercel build of `apps/api` failed with TS2688 (temp tsconfig in `/tmp`); fixed with relative `typeRoots` | PR #13, LM-009 |
 | 2026-09-29 | Web | Landing hero redesigned: full-viewport aurora canvas (violet/teal/rose), left-aligned headline, animated patient-journey line (referral → recall) with timed event cards; reduced-motion shows a static drawn journey. Rest of landing unchanged | branch `new-landing-page` |
