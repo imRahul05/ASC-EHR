@@ -38,6 +38,7 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 6. Only `@asc/config` reads `process.env`. (LM-006)
 7. Lookup tables keyed by user/AST strings use own-property checks (`Object.hasOwn`), never `in`. (LM-007)
 8. Next 16 conventions differ: `error.tsx` gets `retry` (not `reset`), `params`/`searchParams` are Promises; a Base UI `Button` rendered as a link needs `nativeButton={false}`. Check `node_modules/next/dist/docs`. (LM-008)
+9. Server apps deployed to Vercel (`apps/api`) keep `typeRoots: ["./node_modules/@types"]` next to `types` in their tsconfig; don't blame the TS version without reproducing. (LM-009)
 
 ---
 
@@ -99,3 +100,10 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **Rule:** Read `apps/web/node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/*.md` before writing a special file; use `apps/web/src/components/shell/segment-error.tsx` for every `error.tsx`; wrap `useSearchParams` readers in `<Suspense>` unless the route is dynamic.
 - **How to check:** `pnpm --filter web build` (fails on missing Suspense) and the dev console for Base UI warnings.
 - **Guarded by:** not yet — P01 Playwright smoke.
+
+### LM-009 — Pin typeRoots in server tsconfigs that Vercel compiles
+- **Seen:** 1 · 2026-09-30 · `worktree-fix-api-vercel-typeroots`
+- **What went wrong:** Vercel deploy of `apps/api` (Fastify zero-config) failed with `TS2688: Cannot find type definition file for 'node'`, even though `@types/node` was installed. Vercel type-checks through a temp tsconfig in `/tmp` that extends `apps/api/tsconfig.json`; TypeScript 7 resolves `types: ["node"]` from `/tmp`. The agent first blamed TS 7 and suggested downgrading, but `apps/web` deploys fine on TS 7 (Next.js does not use that step).
+- **Rule:** Keep `"typeRoots": ["./node_modules/@types"]` in any server tsconfig that sets `types` and is built by Vercel's Node/backend builder (relative typeRoots resolve from the declaring tsconfig). Reproduce a deploy failure locally before proposing a version change.
+- **How to check:** from a dir outside the repo, `tsc --noEmit -p <tsconfig extending apps/api/tsconfig.json>` must pass.
+- **Guarded by:** not yet.
