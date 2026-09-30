@@ -1,6 +1,5 @@
-import type { GapChip as GapChipModel } from "@asc/types";
-import { AiBadge, Button, ConfidenceBadge, DraftBanner, GapChip } from "@asc/ui";
-import { Fingerprint, FileSignature, PenLine, Sparkles, type LucideIcon } from "@asc/ui/icons";
+import { Fingerprint, FileSignature, PenLine, type LucideIcon } from "@asc/ui/icons";
+import { AiSectionExample } from "./ai-section-example";
 import { SectionHeading } from "./section-heading";
 
 const PRINCIPLES: readonly { readonly icon: LucideIcon; readonly title: string; readonly body: string }[] = [
@@ -21,15 +20,7 @@ const PRINCIPLES: readonly { readonly icon: LucideIcon; readonly title: string; 
   },
 ];
 
-const FACTS = [
-  { label: "Patient name", value: "Frank Delaney", confidence: 0.98 },
-  { label: "Member ID", value: "7XK2-TE4-MR91", confidence: 0.83 },
-  { label: "Medications", value: "warfarin 5 mg daily (AFib)", confidence: 0.88 },
-] as const;
-
-const GAP: GapChipModel = { id: "g", sectionId: "findings", message: "BBPS not documented", blocking: true, resolved: false };
-
-/** AI principles + a small composed example (extraction, confidence, a blocking gap, a disabled sign button). */
+/** AI principles + an interactive example (provenance on hover, a blocking gap that gates signing). */
 export function AiSection() {
   return (
     <section id="ai" aria-labelledby="ai-title" className="scroll-mt-20 border-t border-border">
@@ -56,35 +47,7 @@ export function AiSection() {
           </ul>
         </div>
 
-        <div aria-hidden className="pointer-events-none space-y-3 rounded-2xl border border-border bg-muted/40 p-3 select-none sm:p-5">
-          <div className="space-y-2 rounded-xl border border-border bg-card p-4 shadow-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold">Referral · extracted facts</span>
-              <AiBadge label="referral_extraction@1.3" />
-            </div>
-            <ul className="divide-y divide-border">
-              {FACTS.map((fact) => (
-                <li key={fact.label} className="flex items-center gap-3 py-2 text-sm">
-                  <span className="w-28 shrink-0 text-xs text-muted-foreground">{fact.label}</span>
-                  <span className="min-w-0 flex-1 truncate">{fact.value}</span>
-                  <ConfidenceBadge value={fact.confidence} />
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-xs">
-            <DraftBanner state="draft" />
-            <GapChip chip={GAP} />
-            <div className="flex items-center justify-between gap-3 pt-1">
-              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Sparkles className="size-3.5" /> 8 sections drafted in 6.1 s
-              </span>
-              <Button size="sm" disabled>
-                <FileSignature /> Sign note
-              </Button>
-            </div>
-          </div>
-        </div>
+        <AiSectionExample />
       </div>
     </section>
   );

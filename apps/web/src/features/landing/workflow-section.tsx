@@ -11,7 +11,9 @@ import {
   Stethoscope,
   type LucideIcon,
 } from "@asc/ui/icons";
+import { JOURNEY_STOPS } from "./landing-journey";
 import { SectionHeading } from "./section-heading";
+import { WorkflowScrollSpy, WorkflowStepItem } from "./workflow-scroll-spy";
 
 const STEPS: readonly {
   readonly icon: LucideIcon;
@@ -77,7 +79,7 @@ const STEPS: readonly {
   },
 ];
 
-/** The whole patient journey as one ordered list. */
+/** The whole patient journey as one ordered list; the step at the viewport middle is highlighted as the reader scrolls. */
 export function WorkflowSection() {
   return (
     <section id="workflow" aria-labelledby="workflow-title" className="scroll-mt-20 border-t border-border">
@@ -90,11 +92,21 @@ export function WorkflowSection() {
             description="Every step writes to the same case, so the next person starts with what the last one knew — and a phase machine makes sure nobody skips a gate."
           />
         </div>
-        <ol className="relative space-y-2">
+        <WorkflowScrollSpy className="relative space-y-2">
           {STEPS.map((step, index) => (
-            <li key={step.title} className="group relative grid grid-cols-[2.5rem_minmax(0,1fr)] gap-4 rounded-2xl p-4 transition-colors hover:bg-muted/50 motion-reduce:transition-none">
-              {index < STEPS.length - 1 && <span aria-hidden className="absolute top-14 bottom-[-0.75rem] left-[2.2rem] w-px bg-border" />}
-              <span className="relative flex size-10 items-center justify-center rounded-xl border border-border bg-card shadow-xs">
+            <WorkflowStepItem
+              key={step.title}
+              id={JOURNEY_STOPS[index].stepAnchor}
+              index={index}
+              className="relative grid scroll-mt-24 grid-cols-[2.5rem_minmax(0,1fr)] gap-4 rounded-2xl p-4 transition-colors hover:bg-muted/50 data-[state=active]:bg-muted/40 motion-reduce:transition-none"
+            >
+              {/* Connector to the next step; fills with primary once this step is behind the reader. */}
+              {index < STEPS.length - 1 && (
+                <span aria-hidden className="absolute top-14 bottom-[-0.75rem] left-[2.2rem] w-px overflow-hidden bg-border">
+                  <span className="block size-full origin-top scale-y-0 bg-primary transition-transform duration-500 ease-out group-data-[state=done]/step:scale-y-100 motion-reduce:transition-none" />
+                </span>
+              )}
+              <span className="relative flex size-10 items-center justify-center rounded-xl border border-border bg-card shadow-xs transition-colors duration-300 group-data-[state=active]/step:border-primary/40 group-data-[state=active]/step:bg-primary/10 group-data-[state=active]/step:text-primary motion-reduce:transition-none">
                 <step.icon aria-hidden className="size-4" />
               </span>
               <div className="min-w-0 space-y-1.5">
@@ -110,12 +122,12 @@ export function WorkflowSection() {
                   <PhaseChip phase={step.phase} />
                 </div>
               </div>
-            </li>
+            </WorkflowStepItem>
           ))}
           <li className="flex items-center gap-2 px-4 pt-2 text-sm text-muted-foreground">
             <RotateCcw aria-hidden className="size-4" /> Surveillance due dates feed the next referral — the loop closes itself.
           </li>
-        </ol>
+        </WorkflowScrollSpy>
       </div>
     </section>
   );

@@ -116,6 +116,26 @@
   stroke-width: 3;
 }
 
+/* Hovered / focused station: lit, scaled up with a soft glow. Always rendered, shown only while held. */
+.stationHeld {
+  fill: var(--primary);
+  stroke: var(--background);
+  stroke-width: 3;
+  opacity: 0;
+  transform: scale(0.8);
+  transform-box: fill-box;
+  transform-origin: center;
+  filter: drop-shadow(0 0 6px color-mix(in oklch, var(--primary) 60%, transparent));
+  transition:
+    opacity 0.15s ease-out,
+    transform 0.2s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.stationHeldOn {
+  opacity: 1;
+  transform: scale(1.4);
+}
+
 .staticOnly {
   display: none;
 }
@@ -176,6 +196,20 @@
   }
 }
 
+/*
+ * A station is held (hover / focus): freeze every card where it is, hide them all, and show only the held one.
+ * `!important` is what lets a declaration beat a running animation; the SMIL timeline is paused from script.
+ */
+.journeyPinned .card {
+  animation-play-state: paused;
+  opacity: 0 !important;
+}
+
+.journeyPinned .cardSlot.cardPinned .card {
+  opacity: 1 !important;
+  transform: none !important;
+}
+
 /* ---------- Page-load sequence (the one orchestrated entrance) ---------- */
 
 .rise {
@@ -218,5 +252,9 @@
 
   .cardStatic .card {
     opacity: 1;
+  }
+
+  .stationHeld {
+    transition: none;
   }
 }
