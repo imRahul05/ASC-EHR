@@ -10,6 +10,16 @@
         "$TURBO_DEFAULT$",
         ".env*"
       ],
+      "env": [
+        "NODE_ENV",
+        "APP_ENV",
+        "NEXT_PUBLIC_API_URL",
+        "NEXT_PUBLIC_API_MOCKING",
+        "PORT",
+        "HOST",
+        "LOG_LEVEL",
+        "CORS_ORIGINS"
+      ],
       "outputs": [
         ".next/**",
         "!.next/cache/**",

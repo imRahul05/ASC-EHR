@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./public-env": "./src/public-env.ts",
+    "./build-env": "./src/build-env.ts",
     "./api": "./src/api.ts",
     "./runtime": "./src/runtime.ts"
   },

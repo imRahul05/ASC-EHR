@@ -41,8 +41,10 @@ export function authHeaders(): Record<string, string> {
   return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
 }
 
+/** Appends `path` to the API base URL, keeping any base path (e.g. a proxy under `/api`). */
 export function buildUrl(path: string, query?: RequestOptions["query"]): string {
-  const url = new URL(path, getPublicApiUrl());
+  const base = getPublicApiUrl().replace(/\/+$/, "");
+  const url = new URL(`${base}${path}`);
   for (const [key, value] of Object.entries(query ?? {})) url.searchParams.set(key, value);
   return url.toString();
 }

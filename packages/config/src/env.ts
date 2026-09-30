@@ -33,17 +33,60 @@ export const databaseUrlSchema = z
   .refine((value) => /^postgres(ql)?:\/\//.test(value), { message: "expected a postgres:// URL" })
   .optional();
 
+/** Origin of `next dev` (apps/web). Allowed by CORS only in development/test. */
+export const DEV_WEB_ORIGIN = "http://localhost:3000";
+
+/** True when the value is exactly a web origin (`scheme://host[:port]`, no path or trailing slash). */
+function isOrigin(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (url.protocol === "https:" || url.protocol === "http:") && url.origin === value;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Browser origins allowed to call apps/api cross-origin: comma-separated exact
+ * origins, e.g. `https://app.example.com,https://staging.example.com`.
+ * Wildcards are rejected on purpose (the API serves PHI).
+ */
+export const corsOriginsSchema = z
+  .string()
+  .transform((value) =>
+    value
+      .split(",")
+      .map((origin) => origin.trim())
+      .filter((origin) => origin.length > 0),
+  )
+  .refine((origins) => origins.every(isOrigin), {
+    message: "expected comma-separated origins like https://app.example.com",
+  })
+  .optional();
+
 export const apiEnvSchema = z.object({
   NODE_ENV: nodeEnvSchema,
   APP_ENV: appEnvSchema,
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
   HOST: z.string().min(1).default("0.0.0.0"),
+  CORS_ORIGINS: corsOriginsSchema,
   DATABASE_URL: databaseUrlSchema,
   LOG_LEVEL: logLevelSchema,
   OTEL_EXPORTER_OTLP_ENDPOINT: otelEndpointSchema,
 });
 
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
+
+/**
+ * Origins the API answers CORS for. An explicit CORS_ORIGINS always wins;
+ * otherwise development/test allow `next dev`, and every deployed
+ * environment allows none (deny by default).
+ */
+export function resolveCorsOrigins(env: Pick<ApiEnv, "NODE_ENV" | "CORS_ORIGINS">): string[] {
+  if (env.CORS_ORIGINS) return env.CORS_ORIGINS;
+  const isLocal = env.NODE_ENV === "development" || env.NODE_ENV === "test";
+  return isLocal ? [DEV_WEB_ORIGIN] : [];
+}
 
 export const workerEnvSchema = z.object({
   NODE_ENV: nodeEnvSchema,
