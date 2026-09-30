@@ -2,11 +2,18 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
   apiEnvSchema,
+  DEV_WEB_ORIGIN,
   EnvValidationError,
   parseEnv,
+  resolveCorsOrigins,
   workerEnvSchema,
 } from "./env.js";
-import { DEFAULT_PUBLIC_API_URL, getPublicApiUrl } from "./public-env.js";
+import { assertPublicEnvForProductionBuild } from "./build-env.js";
+import {
+  DEFAULT_PUBLIC_API_URL,
+  getPublicApiUrl,
+  resolveApiMocking,
+} from "./public-env.js";
 
 describe("parseEnv", () => {
   it("applies api defaults for an empty environment", () => {
@@ -95,6 +102,70 @@ describe("getPublicApiUrl", () => {
       expect(getPublicApiUrl()).toBe(DEFAULT_PUBLIC_API_URL);
     } finally {
       if (previous !== undefined) process.env.NEXT_PUBLIC_API_URL = previous;
+    }
+  });
+});
+
+describe("CORS_ORIGINS", () => {
+  it("parses a comma-separated list of origins", () => {
+    const env = parseEnv(apiEnvSchema, {
+      CORS_ORIGINS: " https://app.example.com , https://staging.example.com,",
+    });
+    expect(env.CORS_ORIGINS).toEqual(["https://app.example.com", "https://staging.example.com"]);
+  });
+
+  it.each(["*", "https://app.example.com/", "https://app.example.com/login", "app.example.com", "ftp://x.com"])(
+    "rejects %s",
+    (value) => {
+      expect(() => parseEnv(apiEnvSchema, { CORS_ORIGINS: value })).toThrow("CORS_ORIGINS (invalid)");
+    },
+  );
+});
+
+describe("resolveCorsOrigins", () => {
+  it("prefers explicit CORS_ORIGINS", () => {
+    const origins = ["https://app.example.com"];
+    expect(resolveCorsOrigins({ NODE_ENV: "production", CORS_ORIGINS: origins })).toEqual(origins);
+  });
+
+  it("allows the dev web origin locally", () => {
+    expect(resolveCorsOrigins({ NODE_ENV: "development", CORS_ORIGINS: undefined })).toEqual([DEV_WEB_ORIGIN]);
+    expect(resolveCorsOrigins({ NODE_ENV: "test", CORS_ORIGINS: undefined })).toEqual([DEV_WEB_ORIGIN]);
+  });
+
+  it("denies every origin in deployed environments by default", () => {
+    expect(resolveCorsOrigins({ NODE_ENV: "production", CORS_ORIGINS: undefined })).toEqual([]);
+    expect(resolveCorsOrigins({ NODE_ENV: "staging", CORS_ORIGINS: undefined })).toEqual([]);
+  });
+});
+
+describe("resolveApiMocking", () => {
+  it("is on in development unless disabled", () => {
+    expect(resolveApiMocking("development", undefined)).toBe(true);
+    expect(resolveApiMocking("development", "disabled")).toBe(false);
+  });
+
+  it("is off in production unless explicitly enabled", () => {
+    expect(resolveApiMocking("production", undefined)).toBe(false);
+    expect(resolveApiMocking("production", "true")).toBe(false);
+    expect(resolveApiMocking("production", "enabled")).toBe(true);
+  });
+});
+
+describe("assertPublicEnvForProductionBuild", () => {
+  it("accepts an absolute http(s) URL", () => {
+    expect(() => assertPublicEnvForProductionBuild({ NEXT_PUBLIC_API_URL: "https://api.example.com" })).not.toThrow();
+    expect(() => assertPublicEnvForProductionBuild({ NEXT_PUBLIC_API_URL: "http://localhost:4000" })).not.toThrow();
+  });
+
+  it("fails when the API URL is missing", () => {
+    expect(() => assertPublicEnvForProductionBuild({})).toThrow("NEXT_PUBLIC_API_URL is not set");
+    expect(() => assertPublicEnvForProductionBuild({ NEXT_PUBLIC_API_URL: "" })).toThrow("NEXT_PUBLIC_API_URL is not set");
+  });
+
+  it("fails when the API URL is not absolute http(s)", () => {
+    for (const value of ["/api", "api.example.com", "ftp://api.example.com"]) {
+      expect(() => assertPublicEnvForProductionBuild({ NEXT_PUBLIC_API_URL: value })).toThrow("absolute http(s) URL");
     }
   });
 });

@@ -39,6 +39,7 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 7. Lookup tables keyed by user/AST strings use own-property checks (`Object.hasOwn`), never `in`. (LM-007)
 8. Next 16 conventions differ: `error.tsx` gets `retry` (not `reset`), `params`/`searchParams` are Promises; a Base UI `Button` rendered as a link needs `nativeButton={false}`. Check `node_modules/next/dist/docs`. (LM-008)
 9. Server apps deployed to Vercel (`apps/api`) keep `typeRoots: ["./node_modules/@types"]` next to `types` in their tsconfig; don't blame the TS version without reproducing. (LM-009)
+10. Deployment differences are env vars validated in `@asc/config` (listed in `turbo.json` build env), never code; a deployed build must fail rather than fall back to a localhost default. (LM-010)
 
 ---
 
@@ -107,3 +108,10 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **Rule:** Keep `"typeRoots": ["./node_modules/@types"]` in any server tsconfig that sets `types` and is built by Vercel's Node/backend builder (relative typeRoots resolve from the declaring tsconfig). Reproduce a deploy failure locally before proposing a version change.
 - **How to check:** from a dir outside the repo, `tsc --noEmit -p <tsconfig extending apps/api/tsconfig.json>` must pass.
 - **Guarded by:** not yet.
+
+### LM-010 — Never let a deployed build fall back to a localhost default
+- **Seen:** 1 · 2026-09-30 · `worktree-feat-env-driven-api-url-cors`
+- **What went wrong:** The first Vercel deploy of `apps/web` was built without `NEXT_PUBLIC_API_URL`, so `getPublicApiUrl()` inlined `http://localhost:4000`; with MSW off in production, visitors' browsers called their own machine and failed with a CORS error. Locally it "worked" only because MSW intercepted every request. `apps/api` also had no CORS policy.
+- **Rule:** Every value that differs per environment (API URL, CORS origins, mocking) is an env var validated in `@asc/config` and listed in `turbo.json` → `tasks.build.env`. Production builds must fail on a missing value instead of using a dev default. Follow `docs/DEPLOYMENT_CONFIGURATION.md`.
+- **How to check:** `env -u NEXT_PUBLIC_API_URL pnpm --filter web build` must fail with "NEXT_PUBLIC_API_URL is not set".
+- **Guarded by:** `assertPublicEnvForProductionBuild` (`packages/config/src/build-env.ts`) in `apps/web/next.config.ts` + tests in `packages/config/src/env.test.ts`.

@@ -1,5 +1,5 @@
 /**
- * The only place (with env.ts / public-env.ts) allowed to touch `process.env`.
+ * The only place (with env.ts / public-env.ts / build-env.ts) allowed to touch `process.env`.
  * Packages that need a default environment (logger, telemetry, audit) take it
  * from here instead of reading `process.env` themselves.
  */

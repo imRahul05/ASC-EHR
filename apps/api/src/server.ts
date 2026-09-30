@@ -1,11 +1,11 @@
-import { apiEnvSchema, parseEnv } from "@asc/config";
+import { apiEnvSchema, parseEnv, resolveCorsOrigins } from "@asc/config";
 import { logger } from "@asc/logger";
 import { shutdownTelemetry } from "@asc/telemetry";
 import { buildApp } from "./app.js";
 
 async function start(): Promise<void> {
   const env = parseEnv(apiEnvSchema);
-  const app = buildApp();
+  const app = buildApp({ corsOrigins: resolveCorsOrigins(env) });
 
   let shuttingDown = false;
   const shutdown = async (signal: NodeJS.Signals): Promise<void> => {

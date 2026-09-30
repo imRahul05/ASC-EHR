@@ -1,6 +1,6 @@
-import { getPublicApiUrl } from "@asc/config/public-env";
+import { buildUrl } from "@asc/api-client";
 
-/** Absolute URL the mocks intercept — same base URL @asc/api-client calls. */
+/** Absolute URL the mocks intercept — built exactly like @asc/api-client requests. */
 export function apiUrl(path: string): string {
-  return `${getPublicApiUrl()}${path}`;
+  return buildUrl(path);
 }

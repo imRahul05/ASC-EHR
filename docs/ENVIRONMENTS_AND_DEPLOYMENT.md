@@ -2,6 +2,8 @@
 
 This document provides a comprehensive analysis and operational roadmap for managing **Development**, **Staging**, and **Production** environments in the ASC EHR platform.
 
+> **Wiring web ↔ api (API URL, CORS, demo mocking)?** See [Deployment Configuration](DEPLOYMENT_CONFIGURATION.md).
+
 ---
 
 ## 1. Executive Summary & Readiness Assessment

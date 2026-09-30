@@ -33,6 +33,7 @@ To keep this file intentionally minimal and extensible, all detailed guidance, r
 ### 4. Environments & Deployment
 **Consult when:** Modifying environment variables, build steps, or deployment configurations.
 👉 [Read Environment Strategy](docs/ENVIRONMENTS_AND_DEPLOYMENT.md)
+👉 [Read Deployment Configuration](docs/DEPLOYMENT_CONFIGURATION.md) — *API URL, CORS origins, demo mocking: local, Vercel and Azure setups, verification, troubleshooting.*
 
 ### 5. Architectural Decisions (ADRs)
 **Consult when:** You need historical context on why a technical decision was made.

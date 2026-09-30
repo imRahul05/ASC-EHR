@@ -17,7 +17,7 @@
 
 ## 1. Snapshot (update on every phase change)
 
-| Updated | 2026-09-28 |
+| Updated | 2026-09-30 |
 |---|---|
 | Current wave | 0 |
 | In progress | — |
@@ -64,6 +64,8 @@ Work completed before this plan existed, grouped from git history (`origin/main`
 
 | Date | Area | What | Ref |
 |---|---|---|---|
+| 2026-09-30 | Deploy | Env-driven web ↔ api wiring: `CORS_ORIGINS` allowlist (`@fastify/cors`, deny by default when deployed), production web build fails without `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_API_MOCKING=enabled` opt-in for the hosted demo, `buildUrl` keeps a base path; guide `docs/DEPLOYMENT_CONFIGURATION.md` + ADR | branch `worktree-feat-env-driven-api-url-cors`, LM-010 |
+| 2026-09-30 | Fix | Vercel build of `apps/api` failed with TS2688 (temp tsconfig in `/tmp`); fixed with relative `typeRoots` | PR #13, LM-009 |
 | 2026-09-29 | Web | Landing hero redesigned: full-viewport aurora canvas (violet/teal/rose), left-aligned headline, animated patient-journey line (referral → recall) with timed event cards; reduced-motion shows a static drawn journey. Rest of landing unchanged | branch `new-landing-page` |
 | 2026-09-28 | P00 | Closed: boundary lint fixture tests (`app-boundaries.test.js`: banned imports, exported types/Zod, `process.env`, browser subpaths); decision P00-Q1 recorded → new phase P00b | close-out PR |
 | 2026-09-27 | P00 | Web HTTP client, `ApiError`, auth/dashboard request functions moved to `@asc/api-client` (fetch, timeout from config, tests); API/dashboard types to `@asc/types`; error schema + data-driven signup schema (`SIGNUP_ROLE_FIELDS`) to `@asc/validation`; API routes/timeout/runtime env helpers in `@asc/config` | PR #9 |
@@ -108,6 +110,7 @@ Full lists: [implementation plan §6](docs/plan/implementation-plan.md#6-cross-p
 
 | Date | Decision | Where recorded |
 |---|---|---|
+| 2026-09-30 | API URL, CORS origins and demo mocking are env-only; exact-origin CORS allowlist, no credentials (Bearer); Azure: `app.`/`api.` subdomains or `/api` reverse proxy | [ADR](docs/decisions/2026-09-30-env-driven-api-url-and-cors-allowlist.md), [guide](docs/DEPLOYMENT_CONFIGURATION.md) |
 | 2026-09-28 | Upgrade zod 4 + bullmq 6 + ioredis 6 before Wave 2 (P00b); defer OpenTelemetry 0.222 and React 19.3 | [P00b](docs/plan/phases/P00b-library-upgrades.md) |
 | 2026-09-27 | Execution follows `docs/plan/implementation-plan.md`; 05 Gantt superseded for scheduling | this file |
 | 2026-09-27 | SSE client = fetch + `eventsource-parser` (bearer auth); `cmdk` excluded (Radix) | [UI guidelines](docs/agent/ui-guidelines.md) |

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, http } from "./http";
+import { ApiError, buildUrl, http } from "./http";
 
 function stubFetch(response: Response | Error) {
   const fn = vi.fn((_input: string, _init?: RequestInit) =>
@@ -41,5 +41,18 @@ describe("http", () => {
   it("maps network failures to ApiError with status 0", async () => {
     stubFetch(new TypeError("fetch failed"));
     await expect(http.get("/health")).rejects.toMatchObject({ status: 0, code: "NETWORK_ERROR" });
+  });
+});
+
+describe("buildUrl", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("keeps a path prefix on the API base URL (reverse proxy under /api)", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "https://app.example.com/api/");
+    expect(buildUrl("/auth/login", { next: "/cases" })).toBe(
+      "https://app.example.com/api/auth/login?next=%2Fcases",
+    );
   });
 });
