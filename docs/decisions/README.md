@@ -26,3 +26,4 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 - [Adopt Medplum as the clinical data platform](2026-09-25-adopt-medplum-as-clinical-data-platform.md) (proposed, 2026-09-25)
 - [Adopt Postgres with Drizzle for application data](2026-09-26-adopt-postgres-with-drizzle-for-application-data.md) (accepted, 2026-09-26)
 - [Prompt caching for agent prompt prefixes](2026-09-27-prompt-caching-for-agent-prefixes.md) (proposed, 2026-09-27)
+- [Env-driven API URL and CORS allowlist](2026-09-30-env-driven-api-url-and-cors-allowlist.md) (accepted, 2026-09-30)
