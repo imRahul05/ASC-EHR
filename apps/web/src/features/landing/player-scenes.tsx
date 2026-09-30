@@ -1,6 +1,7 @@
 import type { Allergy, GapChip as GapChipModel, PatientRef, RuleResult } from "@asc/types";
 import {
   AiBadge,
+  cn,
   ConfidenceBadge,
   DraftBanner,
   GapChip,
@@ -298,16 +299,16 @@ export function AiNoteScene({ progress }: SceneProps) {
               : "Critic checking note completeness against endoscopy documentation standards..."}
           </p>
 
-          <button
-            type="button"
-            className={`w-full flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-semibold shadow-xs transition-all ${
-              isGapResolved
-                ? "bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer"
-                : "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
-            }`}
+          {/* Illustration only: kept out of the tab order so the player's real controls stay the focus path */}
+          <span
+            aria-hidden
+            className={cn(
+              "w-full flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-semibold shadow-xs transition-colors",
+              isGapResolved ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground opacity-60",
+            )}
           >
             <FileSignature className="size-3.5" /> Sign & Lock Note
-          </button>
+          </span>
         </div>
       </div>
     </div>
