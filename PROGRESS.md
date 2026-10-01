@@ -29,6 +29,7 @@
 
 | ID | Phase | Status | Depends on | Owner | Branch | PR | Started | Finished |
 |---|---|---|---|---|---|---|---|---|
+| 2026-10-01 | Web | Landing hero: headline and right column (copy + CTAs) now start on the same line — grid `items-start` plus `text-box: trim-start cap alphabetic` on headline and lede so cap tops align despite different font sizes | branch `worktree-hero-top-align` |
 | 2026-09-30 | Web | Landing interactivity: walkthrough player (sidebar/tab chapters, pause on hover, scoped keys, offscreen pause, reduced motion, accessible scrubber); clickable hero stations linked to player chapters / workflow steps; workflow scroll-spy; AI section provenance tooltips + resolve-gap-then-sign demo; modules hover spotlight + step links; stats count-up; section reveal | branch `worktree-landing-interactivity` |
 | P00 | Repo hygiene, guardrails | done | — | Claude (session fe18af87) | `worktree-docs-mindscript-wiring`, `worktree-p00-close` | #9 (+ close-out PR) | 2026-09-27 | 2026-09-28 |
 | P00b | Library upgrades (zod 4, bullmq 6, ioredis 6) | ready | P00 | | | | | |
