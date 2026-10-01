@@ -16,31 +16,23 @@ import type { CASE_TAB_IDS } from "./case-tab-ids";
 
 const fallback = () => createElement(LoadingSkeleton, { variant: "detail" });
 
-function lazyTab(importer: () => Promise<{ [key: string]: ComponentType<{ readonly caseId: string }> }>, exportName: string) {
-  return dynamic(() => importer().then((mod) => mod[exportName] as ComponentType<{ readonly caseId: string }>), {
-    loading: fallback,
-  });
+function lazyTab(load: () => Promise<ComponentType<{ readonly caseId: string }>>) {
+  return {
+    Component: dynamic(load, { loading: fallback }),
+    preload: () => {
+      void load();
+    },
+  };
 }
 
-const PreProcedureTab = lazyTab(() => import("./tabs/pre-procedure-tab"), "PreProcedureTab");
-const PreOpTab = lazyTab(() => import("./tabs/pre-op-tab"), "PreOpTab");
-const ProcedureTab = lazyTab(() => import("./tabs/procedure-tab"), "ProcedureTab");
-const AnesthesiaTab = lazyTab(() => import("./tabs/anesthesia-tab"), "AnesthesiaTab");
-const NoteTab = lazyTab(() => import("./tabs/note-tab"), "NoteTab");
-const RecoveryTab = lazyTab(() => import("./tabs/recovery-tab"), "RecoveryTab");
-const CodingTab = lazyTab(() => import("./tabs/coding-tab"), "CodingTab");
-const PathologyTab = lazyTab(() => import("./tabs/pathology-tab"), "PathologyTab");
-
-export const PRELOAD_TAB: Record<string, () => void> = {
-  "pre-procedure": () => { void import("./tabs/pre-procedure-tab"); },
-  "pre-op": () => { void import("./tabs/pre-op-tab"); },
-  "procedure": () => { void import("./tabs/procedure-tab"); },
-  "anesthesia": () => { void import("./tabs/anesthesia-tab"); },
-  "note": () => { void import("./tabs/note-tab"); },
-  "recovery": () => { void import("./tabs/recovery-tab"); },
-  "coding": () => { void import("./tabs/coding-tab"); },
-  "pathology": () => { void import("./tabs/pathology-tab"); },
-};
+const preProcedure = lazyTab(() => import("./tabs/pre-procedure-tab").then((m) => m.PreProcedureTab));
+const preOp = lazyTab(() => import("./tabs/pre-op-tab").then((m) => m.PreOpTab));
+const procedure = lazyTab(() => import("./tabs/procedure-tab").then((m) => m.ProcedureTab));
+const anesthesia = lazyTab(() => import("./tabs/anesthesia-tab").then((m) => m.AnesthesiaTab));
+const note = lazyTab(() => import("./tabs/note-tab").then((m) => m.NoteTab));
+const recovery = lazyTab(() => import("./tabs/recovery-tab").then((m) => m.RecoveryTab));
+const coding = lazyTab(() => import("./tabs/coding-tab").then((m) => m.CodingTab));
+const pathology = lazyTab(() => import("./tabs/pathology-tab").then((m) => m.PathologyTab));
 
 /**
  * Case workspace tabs, in workflow order. Each tab is `features/case/tabs/<id>-tab.tsx`
@@ -49,17 +41,18 @@ export const PRELOAD_TAB: Record<string, () => void> = {
  * outside the case workspace (this module pulls in every tab component).
  */
 export const CASE_TABS = [
-  { id: "pre-procedure", label: "Pre-procedure", icon: Stethoscope, Component: PreProcedureTab },
-  { id: "pre-op", label: "Pre-op", icon: ClipboardCheck, Component: PreOpTab },
-  { id: "procedure", label: "Procedure", icon: Activity, Component: ProcedureTab },
-  { id: "anesthesia", label: "Anesthesia", icon: Syringe, Component: AnesthesiaTab },
-  { id: "note", label: "Note", icon: FileText, Component: NoteTab },
-  { id: "recovery", label: "Recovery", icon: HeartPulse, Component: RecoveryTab },
-  { id: "coding", label: "Coding", icon: Receipt, Component: CodingTab },
-  { id: "pathology", label: "Pathology", icon: Microscope, Component: PathologyTab },
+  { id: "pre-procedure", label: "Pre-procedure", icon: Stethoscope, ...preProcedure },
+  { id: "pre-op", label: "Pre-op", icon: ClipboardCheck, ...preOp },
+  { id: "procedure", label: "Procedure", icon: Activity, ...procedure },
+  { id: "anesthesia", label: "Anesthesia", icon: Syringe, ...anesthesia },
+  { id: "note", label: "Note", icon: FileText, ...note },
+  { id: "recovery", label: "Recovery", icon: HeartPulse, ...recovery },
+  { id: "coding", label: "Coding", icon: Receipt, ...coding },
+  { id: "pathology", label: "Pathology", icon: Microscope, ...pathology },
 ] as const satisfies readonly {
   id: (typeof CASE_TAB_IDS)[number];
   label: string;
   icon: LucideIcon;
   Component: ComponentType<{ readonly caseId: string }>;
+  preload: () => void;
 }[];

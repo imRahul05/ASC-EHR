@@ -15,7 +15,7 @@ import {
   TabsTrigger,
 } from "@asc/ui";
 import { TabHint } from "../guide/tab-hint";
-import { CASE_TABS, PRELOAD_TAB } from "./case-tabs";
+import { CASE_TABS } from "./case-tabs";
 import { GatePanel } from "./gate-panel";
 import { PhaseHistory } from "./phase-history";
 import { useCaseTab } from "./use-case-tab";
@@ -74,14 +74,14 @@ export function CaseWorkspace({ caseId }: CaseWorkspaceProps) {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <Tabs value={tab} onValueChange={(value) => setTab(String(value))} className="min-w-0 gap-4">
           <TabsList variant="line" className="h-auto! w-full flex-nowrap justify-start overflow-x-auto overflow-y-hidden border-b border-border pb-px [scrollbar-width:none]" aria-label="Case sections">
-            {CASE_TABS.map(({ id, label, icon: Icon }) => (
+            {CASE_TABS.map(({ id, label, icon: Icon, preload }) => (
               <TabsTrigger
                 key={id}
                 value={id}
                 className="flex-none px-2.5"
                 data-testid={`case-tab-trigger-${id}`}
-                onPointerEnter={() => PRELOAD_TAB[id]?.()}
-                onFocus={() => PRELOAD_TAB[id]?.()}
+                onPointerEnter={preload}
+                onFocus={preload}
               >
                 <Icon />
                 {label}
