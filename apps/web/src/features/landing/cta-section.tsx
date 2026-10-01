@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Button } from "@asc/ui";
+import { Button } from "@asc/ui/components/ui/button";
 import { ArrowRight } from "@asc/ui/icons";
 
 /** Closing call to action. */

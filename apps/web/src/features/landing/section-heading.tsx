@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { cn } from "@asc/ui";
+import { cn } from "@asc/ui/lib/utils";
 import { Reveal } from "./reveal";
 
 interface SectionHeadingProps {

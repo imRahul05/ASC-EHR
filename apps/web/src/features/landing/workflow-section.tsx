@@ -1,5 +1,6 @@
 import type { CasePhase } from "@asc/types";
-import { AiBadge, PhaseChip } from "@asc/ui";
+import { AiBadge } from "@asc/ui/components/clinical/ai-badge";
+import { PhaseChip } from "@asc/ui/components/clinical/phase-chip";
 import {
   CalendarCheck,
   ClipboardCheck,
