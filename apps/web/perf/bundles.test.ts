@@ -77,6 +77,16 @@ describe("apps/web production bundles", () => {
     });
   });
 
+  it("names only prerendered routes in perf-budget.json (rules are not stale)", () => {
+    const known = new Set(routes.map((r) => r.route));
+    const named = [
+      ...Object.keys(budget.budgetsKbGz).filter((route) => route !== "*"),
+      ...budget.forbidden.flatMap((rule) => (rule.notIn === "*" ? [] : rule.notIn)),
+    ];
+    const unknown = named.filter((route) => !known.has(route));
+    expect(unknown, "these routes are not prerendered (typo, or now dynamic): update perf-budget.json").toEqual([]);
+  });
+
   it("keeps every prerendered route within its initial JS budget", () => {
     const over = routes.flatMap(({ route, chunks }) => {
       const limit = budget.budgetsKbGz[route] ?? budget.budgetsKbGz["*"];
