@@ -23,7 +23,7 @@ export function DemoLoginBar() {
   const presets = useDemoPresets();
   const [pendingId, setPendingId] = useState<string | null>(null);
   const ordered = (presets.data ?? []).toSorted(
-    (a, b) => (PERSONAS[a.role]?.order ?? 99) - (PERSONAS[b.role]?.order ?? 99),
+    (a, b) => PERSONAS[a.role].order - PERSONAS[b.role].order,
   );
 
   const signIn = async (presetId: string) => {
@@ -53,7 +53,7 @@ export function DemoLoginBar() {
             </li>
           ))}
         {ordered.map((preset, index) => {
-          const persona = PERSONAS[preset.role] ?? PERSONAS.ADMIN;
+          const persona = PERSONAS[preset.role];
           const Icon = persona.icon;
           const pending = pendingId === preset.id;
           return (

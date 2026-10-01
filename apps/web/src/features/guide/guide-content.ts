@@ -431,8 +431,6 @@ export const WELCOME = {
   note: "Reloading the page signs you out and resets the data. Help is always under the ? button.",
 } as const;
 
-export { DEMO_EXPLAINER } from "./demo-explainer-data";
-
 /** Help center groups, in journey order. `key` = ROUTE_HELP / CASE_TAB_HELP key. */
 export const GUIDE_SECTIONS = [
   {

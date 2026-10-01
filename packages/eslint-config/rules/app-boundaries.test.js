@@ -19,7 +19,7 @@ function linter(options) {
         languageOptions: { parser: tseslint.parser, parserOptions: { ecmaFeatures: { jsx: true } } },
         rules: { "no-restricted-properties": PROCESS_ENV_RULE },
       },
-      appBoundaryConfig(options),
+      ...appBoundaryConfig(options),
     ],
   });
 }
@@ -77,6 +77,24 @@ describe("app boundary rules", () => {
       "interface Props { readonly id: string }",
     ].join("\n");
     assert.deepEqual(await lint(code, { browser: true }), []);
+  });
+
+  it("bans @asc/ui root barrel in route files under src/app/** (LM-011)", async () => {
+    const barrelCode = 'import { ThemeToggle } from "@asc/ui";';
+    const leafCode = 'import { ThemeToggle } from "@asc/ui/components/theme/theme-toggle";';
+
+    assert.deepEqual(
+      await lint(barrelCode, { browser: true, file: "src/app/page.tsx" }),
+      ["no-restricted-imports:1"],
+    );
+    assert.deepEqual(
+      await lint(leafCode, { browser: true, file: "src/app/page.tsx" }),
+      [],
+    );
+    assert.deepEqual(
+      await lint(barrelCode, { browser: true, file: "src/components/feature.tsx" }),
+      [],
+    );
   });
 
   it("only applies to app source files", async () => {

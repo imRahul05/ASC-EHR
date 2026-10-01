@@ -16,30 +16,31 @@ import type { CASE_TAB_IDS } from "./case-tab-ids";
 
 const fallback = () => createElement(LoadingSkeleton, { variant: "detail" });
 
-const PreProcedureTab = dynamic(() => import("./tabs/pre-procedure-tab").then((mod) => mod.PreProcedureTab), {
-  loading: fallback,
-});
-const PreOpTab = dynamic(() => import("./tabs/pre-op-tab").then((mod) => mod.PreOpTab), {
-  loading: fallback,
-});
-const ProcedureTab = dynamic(() => import("./tabs/procedure-tab").then((mod) => mod.ProcedureTab), {
-  loading: fallback,
-});
-const AnesthesiaTab = dynamic(() => import("./tabs/anesthesia-tab").then((mod) => mod.AnesthesiaTab), {
-  loading: fallback,
-});
-const NoteTab = dynamic(() => import("./tabs/note-tab").then((mod) => mod.NoteTab), {
-  loading: fallback,
-});
-const RecoveryTab = dynamic(() => import("./tabs/recovery-tab").then((mod) => mod.RecoveryTab), {
-  loading: fallback,
-});
-const CodingTab = dynamic(() => import("./tabs/coding-tab").then((mod) => mod.CodingTab), {
-  loading: fallback,
-});
-const PathologyTab = dynamic(() => import("./tabs/pathology-tab").then((mod) => mod.PathologyTab), {
-  loading: fallback,
-});
+function lazyTab(importer: () => Promise<{ [key: string]: ComponentType<{ readonly caseId: string }> }>, exportName: string) {
+  return dynamic(() => importer().then((mod) => mod[exportName] as ComponentType<{ readonly caseId: string }>), {
+    loading: fallback,
+  });
+}
+
+const PreProcedureTab = lazyTab(() => import("./tabs/pre-procedure-tab"), "PreProcedureTab");
+const PreOpTab = lazyTab(() => import("./tabs/pre-op-tab"), "PreOpTab");
+const ProcedureTab = lazyTab(() => import("./tabs/procedure-tab"), "ProcedureTab");
+const AnesthesiaTab = lazyTab(() => import("./tabs/anesthesia-tab"), "AnesthesiaTab");
+const NoteTab = lazyTab(() => import("./tabs/note-tab"), "NoteTab");
+const RecoveryTab = lazyTab(() => import("./tabs/recovery-tab"), "RecoveryTab");
+const CodingTab = lazyTab(() => import("./tabs/coding-tab"), "CodingTab");
+const PathologyTab = lazyTab(() => import("./tabs/pathology-tab"), "PathologyTab");
+
+export const PRELOAD_TAB: Record<string, () => void> = {
+  "pre-procedure": () => { void import("./tabs/pre-procedure-tab"); },
+  "pre-op": () => { void import("./tabs/pre-op-tab"); },
+  "procedure": () => { void import("./tabs/procedure-tab"); },
+  "anesthesia": () => { void import("./tabs/anesthesia-tab"); },
+  "note": () => { void import("./tabs/note-tab"); },
+  "recovery": () => { void import("./tabs/recovery-tab"); },
+  "coding": () => { void import("./tabs/coding-tab"); },
+  "pathology": () => { void import("./tabs/pathology-tab"); },
+};
 
 /**
  * Case workspace tabs, in workflow order. Each tab is `features/case/tabs/<id>-tab.tsx`

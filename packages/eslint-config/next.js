@@ -41,5 +41,5 @@ export const nextJsConfig = [
   },
   pluginReactHooks.configs.flat.recommended,
   reactHygiene,
-  appBoundaryConfig({ browser: true }),
+  ...appBoundaryConfig({ browser: true }),
 ];
