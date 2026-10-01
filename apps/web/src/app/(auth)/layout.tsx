@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ThemeToggle } from "@asc/ui";
 import { AuthBrandPanel } from "@/components/auth/auth-brand-panel";
 import { BrandMark } from "@/components/auth/brand-mark";
+import { MockProvider } from "@/mocks/mock-provider";
 
 interface AuthLayoutProps {
   readonly children: React.ReactNode;
@@ -19,7 +20,9 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
           <ThemeToggle />
         </header>
         <main className="flex flex-1 items-center justify-center py-10">
-          <div className="w-full max-w-md">{children}</div>
+          <div className="w-full max-w-md">
+            <MockProvider>{children}</MockProvider>
+          </div>
         </main>
         <footer className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
           <span>Demo environment · synthetic data only</span>

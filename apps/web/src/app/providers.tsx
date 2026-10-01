@@ -3,7 +3,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { ThemeProvider, Toaster, TooltipProvider } from "@asc/ui";
-import { MockProvider } from "../mocks/mock-provider";
 
 const QUERY_DEFAULTS = {
   queries: {
@@ -23,14 +22,12 @@ export function Providers({ children }: ProvidersProps) {
 
   return (
     <ThemeProvider>
-      <MockProvider>
-        <QueryClientProvider client={queryClient}>
-          <TooltipProvider>
-            {children}
-            <Toaster />
-          </TooltipProvider>
-        </QueryClientProvider>
-      </MockProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          {children}
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
     </ThemeProvider>
   );
 }

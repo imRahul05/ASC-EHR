@@ -535,11 +535,12 @@ The bundle test can't see this, because the MSW chunks are loaded at runtime and
 Demo build (§2), start on :3101, then:
 ```bash
 cd apps/web
-MSW_CHUNKS=$(grep -l "onUnhandledRequest" .next/static/chunks/*.js | xargs -n1 basename | paste -sd'|' -)
+# "[MSW]" appears only in the msw library chunk; "onUnhandledRequest" also matches MockProvider's own app chunk.
+MSW_CHUNKS=$(grep -l "\[MSW\]" .next/static/chunks/*.js | xargs -n1 basename | paste -sd'|' -)
 npx -y lighthouse@13.5.0 http://localhost:3101/ --quiet --chrome-flags="--headless=new" --only-categories=performance --output=json --output-path=/tmp/lh/msw-home.json
 jq -r --arg re "$MSW_CHUNKS" '[.audits["network-requests"].details.items[].url | select(test($re))] | length' /tmp/lh/msw-home.json
 ```
-Expected: `2` (both MSW chunks requested by the landing page).
+Expected: `1` (the MSW library chunk, ~122 KB transferred, requested by the landing page).
 
 - [ ] **Step 2: Remove MockProvider from the root providers**
 
@@ -594,7 +595,7 @@ It goes above `RequireAuth` because the top bar, command menu and guide layer al
 
 - [ ] **Step 5: Run the check to verify it passes**
 
-Rebuild, restart, repeat Step 1's commands. Expected: `0` on `/`. Repeat with `http://localhost:3101/login`: expected `2` (mocks still start where they are needed). Then run the §2 Lighthouse set. Expectation: `/` unused JS 166 → about 121 KiB.
+Rebuild, restart, repeat Step 1's commands. Expected: `0` on `/`. Repeat with `http://localhost:3101/login`: expected `1` (mocks still start where they are needed). Then run the §2 Lighthouse set. Expectation: `/` unused JS 166 → about 121 KiB.
 
 - [ ] **Step 6: Check in the browser (Review Focus 3 and 4)**
 
