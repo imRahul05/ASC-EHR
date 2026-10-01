@@ -66,6 +66,7 @@ Work completed before this plan existed, grouped from git history (`origin/main`
 
 | Date | Area | What | Ref |
 |---|---|---|---|
+| 2026-10-01 | Web perf | [Plan](docs/plan/web-performance-plan.md): case tab components out of shell routes (`case-tab-ids.ts`), landing Server Components on `@asc/ui` leaf imports + `"sideEffects"` on `@asc/ui`, MSW started only in `(auth)`/`(dashboard)`; inline CSS evaluated and not adopted (mobile FCP/LCP worse, HTML 33→110 KB). Bundle guard `pnpm --filter web build && pnpm --filter web test:bundles` with budgets. Demo build, gz initial JS: /dashboard 432→349 KB, / 350→294 KB, /_not-found 324→242 KB; Lighthouse `/` mobile LCP 3682→3357 ms, unused JS 166→48 KiB. Open: `/login` simulated mobile LCP 3462→3760 ms (observed unchanged; more, smaller chunks on an HTTP/1.1 lab server) — re-measure on an HTTP/2 preview | branch `worktree-plan-web-performance` |
 | 2026-09-30 | Web | Landing hero height capped at 56rem (`min(100svh - nav, 56rem)`) so 24"/27" monitors no longer open a large gap between headline and journey line; laptop/tablet/mobile unchanged | branch `worktree-fix-hero-tall-screens` |
 | 2026-09-30 | Deploy | Env-driven web ↔ api wiring: `CORS_ORIGINS` allowlist (`@fastify/cors`, deny by default when deployed), production web build fails without `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_API_MOCKING=enabled` opt-in for the hosted demo, `buildUrl` keeps a base path; guide `docs/DEPLOYMENT_CONFIGURATION.md` + ADR | branch `worktree-feat-env-driven-api-url-cors`, LM-010 |
 | 2026-09-30 | Fix | Vercel build of `apps/api` failed with TS2688 (temp tsconfig in `/tmp`); fixed with relative `typeRoots` | PR #13, LM-009 |
@@ -108,6 +109,7 @@ Full lists: [implementation plan §6](docs/plan/implementation-plan.md#6-cross-p
 1. **P00b** library upgrades (zod 4, bullmq 6, ioredis 6) — must land before Wave 2. In parallel: **P01** CI.
 2. In parallel: **P02** local Medplum, **P03** `@asc/fhir`.
 3. Escalate week-1 questions: Q-MS1, D1, Azure subscription/BAA (P06), Q8 CPT licence.
+4. Wire `pnpm --filter web build && pnpm --filter web test:bundles` and Lighthouse CI into **P01** CI; re-measure `/login` mobile LCP on an HTTP/2 deploy preview (see web perf done-log entry).
 
 ## 6. Decisions log
 

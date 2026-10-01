@@ -1,0 +1,7 @@
+{
+  "budgetsKbGz": { "/": 309,"/login": 395, "*": 401 },
+  "forbidden": [
+    { "string": "Retroflexion in rectum", "notIn": "*", "reason": "case workspace tabs belong to /cases/[caseId] only" },
+    { "string": "Signature captured", "notIn": ["/"], "reason": "the landing page must not ship the clinical kit (SignaturePad)" }
+  ]
+}

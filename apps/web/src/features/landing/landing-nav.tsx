@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Button, ThemeToggle } from "@asc/ui";
+import { Button } from "@asc/ui/components/ui/button";
+import { ThemeToggle } from "@asc/ui/components/theme/theme-toggle";
 import { BrandMark } from "@/components/auth/brand-mark";
 
 const NAV_LINKS = [

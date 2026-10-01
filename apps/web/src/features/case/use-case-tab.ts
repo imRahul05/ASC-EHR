@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { CasePhase } from "@asc/types";
-import { DEFAULT_TAB_BY_PHASE, isCaseTab } from "./case-tabs";
+import { DEFAULT_TAB_BY_PHASE, isCaseTab } from "./case-tab-ids";
 
 /** Active case tab lives in the URL (`?tab=`, IDs only — never PHI). */
 export function useCaseTab(phase: CasePhase | undefined) {

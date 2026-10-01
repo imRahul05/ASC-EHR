@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import Link from "next/link";
-import { Button, cn } from "@asc/ui";
+import { Button } from "@asc/ui/components/ui/button";
+import { cn } from "@asc/ui/lib/utils";
 import { ArrowRight } from "@asc/ui/icons";
 import { DemoExplainer } from "../guide/demo-explainer";
 import { HeroJourney } from "./hero-journey";
