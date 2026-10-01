@@ -1,7 +1,8 @@
 {
-  "budgetsKbGz": { "/": 309,"/login": 395, "*": 401 },
+  "budgetsKbGz": { "/": 299, "/login": 322, "/signup": 310, "*": 385 },
   "forbidden": [
     { "string": "Retroflexion in rectum", "notIn": "*", "reason": "case workspace tabs belong to /cases/[caseId] only" },
-    { "string": "Signature captured", "notIn": ["/"], "reason": "the landing page must not ship the clinical kit (SignaturePad)" }
+    { "string": "Signature captured", "notIn": "*", "reason": "clinical kit (SignaturePad) belongs to /cases/[caseId] only" },
+    { "string": "Scan the numbers at the top", "notIn": ["/", "/login", "/signup"], "reason": "internal route help copy belongs to authenticated routes only" }
   ]
 }

@@ -1,4 +1,4 @@
-import { PHASE_ORDER } from "@asc/clinical-rules";
+import { PHASE_ORDER } from "@asc/clinical-rules/phases";
 import type { CaseDetail, CasePhase, UserRole } from "@asc/types";
 import {
   Bot,
@@ -431,12 +431,7 @@ export const WELCOME = {
   note: "Reloading the page signs you out and resets the data. Help is always under the ? button.",
 } as const;
 
-export const DEMO_EXPLAINER = [
-  { id: "pick", title: "Pick a persona", body: "One click, no password. Start with Front desk to follow the full story." },
-  { id: "tour", title: "Follow the tour", body: "A short checklist takes you through each step and switches persona for you." },
-  { id: "data", title: "Synthetic data only", body: "Nothing is real or saved. A page reload signs you out and starts fresh." },
-  { id: "help", title: "Stuck? Press ?", body: "Every screen has a help panel with what to try and which records to open." },
-] as const;
+export { DEMO_EXPLAINER } from "./demo-explainer-data";
 
 /** Help center groups, in journey order. `key` = ROUTE_HELP / CASE_TAB_HELP key. */
 export const GUIDE_SECTIONS = [

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
-import { Skeleton } from "@asc/ui";
+import { Skeleton } from "@asc/ui/components/ui/skeleton";
 import { useAuth } from "../../hooks/use-auth";
 
 /**

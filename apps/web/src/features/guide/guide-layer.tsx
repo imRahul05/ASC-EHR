@@ -2,12 +2,27 @@
 
 import Link from "next/link";
 import { Suspense } from "react";
-import { toast, TourChecklist, WelcomeDialog } from "@asc/ui";
+import dynamic from "next/dynamic";
+import { toast } from "@asc/ui/components/ui/sonner";
 import { TOUR_STEPS, WELCOME } from "./guide-content";
 import { dismissTour, setStepDone, setTourCollapsed, skipWelcome, startTour, useGuideState } from "./guide-store";
-import { PageHelpSheet } from "./page-help-sheet";
 import { useGoTo } from "./use-go-to";
 import { useTour } from "./use-tour";
+
+const WelcomeDialog = dynamic(
+  () => import("@asc/ui/components/guide/welcome-dialog").then((mod) => mod.WelcomeDialog),
+  { ssr: false },
+);
+
+const TourChecklist = dynamic(
+  () => import("@asc/ui/components/guide/tour-checklist").then((mod) => mod.TourChecklist),
+  { ssr: false },
+);
+
+const PageHelpSheet = dynamic(
+  () => import("./page-help-sheet").then((mod) => mod.PageHelpSheet),
+  { ssr: false },
+);
 
 const NARROW_QUERY = "(max-width: 639px)";
 

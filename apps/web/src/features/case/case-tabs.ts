@@ -1,3 +1,6 @@
+import { createElement, type ComponentType } from "react";
+import dynamic from "next/dynamic";
+import { LoadingSkeleton } from "@asc/ui/components/clinical/loading-skeleton";
 import {
   Activity,
   ClipboardCheck,
@@ -10,14 +13,33 @@ import {
   type LucideIcon,
 } from "@asc/ui/icons";
 import type { CASE_TAB_IDS } from "./case-tab-ids";
-import { AnesthesiaTab } from "./tabs/anesthesia-tab";
-import { CodingTab } from "./tabs/coding-tab";
-import { NoteTab } from "./tabs/note-tab";
-import { PathologyTab } from "./tabs/pathology-tab";
-import { PreOpTab } from "./tabs/pre-op-tab";
-import { PreProcedureTab } from "./tabs/pre-procedure-tab";
-import { ProcedureTab } from "./tabs/procedure-tab";
-import { RecoveryTab } from "./tabs/recovery-tab";
+
+const fallback = () => createElement(LoadingSkeleton, { variant: "detail" });
+
+const PreProcedureTab = dynamic(() => import("./tabs/pre-procedure-tab").then((mod) => mod.PreProcedureTab), {
+  loading: fallback,
+});
+const PreOpTab = dynamic(() => import("./tabs/pre-op-tab").then((mod) => mod.PreOpTab), {
+  loading: fallback,
+});
+const ProcedureTab = dynamic(() => import("./tabs/procedure-tab").then((mod) => mod.ProcedureTab), {
+  loading: fallback,
+});
+const AnesthesiaTab = dynamic(() => import("./tabs/anesthesia-tab").then((mod) => mod.AnesthesiaTab), {
+  loading: fallback,
+});
+const NoteTab = dynamic(() => import("./tabs/note-tab").then((mod) => mod.NoteTab), {
+  loading: fallback,
+});
+const RecoveryTab = dynamic(() => import("./tabs/recovery-tab").then((mod) => mod.RecoveryTab), {
+  loading: fallback,
+});
+const CodingTab = dynamic(() => import("./tabs/coding-tab").then((mod) => mod.CodingTab), {
+  loading: fallback,
+});
+const PathologyTab = dynamic(() => import("./tabs/pathology-tab").then((mod) => mod.PathologyTab), {
+  loading: fallback,
+});
 
 /**
  * Case workspace tabs, in workflow order. Each tab is `features/case/tabs/<id>-tab.tsx`
@@ -38,5 +60,5 @@ export const CASE_TABS = [
   id: (typeof CASE_TAB_IDS)[number];
   label: string;
   icon: LucideIcon;
-  Component: (props: { readonly caseId: string }) => React.ReactNode;
+  Component: ComponentType<{ readonly caseId: string }>;
 }[];

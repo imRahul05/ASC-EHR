@@ -25,6 +25,7 @@ apps/web/src/features/<domain>/       FEATURE    compose @asc/ui + data hooks; r
 | Third-party UI lib? | Install in `@asc/ui` only, never `apps/web` |
 | Icons / theme? | `@asc/ui/icons` (lucide re-export) · `ThemeProvider` / `ThemeToggle` from `@asc/ui` — never `lucide-react` / `next-themes` in an app |
 | Importing `@asc/validation` or `@asc/config` in browser code? | Use the **leaf subpath** (`@asc/validation/auth`, `@asc/config/public-env`, `@asc/config/api`). Their root entries use NodeNext `.js` re-exports that Turbopack can't resolve (lint-enforced) |
+| Importing `@asc/ui` in Server Components/Layouts? | Use the **leaf subpath** (`@asc/ui/components/theme/theme-toggle`, `@asc/ui/components/ui/*`). Never import root `@asc/ui` in Server Components — Turbopack bundles every client re-export into the route (LM-011) |
 | Fake API data during development? | MSW handlers in `apps/web/src/mocks` (on by default in dev, `NEXT_PUBLIC_API_MOCKING=disabled` to turn off; production builds only with `NEXT_PUBLIC_API_MOCKING=enabled` for the hosted demo — see [Deployment Configuration](../DEPLOYMENT_CONFIGURATION.md)). UI code never imports mock data — it calls `@asc/api-client` like production |
 
 **Before creating a component:** search `packages/ui/CATALOG.md` and `packages/ui/src/index.ts`. Extending an existing component beats a near-duplicate.
@@ -256,4 +257,7 @@ Base UI primitives give keyboard + ARIA; keep them. Label every input; `aria-liv
 - [ ] AI values marked draft with provenance; no auto-final action
 - [ ] No PHI in URL/logs/storage; `data-testid`s present
 - [ ] `pnpm turbo run lint check-types test --filter=web --filter=@asc/ui` green
+- [ ] Server components and layouts use leaf `@asc/ui` imports (no root barrel imports, LM-011)
+- [ ] Workflow tabs and heavy interactive overlays are dynamically imported (`next/dynamic`) with loading fallbacks
+- [ ] `pnpm --filter web test:bundles` passes bundle budget and forbidden string checks
 - [ ] `PROGRESS.md` updated; any correction recorded in `LEARNING_MISTAKES.md`

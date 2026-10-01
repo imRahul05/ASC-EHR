@@ -40,6 +40,7 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 8. Next 16 conventions differ: `error.tsx` gets `retry` (not `reset`), `params`/`searchParams` are Promises; a Base UI `Button` rendered as a link needs `nativeButton={false}`. Check `node_modules/next/dist/docs`. (LM-008)
 9. Server apps deployed to Vercel (`apps/api`) keep `typeRoots: ["./node_modules/@types"]` next to `types` in their tsconfig; don't blame the TS version without reproducing. (LM-009)
 10. Deployment differences are env vars validated in `@asc/config` (listed in `turbo.json` build env), never code; a deployed build must fail rather than fall back to a localhost default. (LM-010)
+11. Server Components must never import from UI barrel files; use leaf subpaths (`@asc/ui/components/ui/*`) to prevent client re-export bundle inflation. (LM-011)
 
 ---
 
@@ -115,3 +116,10 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **Rule:** Every value that differs per environment (API URL, CORS origins, mocking) is an env var validated in `@asc/config` and listed in `turbo.json` → `tasks.build.env`. Production builds must fail on a missing value instead of using a dev default. Follow `docs/DEPLOYMENT_CONFIGURATION.md`.
 - **How to check:** `env -u NEXT_PUBLIC_API_URL pnpm --filter web build` must fail with "NEXT_PUBLIC_API_URL is not set".
 - **Guarded by:** `assertPublicEnvForProductionBuild` (`packages/config/src/build-env.ts`) in `apps/web/next.config.ts` + tests in `packages/config/src/env.test.ts`.
+
+### LM-011 — Server Components must never import UI barrels; use leaf subpaths and package sideEffects
+- **Seen:** 1 · 2026-10-01 · branch `perf/tree-shaking-and-mobile-css-optimization`
+- **What went wrong:** Server Components in App Router (`apps/web/src/app/(auth)/layout.tsx`, `auth-brand-panel.tsx`, `brand-mark.tsx`) imported components (`ThemeToggle`, icons) directly from the `@asc/ui` barrel. Turbopack treats barrel imports in Server Components by pulling in every `"use client"` module re-exported by that barrel, causing `SignaturePad`, `CommandPalette`, `Sheet`, etc., to leak into the `/login` and `/signup` client bundles, bloating them by >200 KB raw (>70 KB gzip). In addition, monorepo packages lacked `"sideEffects": false`, preventing effective dead-code elimination.
+- **Rule:** Server components, layouts, and auth pages must NEVER import from the `@asc/ui` root barrel. Always import from leaf subpaths (`@asc/ui/components/theme/theme-toggle`, `@asc/ui/components/ui/skeleton`, etc.). Monorepo libraries (`@asc/api-client`, `@asc/clinical-rules`, `@asc/validation`) must declare `"sideEffects": false` in their `package.json`. Heavy workflow panels (case tabs, command menus, tour dialogs) must be loaded dynamically via `next/dynamic` (`ssr: false` when client-only or interactive-on-demand).
+- **How to check:** `pnpm --filter web test:bundles` verifies that route bundle sizes remain within `apps/web/perf/perf-budget.json` and forbidden strings (`Retroflexion in rectum`, `Signature captured`, `Scan the numbers at the top`) fail if barrel leaks occur.
+- **Guarded by:** `apps/web/perf/perf-budget.json` and `apps/web/perf/bundle-guard.test.ts`.

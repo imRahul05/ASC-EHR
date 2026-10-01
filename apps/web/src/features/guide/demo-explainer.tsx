@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { Button } from "@asc/ui/components/ui/button";
 import {
-  Button,
-  cn,
   Dialog,
   DialogClose,
   DialogContent,
@@ -12,9 +11,10 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@asc/ui";
+} from "@asc/ui/components/ui/dialog";
+import { cn } from "@asc/ui/lib/utils";
 import { ArrowRight, CircleHelp } from "@asc/ui/icons";
-import { DEMO_EXPLAINER } from "./guide-content";
+import { DEMO_EXPLAINER } from "./demo-explainer-data";
 
 interface DemoExplainerProps {
   /** Show a "Try the demo" link to /login (landing page). */

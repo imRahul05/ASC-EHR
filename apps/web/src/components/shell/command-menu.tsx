@@ -4,11 +4,20 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useSearch } from "@asc/api-client/react";
 import { formatDateTime } from "@asc/clinical-rules/time";
-import { Button, CommandPalette, Kbd, type CommandGroup } from "@asc/ui";
+import dynamic from "next/dynamic";
+import { Button } from "@asc/ui/components/ui/button";
+import { Kbd } from "@asc/ui/components/ui/kbd";
+import type { CommandGroup } from "@asc/ui/components/navigation/command-palette";
+
 import { CircleHelp, Map as MapIcon, Search, Sparkles, Stethoscope, UserRound } from "@asc/ui/icons";
 import { openHelp, showWelcome, startTour } from "../../features/guide/guide-store";
 import { useAuth } from "../../hooks/use-auth";
 import { NAV_BY_ROLE } from "./nav-config";
+
+const CommandPalette = dynamic(
+  () => import("@asc/ui/components/navigation/command-palette").then((mod) => mod.CommandPalette),
+  { ssr: false },
+);
 
 interface PaletteState {
   readonly open: boolean;

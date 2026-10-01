@@ -12,12 +12,12 @@ export function invalidateClinical(queryClient: QueryClient): Promise<void> {
 }
 
 /** Mutation that invalidates all clinical queries on success (and waits for it). */
-export function useClinicalMutation<TVariables, TData>(
+export function useClinicalMutation<TVariables, TData, TError = Error>(
   mutationFn: (variables: TVariables) => Promise<TData>,
   onData?: (queryClient: QueryClient, data: TData) => void,
 ) {
   const queryClient = useQueryClient();
-  return useMutation({
+  return useMutation<TData, TError, TVariables>({
     mutationFn,
     onSuccess: (data) => {
       onData?.(queryClient, data);
