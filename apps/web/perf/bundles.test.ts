@@ -19,6 +19,8 @@ interface ForbiddenRule {
 interface PerfBudget {
   /** Max gzipped initial JS per prerendered route in KB; "*" applies to unlisted routes. */
   readonly budgetsKbGz: Readonly<Record<string, number>>;
+  /** Max gzipped entry JS in KB for dynamic (not prerendered) routes, read from their client reference manifest. */
+  readonly dynamicBudgetsKbGz: Readonly<Record<string, number>>;
   readonly forbidden: readonly ForbiddenRule[];
 }
 
@@ -139,14 +141,16 @@ describe("apps/web production bundles", () => {
       expect(offending, "Case tabs leaked into /cases/[caseId] starting entry chunks").toEqual([]);
     });
 
-    it("keeps starting entry chunks gzip size under 200 KB gz", () => {
+    it("keeps starting entry chunks within the dynamicBudgetsKbGz budget", () => {
       if (!hasCaseManifest) {
         expect(hasBuild).toBe(false);
         return;
       }
+      const limit = budget.dynamicBudgetsKbGz["/cases/[caseId]"];
+      expect(limit, 'perf-budget.json needs dynamicBudgetsKbGz["/cases/[caseId]"]').toBeDefined();
       expect(caseEntryChunks.length).toBeGreaterThan(0);
       const kb = gzKb(caseEntryChunks);
-      expect(kb).toBeLessThan(200);
+      expect(kb, `/cases/[caseId]: ${kb.toFixed(1)} KB gz > ${limit} KB`).toBeLessThanOrEqual(limit ?? 0);
     });
   });
 });

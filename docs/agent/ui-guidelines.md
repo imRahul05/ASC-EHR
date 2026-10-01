@@ -132,7 +132,7 @@ Other rules of thumb:
   - Dynamic per-request routes like `/cases/[caseId]` are dynamic server routes without static HTML files, so their starting entry bundle is inspected via `.next/server/app/(dashboard)/cases/[caseId]/page_client-reference-manifest.js`.
   - In `apps/web/perf/bundles.test.ts`, the test extracts `entryJSFiles["[project]/apps/web/src/app/(dashboard)/cases/[caseId]/page"]` to verify:
     1. Starting entry chunks do NOT contain `"Retroflexion in rectum"` (proving that case tabs are code-split and not bundled into the starting entry).
-    2. Starting entry chunks gzip size is under 200 KB gz (currently ~183.4 KB gz).
+    2. Starting entry chunks stay within `dynamicBudgetsKbGz["/cases/[caseId]"]` in `apps/web/perf/perf-budget.json`.
 
 ## 4. Required async states (every data view)
 
