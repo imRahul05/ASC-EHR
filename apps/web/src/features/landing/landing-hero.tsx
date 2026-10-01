@@ -25,19 +25,19 @@ export function LandingHero() {
       </div>
 
       <div className="mx-auto flex min-h-[min(calc(100svh-3.5rem),56rem)] max-w-6xl flex-col justify-between gap-10 px-4 pt-16 pb-8 sm:px-6 sm:pt-24 lg:pt-28">
-        <div className="grid items-end gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:gap-14">
+        <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:gap-14">
           <h1
             id="hero-title"
             className={cn(
               styles.rise,
-              "text-[clamp(2.75rem,6.2vw,5.5rem)] leading-[0.95] font-semibold tracking-[-0.055em] text-balance",
+              "text-[clamp(2.75rem,6.2vw,5.5rem)] leading-[0.95] font-semibold [text-box:trim-start_cap_alphabetic] tracking-[-0.055em] text-balance",
             )}
           >
             From faxed referral to five&#8209;year recall.
           </h1>
 
-          <div style={riseDelay(0.15)} className={cn(styles.rise, "max-w-md lg:pb-3")}>
-            <p className="text-lg leading-relaxed text-pretty text-muted-foreground">
+          <div style={riseDelay(0.15)} className={cn(styles.rise, "max-w-md")}>
+            <p className="text-lg leading-relaxed text-pretty [text-box:trim-start_cap_alphabetic] text-muted-foreground">
               The EHR for GI ambulatory surgery centers. One record for the whole endoscopy day: AI reads the fax,
               drafts the note and suggests the codes, every gate is checked, and every signature stays human.
             </p>
