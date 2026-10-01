@@ -1,7 +1,9 @@
 "use client";
 
 import type { FocusEvent, KeyboardEvent } from "react";
-import { Button, cn, Tooltip, TooltipContent, TooltipTrigger } from "@asc/ui";
+import { Button } from "@asc/ui/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@asc/ui/components/ui/tooltip";
+import { cn } from "@asc/ui/lib/utils";
 import {
   FastForward,
   Pause,

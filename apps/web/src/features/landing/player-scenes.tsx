@@ -1,14 +1,12 @@
 import type { Allergy, GapChip as GapChipModel, PatientRef, RuleResult } from "@asc/types";
-import {
-  AiBadge,
-  cn,
-  ConfidenceBadge,
-  DraftBanner,
-  GapChip,
-  GateChecklist,
-  PatientBanner,
-  PhaseStepper,
-} from "@asc/ui";
+import { AiBadge } from "@asc/ui/components/clinical/ai-badge";
+import { ConfidenceBadge } from "@asc/ui/components/clinical/confidence-badge";
+import { DraftBanner } from "@asc/ui/components/clinical/draft-banner";
+import { GapChip } from "@asc/ui/components/clinical/gap-chip";
+import { GateChecklist } from "@asc/ui/components/clinical/gate-checklist";
+import { PatientBanner } from "@asc/ui/components/clinical/patient-banner";
+import { PhaseStepper } from "@asc/ui/components/clinical/phase-stepper";
+import { cn } from "@asc/ui/lib/utils";
 import {
   Activity,
   CheckCircle2,

@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState, type CSSProperties } from "react";
-import { AiBadge, cn } from "@asc/ui";
+import { AiBadge } from "@asc/ui/components/clinical/ai-badge";
+import { cn } from "@asc/ui/lib/utils";
 import {
   CalendarCheck,
   ClipboardCheck,

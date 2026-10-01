@@ -38,7 +38,7 @@ const pathology = lazyTab(() => import("./tabs/pathology-tab").then((m) => m.Pat
  * Case workspace tabs, in workflow order. Each tab is `features/case/tabs/<id>-tab.tsx`
  * with props `{ caseId }`; the owning feature agent fills it in (spec §4).
  * Ids, defaults and `isCaseTab` live in `case-tab-ids.ts`: import those from there, not from here,
- * outside the case workspace (this module pulls in every tab component).
+ * outside the case workspace (this module holds lazy loaders and preloads on demand, rather than eagerly pulling in tab implementations).
  */
 export const CASE_TABS = [
   { id: "pre-procedure", label: "Pre-procedure", icon: Stethoscope, ...preProcedure },

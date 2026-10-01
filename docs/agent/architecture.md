@@ -67,6 +67,7 @@ Read this before writing any code. The sole purpose of this monorepo is **centra
 - Consumers compile them: `apps/web` via Next.js, `apps/api` and `apps/worker` via **tsup** (bundles `@asc/*`, keeps third-party deps external). Never run an app with plain `tsc` output — Node cannot load `.ts` from `node_modules`.
 - OpenTelemetry is loaded as a preload (`node --import ./dist/instrumentation.js`), never by calling `initTelemetry()` inside `server.ts` (ESM hoists imports, so instrumentation would load too late).
 - Runtime env is parsed once with `parseEnv()` from `@asc/config` (Zod). Do not read `process.env` directly in app code.
+- Every package without import-time side effects declares `"sideEffects": false` in its `package.json` so webpack and Turbopack can tree-shake unused exports across consumers. UI kits or packages containing CSS files declare `"sideEffects": ["**/*.css"]`. Guarded by automated package manifest tests in `packages/eslint-config/rules/app-boundaries.test.js`.
 
 ### 7. TypeScript 7 + Lint
 - The compiler is TypeScript 7 (native). `check-types` uses `tsc --noEmit`.

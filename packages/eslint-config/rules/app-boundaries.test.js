@@ -3,6 +3,7 @@
  * lint small probe files through the real config blocks and assert which rules fire.
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { ESLint } from "eslint";
 import tseslint from "typescript-eslint";
@@ -79,22 +80,54 @@ describe("app boundary rules", () => {
     assert.deepEqual(await lint(code, { browser: true }), []);
   });
 
-  it("bans @asc/ui root barrel in route files under src/app/** (LM-011)", async () => {
+  it("bans @asc/ui root barrel in routes, auth, and landing components (LM-011)", async () => {
     const barrelCode = 'import { ThemeToggle } from "@asc/ui";';
     const leafCode = 'import { ThemeToggle } from "@asc/ui/components/theme/theme-toggle";';
 
+    for (const file of [
+      "src/app/page.tsx",
+      "src/components/auth/card.tsx",
+      "src/features/landing/hero.tsx",
+    ]) {
+      assert.deepEqual(
+        await lint(barrelCode, { browser: true, file }),
+        ["no-restricted-imports:1"],
+      );
+      assert.deepEqual(
+        await lint(leafCode, { browser: true, file }),
+        [],
+      );
+    }
+
     assert.deepEqual(
-      await lint(barrelCode, { browser: true, file: "src/app/page.tsx" }),
-      ["no-restricted-imports:1"],
-    );
-    assert.deepEqual(
-      await lint(leafCode, { browser: true, file: "src/app/page.tsx" }),
+      await lint(barrelCode, { browser: true, file: "src/features/case/tab.tsx" }),
       [],
     );
     assert.deepEqual(
-      await lint(barrelCode, { browser: true, file: "src/components/feature.tsx" }),
+      await lint(leafCode, { browser: true, file: "src/features/case/tab.tsx" }),
       [],
     );
+  });
+
+  it("asserts shared packages declare sideEffects in package.json", () => {
+    const packages = [
+      "api-client",
+      "clinical-rules",
+      "validation",
+      "config",
+      "types",
+      "ui",
+    ];
+    for (const pkg of packages) {
+      const pkgJson = JSON.parse(
+        readFileSync(new URL(`../../${pkg}/package.json`, import.meta.url), "utf8"),
+      );
+      assert.notEqual(
+        pkgJson.sideEffects,
+        undefined,
+        `packages/${pkg} must declare sideEffects in package.json`,
+      );
+    }
   });
 
   it("only applies to app source files", async () => {
