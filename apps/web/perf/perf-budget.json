@@ -1,4 +1,6 @@
 {
   "budgetsKbGz": {},
-  "forbidden": []
+  "forbidden": [
+    { "string": "Retroflexion in rectum", "notIn": "*", "reason": "case workspace tabs belong to /cases/[caseId] only" }
+  ]
 }

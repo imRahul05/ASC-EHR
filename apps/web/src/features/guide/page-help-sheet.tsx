@@ -8,7 +8,7 @@ import type { CaseDetail, UserRole } from "@asc/types";
 import { Button, HelpSheet } from "@asc/ui";
 import { LifeBuoy, Map as MapIcon, Sparkles } from "@asc/ui/icons";
 import { NAV_BY_ROLE, ROLE_LABEL } from "@/components/shell/nav-config";
-import { DEFAULT_TAB_BY_PHASE, isCaseTab } from "@/features/case/case-tabs";
+import { DEFAULT_TAB_BY_PHASE, isCaseTab } from "@/features/case/case-tab-ids";
 import { CASE_TAB_HELP, ROUTE_HELP } from "./guide-content";
 import { closeHelp, setTourCollapsed, showWelcome, startTour, updateGuide, useGuideState } from "./guide-store";
 

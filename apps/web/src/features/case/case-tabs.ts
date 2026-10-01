@@ -1,4 +1,3 @@
-import type { CasePhase } from "@asc/types";
 import {
   Activity,
   ClipboardCheck,
@@ -10,6 +9,7 @@ import {
   Syringe,
   type LucideIcon,
 } from "@asc/ui/icons";
+import type { CASE_TAB_IDS } from "./case-tab-ids";
 import { AnesthesiaTab } from "./tabs/anesthesia-tab";
 import { CodingTab } from "./tabs/coding-tab";
 import { NoteTab } from "./tabs/note-tab";
@@ -22,6 +22,8 @@ import { RecoveryTab } from "./tabs/recovery-tab";
 /**
  * Case workspace tabs, in workflow order. Each tab is `features/case/tabs/<id>-tab.tsx`
  * with props `{ caseId }`; the owning feature agent fills it in (spec §4).
+ * Ids, defaults and `isCaseTab` live in `case-tab-ids.ts`: import those from there, not from here,
+ * outside the case workspace (this module pulls in every tab component).
  */
 export const CASE_TABS = [
   { id: "pre-procedure", label: "Pre-procedure", icon: Stethoscope, Component: PreProcedureTab },
@@ -33,33 +35,8 @@ export const CASE_TABS = [
   { id: "coding", label: "Coding", icon: Receipt, Component: CodingTab },
   { id: "pathology", label: "Pathology", icon: Microscope, Component: PathologyTab },
 ] as const satisfies readonly {
-  id: string;
+  id: (typeof CASE_TAB_IDS)[number];
   label: string;
   icon: LucideIcon;
   Component: (props: { readonly caseId: string }) => React.ReactNode;
 }[];
-
-type CaseTabId = (typeof CASE_TABS)[number]["id"];
-
-/** Tab opened when the URL has no `?tab=` — follows where the case is in the workflow. */
-export const DEFAULT_TAB_BY_PHASE: Readonly<Record<CasePhase, CaseTabId>> = {
-  SCHEDULED: "pre-procedure",
-  CONFIRMED: "pre-procedure",
-  ARRIVED: "pre-op",
-  PRE_OP: "pre-op",
-  READY_FOR_PROCEDURE: "procedure",
-  IN_PROCEDURE: "procedure",
-  RECOVERY: "recovery",
-  READY_FOR_DISCHARGE: "recovery",
-  DISCHARGED: "note",
-  CHART_COMPLETE: "coding",
-  CODED: "coding",
-  EXPORTED: "pathology",
-  CLOSED: "pathology",
-  CANCELLED: "pre-procedure",
-  NO_SHOW: "pre-procedure",
-};
-
-export function isCaseTab(value: string | null): value is CaseTabId {
-  return CASE_TABS.some((tab) => tab.id === value);
-}
