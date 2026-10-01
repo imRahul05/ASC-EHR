@@ -25,7 +25,7 @@ apps/web/src/features/<domain>/       FEATURE    compose @asc/ui + data hooks; r
 | Third-party UI lib? | Install in `@asc/ui` only, never `apps/web` |
 | Icons / theme? | `@asc/ui/icons` (lucide re-export) · `ThemeProvider` / `ThemeToggle` from leaf paths (`@asc/ui/components/theme/*`) — never `lucide-react` / `next-themes` in an app |
 | Importing `@asc/validation` or `@asc/config` in browser code? | Use the **leaf subpath** (`@asc/validation/auth`, `@asc/config/public-env`, `@asc/config/api`). Their root entries use NodeNext `.js` re-exports that Turbopack can't resolve (lint-enforced) |
-| Importing `@asc/ui`? | Root `@asc/ui` is permitted in client feature components on signed-in routes. Use leaf imports in `src/app/**`, the auth tree (`src/components/auth/**`), the landing tree (`src/features/landing/**`), and any file without `"use client"` (LM-011) |
+| Importing `@asc/ui`? | Root `@asc/ui` is permitted in client feature components on signed-in routes. Use leaf imports in `src/app/**`, the auth tree (`src/components/auth/**`), the landing tree (`src/features/landing/**`), and Server Components (route files and anything they import directly, without a use client file in between) (LM-011) |
 | Fake API data during development? | MSW handlers in `apps/web/src/mocks` (on by default in dev, `NEXT_PUBLIC_API_MOCKING=disabled` to turn off; production builds only with `NEXT_PUBLIC_API_MOCKING=enabled` for the hosted demo — see [Deployment Configuration](../DEPLOYMENT_CONFIGURATION.md)). UI code never imports mock data — it calls `@asc/api-client` like production |
 
 **Before creating a component:** search `packages/ui/CATALOG.md` and `packages/ui/src/index.ts`. Extending an existing component beats a near-duplicate.
@@ -122,26 +122,17 @@ Other rules of thumb:
 
 ## 3b. Workflow Tabs & Dynamic Splitting
 
-- **`@asc/ui` Import Policy:** Root `@asc/ui` is permitted in client feature components on signed-in routes. Use leaf imports in `src/app/**`, the auth tree (`src/components/auth/**`), the landing tree (`src/features/landing/**`), and any file without `"use client"`.
-- **The `lazyTab` + `preload` Pattern:** Heavy tab implementations are split via `dynamic()` with on-demand preloading as defined in `apps/web/src/features/case/case-tabs.ts`. Each tab returns `{ Component, preload }`, where `Component` is a lazy component and `preload` triggers chunk loading:
-  ```ts
-  function lazyTab(load: () => Promise<ComponentType<{ readonly caseId: string }>>) {
-    return {
-      Component: dynamic(load, { loading: fallback }),
-      preload: () => {
-        void load();
-      },
-    };
-  }
-  ```
-  In `apps/web/src/features/case/case-workspace.tsx`, `TabsTrigger` calls `preload` on `onPointerEnter` and `onFocus` so tab code begins downloading before the user clicks.
+- **`@asc/ui` Import Policy:** Root `@asc/ui` is permitted in client feature components on signed-in routes. Use leaf imports in `src/app/**`, the auth tree (`src/components/auth/**`), the landing tree (`src/features/landing/**`), and Server Components (route files and anything they import directly, without a use client file in between).
+- **The `lazyTab` + `preload` Pattern:** Heavy tab implementations are split via `dynamic()` with on-demand preloading as defined directly in `apps/web/src/features/case/case-tabs.ts`. Each tab returns `{ Component, preload }`, where `Component` is a lazy component and `preload` triggers chunk loading. In `apps/web/src/features/case/case-workspace.tsx`, `TabsTrigger` calls `preload` on `onPointerEnter` and `onFocus` so tab code begins downloading before the user clicks.
 - **SSR Strategy (`{ ssr: false }` vs Default SSR):**
   - **`{ ssr: false }`:** Use for client-only overlays/modals triggered strictly on demand (e.g. `CommandPalette`, `WelcomeDialog`). They are not visible on initial render, so omitting server HTML avoids server rendering costs and hydration overhead.
   - **Default SSR with `<LoadingSkeleton variant="detail" />`:** Use for workflow tabs inside Base UI panels. This ensures panels render consistent placeholder skeletons during SSR and initial paint, eliminating layout shifts and hydration mismatches.
 - **Testing Boundary for `/cases/[caseId]`:**
   - Prerendered routes have KB budgets in `perf-budget.json`.
-  - Dynamic per-request routes like `/cases/[caseId]` cannot be checked by prerender build byte budgets.
-  - Their bundle isolation is guarded via forbidden-string assertions in `apps/web/perf/bundles.test.ts` (`"Retroflexion in rectum"`, `"Signature captured"`), ensuring tab code does not leak into starting entry chunks.
+  - Dynamic per-request routes like `/cases/[caseId]` are dynamic server routes without static HTML files, so their starting entry bundle is inspected via `.next/server/app/(dashboard)/cases/[caseId]/page_client-reference-manifest.js`.
+  - In `apps/web/perf/bundles.test.ts`, the test extracts `entryJSFiles["[project]/apps/web/src/app/(dashboard)/cases/[caseId]/page"]` to verify:
+    1. Starting entry chunks do NOT contain `"Retroflexion in rectum"` (proving that case tabs are code-split and not bundled into the starting entry).
+    2. Starting entry chunks gzip size is under 200 KB gz (currently ~183.4 KB gz).
 
 ## 4. Required async states (every data view)
 

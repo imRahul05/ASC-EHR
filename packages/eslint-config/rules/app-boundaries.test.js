@@ -3,8 +3,10 @@
  * lint small probe files through the real config blocks and assert which rules fire.
  */
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
 import { ESLint } from "eslint";
 import tseslint from "typescript-eslint";
 import { appBoundaryConfig } from "../app.js";
@@ -109,23 +111,23 @@ describe("app boundary rules", () => {
     );
   });
 
-  it("asserts shared packages declare sideEffects in package.json", () => {
-    const packages = [
-      "api-client",
-      "clinical-rules",
-      "validation",
-      "config",
-      "types",
-      "ui",
-    ];
-    for (const pkg of packages) {
-      const pkgJson = JSON.parse(
-        readFileSync(new URL(`../../${pkg}/package.json`, import.meta.url), "utf8"),
-      );
-      assert.notEqual(
-        pkgJson.sideEffects,
-        undefined,
-        `packages/${pkg} must declare sideEffects in package.json`,
+  it("asserts all packages in packages/* declare sideEffects in package.json", () => {
+    const packagesDir = fileURLToPath(new URL("../..", import.meta.url));
+    const entries = readdirSync(packagesDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+
+    assert.ok(entries.length > 0, "must find packages in packages/*");
+
+    for (const pkg of entries) {
+      const pkgJsonPath = path.join(packagesDir, pkg, "package.json");
+      assert.ok(existsSync(pkgJsonPath), `packages/${pkg}/package.json must exist`);
+      const pkgJson = JSON.parse(readFileSync(pkgJsonPath, "utf8"));
+      const isExplicitFalse = pkgJson.sideEffects === false;
+      const isNonEmptyArray = Array.isArray(pkgJson.sideEffects) && pkgJson.sideEffects.length > 0;
+      assert.ok(
+        isExplicitFalse || isNonEmptyArray,
+        `packages/${pkg} must declare sideEffects as false or non-empty string[] (got ${JSON.stringify(pkgJson.sideEffects)})`,
       );
     }
   });

@@ -2,6 +2,7 @@
   "name": "@asc/typescript-config",
   "version": "0.0.0",
   "private": true,
+  "sideEffects": false,
   "license": "MIT",
   "publishConfig": {
     "access": "public"
