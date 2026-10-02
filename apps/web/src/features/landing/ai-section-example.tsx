@@ -1,17 +1,17 @@
 "use client";
 
 import type { GapChip as GapChipModel } from "@asc/types";
+import { AiBadge } from "@asc/ui/components/clinical/ai-badge";
+import { ConfidenceBadge } from "@asc/ui/components/clinical/confidence-badge";
+import { DraftBanner } from "@asc/ui/components/clinical/draft-banner";
+import { GapChip } from "@asc/ui/components/clinical/gap-chip";
+import { Button } from "@asc/ui/components/ui/button";
 import {
-  AiBadge,
-  Button,
-  ConfidenceBadge,
-  DraftBanner,
-  GapChip,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-  cn,
-} from "@asc/ui";
+} from "@asc/ui/components/ui/tooltip";
+import { cn } from "@asc/ui/lib/utils";
 import { FileSignature, RotateCcw, Sparkles } from "@asc/ui/icons";
 import { useState, type MouseEvent } from "react";
 

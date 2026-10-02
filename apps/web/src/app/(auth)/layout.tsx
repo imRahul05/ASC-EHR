@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ThemeToggle } from "@asc/ui";
+import { ThemeToggle } from "@asc/ui/components/theme/theme-toggle";
 import { AuthBrandPanel } from "@/components/auth/auth-brand-panel";
 import { BrandMark } from "@/components/auth/brand-mark";
 import { MockProvider } from "@/mocks/mock-provider";

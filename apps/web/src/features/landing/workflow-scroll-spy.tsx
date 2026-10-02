@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { cn } from "@asc/ui";
+import { cn } from "@asc/ui/lib/utils";
 
 /** Index of the step crossing the middle of the viewport, or null before the list is reached. */
 const ActiveStepContext = createContext<number | null>(null);

@@ -3,7 +3,7 @@
 import { useResetDemo } from "@asc/api-client/react";
 import { Button, PageHeader, toast } from "@asc/ui";
 import { Map as MapIcon, RotateCcw } from "@asc/ui/icons";
-import { DEMO_EXPLAINER } from "./guide-content";
+import { DEMO_EXPLAINER } from "./demo-explainer-data";
 import { GuideJourney } from "./guide-journey";
 import { GuidePersonas } from "./guide-personas";
 import { GuideReference } from "./guide-reference";

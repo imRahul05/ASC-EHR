@@ -1,5 +1,6 @@
 import type { CasePhase } from "@asc/types";
-import { AiBadge, PhaseChip } from "@asc/ui";
+import { AiBadge } from "@asc/ui/components/clinical/ai-badge";
+import { PhaseChip } from "@asc/ui/components/clinical/phase-chip";
 import { FileSignature, Lock, ScrollText } from "@asc/ui/icons";
 
 const JOURNEY: readonly { readonly time: string; readonly label: string; readonly phase: CasePhase; readonly ai?: boolean }[] = [

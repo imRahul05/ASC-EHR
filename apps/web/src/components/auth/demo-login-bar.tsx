@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import type { UserRole } from "@asc/types";
-import { cn, Skeleton, toast } from "@asc/ui";
+import { Skeleton } from "@asc/ui/components/ui/skeleton";
+import { toast } from "@asc/ui/components/ui/sonner";
+import { cn } from "@asc/ui/lib/utils";
 import { ArrowRight, Building2, HeartPulse, Loader2, ShieldPlus, Stethoscope, UserRound, type LucideIcon } from "@asc/ui/icons";
 import { useAuth, useDemoPresets } from "../../hooks/use-auth";
 
@@ -20,7 +22,9 @@ export function DemoLoginBar() {
   const { loginWithDemo, isDemoLoggingIn } = useAuth();
   const presets = useDemoPresets();
   const [pendingId, setPendingId] = useState<string | null>(null);
-  const ordered = (presets.data ?? []).toSorted((a, b) => PERSONAS[a.role].order - PERSONAS[b.role].order);
+  const ordered = (presets.data ?? []).toSorted(
+    (a, b) => PERSONAS[a.role].order - PERSONAS[b.role].order,
+  );
 
   const signIn = async (presetId: string) => {
     setPendingId(presetId);

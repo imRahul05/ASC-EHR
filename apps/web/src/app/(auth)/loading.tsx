@@ -1,6 +1,6 @@
-import { LoadingSkeleton } from "@asc/ui";
+import { LoadingSkeleton } from "@asc/ui/components/clinical/loading-skeleton";
 
 // Auth pages.
 export default function Loading() {
-  return <LoadingSkeleton variant="table" />;
+  return <LoadingSkeleton variant="page" />;
 }

@@ -2,7 +2,9 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
-import { ThemeProvider, Toaster, TooltipProvider } from "@asc/ui";
+import { ThemeProvider } from "@asc/ui/components/theme/theme-provider";
+import { Toaster } from "@asc/ui/components/ui/sonner";
+import { TooltipProvider } from "@asc/ui/components/ui/tooltip";
 
 const QUERY_DEFAULTS = {
   queries: {

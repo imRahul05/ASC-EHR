@@ -3,7 +3,10 @@
  * lint small probe files through the real config blocks and assert which rules fire.
  */
 import assert from "node:assert/strict";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
 import { ESLint } from "eslint";
 import tseslint from "typescript-eslint";
 import { appBoundaryConfig } from "../app.js";
@@ -19,7 +22,7 @@ function linter(options) {
         languageOptions: { parser: tseslint.parser, parserOptions: { ecmaFeatures: { jsx: true } } },
         rules: { "no-restricted-properties": PROCESS_ENV_RULE },
       },
-      appBoundaryConfig(options),
+      ...appBoundaryConfig(options),
     ],
   });
 }
@@ -77,6 +80,56 @@ describe("app boundary rules", () => {
       "interface Props { readonly id: string }",
     ].join("\n");
     assert.deepEqual(await lint(code, { browser: true }), []);
+  });
+
+  it("bans @asc/ui root barrel in routes, auth, and landing components (LM-011)", async () => {
+    const barrelCode = 'import { ThemeToggle } from "@asc/ui";';
+    const leafCode = 'import { ThemeToggle } from "@asc/ui/components/theme/theme-toggle";';
+
+    for (const file of [
+      "src/app/page.tsx",
+      "src/components/auth/card.tsx",
+      "src/features/landing/hero.tsx",
+    ]) {
+      assert.deepEqual(
+        await lint(barrelCode, { browser: true, file }),
+        ["no-restricted-imports:1"],
+      );
+      assert.deepEqual(
+        await lint(leafCode, { browser: true, file }),
+        [],
+      );
+    }
+
+    assert.deepEqual(
+      await lint(barrelCode, { browser: true, file: "src/features/case/tab.tsx" }),
+      [],
+    );
+    assert.deepEqual(
+      await lint(leafCode, { browser: true, file: "src/features/case/tab.tsx" }),
+      [],
+    );
+  });
+
+  it("asserts all packages in packages/* declare sideEffects in package.json", () => {
+    const packagesDir = fileURLToPath(new URL("../..", import.meta.url));
+    const entries = readdirSync(packagesDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+
+    assert.ok(entries.length > 0, "must find packages in packages/*");
+
+    for (const pkg of entries) {
+      const pkgJsonPath = path.join(packagesDir, pkg, "package.json");
+      assert.ok(existsSync(pkgJsonPath), `packages/${pkg}/package.json must exist`);
+      const pkgJson = JSON.parse(readFileSync(pkgJsonPath, "utf8"));
+      const isExplicitFalse = pkgJson.sideEffects === false;
+      const isNonEmptyArray = Array.isArray(pkgJson.sideEffects) && pkgJson.sideEffects.length > 0;
+      assert.ok(
+        isExplicitFalse || isNonEmptyArray,
+        `packages/${pkg} must declare sideEffects as false or non-empty string[] (got ${JSON.stringify(pkgJson.sideEffects)})`,
+      );
+    }
   });
 
   it("only applies to app source files", async () => {

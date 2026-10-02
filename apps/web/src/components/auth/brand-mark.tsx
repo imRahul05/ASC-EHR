@@ -1,4 +1,4 @@
-import { cn } from "@asc/ui";
+import { cn } from "@asc/ui/lib/utils";
 import { Activity } from "@asc/ui/icons";
 
 interface BrandMarkProps {

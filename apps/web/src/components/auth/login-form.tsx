@@ -5,7 +5,10 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff, Loader2, Lock, Mail } from "@asc/ui/icons";
-import { Button, cn, FormField, Input, type FieldConfig } from "@asc/ui";
+import { Button } from "@asc/ui/components/ui/button";
+import { FormField, type FieldConfig } from "@asc/ui/components/form/form-field";
+import { Input } from "@asc/ui/components/ui/input";
+import { cn } from "@asc/ui/lib/utils";
 import { loginSchema, type LoginFormData } from "@asc/validation/auth";
 import { useAuth } from "../../hooks/use-auth";
 

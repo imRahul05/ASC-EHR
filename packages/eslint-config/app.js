@@ -41,6 +41,14 @@ const APP_RESTRICTED_PATHS = [
   { name: "drizzle-orm", message: "Database access lives in @asc/db." },
 ];
 
+const ROUTE_RESTRICTED_PATHS = [
+  {
+    name: "@asc/ui",
+    message:
+      "Route files under src/app/**, auth components, and landing pages must import leaf subpaths from @asc/ui (e.g. @asc/ui/components/ui/*, @asc/ui/components/theme/*, @asc/ui/lib/utils) to prevent barrel bundle inflation (LM-011).",
+  },
+];
+
 /**
  * Boundary rules for deployable apps (apps/web, apps/api, apps/worker).
  * Apps compose packages; they never own shared types, schemas, clients or
@@ -48,53 +56,75 @@ const APP_RESTRICTED_PATHS = [
  * docs/plan/implementation-plan.md §4 and LEARNING_MISTAKES.md LM-001.
  *
  * @param {{ browser?: boolean }} [options] browser: also require leaf subpath imports
- * @returns {import("eslint").Linter.Config}
+ * @returns {import("eslint").Linter.Config[]}
  */
 export function appBoundaryConfig({ browser = false } = {}) {
-  return {
-    files: ["src/**/*.ts", "src/**/*.tsx"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          paths: browser
-            ? [...APP_RESTRICTED_PATHS, ...BROWSER_ENTRY_POINT_PATHS]
-            : APP_RESTRICTED_PATHS,
-          patterns: [
-            {
-              group: ["@radix-ui/*"],
-              message: "Base UI only, through @asc/ui.",
-            },
-            { group: ["@mantine/*"], message: "One design system: @asc/ui." },
-            {
-              group: ["@ai-sdk/*", "@anthropic-ai/*", "openai"],
-              message: "LLM calls only in @asc/agents.",
-            },
-          ],
-        },
-      ],
-      "no-restricted-syntax": [
-        "error",
-        {
-          selector: "ExportNamedDeclaration > TSInterfaceDeclaration",
-          message:
-            "Shared types belong in @asc/types (LM-001). Component props interfaces stay unexported.",
-        },
-        {
-          selector: "ExportNamedDeclaration > TSTypeAliasDeclaration",
-          message: "Shared types belong in @asc/types (LM-001).",
-        },
-        {
-          selector: "CallExpression[callee.object.name='z']",
-          message: "Zod schemas belong in @asc/validation (LM-001).",
-        },
-      ],
+  const baseRestricted = browser
+    ? [...APP_RESTRICTED_PATHS, ...BROWSER_ENTRY_POINT_PATHS]
+    : APP_RESTRICTED_PATHS;
+
+  const patterns = [
+    {
+      group: ["@radix-ui/*"],
+      message: "Base UI only, through @asc/ui.",
     },
-  };
+    { group: ["@mantine/*"], message: "One design system: @asc/ui." },
+    {
+      group: ["@ai-sdk/*", "@anthropic-ai/*", "openai"],
+      message: "LLM calls only in @asc/agents.",
+    },
+  ];
+
+  return [
+    {
+      files: ["src/**/*.ts", "src/**/*.tsx"],
+      rules: {
+        "no-restricted-imports": [
+          "error",
+          {
+            paths: baseRestricted,
+            patterns,
+          },
+        ],
+        "no-restricted-syntax": [
+          "error",
+          {
+            selector: "ExportNamedDeclaration > TSInterfaceDeclaration",
+            message:
+              "Shared types belong in @asc/types (LM-001). Component props interfaces stay unexported.",
+          },
+          {
+            selector: "ExportNamedDeclaration > TSTypeAliasDeclaration",
+            message: "Shared types belong in @asc/types (LM-001).",
+          },
+          {
+            selector: "CallExpression[callee.object.name='z']",
+            message: "Zod schemas belong in @asc/validation (LM-001).",
+          },
+        ],
+      },
+    },
+    {
+      files: [
+        "src/app/**/*.ts*",
+        "src/components/auth/**/*.ts*",
+        "src/features/landing/**/*.ts*",
+      ],
+      rules: {
+        "no-restricted-imports": [
+          "error",
+          {
+            paths: [...baseRestricted, ...ROUTE_RESTRICTED_PATHS],
+            patterns,
+          },
+        ],
+      },
+    },
+  ];
 }
 
 /** Boundary rules for Node apps (apps/api, apps/worker). */
 export const appBoundaries = appBoundaryConfig();
 
 /** Config for Node apps (apps/api, apps/worker). */
-export const config = [...baseConfig, appBoundaries];
+export const config = [...baseConfig, ...appBoundaries];

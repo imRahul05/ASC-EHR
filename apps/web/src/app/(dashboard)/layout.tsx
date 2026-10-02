@@ -1,6 +1,6 @@
 "use client";
 
-import { SidebarInset, SidebarProvider } from "@asc/ui";
+import { SidebarInset, SidebarProvider } from "@asc/ui/components/ui/sidebar";
 import { RequireAuth } from "@/components/auth/require-auth";
 import { AppSidebar } from "@/components/shell/app-sidebar";
 import { TopBar } from "@/components/shell/top-bar";

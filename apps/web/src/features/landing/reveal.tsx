@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
-import { cn } from "@asc/ui";
+import { cn } from "@asc/ui/lib/utils";
 import { canAnimateOnScroll, observeOnceInView } from "./reveal-observer";
 
 interface RevealProps {
