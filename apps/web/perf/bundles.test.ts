@@ -130,10 +130,8 @@ describe("apps/web production bundles", () => {
 
   describe("dynamic route /cases/[caseId]", () => {
     it("does not bundle case workspace tab content into starting entry chunks", () => {
-      if (!hasCaseManifest) {
-        expect(hasBuild).toBe(false);
-        return;
-      }
+      if (!hasBuild) return; // reported by "has a production build to check"
+      expect(hasCaseManifest, `Client reference manifest not found at ${CASE_MANIFEST_PATH}`).toBe(true);
       expect(caseEntryChunks.length).toBeGreaterThan(0);
       const offending = caseEntryChunks.filter((chunk) =>
         chunkSource(chunk).toString("utf8").includes("Retroflexion in rectum"),
@@ -142,10 +140,8 @@ describe("apps/web production bundles", () => {
     });
 
     it("keeps starting entry chunks within the dynamicBudgetsKbGz budget", () => {
-      if (!hasCaseManifest) {
-        expect(hasBuild).toBe(false);
-        return;
-      }
+      if (!hasBuild) return; // reported by "has a production build to check"
+      expect(hasCaseManifest, `Client reference manifest not found at ${CASE_MANIFEST_PATH}`).toBe(true);
       const limit = budget.dynamicBudgetsKbGz["/cases/[caseId]"];
       expect(limit, 'perf-budget.json needs dynamicBudgetsKbGz["/cases/[caseId]"]').toBeDefined();
       expect(caseEntryChunks.length).toBeGreaterThan(0);

@@ -19,8 +19,9 @@ const fallback = () => createElement(LoadingSkeleton, { variant: "detail" });
 function lazyTab(load: () => Promise<ComponentType<{ readonly caseId: string }>>) {
   return {
     Component: dynamic(load, { loading: fallback }),
+    // Speculative (hover/focus): swallow failures; the render path via `dynamic` surfaces real load errors.
     preload: () => {
-      void load();
+      load().catch(() => undefined);
     },
   };
 }
