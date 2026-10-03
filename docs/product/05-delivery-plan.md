@@ -53,7 +53,7 @@ gantt
 
 | ID | Decision | Recommendation | Why |
 |---|---|---|---|
-| D1 | Medplum hosting | **Self-host on Azure** using Medplum's Terraform path; fallback: Medplum-hosted with BAA if platform time slips past week 3 | Matches existing Azure BAA posture; data residency under our control |
+| D1 | Medplum hosting | **decided 2026-10-03:** self-host only (open-source Medplum, upstream images, on Azure). No Medplum-hosted service, no hosted fallback. Use Medplum's Terraform path. | Matches existing Azure BAA posture; data residency under our control; Apache-2.0 open source, so no vendor contract |
 | D2 | UI library for clinical app | `@asc/ui` + `@medplum/react-hooks` (headless); **no** `@medplum/react` in `apps/web` | Repo rule; one design system |
 | D3 | Admin console | Medplum App in P1 | No custom admin build |
 | D4 | Worklist engine | FHIR `Task` for all queues | One engine; MindScript worklist UX ports onto it (its Recovery queue is cancelled-appointment follow-up; pathology tracking is new — see [06](06-mindscript-integration.md)) |
@@ -70,7 +70,7 @@ gantt
 | Tower model / capture output unknown | Images not in note | High | P1 = capture-card upload works with any tower; decide hardware now (Q2) |
 | Biller format unknown | No revenue hand-off | Med | Get spec by week 2 (Q4); export adapter isolated behind interface |
 | CPT license not in place | No codes | Med | Start AMA license now (Q8) |
-| Medplum Azure ops harder than expected | Platform slip | Med | D1 fallback; pin versions; single platform owner |
+| Medplum Azure ops harder than expected | Platform slip | Med | No hosted fallback (D1). Run upstream images unmodified; pin versions; single platform owner; start P02/P06 in week 1 |
 | AI note quality below physician bar | Wedge fails, fall back to clicking | Med | Record engine works fully manual; AI only accelerates; eval set from mock cases |
 | 10-week schedule | Scope creep kills go-live | High | Phase gates enforced; everything not P1 is parked in P2 backlog |
 | Network outage in procedure room | Lost anesthesia data | Low–Med | Offline queue (M07-7); downtime packet |

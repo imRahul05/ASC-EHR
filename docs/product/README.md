@@ -13,6 +13,7 @@
 | 4 | [End-to-end flows](04-end-to-end-flows.md) | Mermaid flows for the whole patient journey and each critical sub-flow. |
 | 5 | [Delivery plan & open questions](05-delivery-plan.md) | Critical path to go-live, workstreams, risks, decisions still owed by physicians/business. |
 | 6 | [MindScript integration](06-mindscript-integration.md) | *What MindScript really is* (from the dev team's [How It Works](../MindScript-How-It-Works.md)), which earlier reuse claims were wrong, and how faxagnet, Integuru/eCW, Deepgram and MindScript code wire into this repo. |
+| 8 | [Identity, access control & multi-tenancy](08-identity-access-and-tenancy.md) | *Who can do what, in which hospital:* Medplum auth decision, tenant/facility model, RBAC via capabilities + role templates, realtime and service-to-service security, IAM phase plan. |
 | ▶ | [Implementation plan](../plan/implementation-plan.md) | *How we build it:* 27 short phases, dependency matrices, target file tree, package versions; live status in [`PROGRESS.md`](../../PROGRESS.md). |
 | A | [Feature traceability appendix](appendix-feature-traceability.md) | All 140 roadmap rows → phase, MindScript reuse, Medplum primitive, build type. |
 | ADR | [Adopt Medplum as clinical data platform](../decisions/2026-09-25-adopt-medplum-as-clinical-data-platform.md) | Proposed decision record. |

@@ -66,6 +66,7 @@ Work completed before this plan existed, grouped from git history (`origin/main`
 
 | Date | Area | What | Ref |
 |---|---|---|---|
+| 2026-10-03 | Docs | Identity, access control & multi-tenancy design (proposed): Medplum as IdP + data-authz, tenant = Project, facility = Organization, capabilities + role templates, 5 authorization gates, realtime/service-to-service security, IAM track I0–I18 with dependency matrix (not yet merged into the plan) + ADR | branch `worktree-docs-iam-tenancy-design` |
 | 2026-10-01 | Web perf | Tree-shaking & dynamic code-splitting: package manifests (`@asc/api-client`, `@asc/clinical-rules`, `@asc/validation`, `@asc/config`, `@asc/types`, `@asc/ui`) declare `sideEffects` and guarded by manifest tests; expanded ESLint guard for routes/auth/landing (`src/app/**`, `src/components/auth/**`, `src/features/landing/**`) with 6 landing client components converted to leaf imports; Server Components & forms in `(auth)` migrated to `@asc/ui` leaf imports eliminating client barrel leaks (SignaturePad, CommandPalette, Sheet); `DEMO_EXPLAINER` extracted to isolated data module; all 8 case tabs code-split dynamically via `next/dynamic` with `<LoadingSkeleton variant="detail" />` and tab hover/focus preloading (`TabsTrigger` `preload` on pointer enter & focus); `CommandPalette`, `WelcomeDialog`, `TourChecklist`, and `PageHelpSheet` dynamically imported (`ssr: false`); `providers.tsx` converted to leaf imports; perf budgets tightened (`/login` 376→307 KB gz, `/signup` 366→294 KB gz, `/cases/[caseId]` 267→185 KB gz); `bundles.test.ts` passes 9/9 | PR #19, branch `perf/tree-shaking-and-mobile-css-optimization`, LM-011 |
 | 2026-10-01 | Web perf | [Plan](docs/plan/web-performance-plan.md): case tab components out of shell routes (`case-tab-ids.ts`), landing Server Components on `@asc/ui` leaf imports + `"sideEffects"` on `@asc/ui`, MSW started only in `(auth)`/`(dashboard)`; inline CSS evaluated and not adopted (mobile FCP/LCP worse, HTML 33→110 KB). Bundle guard `pnpm --filter web build && pnpm --filter web test:bundles` with budgets. Demo build, gz initial JS: /dashboard 432→349 KB, / 350→294 KB, /_not-found 324→242 KB; Lighthouse `/` mobile LCP 3682→3357 ms, unused JS 166→48 KiB. Open: `/login` simulated mobile LCP 3462→3760 ms (observed unchanged; more, smaller chunks on an HTTP/1.1 lab server) — re-measure on an HTTP/2 preview | branch `worktree-plan-web-performance` |
 | 2026-09-30 | Web | Landing hero height capped at 56rem (`min(100svh - nav, 56rem)`) so 24"/27" monitors no longer open a large gap between headline and journey line; laptop/tablet/mobile unchanged | branch `worktree-fix-hero-tall-screens` |
@@ -96,7 +97,7 @@ Work completed before this plan existed, grouped from git history (`origin/main`
 | ID | Question | Blocks | Owner | Status |
 |---|---|---|---|---|
 | Q-MS1 | Access to `Wybit-LLC/MindScript` source | P13, P16, P19, P22, P24 | eng lead | open |
-| D1/Q10 | Medplum self-host vs hosted | P06, P26 | eng lead | open (recommend self-host) |
+| D1/Q10 | Medplum self-host vs hosted | P06, P26 | eng lead | **decided 2026-10-03** → self-host only, no hosted fallback |
 | P00-Q1 | Upgrade zod 4 / bullmq 6 / ioredis 6 / OTel before Wave 2? | P07+ | eng lead | **decided 2026-09-28** → P00b; OTel deferred |
 | Q4 | Biller file format | P22 | business | open |
 | Q8 | CPT licence | P08, P22 | business | open |
@@ -109,13 +110,14 @@ Full lists: [implementation plan §6](docs/plan/implementation-plan.md#6-cross-p
 
 1. **P00b** library upgrades (zod 4, bullmq 6, ioredis 6) — must land before Wave 2. In parallel: **P01** CI.
 2. In parallel: **P02** local Medplum, **P03** `@asc/fhir`.
-3. Escalate week-1 questions: Q-MS1, D1, Azure subscription/BAA (P06), Q8 CPT licence.
+3. Escalate week-1 questions: Q-MS1, Azure subscription/BAA (P06), Q8 CPT licence.
 4. Wire `pnpm --filter web build && pnpm --filter web test:bundles` and Lighthouse CI into **P01** CI; re-measure `/login` mobile LCP on an HTTP/2 deploy preview (see web perf done-log entry).
 
 ## 6. Decisions log
 
 | Date | Decision | Where recorded |
 |---|---|---|
+| 2026-10-03 | Medplum is self-hosted from the open-source code (upstream images, Azure); the Medplum-hosted service is not used, not even as a fallback (D1) | [05 §5.2](docs/product/05-delivery-plan.md), [identity ADR](docs/decisions/2026-10-03-medplum-as-identity-and-access-platform.md) |
 | 2026-09-30 | API URL, CORS origins and demo mocking are env-only; exact-origin CORS allowlist, no credentials (Bearer); Azure: `app.`/`api.` subdomains or `/api` reverse proxy | [ADR](docs/decisions/2026-09-30-env-driven-api-url-and-cors-allowlist.md), [guide](docs/DEPLOYMENT_CONFIGURATION.md) |
 | 2026-09-28 | Upgrade zod 4 + bullmq 6 + ioredis 6 before Wave 2 (P00b); defer OpenTelemetry 0.222 and React 19.3 | [P00b](docs/plan/phases/P00b-library-upgrades.md) |
 | 2026-09-27 | Execution follows `docs/plan/implementation-plan.md`; 05 Gantt superseded for scheduling | this file |
