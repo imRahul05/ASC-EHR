@@ -18,6 +18,7 @@ The product must support several hospitals and ASC groups from one deployment, e
 - Hospital SSO per tenant
 - New roles and workflow changes without code changes
 - BAA and data residency inside our Azure tenant
+- Prefer battle-tested open source we run ourselves over a hosted vendor
 
 ## Considered Options
 
@@ -28,7 +29,7 @@ The product must support several hospitals and ASC groups from one deployment, e
 
 ## Decision Outcome
 
-Chosen option: **1**. The design is in [`docs/product/08-identity-access-and-tenancy.md`](../product/08-identity-access-and-tenancy.md).
+Chosen option: **1**, running **self-hosted open-source Medplum** (upstream `medplum/medplum-server` images, Apache-2.0) in our Azure subscription. The Medplum-hosted service is not used. The design is in [`docs/product/08-identity-access-and-tenancy.md`](../product/08-identity-access-and-tenancy.md).
 
 - Each customer (the BAA holder) gets its own Medplum `Project`. Each site is an `Organization` within it, and every resource carries that site in `meta.accounts`.
 - A role is a versioned *role template* in a new pure package, `@asc/authz`. A template holds a list of capabilities plus data rules. A policy compiler turns each template into a parameterized `AccessPolicy` (`%facility`) for each tenant.
@@ -45,7 +46,8 @@ Chosen option: **1**. The design is in [`docs/product/08-identity-access-and-ten
 
 - Good: a single policy decision point for PHI, with no identity sync and no super-user FHIR calls.
 - Good: adding a tenant or a role is configuration, not a code change or a new deployment.
-- Bad: on Medplum-hosted, domain SSO needs an Enterprise plan. This feeds into D1.
+- Bad: we operate Medplum ourselves: upgrades, backups, the super-admin credential, and an email sender for invites and password resets.
+- Good: self-hosting means domain SSO (`DomainConfiguration`) is configured by our super-admin with no paid plan, and no Medplum BAA is needed (the Azure BAA covers the infrastructure).
 - Bad: some Medplum behaviours still need confirming (spikes S1–S5 in 08 §14) before the phases that depend on them start.
 - Neutral: login UI is built in-house on `@medplum/core`, because `@medplum/react` stays banned.
 

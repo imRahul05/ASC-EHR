@@ -1,6 +1,7 @@
 # 08 — Identity, Access Control and Multi-Tenancy (design)
 
 > **Status:** proposed design, 2026-10-03. Not yet scheduled; the phases in §13 are an *IAM track* to merge into [`implementation-plan.md`](../plan/implementation-plan.md) once the clinical workflow is confirmed.
+> **Hosting (decided 2026-10-03):** Medplum runs **self-hosted from its open-source code** (upstream images) in our Azure subscription. We do **not** use the Medplum-hosted service. See §2.4.
 > **Decision record:** [ADR — Medplum as identity and access platform](../decisions/2026-10-03-medplum-as-identity-and-access-platform.md) (proposed).
 > **Related:** [03 Target architecture §6 security](03-target-architecture.md) · [P05 Auth + roles](../plan/phases/P05-auth-roles.md) · [COMPLIANCE_AND_PHI](../COMPLIANCE_AND_PHI.md) · [06 MindScript integration](06-mindscript-integration.md) · `LEARNING_MISTAKES.md` LM-004 (no tokens in browser storage).
 
@@ -64,13 +65,13 @@ Work that **does not need Medplum** can start now on the mock frontend (I1–I4 
 | Where identities live | Medplum Postgres, inside our Azure tenant | Our Postgres | Clerk's cloud | Our Keycloak cluster |
 | Enforces **data-level** authz on FHIR | **Yes**: `AccessPolicy` on every read and write | No, needs a bridge to Medplum | No, needs a bridge | No, needs a bridge |
 | Identity stores to keep in sync with Medplum | **0** | 1 (users ↔ ProjectMembership) | 1 | 1 |
-| BAA | Self-host: none needed. Medplum-hosted: offers BAA | None needed (self-host) | Must be confirmed with Clerk | None needed |
+| BAA | **None needed**: self-hosted from open source in our Azure (the Azure BAA covers it) | None needed (self-host) | Must be confirmed with Clerk | None needed |
 | MFA | TOTP built in | 2FA plugin | Yes | Yes |
 | SSO / federation | Per-domain external IdP via `DomainConfiguration` (Okta documented; Entra via OIDC, to verify in S2) | SSO plugin | Yes (enterprise plans) | Yes, very mature |
 | Multi-tenant primitive | **Project** (hard FHIR boundary) | Organization plugin (app level only) | Organizations | Realms |
 | Patient (portal) identity | Same system, `Patient` profile | Separate wiring | Separate wiring | Separate wiring |
 | Built for healthcare | Yes (SMART-on-FHIR, AuditEvent) | No | No | No |
-| Ops cost | Already running Medplum | Low | None | High (Java cluster) |
+| Ops cost | Already running Medplum (self-hosted for the FHIR store anyway) | Low | None | High (Java cluster) |
 | Lock-in | Open source (Apache-2.0); FHIR-standard data | Low | High | Low |
 
 ### 2.2 Why Medplum
@@ -79,12 +80,35 @@ Work that **does not need Medplum** can start now on the mock frontend (I1–I4 
 2. **No identity sync.** Every other option needs a user to exist twice, once in the IdP and once as a Medplum `ProjectMembership`. Deprovisioning drift ("disabled in Clerk, still active in Medplum") is a classic audit finding.
 3. **Tenancy comes free.** A Medplum Project is "a hard boundary between FHIR resources", and a user "can be a member of one, or multiple Projects, with different privileges in each" ([Medplum docs: Projects](https://www.medplum.com/docs/access/projects)). That is exactly the hospital-per-tenant model.
 4. **Hospital SSO is still possible.** Medplum federates to the hospital's own IdP by email domain, so SSO does not force a separate IdP product.
-5. **Login UI stays ours.** `@medplum/core` exposes the login API (`startLogin` → MFA → `processCode`), so `apps/web` renders a branded login with `@asc/ui`. `@medplum/react` stays banned (D2).
+5. **Battle-tested open source we run ourselves.** Medplum is Apache-2.0. We run its published server images in our own Azure subscription, so there is no vendor contract, no per-user pricing, and PHI never leaves our tenant. Login, MFA, OAuth, password storage and policy enforcement come from code used in production by other healthcare products, instead of code we would have to write and harden.
+6. **Login UI stays ours.** `@medplum/core` exposes the login API (`startLogin` → MFA → `processCode`), so `apps/web` renders a branded login with `@asc/ui`. `@medplum/react` stays banned (D2).
 
 ### 2.3 What would make us revisit
 
 - Medplum's login lacks a capability a hospital insists on that federation cannot provide (for example passkeys without an external IdP). Response: federate to Entra or Okta; we would **not** switch the IdP of record.
 - We move off Medplum as the data platform. In that case the `IdentityPort` abstraction (§7.6) keeps auth replaceable. Better Auth would then be the preferred replacement: it is open source, self-hosted and TypeScript.
+
+### 2.4 How we run Medplum (self-hosted from open source)
+
+We take Medplum's code as released and run it ourselves. **We do not fork it.** A fork would make every upstream security fix a merge job. We change Medplum's behaviour only through configuration, AccessPolicies, Bots and its APIs.
+
+| Part | What we take from Medplum (no code to write) | What we own |
+|---|---|---|
+| Server | `medplum/medplum-server` image, pinned to 5.1.42 (same version as `@medplum/*` packages) | Upgrades through staging, CVE patching cadence |
+| Database, cache | Medplum's schema and migrations | Azure Postgres Flexible (PITR backups) and Redis; restore tests |
+| Auth | OAuth2/OIDC server, PKCE, password hashing, TOTP MFA, account lockout, token issuing and refresh, `DomainConfiguration` SSO | Choosing settings (token lifetime, MFA required), email sender config |
+| Authorization | AccessPolicy engine on every FHIR call, `ProjectMembership`, Projects | Policy *content* (generated by our compiler, §7) |
+| Audit | `AuditEvent` on every FHIR access | Retention and export for compliance |
+| Realtime, events | WebSocket subscriptions, signed rest-hooks, Bots runtime | Hook receivers and Bot code |
+| Admin | Medplum App (super-admin and tenant admin console in P1) | Who holds super-admin; keep it off the internet (private endpoint or IP allowlist) |
+| Infra | Medplum's Azure Terraform guide | Our Terraform in `infra/` (P06) |
+
+Self-host duties to staff explicitly:
+
+- **Upgrade cadence:** review Medplum releases monthly; take security releases within 7 days via staging.
+- **Super-admin credential:** stored in Key Vault, used only by the provisioning pipeline, MFA on, access audited.
+- **Email:** Medplum needs an email sender for invites, password resets and patient magic links (Q-IAM-9).
+- **Backups:** Postgres point-in-time restore plus Blob versioning, meeting RPO 15 min / RTO 4 h (M12), with a quarterly restore test.
 
 ---
 
@@ -357,7 +381,7 @@ Signing a note, attesting coding, break-glass and admin changes need a **fresh l
 ### 5.3 Hospital SSO (federation per tenant)
 
 - **Mechanism:** Medplum `DomainConfiguration`. Users whose email is on `metro.org` are sent to Metro's IdP. It needs the authorize, token and userinfo URLs plus a client id and secret ([Medplum docs: domain-level IdPs](https://www.medplum.com/docs/auth/domain-level-identity-providers)).
-- **Hosting constraint:** a self-hosted Medplum needs super-admin to configure it. **Medplum-hosted needs an Enterprise plan**, which is an input to decision D1.
+- **Who configures it:** on our self-hosted Medplum, our super-admin creates the `DomainConfiguration` (the provisioner in I14 does this). No paid plan is involved.
 - **Provisioning:**
   - *P1:* invite-only. A tenant admin invites users, which creates a membership with a role and facilities.
   - *Later:* SCIM from the hospital IdP (S2: confirm Medplum SCIM coverage), or just-in-time creation mapped from IdP groups to role templates.
@@ -941,7 +965,38 @@ Colours: **green** = can start now on the mock, **blue** = needs Medplum (P02), 
 | I17 | I8, I14 | — | I18 |
 | I18 | I8, I9, I10, I11, I12 | go-live | I17 |
 
-### 13.4 Stacked PR plan
+### 13.4 How much code we write vs what Medplum gives us
+
+These are estimates in lines of TypeScript/SQL. Generated files (compiled AccessPolicy JSON) and lockfiles are not counted. The "avoided" column is what we would write to get the same thing without Medplum (for example with Better Auth plus our own authorization layer).
+
+| Phase | Medplum gives (no code from us) | We write: source | We write: tests | Avoided by using Medplum |
+|---|---|---|---|---|
+| I0 decisions | — | 0 | 0 | — |
+| I1 `@asc/authz` core | — | ~700 (catalog ~150, 8 templates ~320, `can()` ~60, types/schemas ~130, `IdentityPort` ~40) | ~400 | — |
+| I2 UI gating on mock | — | ~350 (`useCan`/`<Can>` ~80, MSW `/me` ~80, nav/route edits ~200) | ~150 | — |
+| I3 tenancy + RLS | — | ~500 (registry + migration ~120, RLS SQL ~80, `withTenant` ~80, web middleware ~80, api plugin ~120) | ~300 | — |
+| I4 policy compiler | Policy **enforcement** engine | ~300 | ~250 (snapshots) | ~2,500 (field/row-level authz engine on FHIR) |
+| I5 provisioner | Project, Organization, ClientApplication, invite APIs | ~400 | ~150 | ~1,500 (tenant/user/membership store and APIs) |
+| I6 web sign-in | OAuth2 + PKCE server, password hashing, lockout, TOTP, token issue/refresh | ~600 (login UI ~250, token-handler routes ~200, timeouts ~120, logout ~50) | ~250 | ~3,000 (IdP: login, reset, MFA, sessions, tokens) |
+| I7 API authn | Token validation via `/auth/me` | ~200 | ~200 | ~300 (JWT verify, key rotation) |
+| I8 API guards | — | ~200 | ~250 | — |
+| I9 conformance CI | Medplum Docker image to test against | ~60 (CI) | ~600 | — |
+| I10 machine identities | Client-credentials flow, Bot runtime and identity | ~300 | ~150 | ~500 |
+| I11 realtime auth | WebSocket subscriptions with policy-filtered delivery | ~350 (SSE gates, re-validation, revocation bus, tickets) | ~200 | ~1,200 (subscription server) |
+| I12 service-to-service | HMAC-signed rest-hooks (`x-signature`) | ~350 (JWT signer, HMAC/nonce verifier, `/hooks/*`) | ~250 | ~200 |
+| I13 MFA + step-up | TOTP enrolment and challenge | ~200 | ~100 | ~600 (TOTP, recovery codes) |
+| I14 hospital SSO | `DomainConfiguration` federation (OIDC) | ~300 (JIT/group → role mapping, provisioner step) | ~100 | ~1,500 (OIDC client per tenant, account linking) |
+| I15 break-glass + support access | `AuditEvent` on every read | ~450 | ~200 | — |
+| I16 patient identity | Patient users, `%profile` policies | ~400 | ~150 | ~800 |
+| I17 tenant admin | Medplum App as admin console in P1 | 0 in P1 (~1,200 later for our own screens) | 0 | ~2,000 (admin console) |
+| I18 hardening | — | 0 | ~600 (cross-tenant attack suite) | — |
+| **Total** | | **~5,700** (+~1,200 later for admin UI) | **~4,300** | **~14,000+** |
+
+- **What this means:** roughly 10k lines in total (about 5.7k source plus about 4.3k tests) gives us multi-tenant auth, RBAC and isolation. Building the same with a library IdP and our own authorization layer would add about 14k more lines.
+- **Where the risk would be:** the 14k avoided lines would sit in the most security-sensitive code (password storage, MFA, token handling, row-level authz), which would then need its own hardening and audit.
+- **The remaining work is ours by design:** capabilities, role templates, tenant routing and workflow guards are product logic that no vendor provides.
+
+### 13.5 Stacked PR plan
 
 - **Stack A (start now, no Medplum):** `iam/i1-authz-core` ← `iam/i2-ui-gating`, with `iam/i3-tenancy` and `iam/i4-policy-compiler` as sibling branches on I1.
   - Each PR is reviewable alone and keeps the mock app green.
@@ -975,6 +1030,7 @@ If a spike fails, record the fallback in the ADR before building the phase that 
 | Q-IAM-4 | Step-up for `note.sign`, `coding.attest`, `discharge.approve`, `breakglass.invoke` | As proposed | I13 |
 | Q-IAM-5 | Subdomain scheme and apex domain (`*.asc-ehr.app`?) | `{slug}.<apex>` | I3 |
 | Q-IAM-6 | First pilot hospital IdP (Entra / Okta / Google) | Entra | I14 |
-| Q-IAM-7 | Medplum hosted (needs Enterprise plan for SSO) vs self-host (D1) | Self-host | I5, I14 |
+| ~~Q-IAM-7~~ | Medplum hosting (D1) | **Decided 2026-10-03: self-host from open source, no hosted service** | — |
+| Q-IAM-9 | Email sender for Medplum invites, password reset, magic links (SMTP relay or Azure Communication Services Email) | Azure Communication Services Email via SMTP | I5, I6 |
 | Q-IAM-8 | Patient login channel: email OTP, SMS OTP, magic link | Email magic link | I16 |
 | Q-MS6 | Shared login with MindScript | Separate in P1; same hospital IdP later | I14 |

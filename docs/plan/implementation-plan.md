@@ -372,7 +372,7 @@ Per-phase questions live in each phase file. Blocking questions across phases:
 
 | ID | Question | Blocks | Owner |
 |---|---|---|---|
-| D1 / Q10 | Medplum self-host on Azure vs Medplum-hosted (BAA) | P06, P26 | eng lead |
+| D1 / Q10 | Medplum self-host on Azure vs Medplum-hosted (BAA): **decided 2026-10-03, self-host only** | P06, P26 | eng lead |
 | Q-MS1 | Access to `Wybit-LLC/MindScript` source | P13, P16, P19, P22, P24 | eng lead |
 | Q4 | Biller file format | P22 | business |
 | Q8 | CPT licence | P08, P22 | business |

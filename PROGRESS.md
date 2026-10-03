@@ -97,7 +97,7 @@ Work completed before this plan existed, grouped from git history (`origin/main`
 | ID | Question | Blocks | Owner | Status |
 |---|---|---|---|---|
 | Q-MS1 | Access to `Wybit-LLC/MindScript` source | P13, P16, P19, P22, P24 | eng lead | open |
-| D1/Q10 | Medplum self-host vs hosted | P06, P26 | eng lead | open (recommend self-host) |
+| D1/Q10 | Medplum self-host vs hosted | P06, P26 | eng lead | **decided 2026-10-03** → self-host only, no hosted fallback |
 | P00-Q1 | Upgrade zod 4 / bullmq 6 / ioredis 6 / OTel before Wave 2? | P07+ | eng lead | **decided 2026-09-28** → P00b; OTel deferred |
 | Q4 | Biller file format | P22 | business | open |
 | Q8 | CPT licence | P08, P22 | business | open |
@@ -110,13 +110,14 @@ Full lists: [implementation plan §6](docs/plan/implementation-plan.md#6-cross-p
 
 1. **P00b** library upgrades (zod 4, bullmq 6, ioredis 6) — must land before Wave 2. In parallel: **P01** CI.
 2. In parallel: **P02** local Medplum, **P03** `@asc/fhir`.
-3. Escalate week-1 questions: Q-MS1, D1, Azure subscription/BAA (P06), Q8 CPT licence.
+3. Escalate week-1 questions: Q-MS1, Azure subscription/BAA (P06), Q8 CPT licence.
 4. Wire `pnpm --filter web build && pnpm --filter web test:bundles` and Lighthouse CI into **P01** CI; re-measure `/login` mobile LCP on an HTTP/2 deploy preview (see web perf done-log entry).
 
 ## 6. Decisions log
 
 | Date | Decision | Where recorded |
 |---|---|---|
+| 2026-10-03 | Medplum is self-hosted from the open-source code (upstream images, Azure); the Medplum-hosted service is not used, not even as a fallback (D1) | [05 §5.2](docs/product/05-delivery-plan.md), [identity ADR](docs/decisions/2026-10-03-medplum-as-identity-and-access-platform.md) |
 | 2026-09-30 | API URL, CORS origins and demo mocking are env-only; exact-origin CORS allowlist, no credentials (Bearer); Azure: `app.`/`api.` subdomains or `/api` reverse proxy | [ADR](docs/decisions/2026-09-30-env-driven-api-url-and-cors-allowlist.md), [guide](docs/DEPLOYMENT_CONFIGURATION.md) |
 | 2026-09-28 | Upgrade zod 4 + bullmq 6 + ioredis 6 before Wave 2 (P00b); defer OpenTelemetry 0.222 and React 19.3 | [P00b](docs/plan/phases/P00b-library-upgrades.md) |
 | 2026-09-27 | Execution follows `docs/plan/implementation-plan.md`; 05 Gantt superseded for scheduling | this file |

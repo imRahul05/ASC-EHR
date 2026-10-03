@@ -29,7 +29,7 @@ Building a clinical store, auth/MFA, RBAC, PHI access audit, realtime subscripti
 
 ## Decision Outcome
 
-Chosen option: **1 — Medplum self-hosted on Azure**, with option 2 as the fallback if platform setup is not stable by the end of week 3.
+Chosen option: **1 — Medplum self-hosted on Azure**. *Update 2026-10-03:* option 2 (Medplum-hosted) is dropped as a fallback; we run the open-source server ourselves (see [identity and access ADR](2026-10-03-medplum-as-identity-and-access-platform.md)).
 
 Architecture rules that follow (detailed in `docs/product/03-target-architecture.md`):
 - All clinical data lives in Medplum as FHIR resources, profiled in a new `@asc/fhir` package.
@@ -55,7 +55,7 @@ Architecture rules that follow (detailed in `docs/product/03-target-architecture
 
 - Week 2: Medplum running in dev + staging on Azure, Entra SSO login, one AccessPolicy per role verified by automated tests.
 - Week 3: a synthetic colonoscopy case flows scheduling → signed note → ChargeItem entirely through FHIR with AuditEvents visible.
-- If either misses, trigger fallback option 2 and record a superseding ADR.
+- If either misses, escalate platform staffing and re-plan; there is no hosted fallback (decided 2026-10-03).
 
 ## More Information
 
