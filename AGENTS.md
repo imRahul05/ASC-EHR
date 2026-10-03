@@ -29,6 +29,7 @@ To keep this file intentionally minimal and extensible, all detailed guidance, r
 ### 3. Compliance, HIPAA, and PHI
 **Consult when:** Handling sensitive health data, writing logging logic, or building database/API schemas.
 👉 [Read Compliance & PHI Handling](docs/COMPLIANCE_AND_PHI.md)
+👉 [Read Identity, Access & Multi-Tenancy design](docs/product/08-identity-access-and-tenancy.md) — *auth, roles/capabilities, tenant isolation, realtime and service-to-service security.*
 
 ### 4. Environments & Deployment
 **Consult when:** Modifying environment variables, build steps, or deployment configurations.
