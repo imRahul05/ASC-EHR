@@ -15,6 +15,16 @@
 
 Work that **does not need Medplum** can start now on the mock frontend (I1–I4 in §13). The rest waits for P02.
 
+**Interactive diagrams** (standalone HTML with zoom, path tracing, light/dark themes and export; open locally in a browser). They are built with Archify, and the JSON source sits next to each HTML file:
+
+| Diagram | Type | File |
+|---|---|---|
+| Identity, access and tenancy big picture (§3) | architecture | [iam-big-picture.html](diagrams/iam/iam-big-picture.html) |
+| Staff sign-in with tenant, SSO/MFA and token handler (§5.1) | sequence | [staff-sign-in.html](diagrams/iam/staff-sign-in.html) |
+| One API command through the five gates (§6) | sequence | [api-authorization-gates.html](diagrams/iam/api-authorization-gates.html) |
+| Adding or changing a role (§8) | workflow | [add-or-change-role.html](diagrams/iam/add-or-change-role.html) |
+| Break-glass access (§12.1) | lifecycle | [break-glass-access.html](diagrams/iam/break-glass-access.html) |
+
 ---
 
 ## Contents
@@ -411,13 +421,13 @@ flowchart LR
     classDef ok fill:#16a34a,color:#fff,stroke:#166534
 
     R["Request<br/>host + Bearer"] --> G1
-    G1["1 Tenant<br/>host → tenant<br/>token project = tenant?"]:::gate --> G2
-    G2["2 Identity<br/>token valid?<br/>/auth/me cached"]:::gate --> G3
+    G1["1 Tenant<br/>host → active tenant?"]:::gate --> G2
+    G2["2 Identity<br/>token valid? /auth/me cached<br/>token project = tenant?"]:::gate --> G3
     G3["3 Facility<br/>target in principal.facilities?"]:::gate --> G4
     G4["4 Capability + workflow<br/>can(principal, cap)<br/>clinical-rules guard"]:::gate --> G5
     G5["5 Data policy<br/>Medplum AccessPolicy<br/>on every FHIR call"]:::mp --> OK["Allowed<br/>+ AuditEvent"]:::ok
 
-    G1 -.->|"404 / 401"| D["Denied<br/>+ audit 'denied'"]:::deny
+    G1 -.->|"404"| D["Denied<br/>+ audit 'denied'"]:::deny
     G2 -.->|"401"| D
     G3 -.->|"403"| D
     G4 -.->|"403 / 409 wrong state"| D
@@ -426,8 +436,8 @@ flowchart LR
 
 | Gate | Question | Owner | Failure |
 |---|---|---|---|
-| 1 Tenant | Does this host map to an active tenant, and was the token issued for that tenant's Project? | `apps/api` tenant plugin; `apps/web` middleware | 404 (unknown host) / 401 |
-| 2 Identity | Is the token valid and the membership active? | `apps/api` authn plugin → Medplum `/auth/me` | 401 |
+| 1 Tenant | Does this host map to an active tenant? | `apps/api` tenant plugin; `apps/web` middleware | 404 (unknown host) |
+| 2 Identity | Is the token valid, the membership active, and was the token issued for this tenant's Project? | `apps/api` authn plugin → Medplum `/auth/me` | 401 |
 | 3 Facility | Is the target resource's facility in the principal's facility set? | `apps/api` guard (`@asc/authz`) | 403 |
 | 4 Capability + workflow | Does the principal hold the capability, and does the case state allow it now? | `@asc/authz` `can()` + `@asc/clinical-rules` | 403 / 409 |
 | 5 Data policy | May this membership read or write this resource and field? | **Medplum** `AccessPolicy` | 403 |

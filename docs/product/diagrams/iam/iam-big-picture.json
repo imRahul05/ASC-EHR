@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "GI ASC EHR — Identity, Access & Tenancy (target design)",
+    "output": ".archify/architecture-iam-big-picture-20261003-130556/iam-big-picture.html",
+    "locale": "en",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "deepgram", "type": "external", "label": "Deepgram STT", "sublabel": "audio not via our servers", "pos": [40, 30], "size": [150, 64] },
+    { "id": "hosp-idp", "type": "security", "label": "Hospital IdP", "sublabel": "Entra / Okta / Google", "pos": [420, 30], "size": [150, 64], "tag": "federated" },
+    { "id": "mindscript", "type": "external", "label": "MindScript", "sublabel": "tenant ClientApplication", "pos": [730, 30], "size": [150, 64] },
+
+    { "id": "mp-auth", "type": "security", "label": "Medplum Auth", "sublabel": "login, MFA, tokens, SSO", "pos": [420, 240], "size": [150, 64], "tag": "DomainConfiguration" },
+    { "id": "mp-pdp", "type": "security", "label": "AccessPolicy engine", "sublabel": "per ProjectMembership", "pos": [730, 240], "size": [150, 64] },
+    { "id": "mp-fhir", "type": "database", "label": "FHIR store", "sublabel": "one Project per tenant", "pos": [1000, 240], "size": [150, 64] },
+    { "id": "mp-bots", "type": "backend", "label": "Bots", "sublabel": "run inside the Project", "pos": [1240, 240], "size": [150, 64] },
+
+    { "id": "staff", "type": "frontend", "label": "Staff browser", "sublabel": "acme.asc-ehr.app", "pos": [40, 440], "size": [130, 64] },
+    { "id": "patient", "type": "frontend", "label": "Patient portal", "sublabel": "browser, P2", "pos": [40, 620], "size": [130, 64] },
+    { "id": "waf", "type": "cloud", "label": "App Gateway + WAF", "sublabel": "TLS, IP rules, rate limit", "pos": [232, 440], "size": [150, 64] },
+    { "id": "web", "type": "frontend", "label": "apps/web (Next.js)", "sublabel": "tenant from subdomain", "pos": [420, 440], "size": [150, 64], "tag": "token handler, httpOnly" },
+    { "id": "api", "type": "backend", "label": "apps/api (Fastify)", "sublabel": "tenant + authn plugins", "pos": [730, 440], "size": [150, 64], "tag": "capability+facility guards" },
+    { "id": "worker", "type": "backend", "label": "apps/worker (BullMQ)", "sublabel": "per-tenant client creds", "pos": [1240, 440], "size": [150, 64] },
+    { "id": "authz", "type": "security", "label": "@asc/authz", "sublabel": "capabilities, roles, can()", "pos": [540, 620], "size": [150, 64], "tag": "policy compiler" },
+
+    { "id": "appdb", "type": "database", "label": "App Postgres", "sublabel": "tenant_id + RLS", "pos": [730, 620], "size": [150, 64] },
+    { "id": "redis", "type": "messagebus", "label": "Redis", "sublabel": "t:{tenant}: keys", "pos": [1000, 620], "size": [150, 64] },
+    { "id": "keyvault", "type": "security", "label": "Key Vault", "sublabel": "per-tenant secrets", "pos": [1240, 620], "size": [150, 64] },
+
+    { "id": "faxagnet", "type": "external", "label": "faxagnet", "sublabel": "fax gateway", "pos": [1480, 380], "size": [140, 64] },
+    { "id": "integuru", "type": "external", "label": "Integuru / eCW", "sublabel": "per-practice login", "pos": [1480, 520], "size": [140, 64] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Azure subscription", "wraps": ["waf", "web", "api", "worker", "authz", "mp-auth", "mp-pdp", "mp-fhir", "mp-bots", "appdb", "redis", "keyvault"] },
+    { "kind": "security-group", "label": "Medplum, self-hosted open source (IdP + PDP + FHIR)", "wraps": ["mp-auth", "mp-pdp", "mp-fhir", "mp-bots"] },
+    { "kind": "security-group", "label": "Our services: one pooled deployment, all tenants", "wraps": ["web", "api", "worker", "authz"] },
+    { "kind": "security-group", "label": "Stores", "wraps": ["appdb", "redis", "keyvault"] },
+    { "kind": "region", "label": "External: identity, AI, transcription", "wraps": ["deepgram", "hosp-idp", "mindscript"] },
+    { "kind": "region", "label": "External integrations", "wraps": ["faxagnet", "integuru"] }
+  ],
+  "connections": [
+    { "id": "staff-waf", "from": "staff", "to": "waf", "label": "HTTPS", "variant": "emphasis" },
+    { "id": "waf-web", "from": "waf", "to": "web", "variant": "emphasis" },
+    { "id": "patient-waf", "from": "patient", "to": "waf", "label": "HTTPS", "fromSide": "right", "toSide": "bottom" },
+    { "id": "web-auth", "from": "web", "to": "mp-auth", "label": "PKCE login", "variant": "security" },
+    { "id": "auth-idp", "from": "mp-auth", "to": "hosp-idp", "label": "federate by email domain", "variant": "dashed" },
+    { "id": "web-api", "from": "web", "to": "api", "label": "commands, user token", "variant": "emphasis" },
+    { "id": "web-pdp", "from": "web", "to": "mp-pdp", "label": "FHIR reads, user token" },
+    { "id": "api-auth", "from": "api", "to": "mp-auth", "label": "/auth/me, cached", "variant": "security" },
+    { "id": "api-pdp", "from": "api", "to": "mp-pdp", "label": "on-behalf-of user" },
+    { "id": "pdp-fhir", "from": "mp-pdp", "to": "mp-fhir", "label": "policy-filtered" },
+    { "id": "bots-fhir", "from": "mp-bots", "to": "mp-fhir", "label": "Bot policy" },
+    { "id": "web-authz", "from": "web", "to": "authz", "label": "can() for UI" },
+    { "id": "api-authz", "from": "api", "to": "authz", "label": "guards", "fromSide": "left", "toSide": "right" },
+    { "id": "api-appdb", "from": "api", "to": "appdb", "label": "withTenant()" },
+    { "id": "api-redis", "from": "api", "to": "redis", "label": "job: ids + tenant ctx", "variant": "dashed" },
+    { "id": "redis-worker", "from": "redis", "to": "worker", "label": "take job", "variant": "dashed" },
+    { "id": "worker-kv", "from": "worker", "to": "keyvault", "label": "tenant worker secret" },
+    { "id": "worker-pdp", "from": "worker", "to": "mp-pdp", "label": "tenant client creds", "variant": "security" },
+    { "id": "fhir-api", "from": "mp-fhir", "to": "api", "label": "rest-hook, HMAC signed", "variant": "dashed" },
+    { "id": "api-fax", "from": "api", "to": "faxagnet", "label": "signed 60 s JWT", "variant": "security" },
+    { "id": "worker-integ", "from": "worker", "to": "integuru", "label": "signed 60 s JWT", "variant": "security" },
+    { "id": "ms-pdp", "from": "mindscript", "to": "mp-pdp", "label": "client creds, narrow policy", "variant": "security" },
+    { "id": "staff-stt", "from": "staff", "to": "deepgram", "label": "audio, 60 s token", "variant": "dashed" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Tenancy (§4.2)", "items": ["Pooled: new hospital = registry row + Project + policies + clients", "Web middleware and API tenant plugin resolve tenant from host; unknown host = 404", "API rejects a token whose Medplum project.id differs from the host's tenant", "Silo option: tenant.deployment = silo routes to a dedicated stack"] },
+    { "dot": "emerald", "title": "Self-hosted Medplum (§2.4)", "items": ["medplum/medplum-server image pinned to 5.1.42, no fork", "Behaviour changed only via config, AccessPolicies, Bots and APIs", "Policy content generated by the @asc/authz compiler", "Admin console kept off the internet; super-admin secret in Key Vault"] },
+    { "dot": "violet", "title": "Machine identities (§9)", "items": ["apps/api forwards the user's token by default", "apps/worker: one ClientApplication per tenant, system-worker policy", "Bots run as their own identity inside the tenant Project", "Never a server-wide super-admin token at runtime"] },
+    { "dot": "amber", "title": "External trust (§11)", "items": ["Outbound: ES256 JWT, tenant claim, jti, exp 60 s, egress allowlist", "Inbound hooks: HMAC signature, ±5 min timestamp, nonce", "MindScript: OAuth client credentials, read-only mindscript-reader policy", "Deepgram: 60 s token minted by apps/api, one per capture session"] }
+  ]
+}
