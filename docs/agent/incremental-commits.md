@@ -18,4 +18,21 @@ This guide defines the expected behavior for committing code, especially during 
 - **Respect User Intent:** If the user explicitly asks to continue without committing, respect that instruction.
 - **Pushing Changes:** Never push to a remote repository unless explicitly instructed by the user or unless a specific repository policy dictates it for the current workflow.
 
+## 4. Size Limits and Commit Shape
+
+These limits apply to every phase in [`docs/plan/`](../plan/) (they are mandatory for the [IAM track](../plan/iam/README.md#3-commit-rules-for-this-track-mandatory)).
+
+| Rule | Limit |
+|---|---|
+| Concern per commit | One. No feature + refactor, no code + unrelated docs, no `PROGRESS.md` mixed with code. |
+| Workspaces per commit | One package or app. Exception: a contract change plus the minimal consumer fix that keeps the build green. |
+| Changed lines | Target ≤ 150, **hard cap 400** (excluding lockfiles, generated snapshots and generated migration SQL). Over the cap → split before committing. |
+| State after each commit | Green: `pnpm turbo run lint check-types test --filter=<touched workspaces>`; web changes also load in `pnpm dev`. |
+| Tests | In the same commit as the code they prove. |
+| Message | `type(scope): imperative summary` ≤ 72 chars (`feat fix refactor test docs chore perf`); body says why; optional `Refs: I05-C4`. |
+| Risky changes | Expand → migrate callers → contract, each its own commit (DB columns, shared types, renamed APIs). |
+| WIP / fixups | Never pushed. Use `git commit --fixup` and autosquash before pushing. |
+
+If a phase file lists a commit plan, follow its order; if a planned commit turns out bigger than the cap, split it and note the split in the PR description.
+
 *For simple, quick tasks, keep interactions lightweight and commit at the end. For complex orchestrations, use these guidelines to maintain a clean git history and safe rollback points.*
