@@ -300,6 +300,8 @@ flowchart LR
 | Patient portal identity | Portal phase (P2) | 08 §5.4 |
 | Role lifecycle tooling (deprecate, retire, split) | First role change after go-live; until then template version bump + Medplum App | [future §8](../../product/future-multi-tenancy-architecture.md) |
 | Instant revocation channel | Only if the 60 s `/auth/me` cache window is not acceptable | 08 §6 |
+| P05h policy test in CI (disposable Medplum, role × resource matrix) | When P01 CI exists; required before go-live | ADR Confirmation |
+| IAM hardening review (cross-facility attack tests, pen test, `phi-review` of the auth surface, sign-off) | Part of P26 go-live hardening | 08 §6, §12 |
 | Multi-tenancy (registry, host resolver, provisioner, cross-tenant suite) | Customer #2 signed | [future §9](../../product/future-multi-tenancy-architecture.md) |
 
 ## 7. Acceptance (P05 done)
