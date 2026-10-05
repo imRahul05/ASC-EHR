@@ -1,19 +1,23 @@
-# 08 — Identity, Access Control and Multi-Tenancy (design)
+# 08 — Identity, Access Control and Tenancy (Architecture)
 
-> **Status:** proposed design, 2026-10-03. Not yet scheduled; the phases in §13 are an *IAM track* to merge into [`implementation-plan.md`](../plan/implementation-plan.md) once the clinical workflow is confirmed.
-> **Hosting (decided 2026-10-03):** Medplum runs **self-hosted from its open-source code** (upstream images) in our Azure subscription. We do **not** use the Medplum-hosted service. See §2.4.
+> **Status:** Proposed architecture (amended 2026-10-05); becomes accepted with the ADR ratification.
+> **Scope:** A modular identity, RBAC and facility-authorization core for the first hospital / ASC customer. Not "complete auth": follow-ups (step-up, SSO, break-glass, worker and stream auth) start at the gates listed in [P05 §6](../plan/phases/P05-auth-roles.md#6-gated-follow-ups-not-in-p05-start-no-later-than-the-gate).
+> **Tenancy Model:** Contracts and data are **tenant-ready** (`tenant_id`, `facility_id`, `meta.accounts`, `TenantResolver` port); one tenant runs. Multi-tenant routing, registry, provisioner and cross-tenant suites wait for Customer #2: [`future-multi-tenancy-architecture.md`](future-multi-tenancy-architecture.md). Sections below that describe several tenants (§4.2, §9, §11) are the target design for that stage.
+> **Implementation Plan:** [`P05 — Auth & Roles`](../plan/phases/P05-auth-roles.md), sub-phases P05a–P05j.
+> **Hosting:** Medplum runs **self-hosted from its open-source code** (upstream `medplum/medplum-server` Docker images) in our Azure subscription, with the hardening settings in P05h. The Medplum-hosted service is not used.
 > **Decision record:** [ADR — Medplum as identity and access platform](../decisions/2026-10-03-medplum-as-identity-and-access-platform.md) (proposed).
-> **Related:** [03 Target architecture §6 security](03-target-architecture.md) · [P05 Auth + roles](../plan/phases/P05-auth-roles.md) · [COMPLIANCE_AND_PHI](../COMPLIANCE_AND_PHI.md) · [06 MindScript integration](06-mindscript-integration.md) · `LEARNING_MISTAKES.md` LM-004 (no tokens in browser storage).
+> **Related:** [03 Target architecture §6 security](03-target-architecture.md) · [COMPLIANCE_AND_PHI](../COMPLIANCE_AND_PHI.md) · `LEARNING_MISTAKES.md` LM-004 (no tokens in browser storage).
 
-**Summary.** **Medplum** handles both identity and data authorization, so we do not adopt Better Auth or Clerk.
+**Summary.** **Medplum** handles identity and data authorization, eliminating the need for Better Auth or Clerk.
 
-- **Tenants and sites.** Each customer (hospital or ASC group) is a **Medplum Project**, which is a hard data boundary. Each physical site is an **`Organization`** inside that Project.
-- **Roles are data.** A role is a *role template* with two halves. The first is a parameterized `AccessPolicy` that Medplum enforces on every FHIR call. The second is a list of *capabilities* that `apps/api` and the UI check.
-- **Code never checks role names.** It only asks `can(principal, "note.sign")`. Adding a role, or changing what a workflow phase allows, is a config change, not a code change.
-- **One deployment serves all tenants.** The tenant is resolved from the subdomain.
-- **Every hop carries tenant context:** browser, API, worker, Bot, external service, and realtime streams.
+- **Hospital & Sites.** The hospital customer is a **Medplum Project**. Physical sites/rooms are **`Organization`** resources inside that Project.
+- **Roles are data.** A role is a *role template* in `@asc/authz`. It contains capabilities and compiles to a parameterized `AccessPolicy` (`%facility`) that Medplum enforces on every FHIR read/write.
+- **Code never checks role names.** It only asks `can(principal, "note.sign", { facilityId })`. Adding or modifying roles is a configuration update, not a code rewrite.
+- **Tenant-Ready Data Layer:** App Postgres tables include `tenant_id uuid NOT NULL` and `facility_id text NULL` with Postgres RLS via `withTenant()`. FHIR resources attach `meta.accounts` pointing to the facility `Organization`.
+- **Ports:** `IdentityPort` (Medplum adapter) and `TenantResolver` (static adapter now, host-based later) keep providers and tenancy swappable.
+- **Deferred on purpose:** subdomain routing, tenant registry and multi-tenant provisioner wait for Customer #2.
 
-Work that **does not need Medplum** can start now on the mock frontend (I1–I4 in §13). The rest waits for P02.
+Work that **does not need Medplum** can start now (P05a–P05g in §13). P05h–P05j wait for P02/P04.
 
 **Interactive diagrams** (standalone HTML with zoom, path tracing, light/dark themes and export; open locally in a browser). They are built with Archify, and the JSON source sits next to each HTML file:
 
@@ -41,7 +45,7 @@ Work that **does not need Medplum** can start now on the mock frontend (I1–I4 
 10. [Realtime: SSE and WebSocket security](#10-realtime-sse-and-websocket-security)
 11. [External services: MindScript, faxagnet, Integuru, webhooks](#11-external-services-mindscript-faxagnet-integuru-webhooks)
 12. [Break-glass, support access, audit](#12-break-glass-support-access-audit)
-13. [Implementation phases and dependency matrix](#13-implementation-phases-and-dependency-matrix)
+13. [Implementation plan](#13-implementation-plan)
 14. [Spikes to run before building](#14-spikes-to-run-before-building)
 15. [Open questions](#15-open-questions)
 
@@ -854,165 +858,24 @@ Wybit staff never use super-admin to read PHI.
 
 ---
 
-## 13. Implementation phases and dependency matrix
+## 13. Implementation plan
 
-These are **IAM track** phases (`I*`). They are not yet in the implementation plan. Once accepted they merge into P02/P04/P05/P10/P24/P26 as noted. Each phase is one PR, sized S (≤ 1 day) or M (2–3 days).
+The plan lives in **[`P05 — Auth & Roles`](../plan/phases/P05-auth-roles.md)** as small sub-phases, each one PR with a commit outline and checklist.
 
-### 13.1 Phases
+| Sub-phase | What | Needs |
+|---|---|---|
+| P05a | Contracts, `can()` with facility grants, `IdentityPort`, `TenantResolver` | — |
+| P05b | Role templates (§7.3), grants builder, workspace resolver, role-name lint rule | P05a |
+| P05c | Policy compiler: template → parameterized `AccessPolicy` | P05b |
+| P05d | Web on capabilities (mock): `Principal`, `useCan`, route guards, workspaces, remove `UserRole` | P05b |
+| P05e | App-DB tenancy: `tenant_id`, RLS, `withTenant()` | P05a |
+| P05f | Durable append-only audit store and IAM events | P05e |
+| P05g | API spine: default deny, gates 1–4, `/me` | P05a, P05e, P05f |
+| P05h | Medplum hardening, spikes (§14), seed, policy test | P05c, P02 |
+| P05i | Medplum identity adapter in the API | P05g, P05h, P04 |
+| P05j | Web sign-in: PKCE + TOTP, token handler, timeouts, logout | P05d, P05i, P04 |
 
-| ID | Phase | Size | Needs Medplum | Merges into | Output |
-|---|---|---|---|---|---|
-| **I0** | Accept ADR + this doc; settle Q-IAM-1…4 | S | no | — | decisions |
-| **I1** | `@asc/authz` core: capability catalog, role templates (P1 set), `can()`, `Principal` types/schemas, `IdentityPort` | M | no | P05 T1 | package + unit tests |
-| **I2** | UI capability gating on the mock: MSW `/me` returns a `Principal` with tenant, facilities and capabilities; `useCan()` / `<Can>`; replace role-name checks and `nav-config` role lists | M | no | P05 T4 | mock app runs on capabilities |
-| **I3** | Tenancy foundation: tenant registry table, host → tenant middleware (web) and plugin (api), `tenant_id`/`facility_id` NOT NULL + RLS + `withTenant()` in `@asc/db` | M | no | P04 | isolation tests |
-| **I4** | Policy compiler: template → parameterized `AccessPolicy` JSON; snapshot tests; lint banning role-name checks | M | no | P05 T2 | generated policies |
-| **I5** | Medplum tenant provisioner: Project, Organizations, policies, `ClientApplication`s (web, worker), first admin invite; idempotent | M | **yes** (P02) | P02/P05 | `provision-tenant.ts` |
-| **I6** | Web sign-in: PKCE via `@medplum/core`, token handler with httpOnly refresh, in-memory access token, idle/absolute timeout, logout; remove mock auth | M | yes | P05 T4 | real login |
-| **I7** | API authn: tenant/token project match, `/auth/me` cache, `Principal` build, 401 | S | yes | P05 T3 | plugin + tests |
-| **I8** | API guards: `requireCapability`, `requireFacility`, 403 with audit `denied` and gate number | S | yes | P05 T3/T5 | guards on all routes |
-| **I9** | Policy conformance suite: role × resource × action matrix against dockerized Medplum in CI | M | yes | P01/P05 | CI job |
-| **I10** | Machine identities: per-tenant worker client, job context schema, Bot policies | M | yes | P04/P12 | worker auth |
-| **I11** | Realtime auth: SSE gates + re-validation + revocation bus; stream tickets; confirm Medplum WS filtering | M | yes | P10 | stream tests |
-| **I12** | Service-to-service kit: outbound JWT signer, inbound HMAC/timestamp/nonce verifier, `/hooks/*` routes | M | partly | P10/P24 | `@asc/api-client` + api plugin |
-| **I13** | MFA enforcement + step-up (`401 step_up_required`, fresh-auth check) | S | yes | P05 | sign/attest protected |
-| **I14** | Hospital SSO: `DomainConfiguration` per tenant, invite/JIT mapping, SCIM if available | M | yes | P05 fast-follow | SSO for one pilot IdP |
-| **I15** | Break-glass + support access | M | yes | P26 | state machine + alerts |
-| **I16** | Patient identity for the portal (`%profile` policy, OTP/magic link) | M | yes | P2 portal | patient login |
-| **I17** | Tenant admin: users, roles, facilities (Medplum App first, `@asc/ui` screens later) | M | yes | P26 / P2 | admin flows |
-| **I18** | Multi-tenant hardening: cross-tenant attack test suite, per-tenant rate limits, pen test | M | yes | P26 | report |
-
-### 13.2 Dependency graph
-
-```mermaid
-flowchart LR
-    classDef now fill:#16a34a,color:#fff,stroke:#166534
-    classDef mp fill:#2563eb,color:#fff,stroke:#1d4ed8
-    classDef hard fill:#f59e0b,color:#fff,stroke:#b45309
-    classDef later fill:#7c3aed,color:#fff,stroke:#5b21b6
-    classDef ext fill:#94a3b8,color:#fff,stroke:#475569
-
-    P02["P02 local Medplum"]:::ext
-    I0["I0 decisions"]:::now
-    I1["I1 @asc/authz core"]:::now
-    I2["I2 UI gating on mock"]:::now
-    I3["I3 tenancy + RLS"]:::now
-    I4["I4 policy compiler"]:::now
-
-    I5["I5 provisioner"]:::mp
-    I6["I6 web sign-in"]:::mp
-    I7["I7 API authn"]:::mp
-    I8["I8 API guards"]:::mp
-    I9["I9 conformance CI"]:::mp
-    I10["I10 machine ids"]:::mp
-    I11["I11 realtime auth"]:::mp
-    I12["I12 s2s kit"]:::mp
-    I13["I13 MFA + step-up"]:::mp
-
-    I14["I14 hospital SSO"]:::later
-    I15["I15 break-glass"]:::hard
-    I16["I16 patient identity"]:::later
-    I17["I17 tenant admin"]:::later
-    I18["I18 hardening"]:::hard
-
-    I0 --> I1
-    I1 --> I2
-    I1 --> I3
-    I1 --> I4
-    I4 --> I5
-    P02 --> I5
-    I3 --> I6
-    I5 --> I6
-    I3 --> I7
-    I5 --> I7
-    I7 --> I8
-    I4 --> I9
-    I5 --> I9
-    I5 --> I10
-    I8 --> I10
-    I7 --> I11
-    I7 --> I12
-    I6 --> I13
-    I8 --> I13
-    I5 --> I14
-    I6 --> I14
-    I8 --> I15
-    I9 --> I15
-    I5 --> I16
-    I6 --> I16
-    I8 --> I17
-    I14 --> I17
-    I8 --> I18
-    I9 --> I18
-    I10 --> I18
-    I11 --> I18
-    I12 --> I18
-```
-
-Colours: **green** = can start now on the mock, **blue** = needs Medplum (P02), **orange** = go-live hardening, **purple** = after go-live.
-
-### 13.3 Dependency matrix
-
-| Phase | Depends on | Blocks | Parallel with |
-|---|---|---|---|
-| I0 | — | I1 | — |
-| I1 | I0 | I2, I3, I4, I8 | — |
-| I2 | I1 | — | I3, I4 |
-| I3 | I1 | I6, I7 | I2, I4 |
-| I4 | I1 | I5, I9 | I2, I3 |
-| I5 | I4, P02 | I6, I7, I9, I10, I14, I16 | — |
-| I6 | I3, I5 | I13, I14, I16 | I7, I9 |
-| I7 | I3, I5 | I8, I11, I12 | I6, I9 |
-| I8 | I7, I1 | I10, I13, I15, I17, I18 | I9, I11, I12 |
-| I9 | I4, I5 | I15, I18 | I6, I7, I8 |
-| I10 | I5, I8 | I18 | I11, I12, I13 |
-| I11 | I7 | I18 | I10, I12, I13 |
-| I12 | I7 | I18 | I10, I11, I13 |
-| I13 | I6, I8 | — | I10–I12 |
-| I14 | I5, I6 | I17 | I15, I16 |
-| I15 | I8, I9 | — | I14, I16 |
-| I16 | I5, I6 | — | I14, I15 |
-| I17 | I8, I14 | — | I18 |
-| I18 | I8, I9, I10, I11, I12 | go-live | I17 |
-
-### 13.4 How much code we write vs what Medplum gives us
-
-These are estimates in lines of TypeScript/SQL. Generated files (compiled AccessPolicy JSON) and lockfiles are not counted. The "avoided" column is what we would write to get the same thing without Medplum (for example with Better Auth plus our own authorization layer).
-
-| Phase | Medplum gives (no code from us) | We write: source | We write: tests | Avoided by using Medplum |
-|---|---|---|---|---|
-| I0 decisions | — | 0 | 0 | — |
-| I1 `@asc/authz` core | — | ~700 (catalog ~150, 8 templates ~320, `can()` ~60, types/schemas ~130, `IdentityPort` ~40) | ~400 | — |
-| I2 UI gating on mock | — | ~350 (`useCan`/`<Can>` ~80, MSW `/me` ~80, nav/route edits ~200) | ~150 | — |
-| I3 tenancy + RLS | — | ~500 (registry + migration ~120, RLS SQL ~80, `withTenant` ~80, web middleware ~80, api plugin ~120) | ~300 | — |
-| I4 policy compiler | Policy **enforcement** engine | ~300 | ~250 (snapshots) | ~2,500 (field/row-level authz engine on FHIR) |
-| I5 provisioner | Project, Organization, ClientApplication, invite APIs | ~400 | ~150 | ~1,500 (tenant/user/membership store and APIs) |
-| I6 web sign-in | OAuth2 + PKCE server, password hashing, lockout, TOTP, token issue/refresh | ~600 (login UI ~250, token-handler routes ~200, timeouts ~120, logout ~50) | ~250 | ~3,000 (IdP: login, reset, MFA, sessions, tokens) |
-| I7 API authn | Token validation via `/auth/me` | ~200 | ~200 | ~300 (JWT verify, key rotation) |
-| I8 API guards | — | ~200 | ~250 | — |
-| I9 conformance CI | Medplum Docker image to test against | ~60 (CI) | ~600 | — |
-| I10 machine identities | Client-credentials flow, Bot runtime and identity | ~300 | ~150 | ~500 |
-| I11 realtime auth | WebSocket subscriptions with policy-filtered delivery | ~350 (SSE gates, re-validation, revocation bus, tickets) | ~200 | ~1,200 (subscription server) |
-| I12 service-to-service | HMAC-signed rest-hooks (`x-signature`) | ~350 (JWT signer, HMAC/nonce verifier, `/hooks/*`) | ~250 | ~200 |
-| I13 MFA + step-up | TOTP enrolment and challenge | ~200 | ~100 | ~600 (TOTP, recovery codes) |
-| I14 hospital SSO | `DomainConfiguration` federation (OIDC) | ~300 (JIT/group → role mapping, provisioner step) | ~100 | ~1,500 (OIDC client per tenant, account linking) |
-| I15 break-glass + support access | `AuditEvent` on every read | ~450 | ~200 | — |
-| I16 patient identity | Patient users, `%profile` policies | ~400 | ~150 | ~800 |
-| I17 tenant admin | Medplum App as admin console in P1 | 0 in P1 (~1,200 later for our own screens) | 0 | ~2,000 (admin console) |
-| I18 hardening | — | 0 | ~600 (cross-tenant attack suite) | — |
-| **Total** | | **~5,700** (+~1,200 later for admin UI) | **~4,300** | **~14,000+** |
-
-- **What this means:** roughly 10k lines in total (about 5.7k source plus about 4.3k tests) gives us multi-tenant auth, RBAC and isolation. Building the same with a library IdP and our own authorization layer would add about 14k more lines.
-- **Where the risk would be:** the 14k avoided lines would sit in the most security-sensitive code (password storage, MFA, token handling, row-level authz), which would then need its own hardening and audit.
-- **The remaining work is ours by design:** capabilities, role templates, tenant routing and workflow guards are product logic that no vendor provides.
-
-### 13.5 Stacked PR plan
-
-- **Stack A (start now, no Medplum):** `iam/i1-authz-core` ← `iam/i2-ui-gating`, with `iam/i3-tenancy` and `iam/i4-policy-compiler` as sibling branches on I1.
-  - Each PR is reviewable alone and keeps the mock app green.
-- **Stack B (after P02):** `iam/i5-provisioner` ← `iam/i7-api-authn` ← `iam/i8-api-guards` ← `iam/i13-step-up`, with `iam/i6-web-signin` and `iam/i9-conformance` branching off I5.
-- **Stack C (integration):** I10, I11 and I12 off I8, as independent PRs.
-- **Rule for every PR:** run the `phi-review` skill, add tests for every new gate, and update PROGRESS.md.
+Follow-ups that are not part of P05 (step-up, worker and stream auth, service-to-service signing, break-glass, SSO, patient identity, role lifecycle tooling, multi-tenancy) start at the gates in [P05 §6](../plan/phases/P05-auth-roles.md#6-gated-follow-ups-not-in-p05-start-no-later-than-the-gate). Multi-tenant activation steps are in [`future-multi-tenancy-architecture.md` §9](future-multi-tenancy-architecture.md#9-evolution-checklist-activating-multi-tenancy-customer-2-onboarding).
 
 ---
 
