@@ -201,6 +201,8 @@ flowchart TB
 
 ## 4. Tenancy model
 
+> **Phase 1 runs one tenant.** `StaticTenantResolver` returns the configured hospital (tenant id + Medplum Project id); there is no registry, no subdomain routing and no provisioner yet. Facility scoping (§4.3) and data isolation columns + RLS (§4.4) **are** built in Phase 1. Host routing (§4.2), the registry and multi-project provisioning are the Customer #2 target, with steps in [future-multi-tenancy-architecture.md](future-multi-tenancy-architecture.md).
+
 ### 4.1 Hierarchy
 
 ```mermaid
@@ -887,15 +889,17 @@ Follow-ups that are not part of P05 (step-up, worker and stream auth, service-to
 
 ## 14. Spikes to run before building
 
-| ID | Spike (≤ ½ day each, on local Medplum 5.1.42) | Confirms |
-|---|---|---|
-| S1 | Parameterized policy with `_compartment=%facility` + `meta.accounts`; `writeConstraint` on `Composition`; access-token lifetime setting on `ClientApplication`; claim that carries auth time for step-up | §4.3, §5.1, §5.2, §7.4 |
-| S2 | `DomainConfiguration` with Entra ID (OIDC) on self-hosted; SCIM endpoint coverage | §5.3 |
-| S3 | WebSocket subscription auth and that notifications respect the subscriber's `%facility` criteria | §10 |
-| S4 | Project-scoped users: same email in two Projects, login with `projectId`, project selection UX | §4.1 rule 2 |
-| S5 | Per-tenant `ClientApplication` client credentials, scoped by its own AccessPolicy | §9 |
+| ID | Spike (≤ ½ day each, on local Medplum 5.1.42) | Confirms | Runs in |
+|---|---|---|---|
+| S1 | Parameterized policy with `_compartment=%facility` + `meta.accounts`; `writeConstraint` on `Composition`; access-token lifetime setting on `ClientApplication`; claim that carries auth time for step-up | §4.3, §5.1, §5.2, §7.4 | **P05h** |
+| S1b | Two `access[]` entries with different policies: union behaviour for `hiddenFields`, `readonly`, `writeConstraint` | §4.3, §7.4 | **P05h** |
+| S7 | `/auth/me` payload carries membership `access[]` with parameters (enough to build grants) | §6.1 | **P05h** |
+| S2 | `DomainConfiguration` with Entra ID (OIDC) on self-hosted; SCIM endpoint coverage | §5.3 | SSO follow-up |
+| S3 | WebSocket subscription auth and that notifications respect the subscriber's `%facility` criteria | §10 | SSE auth follow-up |
+| S4 | Project-scoped users: same email in two Projects, login with `projectId`, project selection UX | §4.1 rule 2 | Customer #2 |
+| S5 | Per-tenant `ClientApplication` client credentials, scoped by its own AccessPolicy | §9 | Worker identity follow-up |
 
-If a spike fails, record the fallback in the ADR before building the phase that depends on it.
+If a spike fails, record the fallback in the ADR before building the sub-phase that depends on it. Follow-up gates: [P05 §6](../plan/phases/P05-auth-roles.md#6-gated-follow-ups-not-in-p05-start-no-later-than-the-gate).
 
 ---
 
@@ -903,13 +907,13 @@ If a spike fails, record the fallback in the ADR before building the phase that 
 
 | ID | Question | Default until answered | Blocks |
 |---|---|---|---|
-| Q-IAM-1 | Tenant = customer (BAA holder): agreed? | Yes, one Project per customer | I3, I5 |
-| Q-IAM-2 | Single role list (§7.3), CRNA as qualifier | As proposed | I1 |
-| Q-IAM-3 | Session timeouts: 15 min idle / 12 h absolute; logout on browser close configurable per tenant | As proposed | I6 |
-| Q-IAM-4 | Step-up for `note.sign`, `coding.attest`, `discharge.approve`, `breakglass.invoke` | As proposed | I13 |
-| Q-IAM-5 | Subdomain scheme and apex domain (`*.asc-ehr.app`?) | `{slug}.<apex>` | I3 |
-| Q-IAM-6 | First pilot hospital IdP (Entra / Okta / Google) | Entra | I14 |
+| Q-IAM-1 | Tenant = customer (BAA holder): agreed? | Yes, one Project per customer | P05e, P05h |
+| Q-IAM-2 | Single role list (§7.3), CRNA as qualifier | As proposed | P05b |
+| Q-IAM-3 | Session timeouts: 15 min idle / 12 h absolute; logout on browser close configurable per tenant | As proposed | P05j |
+| Q-IAM-4 | Step-up for `note.sign`, `coding.attest`, `discharge.approve`, `breakglass.invoke` | As proposed | Step-up follow-up |
+| Q-IAM-5 | Subdomain scheme and apex domain (`*.asc-ehr.app`?) | `{slug}.<apex>` | Customer #2 |
+| Q-IAM-6 | First pilot hospital IdP (Entra / Okta / Google) | Entra | SSO follow-up |
 | ~~Q-IAM-7~~ | Medplum hosting (D1) | **Decided 2026-10-03: self-host from open source, no hosted service** | — |
-| Q-IAM-9 | Email sender for Medplum invites, password reset, magic links (SMTP relay or Azure Communication Services Email) | Azure Communication Services Email via SMTP | I5, I6 |
-| Q-IAM-8 | Patient login channel: email OTP, SMS OTP, magic link | Email magic link | I16 |
-| Q-MS6 | Shared login with MindScript | Separate in P1; same hospital IdP later | I14 |
+| Q-IAM-9 | Email sender for Medplum invites, password reset, magic links (SMTP relay or Azure Communication Services Email) | Azure Communication Services Email via SMTP | P05h, P05j |
+| Q-IAM-8 | Patient login channel: email OTP, SMS OTP, magic link | Email magic link | Portal (P2) |
+| Q-MS6 | Shared login with MindScript | Separate in P1; same hospital IdP later | SSO follow-up |
