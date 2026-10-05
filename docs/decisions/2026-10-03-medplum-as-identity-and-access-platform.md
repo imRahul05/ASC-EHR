@@ -1,22 +1,22 @@
 ---
 status: proposed
-date: 2026-10-03
-decision-makers: Engineering lead (pending ratification)
+date: 2026-10-03 (amended 2026-10-05)
+decision-makers: Engineering lead (pending ratification — record name and date here, then set status to accepted)
 ---
 
 # Use Medplum as the identity provider and data-authorization engine; tenant = Medplum Project
 
 ## Context and Problem Statement
 
-The product must support several hospitals and ASC groups from one deployment, each with its own users, sites, roles and (later) single sign-on. Roles and workflow are not final. We need to choose where identities live and where authorization is enforced: Medplum Auth, an open-source library (Better Auth), a SaaS IdP (Clerk), or a self-hosted IdP (Keycloak). The adoption of Medplum as the clinical data platform is itself still proposed ([ADR](2026-09-25-adopt-medplum-as-clinical-data-platform.md)).
+The product must support clinical workflows for our initial hospital / ASC customer, and scale to more hospitals and ASC groups later without rewriting schemas or authorization code. Roles and workflows are not final, so they must change without hardcoded role unions. We need to choose where identities live and where authorization is enforced: Medplum Auth, an open-source library (Better Auth), a SaaS IdP (Clerk), or a self-hosted IdP (Keycloak).
 
 ## Decision Drivers
 
 - PHI authorization enforced at the data layer, not only in our code
 - No second identity store to keep in sync with Medplum memberships
-- One deployment, many tenants, hard isolation per customer
-- Hospital SSO per tenant
-- New roles and workflow changes without code changes
+- Tenant-ready contracts (`tenant_id`, `facility_id`, `Organization` compartments, `TenantResolver` port) with no hospital hardcoded
+- Go-live for the first hospital without building multi-tenant SaaS tooling first
+- New roles and permission changes as data, not code rewrites
 - BAA and data residency inside our Azure tenant
 - Prefer battle-tested open source we run ourselves over a hosted vendor
 
@@ -29,33 +29,33 @@ The product must support several hospitals and ASC groups from one deployment, e
 
 ## Decision Outcome
 
-Chosen option: **1**, running **self-hosted open-source Medplum** (upstream `medplum/medplum-server` images, Apache-2.0) in our Azure subscription. The Medplum-hosted service is not used. The design is in [`docs/product/08-identity-access-and-tenancy.md`](../product/08-identity-access-and-tenancy.md).
+Chosen option: **1**, running **self-hosted open-source Medplum** (upstream `medplum/medplum-server` images, Apache-2.0) in our Azure subscription. The Medplum-hosted service is not used. Design: [`08-identity-access-and-tenancy.md`](../product/08-identity-access-and-tenancy.md).
 
-- Each customer (the BAA holder) gets its own Medplum `Project`. Each site is an `Organization` within it, and every resource carries that site in `meta.accounts`.
-- A role is a versioned *role template* in a new pure package, `@asc/authz`. A template holds a list of capabilities plus data rules. A policy compiler turns each template into a parameterized `AccessPolicy` (`%facility`) for each tenant.
-- Code checks capabilities (`can(principal, "note.sign")`), never role names.
-- Hospital SSO uses Medplum's `DomainConfiguration`. Without SSO, Medplum's TOTP MFA is required for every staff role.
-- Machine callers use their own credentials, scoped to one tenant:
-  - the worker uses one `ClientApplication` per tenant;
-  - Bots run inside the Project;
-  - webhooks are HMAC-signed;
-  - outbound service calls use signed JWTs that expire after 60 s.
-- Option 2 (Better Auth) is the fallback if we ever leave Medplum. An `IdentityPort` interface in `@asc/authz` keeps that switch contained.
+### Scope (2026-10-05 amendment)
+
+1. **One hospital now, tenant-ready contracts.** One Medplum Project, resolved by a `StaticTenantResolver` from config. Subdomain routing, tenant registry, multi-project provisioner and cross-tenant attack suites wait for Customer #2 ([`future-multi-tenancy-architecture.md`](../product/future-multi-tenancy-architecture.md)).
+2. **Tenant-ready data.** App tables carry `tenant_id uuid NOT NULL` + `facility_id` with Postgres RLS (`withTenant()`); FHIR resources carry the facility `Organization` in `meta.accounts`; `Principal` carries facility-scoped grants.
+3. **Capabilities + role templates.** Role templates are versioned data in `@asc/authz`, compiled to parameterized `AccessPolicy` resources. Code checks `can(principal, capability, { facilityId })`, never role names.
+4. **Five gates.** Tenant, identity, facility, capability (+ workflow) in `apps/api`; Medplum `AccessPolicy` on every FHIR call.
+5. **Ports keep it replaceable.** `IdentityPort` (Medplum adapter now; Better Auth is the fallback if we leave Medplum) and `TenantResolver` (static now, host-based later) live in `@asc/authz`.
+6. **Medplum is hardened, not run on defaults.** `registerEnabled: false`, `saveAuditEvents: true`, `storeBotInput: false`, super-admin credentials set explicitly and kept out of app runtime ([server config](https://www.medplum.com/docs/self-hosting/server-config)).
+7. **Plan:** [`P05-auth-roles.md`](../plan/phases/P05-auth-roles.md) (sub-phases P05a–P05h).
 
 ### Consequences
 
-- Good: a single policy decision point for PHI, with no identity sync and no super-user FHIR calls.
-- Good: adding a tenant or a role is configuration, not a code change or a new deployment.
-- Bad: we operate Medplum ourselves: upgrades, backups, the super-admin credential, and an email sender for invites and password resets.
-- Good: self-hosting means domain SSO (`DomainConfiguration`) is configured by our super-admin with no paid plan, and no Medplum BAA is needed (the Azure BAA covers the infrastructure).
-- Bad: some Medplum behaviours still need confirming (spikes S1–S5 in 08 §14) before the phases that depend on them start.
-- Neutral: login UI is built in-house on `@medplum/core`, because `@medplum/react` stays banned.
+- Good: one policy decision point for PHI, no identity sync, no super-user FHIR calls.
+- Good: first-hospital go-live without multi-tenant tooling.
+- Good: adding Customer #2 adds pieces (registry migration, host resolver, provisioner, DNS) but does not change clinical schemas or authorization code.
+- Bad: we operate Medplum ourselves (upgrades, backups, config hardening, email sender, super-admin credential).
+- Bad: some Medplum behaviours are unconfirmed until the P05g spikes run; each failed spike needs a recorded fallback.
+- Neutral: login UI is built in-house on `@medplum/core` with `@asc/ui`; `@medplum/react` stays banned.
 
 ### Confirmation
 
-- Spikes S1–S5 pass on Medplum 5.1.42.
-- I9 conformance suite: every role template × resource × action matches §7.4.
-- I18 cross-tenant attack suite: no request using tenant A's token reaches tenant B's data, in any store.
+- P05g spikes S1 (facility compartment + `writeConstraint` + auth-time claim), S1b (union of access entries) and S7 (`/auth/me` payload) pass on Medplum 5.1.42, or a fallback is recorded here.
+- P05g policy test passes against local Medplum: front-desk cannot read `Composition`; an `rn` at facility A cannot read facility B resources.
+- P05g config test passes: the four hardening settings above are present in every environment's Medplum config.
+- Ratified by the engineering lead (name and date in the front matter).
 
 ## More Information
 
@@ -63,3 +63,4 @@ Chosen option: **1**, running **self-hosted open-source Medplum** (upstream `med
 - Access policies (parameterized, union of entries, `writeConstraint`): https://www.medplum.com/docs/access/access-policies
 - Domain-level identity providers: https://www.medplum.com/docs/auth/domain-level-identity-providers
 - Subscription signing (`x-signature` HMAC-SHA256): https://www.medplum.com/docs/subscriptions/subscription-extensions
+- Server config (defaults: `registerEnabled` true, `saveAuditEvents` false, `storeBotInput` true): https://www.medplum.com/docs/self-hosting/server-config
