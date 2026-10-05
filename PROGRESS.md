@@ -21,7 +21,7 @@
 |---|---|
 | Current wave | 0 |
 | In progress | — |
-| Ready to start | P00b, P01, P02, P03, P09, P06 (needs Azure access), I00 (needs human sign-off) |
+| Ready to start | P00b, P01, P02, P03, P09, P06 (needs Azure access), P05a |
 | Blocked | P13 soft-blocked on Q-MS1 (fallback allowed) |
 | Go-live target | 2026-12-07 |
 
@@ -37,7 +37,7 @@
 | P02 | Local Medplum + bots skeleton | ready | — | | | | | |
 | P03 | `@asc/fhir` | ready | — | | | | | |
 | P04 | Medplum clients | pending | P02, P03 | | | | | |
-| P05 | Auth + roles | pending | P04 | | | | | |
+| P05 | Auth + roles (sub-phases P05a–P05j below) | ready (P05a) | P05h: P02 · P05i–j: P04 | | | | | |
 | P06 | Azure infra (dev) | ready (external: subscription/BAA) | — | | | | | |
 | P07 | `@asc/clinical-rules` | pending | P03 | | | | | |
 | P08 | Terminology + profiles | pending | P02, P03 | | | | | |
@@ -58,30 +58,22 @@
 | P23 | Pathology loop | pending | P18, P12 | | | | | |
 | P24 | Fax + eCW | pending | P10, P12, Q-MS4/5 | | | | | |
 | P25 | Scope log + adverse events | pending | P11, P12 | | | | | |
-| P26 | Go-live hardening | pending | P19, P20, P22, P06, I17, I22 | | | | | |
+| P26 | Go-live hardening | pending | P19, P20, P22, P06, P05 | | | | | |
 
-**IAM track** ([plan](docs/plan/iam/README.md); replaces P05 after I00 sign-off; deferred I18–I24 in [deferred.md](docs/plan/iam/deferred.md))
+**P05 sub-phases** ([plan](docs/plan/phases/P05-auth-roles.md): modular single-hospital core, tenant-ready; gated follow-ups in P05 §6; Customer #2 in [future-multi-tenancy-architecture.md](docs/product/future-multi-tenancy-architecture.md))
 
-| ID | Phase | Status | Depends on | Owner | Branch | PR | Started | Finished |
+| ID | Sub-phase | Status | Depends on | Owner | Branch | PR | Started | Finished |
 |---|---|---|---|---|---|---|---|---|
-| I00 | Decide + amend IAM design | ready (needs human sign-off) | — | | | | | |
-| I01 | `@asc/authz` core | pending | I00 | | | | | |
-| I02 | Role templates | pending | I01 | | | | | |
-| I03 | Policy compiler | pending | I02 | | | | | |
-| I04 | Workspace layer | pending | I01 | | | | | |
-| I05 | UI on mock (I05a, I05b) | pending | I02, I04 | | | | | |
-| I06 | Tenancy foundation (DB, RLS) | pending | I01 | | | | | |
-| I07 | Audit contract | pending | I01 | | | | | |
-| I08 | API security spine | pending | I01, I06, I07 | | | | | |
-| I09 | Medplum spikes | pending | I03, P02 | | | | | |
-| I10 | Tenant provisioner | pending | I03, I09, P02, P03 | | | | | |
-| I11 | Medplum authn in API | pending | I08, I10, P04 | | | | | |
-| I12 | Web sign-in | pending | I05, I06, I10, I11, P04 | | | | | |
-| I13 | MFA + step-up | pending | I11, I12 | | | | | |
-| I14 | Durable audit | pending | I07, I11 | | | | | |
-| I15 | Conformance CI | pending | I03, I10, P01 | | | | | |
-| I16 | Role lifecycle ops | pending | I10, I14 | | | | | |
-| I17 | IAM hardening gate | pending | I06, I08, I11–I16 | | | | | |
+| P05a | Contracts + `@asc/authz` core (`can()`, ports) | ready | — | | | | | |
+| P05b | Role templates, workspaces, lint guard | pending | P05a | | | | | |
+| P05c | Policy compiler | pending | P05b | | | | | |
+| P05d | Web on capabilities (P05d1, P05d2) | pending | P05b | | | | | |
+| P05e | App-DB tenancy (RLS, `withTenant`) | pending | P05a | | | | | |
+| P05f | Durable audit | pending | P05e | | | | | |
+| P05g | API security spine | pending | P05a, P05e, P05f | | | | | |
+| P05h | Medplum hardening, spikes, seed, policy test | pending | P05c, P02 | | | | | |
+| P05i | Medplum identity in API | pending | P05g, P05h, P04 | | | | | |
+| P05j | Web sign-in | pending | P05d, P05i, P04 | | | | | |
 
 ## 3. Done log (newest first)
 
@@ -89,7 +81,7 @@ Work completed before this plan existed, grouped from git history (`origin/main`
 
 | Date | Area | What | Ref |
 |---|---|---|---|
-| 2026-10-05 | Docs | IAM implementation plan (proposed): 18 phases I00–I17 + deferred I18–I24, each with commit-level plan, dependency matrix and checklist; design corrections D-A1…D-A11 (per-facility grants, RoleKey as data, workspace layer, role lifecycle, audit sink); commit size rules in `incremental-commits.md` §4 | branch `worktree-iam-implementation-plan` |
+| 2026-10-05 | Docs | Auth plan folded from 18 IAM phases into P05 sub-phases P05a–P05j: modular single-hospital core (ports `IdentityPort`/`TenantResolver`, per-facility grants, roles as data, workspaces), Medplum hardening + spikes + policy test (P05h), durable audit (P05f), gated follow-ups (step-up, worker/SSE auth, break-glass, SSO, multi-tenancy); multi-tenant design kept in `future-multi-tenancy-architecture.md`; 08 `Principal` fixed to per-facility grants; ADR kept `proposed` pending ratification | branch `worktree-iam-implementation-plan`, PR #21 |
 | 2026-10-03 | Docs | Identity, access control & multi-tenancy design (proposed): Medplum as IdP + data-authz, tenant = Project, facility = Organization, capabilities + role templates, 5 authorization gates, realtime/service-to-service security, IAM track I0–I18 with dependency matrix (not yet merged into the plan) + ADR | branch `worktree-docs-iam-tenancy-design` |
 | 2026-10-01 | Web perf | Tree-shaking & dynamic code-splitting: package manifests (`@asc/api-client`, `@asc/clinical-rules`, `@asc/validation`, `@asc/config`, `@asc/types`, `@asc/ui`) declare `sideEffects` and guarded by manifest tests; expanded ESLint guard for routes/auth/landing (`src/app/**`, `src/components/auth/**`, `src/features/landing/**`) with 6 landing client components converted to leaf imports; Server Components & forms in `(auth)` migrated to `@asc/ui` leaf imports eliminating client barrel leaks (SignaturePad, CommandPalette, Sheet); `DEMO_EXPLAINER` extracted to isolated data module; all 8 case tabs code-split dynamically via `next/dynamic` with `<LoadingSkeleton variant="detail" />` and tab hover/focus preloading (`TabsTrigger` `preload` on pointer enter & focus); `CommandPalette`, `WelcomeDialog`, `TourChecklist`, and `PageHelpSheet` dynamically imported (`ssr: false`); `providers.tsx` converted to leaf imports; perf budgets tightened (`/login` 376→307 KB gz, `/signup` 366→294 KB gz, `/cases/[caseId]` 267→185 KB gz); `bundles.test.ts` passes 9/9 | PR #19, branch `perf/tree-shaking-and-mobile-css-optimization`, LM-011 |
 | 2026-10-01 | Web perf | [Plan](docs/plan/web-performance-plan.md): case tab components out of shell routes (`case-tab-ids.ts`), landing Server Components on `@asc/ui` leaf imports + `"sideEffects"` on `@asc/ui`, MSW started only in `(auth)`/`(dashboard)`; inline CSS evaluated and not adopted (mobile FCP/LCP worse, HTML 33→110 KB). Bundle guard `pnpm --filter web build && pnpm --filter web test:bundles` with budgets. Demo build, gz initial JS: /dashboard 432→349 KB, / 350→294 KB, /_not-found 324→242 KB; Lighthouse `/` mobile LCP 3682→3357 ms, unused JS 166→48 KiB. Open: `/login` simulated mobile LCP 3462→3760 ms (observed unchanged; more, smaller chunks on an HTTP/1.1 lab server) — re-measure on an HTTP/2 preview | branch `worktree-plan-web-performance` |
