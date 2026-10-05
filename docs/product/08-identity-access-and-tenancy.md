@@ -425,10 +425,10 @@ flowchart LR
     classDef ok fill:#16a34a,color:#fff,stroke:#166534
 
     R["Request<br/>host + Bearer"] --> G1
-    G1["1 Tenant<br/>host → active tenant?"]:::gate --> G2
+    G1["1 Tenant<br/>TenantResolver → active tenant?"]:::gate --> G2
     G2["2 Identity<br/>token valid? /auth/me cached<br/>token project = tenant?"]:::gate --> G3
-    G3["3 Facility<br/>target in principal.facilities?"]:::gate --> G4
-    G4["4 Capability + workflow<br/>can(principal, cap)<br/>clinical-rules guard"]:::gate --> G5
+    G3["3 Facility<br/>principal has a grant<br/>at the target facility?"]:::gate --> G4
+    G4["4 Capability + workflow<br/>can(principal, cap, facility)<br/>clinical-rules guard"]:::gate --> G5
     G5["5 Data policy<br/>Medplum AccessPolicy<br/>on every FHIR call"]:::mp --> OK["Allowed<br/>+ AuditEvent"]:::ok
 
     G1 -.->|"404"| D["Denied<br/>+ audit 'denied'"]:::deny
@@ -440,10 +440,10 @@ flowchart LR
 
 | Gate | Question | Owner | Failure |
 |---|---|---|---|
-| 1 Tenant | Does this host map to an active tenant? | `apps/api` tenant plugin; `apps/web` middleware | 404 (unknown host) |
-| 2 Identity | Is the token valid, the membership active, and was the token issued for this tenant's Project? | `apps/api` authn plugin → Medplum `/auth/me` | 401 |
-| 3 Facility | Is the target resource's facility in the principal's facility set? | `apps/api` guard (`@asc/authz`) | 403 |
-| 4 Capability + workflow | Does the principal hold the capability, and does the case state allow it now? | `@asc/authz` `can()` + `@asc/clinical-rules` | 403 / 409 |
+| 1 Tenant | Which active tenant is this request for? | `TenantResolver` port: `StaticTenantResolver` (config) in Phase 1; host-based resolver + web middleware for Customer #2 | 404 (unknown host, multi-tenant only) |
+| 2 Identity | Is the token valid, the membership active, and was the token issued for this tenant's Project? | `apps/api` authn plugin → `IdentityPort` (Medplum `/auth/me`) | 401 |
+| 3 Facility | Does the principal hold a grant at the target resource's facility? | `apps/api` guard (`@asc/authz`) | 403 |
+| 4 Capability + workflow | Does a grant **at that facility** include the capability, and does the case state allow it now? | `@asc/authz` `can(principal, cap, { facilityId })` + `@asc/clinical-rules` | 403 / 409 |
 | 5 Data policy | May this membership read or write this resource and field? | **Medplum** `AccessPolicy` | 403 |
 
 Gate 5 is the safety net: even if gates 3–4 had a bug, Medplum would still refuse. Gates 3–4 exist for clear errors, workflow rules and non-FHIR actions such as export and AI generation.
@@ -467,9 +467,9 @@ sequenceDiagram
     N->>M: /auth/me (cache key token hash, TTL ≤ 60 s)
     M-->>N: profile, membership, project, merged accessPolicy
     N->>N: project.id == tenant.medplumProjectId ?
-    N->>N: build Principal (capabilities from role templates)
+    N->>N: build Principal (per-facility grants from role templates)
     N->>G: request.principal
-    G->>G: requireCapability("note.sign"), requireFacility(case.facility), requireFreshAuth()
+    G->>G: requireCapability("note.sign", case.facility), requireFreshAuth() once step-up ships
     G->>R: allowed
     R->>M: FHIR transaction with the USER's token
     M-->>R: 200 or 403 (policy)
@@ -480,18 +480,25 @@ sequenceDiagram
 `Principal` (type in `@asc/types`, schema in `@asc/validation`):
 
 ```ts
+type Grant = {
+  scope: { kind: "all" } | { kind: "facility"; facilityId: string }; // Organization id
+  roleKeys: RoleKey[];           // display and audit only — never for checks
+  capabilities: Capability[];    // what this grant allows at this scope
+};
+
 type Principal = {
-  tenantId: string;              // registry UUID
+  kind: "staff" | "patient" | "service";
+  tenantId: string;              // from TenantResolver
   projectId: string;             // Medplum Project
   membershipId: string;
   profile: { type: "Practitioner" | "Patient" | "ClientApplication"; id: string };
-  roles: RoleKey[];              // for display and audit only — never for checks
-  facilities: string[] | "all";  // Organization ids
-  capabilities: Set<Capability>; // the ONLY thing code checks
+  grants: Grant[];               // the ONLY thing can() reads
   authTime: number;              // for step-up
   onBehalfOf?: { agentExecutionId: string }; // AI runs
 };
 ```
+
+Capabilities are **never flattened across facilities**. `can(p, cap, { facilityId })` is true only if a grant with `scope: all` or with that `facilityId` lists `cap`; `can(p, cap)` without a facility counts only `scope: all` grants. Example: a user who is `rn` at North and `rn` + `clinical-supervisor` at South cannot use supervisor capabilities on a North resource.
 
 ---
 
@@ -530,14 +537,13 @@ classDiagram
     }
     class Principal {
       <<runtime, apps/api>>
-      capabilities
-      facilities
+      grants: scope + capabilities per facility
     }
     RoleTemplate "1" --> "many" Capability : grants
     RoleTemplate "1" --> "1" AccessPolicy : compiled to (per tenant)
     ProjectMembership "many" --> "1" AccessPolicy : references
     ProjectMembership ..> Principal : resolved at request
-    RoleTemplate ..> Principal : capabilities
+    RoleTemplate ..> Principal : capabilities per grant
 ```
 
 - **Capability:** a verb on a domain, such as `note.sign` or `schedule.manage`. Capabilities are a closed catalog in code, so typos fail typecheck. Each one is small and stable, and new ones are appended, never renamed.
@@ -649,14 +655,14 @@ flowchart LR
 
 | Piece | Package | Why there |
 |---|---|---|
-| `Capability` union, `RoleKey`, `Principal`, `TenantRef` types | `@asc/types` | Shared contracts (LM-001) |
-| Zod for `/me`, tenant registry rows | `@asc/validation` | Schemas live here |
-| Capability catalog, role templates, `can()`, policy compiler, `IdentityPort` interface | **`@asc/authz`** (new, pure TS, no I/O) | Testable without Medplum; used by web, api, worker, bots |
-| Medplum adapter for `IdentityPort` (`/auth/me` → `Principal`), provisioner calls | `@asc/api-client` (Medplum clients, per P04) | Fetch / Medplum clients live here |
-| Fastify plugins (tenant, authn, guards) | `apps/api/src/plugins/*` | Wiring only |
-| Next middleware, token-handler route, `<Can>` / `useCan()` | `apps/web` (wiring) + `@asc/ui` (`<Can>` component) | UI gating is convenience, never enforcement |
-| Tenant registry table, RLS, `withTenant()` | `@asc/db` | App data |
-| Tenant provisioning script | `apps/bots/scripts/provision-tenant.ts` | Same place as the P05 seed |
+| Capability catalog (`as const` tuple), `Capability`, `RoleKey` (string), `Grant`, `Principal`, `TenantRef`, `RoleTemplate` types | `@asc/types` | Shared contracts with no deps (LM-001) |
+| Zod for `/me`, principal, role templates (tenant registry rows later) | `@asc/validation` | Schemas live here |
+| Role templates, `can()`, `authorize()`, workspace resolver, policy compiler, `IdentityPort` and `TenantResolver` interfaces (+ test fakes, `StaticTenantResolver`), membership → `Principal` mapping | **`@asc/authz`** (new, pure TS, no I/O) | Testable without Medplum; used by web, api, worker, bots |
+| `/auth/me` fetch helper | `@asc/api-client` (server subpath, per P04) | Fetch / Medplum clients live here |
+| Medplum `IdentityPort` adapter, Fastify plugins (tenant, authn, default-deny, guards) | `apps/api` | Wiring only |
+| Token-handler route, `useCan()`, `<Can>`, `<RequireCapability>`, workspace definitions | `apps/web` | UI gating is convenience, never enforcement |
+| RLS, `withTenant()`, append-only `audit_events` (tenant registry table later) | `@asc/db` | App data |
+| Hospital seed (Phase 1); tenant provisioner (Customer #2) | `apps/bots/scripts/` | Next to Medplum tooling |
 
 ---
 
