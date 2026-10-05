@@ -71,6 +71,7 @@ Workspaces: `@asc/types`, `@asc/validation`, `@asc/authz` (new, depends only on 
 - [ ] `can()` without `facilityId` counts only `scope: all` grants (fail closed)
 - [ ] Test: User X = `rn` @ A, `rn` + `clinical-supervisor` @ B → no supervisor capability at A
 - [ ] Patient principal never gets staff capabilities
+- [ ] `Principal.kind` includes `agent`; an agent principal's capabilities = caller's ∩ agent allow-list, scoped to the run's patient/case (test)
 - [ ] `@asc/authz` has no I/O, no `process.env`, no fetch
 
 ### P05b — Role templates, workspaces, lint guard · S · needs P05a
@@ -174,6 +175,7 @@ Workspaces: `@asc/audit`, `@asc/db`.
 - [ ] Runtime role cannot `UPDATE`/`DELETE`/`TRUNCATE` `audit_events`; a trigger also blocks owner mistakes
 - [ ] IAM events: `auth.login`, `auth.logout`, `auth.denied`, `membership.*`, `role.*`, `user.invited` — IDs and keys only, no names or emails
 - [ ] Client IP stored hashed/truncated unless compliance says otherwise
+- [ ] Allow/deny events carry decision provenance: role template versions, `@asc/authz` catalog version (git SHA), gate number, cache `hit`/`miss`/`bypass` (08 §12.3)
 
 ### P05g — API security spine · M · needs P05a, P05e, P05f
 Workspace: `apps/api` (packages: `@fastify/helmet` 13.1.1, `@fastify/rate-limit` 11.2.0).
@@ -205,6 +207,7 @@ Workspaces: `infra/medplum`, `apps/bots`, `docs/decisions`.
 | 3 | `test(bots): spike S1 facility compartment, write constraint, auth time` |
 | 4 | `test(bots): spike S1b union of access entries` |
 | 5 | `test(bots): spike S7 record auth me payload (synthetic)` |
+| 5b | `test(bots): spike S6 membership disable and policy change latency` |
 | 6 | `docs(adr): record spike results and fallbacks` |
 | 7 | `feat(bots): seed hospital project, facilities, policies, demo users` |
 | 8 | `test(bots): policy test against local Medplum` |
@@ -220,6 +223,7 @@ Workspaces: `infra/medplum`, `apps/bots`, `docs/decisions`.
 
 - [ ] Policy test: front-desk cannot read `Composition`; `rn` @ A cannot read B resources; a `final` Composition cannot be updated
 - [ ] Every spike passes or has a fallback recorded in the ADR **before** P05i starts
+- [ ] S6 measures how long a disabled membership or changed policy keeps working at gate 5 (Medplum) and with our cache (gates 1–4)
 - [ ] Seed is idempotent (second run = no changes); synthetic data only
 - [ ] The same hardening settings are carried into the Azure config in [P06](P06-azure-infra.md)
 
@@ -232,10 +236,14 @@ Workspaces: `@asc/api-client`, `@asc/authz`, `apps/api`.
 | 2 | `feat(authz): map membership access to per-facility grants` |
 | 3 | `feat(api): Medplum identity adapter with 60 s token-hash cache` |
 | 4 | `feat(api): reject wrong project or inactive membership` |
-| 5 | `test(api): integration against local Medplum` |
+| 5 | `feat(api): bypass identity cache for step-up capabilities` |
+| 6 | `feat(api): invalidate identity cache from admin actions and membership webhook` |
+| 7 | `test(api): integration against local Medplum` |
 
 - [ ] Unknown or retired policy in a membership → no capabilities (fail closed)
-- [ ] Medplum unreachable → 503, never allow; cache never stores the raw token
+- [ ] Medplum unreachable → 503, never allow; cache never stores the raw token; expired entries are never used as fallback
+- [ ] High-risk (`stepUp`) capabilities always re-validate with Medplum (test)
+- [ ] Signed webhook from a Medplum `Subscription` on `ProjectMembership`/`AccessPolicy` clears affected cache entries; our admin tools clear them in the same operation (tests)
 
 ### P05j — Web sign-in · M · needs P05d, P05i, P04
 Workspaces: `apps/web`, `@asc/api-client`, `@asc/config`.
@@ -254,6 +262,7 @@ Workspaces: `apps/web`, `@asc/api-client`, `@asc/config`.
 - [ ] Refresh cookie `httpOnly`, `Secure`, `SameSite=Strict`, path `/auth`; token route checks `Origin` / `Sec-Fetch-Site`
 - [ ] No token or profile in browser storage or URLs (LM-004)
 - [ ] TOTP required for every staff account (M12-3)
+- [ ] Access token lifetime ≤ 15 min; strict CSP (no inline scripts, host allowlist) on authenticated pages to limit XSS token theft
 
 ## 5. Dependency matrix
 
@@ -299,7 +308,7 @@ flowchart LR
 | Hospital SSO (`DomainConfiguration`) | First customer that requires SSO | 08 §5.3 |
 | Patient portal identity | Portal phase (P2) | 08 §5.4 |
 | Role lifecycle tooling (deprecate, retire, split) | First role change after go-live; until then template version bump + Medplum App | [future §8](../../product/future-multi-tenancy-architecture.md) |
-| Instant revocation channel | Only if the 60 s `/auth/me` cache window is not acceptable | 08 §6 |
+| Full backend-for-frontend (proxy all FHIR reads) | Only if a security review or customer requires it; hybrid token handling is the default (ADR item 6) | ADR |
 | P05h policy test in CI (disposable Medplum, role × resource matrix) | When P01 CI exists; required before go-live | ADR Confirmation |
 | IAM hardening review (cross-facility attack tests, pen test, `phi-review` of the auth surface, sign-off) | Part of P26 go-live hardening | 08 §6, §12 |
 | Multi-tenancy (registry, host resolver, provisioner, cross-tenant suite) | Customer #2 signed | [future §9](../../product/future-multi-tenancy-architecture.md) |
