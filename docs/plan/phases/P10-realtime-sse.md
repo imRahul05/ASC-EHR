@@ -56,6 +56,7 @@ packages/api-client/src/react/use-event-stream.ts  NEW  useEventStream(url, sche
 - [ ] Stream survives proxy idle timeouts (heartbeat) and resumes with `Last-Event-ID`
 - [ ] Event payloads contain IDs/status only — PHI stays in Medplum, UI fetches it with the user token (phi-review skill passes)
 - [ ] Client abort stops server work subscription (no leaks — test)
+- [ ] Stream auth follow-up from [P05 §6](P05-auth-roles.md#6-gated-follow-ups-not-in-p05-start-no-later-than-the-gate) done before any stream carries PHI: Bearer via `fetch` (no token in URL; one-time ticket if headers are impossible), tenant/facility checked at subscribe, re-validated periodically (08 §10)
 - [ ] PROGRESS.md updated
 
 ## Open questions

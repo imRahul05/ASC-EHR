@@ -1,0 +1,324 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Staff Sign-In with Tenant Resolution",
+    "output": ".archify/sequence-staff-sign-in-20261003-130556/staff-sign-in.html",
+    "column_fit": "spread",
+    "quality_profile": "showcase",
+    "locale": "en"
+  },
+  "participants": [
+    {
+      "id": "staff",
+      "type": "external",
+      "label": "Staff user",
+      "sublabel": "browser"
+    },
+    {
+      "id": "web",
+      "type": "frontend",
+      "label": "apps/web",
+      "sublabel": "acme subdomain"
+    },
+    {
+      "id": "handler",
+      "type": "security",
+      "label": "Token handler",
+      "sublabel": "Next route, web origin"
+    },
+    {
+      "id": "medplum",
+      "type": "security",
+      "label": "Medplum Auth",
+      "sublabel": "self-hosted"
+    },
+    {
+      "id": "idp",
+      "type": "external",
+      "label": "Hospital IdP",
+      "sublabel": "optional SSO"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "apps/api",
+      "sublabel": "Principal builder"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 258,
+      "label": "Host → tenant acme (projectId A)"
+    },
+    {
+      "from": 268,
+      "to": 352,
+      "label": "alt: DomainConfiguration SSO"
+    },
+    {
+      "from": 362,
+      "to": 450,
+      "label": "else: password + TOTP"
+    },
+    {
+      "from": 460,
+      "to": 636,
+      "label": "Code + token exchange"
+    },
+    {
+      "from": 646,
+      "to": 756,
+      "label": "Principal fetch"
+    },
+    {
+      "from": 766,
+      "to": 852,
+      "label": "Step-up (high-risk)"
+    }
+  ],
+  "messages": [
+    {
+      "id": "open-login",
+      "from": "staff",
+      "to": "web",
+      "y": 162,
+      "label": "open /login (acme.asc-ehr.app)",
+      "variant": "default",
+      "note": "Next middleware resolves host → tenant acme (projectId A) before rendering login."
+    },
+    {
+      "id": "enter-email",
+      "from": "staff",
+      "to": "web",
+      "y": 218,
+      "label": "email",
+      "variant": "default"
+    },
+    {
+      "id": "start-login",
+      "from": "web",
+      "to": "medplum",
+      "y": 246,
+      "label": "startLogin(email, projectId A, PKCE challenge)",
+      "variant": "security"
+    },
+    {
+      "id": "sso-redirect",
+      "from": "medplum",
+      "to": "staff",
+      "y": 280,
+      "label": "redirect to hospital IdP",
+      "variant": "return"
+    },
+    {
+      "id": "sso-mfa",
+      "from": "staff",
+      "to": "idp",
+      "y": 308,
+      "label": "SSO + hospital MFA",
+      "variant": "security"
+    },
+    {
+      "id": "id-token",
+      "from": "idp",
+      "to": "medplum",
+      "y": 336,
+      "label": "id token",
+      "variant": "return"
+    },
+    {
+      "id": "password",
+      "from": "staff",
+      "to": "medplum",
+      "y": 374,
+      "label": "password",
+      "variant": "security"
+    },
+    {
+      "id": "totp-challenge",
+      "from": "medplum",
+      "to": "staff",
+      "y": 402,
+      "label": "TOTP challenge",
+      "variant": "return"
+    },
+    {
+      "id": "totp-code",
+      "from": "staff",
+      "to": "medplum",
+      "y": 430,
+      "label": "TOTP code",
+      "variant": "security"
+    },
+    {
+      "id": "auth-code",
+      "from": "medplum",
+      "to": "web",
+      "y": 472,
+      "label": "authorization code",
+      "variant": "return"
+    },
+    {
+      "id": "code-to-handler",
+      "from": "web",
+      "to": "handler",
+      "y": 500,
+      "label": "code + PKCE verifier",
+      "variant": "default"
+    },
+    {
+      "id": "token-exchange",
+      "from": "handler",
+      "to": "medplum",
+      "y": 528,
+      "label": "token exchange",
+      "variant": "security"
+    },
+    {
+      "id": "tokens",
+      "from": "medplum",
+      "to": "handler",
+      "y": 556,
+      "label": "access + refresh token",
+      "variant": "return"
+    },
+    {
+      "id": "set-cookie",
+      "from": "handler",
+      "to": "web",
+      "y": 588,
+      "label": "Set-Cookie refresh: encrypted, httpOnly, SameSite=Strict",
+      "variant": "return",
+      "note": "Path /auth on web origin; only the token handler reads it; the API never sees cookies."
+    },
+    {
+      "id": "access-body",
+      "from": "handler",
+      "to": "web",
+      "y": 620,
+      "label": "access token in body → memory only",
+      "variant": "return",
+      "note": "MedplumClient with in-memory storage, not localStorage; target 15 min lifetime."
+    },
+    {
+      "id": "get-me",
+      "from": "web",
+      "to": "api",
+      "y": 660,
+      "label": "GET /me (Bearer access token)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "auth-me",
+      "from": "api",
+      "to": "medplum",
+      "y": 688,
+      "label": "/auth/me (cached ≤ 60 s)",
+      "variant": "security"
+    },
+    {
+      "id": "profile",
+      "from": "medplum",
+      "to": "api",
+      "y": 716,
+      "label": "profile + token project",
+      "variant": "return",
+      "note": "API rejects unless token project == host tenant (projectId A)."
+    },
+    {
+      "id": "principal",
+      "from": "api",
+      "to": "web",
+      "y": 744,
+      "label": "Principal {tenant, facilities, roles, capabilities}",
+      "variant": "return"
+    },
+    {
+      "id": "step-up",
+      "from": "api",
+      "to": "web",
+      "y": 780,
+      "label": "401 step_up_required + capability",
+      "variant": "dashed"
+    },
+    {
+      "id": "relogin",
+      "from": "web",
+      "to": "medplum",
+      "y": 808,
+      "label": "re-login prompt=login (re-asks MFA)",
+      "variant": "security"
+    },
+    {
+      "id": "retry",
+      "from": "web",
+      "to": "api",
+      "y": 838,
+      "label": "retry; API checks issue time ≤ 5 min",
+      "variant": "emphasis"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "web",
+      "from": 158,
+      "to": 844,
+      "type": "frontend"
+    },
+    {
+      "participant": "medplum",
+      "from": 242,
+      "to": 476,
+      "type": "security"
+    },
+    {
+      "participant": "idp",
+      "from": 304,
+      "to": 340,
+      "type": "external"
+    },
+    {
+      "participant": "handler",
+      "from": 496,
+      "to": 626,
+      "type": "security"
+    },
+    {
+      "participant": "api",
+      "from": 656,
+      "to": 750,
+      "type": "backend"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Tenant first",
+      "items": [
+        "Middleware maps the subdomain to a tenant before any login step",
+        "startLogin is pinned to that tenant's projectId with a PKCE challenge",
+        "apps/api checks the token's project matches the host tenant"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Token rules (LM-004)",
+      "items": [
+        "Access token: JS memory only, short (target 15 min), sent as Bearer",
+        "Refresh token: encrypted httpOnly cookie, path /auth, ≤ 12 h absolute",
+        "Logout: Medplum logout + clear cookie + clear query cache"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "MFA and step-up",
+      "items": [
+        "With SSO, the hospital IdP owns MFA; otherwise Medplum TOTP is mandatory",
+        "Signing, attesting, break-glass and admin need a login within 5 min",
+        "401 step_up_required triggers prompt=login; the action is allowed once"
+      ]
+    }
+  ]
+}

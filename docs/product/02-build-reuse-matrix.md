@@ -82,7 +82,7 @@ Size: **S** ≤ 1 dev-week · **M** 1–3 · **L** 3+ (rough, for sequencing onl
 |---|---|
 | CPT codes not bundled (AMA license) | License CPT; load as `CodeSystem` via CLI; ICD-10-CM is public |
 | No GI-specific content, no AIMS UI, no ASC scheduling UX | That is our build — the wedge |
-| Self-hosting on Azure is "validated for production" but operationally heavy (AKS, Postgres Flexible, Redis, App Gateway, CDN via Terraform) | Budget platform time in week 1–2; alternative: Medplum-hosted with BAA (decision D1 in 05) |
+| Self-hosting on Azure is "validated for production" but operationally heavy (AKS, Postgres Flexible, Redis, App Gateway, CDN via Terraform) | Budget platform time in week 1–2. Self-host is decided (D1 in 05); no hosted fallback |
 | Bots run in Medplum's runtime — cannot import our workspace packages directly | Bundle bots with esbuild from `apps/bots`; keep bots thin; heavy logic → worker via Subscription |
 | Duplicate-patient matching not a turnkey MPI | Simple deterministic rules in API + `Patient.link` merge |
 | Version drift (fast-moving project) | Pin server + `@medplum/*` versions; upgrade on a cadence in staging |

@@ -8,10 +8,11 @@ To keep this file intentionally minimal and extensible, all detailed guidance, r
 ## ⚡ Session protocol (MANDATORY for every coding agent)
 
 1. **Read first:** [`LEARNING_MISTAKES.md`](LEARNING_MISTAKES.md) (mistakes already corrected — do not repeat them) and [`PROGRESS.md`](PROGRESS.md) (what is done / in progress / next).
-2. **Pick work from the plan:** [`docs/plan/implementation-plan.md`](docs/plan/implementation-plan.md) → the phase file in [`docs/plan/phases/`](docs/plan/phases/). Only start a phase whose dependencies are `done`.
+2. **Pick work from the plan:** [`docs/plan/implementation-plan.md`](docs/plan/implementation-plan.md) → the phase file in [`docs/plan/phases/`](docs/plan/phases/). Auth, roles, permissions and tenancy work follows the [IAM plan](docs/plan/iam/README.md). Only start a phase whose dependencies are `done`.
 3. **Respect package boundaries:** use the "where does it go" table in the plan §4. Code, types and schemas go in their owning `packages/*`, never in `apps/*`.
-4. **On finish:** update `PROGRESS.md` (status, PR, next up) in the same branch.
-5. **When corrected** by the user, a reviewer, lint or tests: fix it **and** add or update an entry in `LEARNING_MISTAKES.md` in the same commit.
+4. **Commit small:** one concern per commit, ≤ 400 changed lines, green after every commit — see [incremental commits §4](docs/agent/incremental-commits.md#4-size-limits-and-commit-shape).
+5. **On finish:** update `PROGRESS.md` (status, PR, next up) in the same branch.
+6. **When corrected** by the user, a reviewer, lint or tests: fix it **and** add or update an entry in `LEARNING_MISTAKES.md` in the same commit.
 
 ## 📚 Agent Guidance Directory
 
@@ -29,6 +30,7 @@ To keep this file intentionally minimal and extensible, all detailed guidance, r
 ### 3. Compliance, HIPAA, and PHI
 **Consult when:** Handling sensitive health data, writing logging logic, or building database/API schemas.
 👉 [Read Compliance & PHI Handling](docs/COMPLIANCE_AND_PHI.md)
+👉 [Read Identity, Access & Multi-Tenancy design](docs/product/08-identity-access-and-tenancy.md) — *auth, roles/capabilities, tenant isolation, realtime and service-to-service security.*
 
 ### 4. Environments & Deployment
 **Consult when:** Modifying environment variables, build steps, or deployment configurations.

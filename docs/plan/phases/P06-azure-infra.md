@@ -50,11 +50,12 @@ None (Terraform providers: `azurerm` latest 4.x; pin in `versions.tf`).
 - [ ] `terraform apply` from clean state creates dev env
 - [ ] Only synthetic data in dev/staging (environments ADR)
 - [ ] Key Vault holds all secrets; nothing in repo
+- [ ] Medplum config in every environment carries the P05h hardening: `registerEnabled: false`, `saveAuditEvents: true`, `storeBotInput: false`, super-admin credentials from Key Vault (Medplum defaults are unsafe — see [P05h](P05-auth-roles.md#p05h--medplum-hardening-spikes-seed-policy-test--m--needs-p05c-p02))
 - [ ] PROGRESS.md updated
 
 ## Open questions
 | ID | Question | Blocks | Default |
 |---|---|---|---|
-| D1/Q10 | Self-host vs Medplum-hosted | all | Self-host; fallback trigger: slips past week 3 |
+| D1/Q10 | Self-host vs Medplum-hosted | all | **Decided 2026-10-03: self-host only**, no hosted fallback |
 | Q1 | Azure subscription + BAA ready? | T1 | Needed week 1 — escalate |
 | Q2 | AKS vs Container Apps for api/worker | T3 | AKS (same cluster as Medplum) |

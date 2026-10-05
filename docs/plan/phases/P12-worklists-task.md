@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Wave · Lane · Size | 2 · Domain · M |
-| Depends on | P05, P07 (bots from P02) |
+| Depends on | P05 (through P05j), P07 (bots from P02) |
 | Unblocks | P19 (sign Task), P23, P24, P25 |
 | Source mix | MP (`Task`, Bots, Subscriptions) + MS UX (worklist rows, cancelled-appt follow-up) |
 | Requirements | D4; M12-7 Sign Queue; M10-3; X3 |
@@ -54,6 +54,8 @@ None new (Medplum packages already added).
 - [ ] Creating a preliminary Composition creates a `sign-note` Task within 5 s; finalising resolves it
 - [ ] Worklist updates live without refresh
 - [ ] AccessPolicy: each role sees only its kinds
+- [ ] Work items are owned by a queue/capability, never a role key (P05 rule; no role-name checks)
+- [ ] Worker identity follow-up from [P05 §6](P05-auth-roles.md#6-gated-follow-ups-not-in-p05-start-no-later-than-the-gate) done before any worker job reads or writes PHI: own `ClientApplication` with a narrow policy, job data `{tenantId, facilityId, actor}` IDs only (08 §9)
 - [ ] PROGRESS.md updated
 
 ## Open questions

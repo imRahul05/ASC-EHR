@@ -1,0 +1,308 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Adding or Changing a Role",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "output": ".archify/workflow-add-or-change-role-20261003-130556/add-or-change-role.html"
+  },
+  "lanes": [
+    {
+      "id": "author",
+      "label": "Code"
+    },
+    {
+      "id": "ci",
+      "label": "CI checks"
+    },
+    {
+      "id": "review",
+      "label": "PR review",
+      "variant": "exception"
+    },
+    {
+      "id": "release",
+      "label": "Release · every tenant"
+    },
+    {
+      "id": "tenant",
+      "label": "Tenant admin"
+    }
+  ],
+  "groups": [
+    {
+      "id": "g_tests",
+      "label": "Test gate",
+      "lane": "ci",
+      "fromCol": 2,
+      "toCol": 4,
+      "variant": "dashed"
+    }
+  ],
+  "mainPath": [
+    "template",
+    "catalog",
+    "snapshot",
+    "conformance",
+    "tests_gate",
+    "pr_review",
+    "approval_gate",
+    "provision",
+    "assign"
+  ],
+  "nodes": [
+    {
+      "id": "template",
+      "lane": "author",
+      "col": 0,
+      "type": "backend",
+      "label": "1 Role template",
+      "sublabel": "packages/authz/src/roles",
+      "tag": "caps + data rules, bump version",
+      "width": 185
+    },
+    {
+      "id": "catalog",
+      "lane": "author",
+      "col": 1,
+      "type": "backend",
+      "label": "2 Capability catalog",
+      "sublabel": "new cap? append",
+      "tag": "never rename",
+      "width": 185
+    },
+    {
+      "id": "snapshot",
+      "lane": "ci",
+      "col": 2,
+      "type": "backend",
+      "label": "3 Compiler snapshot",
+      "sublabel": "template → AccessPolicy",
+      "tag": "criteria with %facility",
+      "width": 185
+    },
+    {
+      "id": "conformance",
+      "lane": "ci",
+      "col": 3,
+      "type": "cloud",
+      "label": "4 Conformance tests",
+      "sublabel": "dockerized Medplum",
+      "tag": "role × resource × action",
+      "width": 185
+    },
+    {
+      "id": "tests_gate",
+      "lane": "ci",
+      "col": 4,
+      "type": "security",
+      "label": "Tests pass?",
+      "sublabel": "snapshot + matrix",
+      "width": 160
+    },
+    {
+      "id": "pr_review",
+      "lane": "review",
+      "col": 4,
+      "type": "security",
+      "label": "5 PR review",
+      "sublabel": "phi-review skill",
+      "tag": "+ security owner",
+      "width": 160
+    },
+    {
+      "id": "approval_gate",
+      "lane": "review",
+      "col": 5,
+      "type": "security",
+      "label": "Approved?",
+      "sublabel": "sign-off required",
+      "width": 185
+    },
+    {
+      "id": "provision",
+      "lane": "release",
+      "col": 5,
+      "type": "messagebus",
+      "label": "6 Provisioner upsert",
+      "sublabel": "gi-physician-v4 per Project",
+      "tag": "repoint: 1 txn / tenant",
+      "width": 185
+    },
+    {
+      "id": "old_policy",
+      "lane": "release",
+      "col": 3,
+      "type": "database",
+      "label": "Old policy v3 kept",
+      "sublabel": "until unreferenced",
+      "tag": "rollback = repoint",
+      "width": 185
+    },
+    {
+      "id": "tenant_role",
+      "lane": "tenant",
+      "col": 3,
+      "type": "external",
+      "label": "Tenant role (P3)",
+      "sublabel": "tenant:<slug>:<key>",
+      "tag": "may only remove rights",
+      "width": 185
+    },
+    {
+      "id": "assign",
+      "lane": "tenant",
+      "col": 5,
+      "type": "frontend",
+      "label": "7 Assign to users",
+      "sublabel": "invite / membership edit",
+      "tag": "facility params",
+      "width": 185
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_tpl_cat",
+      "from": "template",
+      "to": "catalog",
+      "label": "new cap?"
+    },
+    {
+      "id": "e_cat_snap",
+      "from": "catalog",
+      "to": "snapshot",
+      "label": "compile"
+    },
+    {
+      "id": "e_snap_conf",
+      "from": "snapshot",
+      "to": "conformance"
+    },
+    {
+      "id": "e_conf_gate",
+      "from": "conformance",
+      "to": "tests_gate"
+    },
+    {
+      "id": "e_gate_review",
+      "from": "tests_gate",
+      "to": "pr_review",
+      "label": "pass",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e_gate_fail",
+      "from": "tests_gate",
+      "to": "template",
+      "label": "fail → fix template",
+      "variant": "security",
+      "role": "error",
+      "fromSide": "top",
+      "toSide": "top",
+      "via": [
+        [
+          915.4,
+          58
+        ],
+        [
+          140.5,
+          58
+        ]
+      ],
+      "labelAt": [
+        640,
+        74
+      ]
+    },
+    {
+      "id": "e_review_appr",
+      "from": "pr_review",
+      "to": "approval_gate"
+    },
+    {
+      "id": "e_appr_prov",
+      "from": "approval_gate",
+      "to": "provision",
+      "label": "approved → merge",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e_appr_reject",
+      "from": "approval_gate",
+      "to": "template",
+      "label": "rejected → revise",
+      "variant": "security",
+      "role": "error",
+      "fromSide": "top",
+      "toSide": "left",
+      "via": [
+        [
+          1115.9,
+          40
+        ],
+        [
+          20,
+          40
+        ],
+        [
+          20,
+          120
+        ]
+      ],
+      "labelAt": [
+        1115.9,
+        160
+      ]
+    },
+    {
+      "id": "e_prov_old",
+      "from": "provision",
+      "to": "old_policy",
+      "label": "keep prior version",
+      "variant": "dashed",
+      "role": "branch"
+    },
+    {
+      "id": "e_prov_assign",
+      "from": "provision",
+      "to": "assign",
+      "label": "role available",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e_prov_tenant",
+      "from": "provision",
+      "to": "tenant_role",
+      "label": "clone, tighten only",
+      "variant": "dashed",
+      "role": "branch"
+    },
+    {
+      "id": "e_tenant_assign",
+      "from": "tenant_role",
+      "to": "assign",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "No authz engine change",
+      "items": [
+        "Code only calls can(principal, capability)",
+        "Templates are data; AccessPolicy is generated per tenant, never hand-edited",
+        "Workflow changes edit the clinical-rules transition table"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Guardrails",
+      "items": [
+        "Test or review failure loops back to step 1",
+        "Tenant roles (P3) tighten, never widen the base template",
+        "Lint bans role === \"...\" outside @asc/authz"
+      ]
+    }
+  ]
+}

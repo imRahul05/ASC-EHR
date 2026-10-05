@@ -1,0 +1,38 @@
+{
+  "schema_version": 2,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Break-Glass Emergency Access Lifecycle",
+    "output": ".archify/lifecycle-break-glass-access-20261003-130556/break-glass-access.html",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    { "id": "main", "label": "Emergency access window" },
+    { "id": "early", "label": "Early end" },
+    { "id": "terminal", "label": "Closed" }
+  ],
+  "states": [
+    { "id": "normal", "type": "start", "label": "Normal", "sublabel": "role-scoped access only", "lane": "main", "col": 0, "step": "01", "tag": "baseline" },
+    { "id": "requested", "type": "decision", "label": "Requested", "sublabel": "reason + step-up login", "lane": "main", "col": 1, "step": "02", "tag": "gate" },
+    { "id": "active", "type": "active", "label": "Active", "sublabel": "1 h break-glass policy", "lane": "main", "col": 2, "step": "03", "tag": "audited" },
+    { "id": "expired", "type": "neutral", "label": "Expired", "sublabel": "access entry removed", "lane": "main", "col": 3, "step": "04", "tag": "timer" },
+    { "id": "reviewed", "type": "waiting", "label": "Reviewed", "sublabel": "privacy officer audit", "lane": "main", "col": 4, "step": "05", "tag": "review" },
+    { "id": "revoked", "type": "failure", "label": "Revoked", "sublabel": "user ends or admin revokes", "lane": "early", "col": 3, "tag": "manual" },
+    { "id": "closed", "type": "success", "label": "Closed", "sublabel": "review complete", "lane": "terminal", "col": 4, "tag": "terminal" }
+  ],
+  "transitions": [
+    { "from": "normal", "to": "requested", "label": "breakglass.invoke", "variant": "security" },
+    { "from": "requested", "to": "active", "label": "grant 1 h", "variant": "emphasis" },
+    { "from": "active", "to": "expired", "label": "1 h elapsed" },
+    { "from": "expired", "to": "reviewed", "label": "review" },
+    { "from": "requested", "to": "normal", "label": "denied", "variant": "dashed" },
+    { "from": "active", "to": "revoked", "label": "end / revoke", "variant": "security" },
+    { "from": "revoked", "to": "reviewed", "label": "review" },
+    { "from": "reviewed", "to": "closed" }
+  ],
+  "cards": [
+    { "dot": "amber", "title": "Invoke gate", "items": ["User calls breakglass.invoke with a mandatory reason", "Requires step-up: a fresh login", "Step-up failure or missing capability returns to Normal with a denied audit event"] },
+    { "dot": "rose", "title": "While Active", "items": ["API adds a temporary ProjectMembership access entry with the break-glass AccessPolicy for 1 h", "Every read is a Medplum AuditEvent plus an @asc/audit alert", "UI shows a break-glass banner"] },
+    { "dot": "cyan", "title": "Ending and review", "items": ["Expired: a job removes the access entry after 1 h", "Revoked: the user ends it or an admin revokes it", "Both paths go to privacy officer review of the audit trail", "Source: docs/product/08-identity-access-and-tenancy.md §12.1, §12.3"] }
+  ]
+}
