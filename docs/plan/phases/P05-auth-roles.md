@@ -158,3 +158,168 @@ Workspaces: `@asc/db`, `@asc/config`.
 - [ ] No `app.tenant_id` set → zero rows, insert rejected (fail closed)
 - [ ] Runtime role cannot alter tables or bypass RLS
 - [ ] `agent_runs.org_id` meaning resolved (default: keep until `@asc/agents` migrates; new columns are the source of truth)
+
+### P05f — Durable audit · S · needs P05e
+Workspaces: `@asc/audit`, `@asc/db`.
+
+| # | Commit |
+|---|---|
+| 1 | `feat(audit): add tenant, facility, membership and gate fields` |
+| 2 | `feat(audit): add IAM event vocabulary with typed details` |
+| 3 | `feat(audit): require append-only durable store in production` |
+| 4 | `feat(db): add append-only audit_events table with tenant RLS` |
+| 5 | `feat(db): add Postgres audit store` |
+| 6 | `test(db): audit store rejects update and delete` |
+
+- [ ] Runtime role cannot `UPDATE`/`DELETE`/`TRUNCATE` `audit_events`; a trigger also blocks owner mistakes
+- [ ] IAM events: `auth.login`, `auth.logout`, `auth.denied`, `membership.*`, `role.*`, `user.invited` — IDs and keys only, no names or emails
+- [ ] Client IP stored hashed/truncated unless compliance says otherwise
+
+### P05g — API security spine · M · needs P05a, P05e, P05f
+Workspace: `apps/api` (packages: `@fastify/helmet` 13.1.1, `@fastify/rate-limit` 11.2.0).
+
+| # | Commit |
+|---|---|
+| 1 | `chore(api): add helmet and rate limiting keyed by tenant and user` |
+| 2 | `feat(api): resolve tenant through TenantResolver (static)` |
+| 3 | `feat(api): authenticate bearer token through IdentityPort` |
+| 4 | `feat(api): default-deny routes without auth config` |
+| 5 | `test(api): route inventory lists every public route` |
+| 6 | `feat(api): requireCapability and facility guards with denied audit` |
+| 7 | `feat(api): add GET /me and configure durable audit store` |
+| 8 | `feat(api): refuse fake identity adapter in production` |
+| 9 | `test(api): cross-facility and id-tampering cases` |
+
+- [ ] No bearer → 401; missing capability → 403 (gate 4); capability only at B, target in A → 403 (gate 3)
+- [ ] Resource id from another tenant → 404, never data
+- [ ] Route registered without `config.auth` → app fails to start
+- [ ] Tenant never taken from body or query
+
+### P05h — Medplum hardening, spikes, seed, policy test · M · needs P05c, P02
+Workspaces: `infra/medplum`, `apps/bots`, `docs/decisions`.
+
+| # | Commit |
+|---|---|
+| 1 | `chore(infra): harden Medplum server config` |
+| 2 | `test(infra): fail if Medplum hardening settings are missing` |
+| 3 | `test(bots): spike S1 facility compartment, write constraint, auth time` |
+| 4 | `test(bots): spike S1b union of access entries` |
+| 5 | `test(bots): spike S7 record auth me payload (synthetic)` |
+| 6 | `docs(adr): record spike results and fallbacks` |
+| 7 | `feat(bots): seed hospital project, facilities, policies, demo users` |
+| 8 | `test(bots): policy test against local Medplum` |
+
+**Hardening (Medplum defaults are unsafe for PHI — [server config](https://www.medplum.com/docs/self-hosting/server-config)):**
+
+| Setting | Medplum default | Required |
+|---|---|---|
+| `registerEnabled` | `true` (open `/auth/newuser`, `/auth/newproject`) | `false` (invite-only) |
+| `saveAuditEvents` | `false` (no AuditEvent rows stored) | `true` (M12-4) |
+| `storeBotInput` | `true` (bot inputs, i.e. PHI, written to blob storage) | `false` |
+| `defaultSuperAdminEmail` / `Password` | unset | set from secrets; rotated after first boot; never in app runtime config |
+
+- [ ] Policy test: front-desk cannot read `Composition`; `rn` @ A cannot read B resources; a `final` Composition cannot be updated
+- [ ] Every spike passes or has a fallback recorded in the ADR **before** P05i starts
+- [ ] Seed is idempotent (second run = no changes); synthetic data only
+- [ ] The same hardening settings are carried into the Azure config in [P06](P06-azure-infra.md)
+
+### P05i — Medplum identity in the API · S · needs P05g, P05h, P04
+Workspaces: `@asc/api-client`, `@asc/authz`, `apps/api`.
+
+| # | Commit |
+|---|---|
+| 1 | `feat(api-client): server helper to fetch auth me` |
+| 2 | `feat(authz): map membership access to per-facility grants` |
+| 3 | `feat(api): Medplum identity adapter with 60 s token-hash cache` |
+| 4 | `feat(api): reject wrong project or inactive membership` |
+| 5 | `test(api): integration against local Medplum` |
+
+- [ ] Unknown or retired policy in a membership → no capabilities (fail closed)
+- [ ] Medplum unreachable → 503, never allow; cache never stores the raw token
+
+### P05j — Web sign-in · M · needs P05d, P05i, P04
+Workspaces: `apps/web`, `@asc/api-client`, `@asc/config`.
+
+| # | Commit |
+|---|---|
+| 1 | `feat(api-client): browser Medplum client with in-memory storage` |
+| 2 | `feat(web): PKCE login with TOTP for the configured project` |
+| 3 | `feat(web): token handler with httpOnly refresh cookie and origin check` |
+| 4 | `feat(web): sign-in callback, silent refresh and /me load` |
+| 5 | `feat(web): idle 15 min and absolute 12 h session timeouts` |
+| 6 | `feat(web): logout clears Medplum session, cookie and cache` |
+| 7 | `refactor(web): register mock auth only in demo builds` |
+| 8 | `test(web): build fails if mock auth ships without demo flag` |
+
+- [ ] Refresh cookie `httpOnly`, `Secure`, `SameSite=Strict`, path `/auth`; token route checks `Origin` / `Sec-Fetch-Site`
+- [ ] No token or profile in browser storage or URLs (LM-004)
+- [ ] TOTP required for every staff account (M12-3)
+
+## 5. Dependency matrix
+
+| Sub-phase | Depends on | Blocks | Parallel with |
+|---|---|---|---|
+| P05a | — | P05b, P05e | — |
+| P05b | P05a | P05c, P05d | P05e |
+| P05c | P05b | P05h | P05d, P05e, P05f |
+| P05d | P05b | P05j | P05c, P05e–P05g |
+| P05e | P05a | P05f, P05g | P05b–P05d |
+| P05f | P05e | P05g | P05c, P05d |
+| P05g | P05a, P05e, P05f | P05i | P05d |
+| P05h | P05c, **P02** | P05i | P05d, P05g |
+| P05i | P05g, P05h, **P04** | P05j | — |
+| P05j | P05d, P05i, **P04** | P12, P14, clinical slices | — |
+
+```mermaid
+flowchart LR
+    a[P05a contracts] --> b[P05b roles + workspaces] --> c[P05c compiler]
+    b --> d[P05d web on capabilities]
+    a --> e[P05e db tenancy] --> f[P05f audit] --> g[P05g api spine]
+    a --> g
+    c --> h[P05h Medplum hardening + spikes]
+    P02((P02)) --> h
+    g --> i[P05i api identity]
+    h --> i
+    P04((P04)) --> i
+    d --> j[P05j web sign-in]
+    i --> j
+```
+
+**Lanes (never two agents in one package):** Lane 1 `@asc/authz` a → b → c; Lane 2 `@asc/db`/`@asc/audit`/`apps/api` e → f → g; Lane 3 `apps/web` d after b. P05h–P05j wait for P02/P04.
+
+## 6. Gated follow-ups (not in P05; start no later than the gate)
+
+| Follow-up | Gate | Design ref |
+|---|---|---|
+| Step-up re-auth (fresh login ≤ 5 min for `stepUp` capabilities) | Before the first sign/attest route ships (P19 note sign, P21 discharge, P22 coding attest) | 08 §5.2 |
+| Worker identity + job tenant context (per-tenant `ClientApplication`, IDs-only job data) | Before the first worker job that reads or writes PHI (P12 / P19) | 08 §9 |
+| SSE stream auth (header auth or one-time ticket, re-validation) | Before P10 streams carry PHI | 08 §10 |
+| Signed service-to-service calls and webhooks | Before P24 | 08 §11 |
+| Break-glass | P26 (M12-3) | 08 §12.1 |
+| Hospital SSO (`DomainConfiguration`) | First customer that requires SSO | 08 §5.3 |
+| Patient portal identity | Portal phase (P2) | 08 §5.4 |
+| Role lifecycle tooling (deprecate, retire, split) | First role change after go-live; until then template version bump + Medplum App | [future §8](../../product/future-multi-tenancy-architecture.md) |
+| Instant revocation channel | Only if the 60 s `/auth/me` cache window is not acceptable | 08 §6 |
+| Multi-tenancy (registry, host resolver, provisioner, cross-tenant suite) | Customer #2 signed | [future §9](../../product/future-multi-tenancy-architecture.md) |
+
+## 7. Acceptance (P05 done)
+
+- [ ] All sub-phase checklists ticked; every commit within [incremental-commits §4](../../agent/incremental-commits.md#4-size-limits-and-commit-shape)
+- [ ] No role-name comparisons in the codebase (lint, empty baseline)
+- [ ] Cross-facility escalation blocked in `can()` (unit), API (P05g) and Medplum (P05h policy test)
+- [ ] Every API route default-deny; denials audited with gate number in a durable, append-only store
+- [ ] Medplum hardening settings enforced by test in every environment
+- [ ] TOTP for all staff; 15 min idle / 12 h absolute sessions; tokens in memory only
+- [ ] Adding a role = template file + matrix snapshot + seed run (demonstrated in P05d2 commit 8)
+- [ ] `phi-review` run on P05e–P05j; PROGRESS.md updated per sub-phase
+
+## 8. Open questions
+
+| ID | Question | Default |
+|---|---|---|
+| Q-IAM-1 | Tenant = customer (BAA holder), one Medplum Project each | Yes |
+| Q-IAM-2 | Role list (D-A7) | As proposed |
+| Q-IAM-3 | 15 min idle / 12 h absolute | Yes |
+| Q-IAM-A | `agent_runs.org_id` meaning | Keep; `tenant_id` + `facility_id` are the source of truth |
+| Q-IAM-B | Client IP in audit | Hashed/truncated |
+| Q-IAM-9 | Email sender for Medplum invites and resets | Azure Communication Services Email via SMTP |
