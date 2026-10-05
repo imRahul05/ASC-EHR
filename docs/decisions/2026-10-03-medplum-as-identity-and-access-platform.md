@@ -37,9 +37,12 @@ Chosen option: **1**, running **self-hosted open-source Medplum** (upstream `med
 2. **Tenant-ready data.** App tables carry `tenant_id uuid NOT NULL` + `facility_id` with Postgres RLS (`withTenant()`); FHIR resources carry the facility `Organization` in `meta.accounts`; `Principal` carries facility-scoped grants.
 3. **Capabilities + role templates.** Role templates are versioned data in `@asc/authz`, compiled to parameterized `AccessPolicy` resources. Code checks `can(principal, capability, { facilityId })`, never role names.
 4. **Five gates.** Tenant, identity, facility, capability (+ workflow) in `apps/api`; Medplum `AccessPolicy` on every FHIR call.
-5. **Ports keep it replaceable.** `IdentityPort` (Medplum adapter now; Better Auth is the fallback if we leave Medplum) and `TenantResolver` (static now, host-based later) live in `@asc/authz`.
-6. **Medplum is hardened, not run on defaults.** `registerEnabled: false`, `saveAuditEvents: true`, `storeBotInput: false`, super-admin credentials set explicitly and kept out of app runtime ([server config](https://www.medplum.com/docs/self-hosting/server-config)).
-7. **Plan:** [`P05-auth-roles.md`](../plan/phases/P05-auth-roles.md) (sub-phases P05a–P05h).
+5. **Ports give identity-provider flexibility, not Medplum portability.** `IdentityPort` and `TenantResolver` (static now, host-based later) live in `@asc/authz`. Enterprise IdPs (Entra, Okta) are added by federating into Medplum, which keeps issuing the user token that gate 5 checks; an external token never replaces it, and Medplum is never called with a service account on a user's behalf. Leaving Medplum would be a re-platform (FHIR store, AccessPolicy, AuditEvent, Bots) under its own ADR. Better Auth is not adopted now.
+6. **Token handling: hybrid, not a full BFF.** The refresh token stays in an httpOnly cookie behind our web token route; a short-lived access token (≤ 15 min) lives in memory so plain FHIR reads go straight to Medplum (03 request-path rule). A full backend-for-frontend would proxy every read and is revisited only if a security review or customer requires it. XSS is mitigated with a strict CSP (no inline scripts, host allowlist).
+7. **Authorization freshness.** Identity cache ≤ 60 s, bypassed for high-risk capabilities, invalidated by our admin actions and by a Medplum `ProjectMembership` Subscription (08 §6).
+8. **Workers and AI are separate principals.** Workers use their own `ClientApplication`; AI agents run as principal kind `agent` with the caller's capabilities intersected with an allow-list and data scoped to the run (08 §9).
+9. **Medplum is hardened, not run on defaults.** `registerEnabled: false`, `saveAuditEvents: true`, `storeBotInput: false`, super-admin credentials set explicitly and kept out of app runtime ([server config](https://www.medplum.com/docs/self-hosting/server-config)).
+10. **Plan:** [`P05-auth-roles.md`](../plan/phases/P05-auth-roles.md) (sub-phases P05a–P05h).
 
 ### Consequences
 
@@ -49,6 +52,7 @@ Chosen option: **1**, running **self-hosted open-source Medplum** (upstream `med
 - Bad: we operate Medplum ourselves (upgrades, backups, config hardening, email sender, super-admin credential).
 - Bad: some Medplum behaviours are unconfirmed until the P05g spikes run; each failed spike needs a recorded fallback.
 - Neutral: login UI is built in-house on `@medplum/core` with `@asc/ui`; `@medplum/react` stays banned.
+- Note: self-hosting under the Azure BAA does not by itself make us HIPAA- or SOC 2-compliant, and Medplum's attestations cover only its hosted service. Compliance is an operating programme we own (access reviews, audit review, incident response, restore tests), tracked in P26.
 
 ### Confirmation
 
