@@ -100,7 +100,11 @@ Work that **does not need Medplum** can start now (P05a–P05g in §13). P05h–
 ### 2.3 What would make us revisit
 
 - Medplum's login lacks a capability a hospital insists on that federation cannot provide (for example passkeys without an external IdP). Response: federate to Entra or Okta; we would **not** switch the IdP of record.
-- We move off Medplum as the data platform. In that case the `IdentityPort` abstraction (§7.6) keeps auth replaceable. Better Auth would then be the preferred replacement: it is open source, self-hosted and TypeScript.
+- We move off Medplum as the data platform. That is a **re-platform, not an adapter swap**: Medplum also provides the FHIR store, AccessPolicy enforcement (gate 5), `AuditEvent`, Subscriptions and Bots, and all of those would need replacing under a new ADR. `IdentityPort` only keeps the *identity provider* replaceable.
+
+**Identity-provider flexibility rule.** An enterprise IdP (Entra, Okta, Google) is added by **federating into Medplum** (`DomainConfiguration`), so Medplum still issues the user's token and checks its AccessPolicy on every FHIR call. We never let an external IdP's token replace the Medplum user token for FHIR access, and we never call Medplum with a service account on a user's behalf: either would remove gate 5. The long-term boundary is `IdP (federated) → Medplum token → app authorization (gates 1–4) → Medplum AccessPolicy (gate 5) → FHIR`.
+
+**Compliance is ours to operate.** Self-hosting in Azure under a BAA covers infrastructure obligations only. It does not make the system HIPAA- or SOC 2-compliant, and Medplum's own attestations cover its hosted service, not our deployment. We still own access reviews, audit retention and review, incident response, backup/restore tests, vulnerability management and workforce policies (tracked in P26).
 
 ### 2.4 How we run Medplum (self-hosted from open source)
 
@@ -450,6 +454,17 @@ flowchart LR
 
 Gate 5 is the safety net: even if gates 3–4 had a bug, Medplum would still refuse. Gates 3–4 exist for clear errors, workflow rules and non-FHIR actions such as export and AI generation.
 
+**Authorization freshness (cache policy).** Gate 2 caches the `/auth/me` result to avoid a Medplum call per request. Rules:
+
+| Rule | Detail |
+|---|---|
+| Cache key and TTL | SHA-256 of the token; TTL ≤ 60 s; never stores the raw token; bounded size |
+| High-risk capabilities bypass the cache | Any capability flagged `stepUp` (sign, attest, discharge, `admin.*`, break-glass) re-validates against Medplum on every call |
+| Our admin actions invalidate | Every role, facility or membership change made through our tools clears that user's cache entries in the same operation |
+| Out-of-band changes invalidate | A Medplum `Subscription` on `ProjectMembership` (and `AccessPolicy`) calls a signed API webhook that clears affected entries, so edits made in the Medplum App are not missed |
+| Fail closed | Medplum unreachable → 503; an expired entry is never used as a fallback |
+| Worst case documented | Without a delivered invalidation, a revoked user keeps API access (gates 1–4) for at most the TTL; gate 5 behaviour is measured by spike S6 |
+
 ### 6.1 API request lifecycle
 
 ```mermaid
@@ -489,7 +504,7 @@ type Grant = {
 };
 
 type Principal = {
-  kind: "staff" | "patient" | "service";
+  kind: "staff" | "patient" | "service" | "agent"; // humans, workers and AI never share a kind
   tenantId: string;              // from TenantResolver
   projectId: string;             // Medplum Project
   membershipId: string;
@@ -700,7 +715,7 @@ flowchart TB
 | `apps/api` for a user | The **user's** token (forwarded) | User's policy | Default for every command (P04 Q1) |
 | `apps/worker` | **One `ClientApplication` per tenant** (`worker@acme`) using client credentials; secret in Key Vault `tenant-{id}-worker` | `system-worker` policy: only the resource types its jobs touch | Never a server-wide super-admin token |
 | Bots | Run inside the tenant Project as their own `Bot` identity | Bot's own AccessPolicy | Tenant-scoped by construction |
-| AI agents | Run as the requesting user (interactive) or the worker client (background) | Same as caller | `Provenance` records `agentExecutionId`; `onBehalfOf` in `Principal` |
+| AI agents | Their own principal kind `agent`, never the raw user or worker credential | Capabilities = caller's capabilities ∩ the agent's allow-list; data scoped to the run's tenant, patient and case | `Provenance` and audit record `agentExecutionId` and `onBehalfOf`; `@asc/agents` context-scope assertions reject items outside the run scope; model-supplied IDs are never trusted |
 | Provisioner (CI/ops) | Super-admin, ops-only pipeline | Platform | Never present in app runtime config |
 
 **Job context propagation**
@@ -859,7 +874,8 @@ Wybit staff never use super-admin to read PHI.
 | `action` (capability or `auth.login`, `auth.denied`, `breakglass.start`…) | Guard / handler |
 | `target` (resource type + id; never content) | Handler |
 | `outcome` (`allowed` / `denied` + gate number) | Guard |
-| `sessionId`, `ip`, `userAgent` | API |
+| `authz.roleVersions` (e.g. `rn-v3`), `authz.catalogVersion` (git SHA of `@asc/authz`), `authz.cache` (`hit` / `miss` / `bypass`) | Guard — lets an auditor reconstruct why a decision was made at that time |
+| `sessionId`, `ip` (hashed/truncated), `userAgent` | API |
 
 - Medplum `AuditEvent` covers FHIR access automatically. `@asc/audit` covers everything else and **fails closed**.
 - Denied events include the gate number, which makes misconfigured roles easy to spot.

@@ -52,6 +52,7 @@ packages/clinical-rules/README.md                    NEW "pure functions only: n
 ## Acceptance
 - [ ] No imports of `@medplum/core` client, fetch, fs, or `process.env`
 - [ ] Every transition in 04 §4.2 has a test (allowed + disallowed)
+- [ ] Each transition names the `@asc/authz` capability it needs (data in the transition table, never a role name); a matrix test covers transition × capability × facility (a grant at another facility must not allow it)
 - [ ] PROGRESS.md updated
 
 ## Open questions

@@ -45,6 +45,8 @@ None.
 - [ ] Break-glass alerts via `@asc/audit`; auto-expires
 - [ ] Downtime packet printable offline
 - [ ] Restore drill documented with timings
+- [ ] IAM security review done: cross-facility attack tests, pen test of auth, `phi-review` of the auth surface, sign-off recorded
+- [ ] Compliance operating controls in place (self-hosting under a BAA is not compliance by itself): quarterly access review, audit-log review cadence and retention, incident-response runbook, vulnerability patching cadence for Medplum and dependencies, workforce access policy
 - [ ] Two mock clinic days passed with physicians/anesthesia
 - [ ] PROGRESS.md: go-live checklist complete
 
