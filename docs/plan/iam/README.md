@@ -76,12 +76,12 @@ Sizes are **estimates** in agent-days (S ≤ 1.5, M ≤ 3). Track A needs no Med
 | I09 | Medplum spikes S1, S1b, S4, S5, S6, S7 | B | S | I03, P02 | [I09](I09-medplum-spikes.md) |
 | I10 | Tenant provisioner (Project, Organizations, policies, clients, memberships) | B | M | I03, I09, P02, P03 | [I10](I10-provisioner.md) |
 | I11 | Medplum `IdentityPort` + real API authn | B | M | I08, I10, P04 | [I11](I11-medplum-authn.md) |
-| I12 | Web sign-in: PKCE, token handler, timeouts, logout | B | M | I05, I06, I10, I11 | [I12](I12-web-signin.md) |
+| I12 | Web sign-in: PKCE, token handler, timeouts, logout | B | M | I05, I06, I10, I11, P04 | [I12](I12-web-signin.md) |
 | I13 | MFA enforcement and step-up | B | S | I11, I12 | [I13](I13-mfa-step-up.md) |
 | I14 | Durable audit store and IAM event emission | B | M | I07, I11 | [I14](I14-durable-audit.md) |
 | I15 | Policy conformance suite in CI | B | M | I03, I10, P01 | [I15](I15-conformance-ci.md) |
 | I16 | Role lifecycle operations (rename, split, merge, retire, disable) | B | M | I10, I14 | [I16](I16-role-lifecycle.md) |
-| I17 | Go-live hardening gate (attack suite, pen test, sign-off) | B | M | I08, I11–I16 | [I17](I17-hardening-gate.md) |
+| I17 | Go-live hardening gate (attack suite, pen test, sign-off) | B | M | I06, I08, I11–I16 | [I17](I17-hardening-gate.md) |
 | I18–I24 | Deferred, each with an entry gate | — | — | see [deferred.md](deferred.md) | [deferred](deferred.md) |
 
 ---
