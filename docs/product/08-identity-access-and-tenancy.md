@@ -454,6 +454,17 @@ flowchart LR
 
 Gate 5 is the safety net: even if gates 3–4 had a bug, Medplum would still refuse. Gates 3–4 exist for clear errors, workflow rules and non-FHIR actions such as export and AI generation.
 
+**Authorization freshness (cache policy).** Gate 2 caches the `/auth/me` result to avoid a Medplum call per request. Rules:
+
+| Rule | Detail |
+|---|---|
+| Cache key and TTL | SHA-256 of the token; TTL ≤ 60 s; never stores the raw token; bounded size |
+| High-risk capabilities bypass the cache | Any capability flagged `stepUp` (sign, attest, discharge, `admin.*`, break-glass) re-validates against Medplum on every call |
+| Our admin actions invalidate | Every role, facility or membership change made through our tools clears that user's cache entries in the same operation |
+| Out-of-band changes invalidate | A Medplum `Subscription` on `ProjectMembership` (and `AccessPolicy`) calls a signed API webhook that clears affected entries, so edits made in the Medplum App are not missed |
+| Fail closed | Medplum unreachable → 503; an expired entry is never used as a fallback |
+| Worst case documented | Without a delivered invalidation, a revoked user keeps API access (gates 1–4) for at most the TTL; gate 5 behaviour is measured by spike S6 |
+
 ### 6.1 API request lifecycle
 
 ```mermaid
@@ -493,7 +504,7 @@ type Grant = {
 };
 
 type Principal = {
-  kind: "staff" | "patient" | "service";
+  kind: "staff" | "patient" | "service" | "agent"; // humans, workers and AI never share a kind
   tenantId: string;              // from TenantResolver
   projectId: string;             // Medplum Project
   membershipId: string;
@@ -704,7 +715,7 @@ flowchart TB
 | `apps/api` for a user | The **user's** token (forwarded) | User's policy | Default for every command (P04 Q1) |
 | `apps/worker` | **One `ClientApplication` per tenant** (`worker@acme`) using client credentials; secret in Key Vault `tenant-{id}-worker` | `system-worker` policy: only the resource types its jobs touch | Never a server-wide super-admin token |
 | Bots | Run inside the tenant Project as their own `Bot` identity | Bot's own AccessPolicy | Tenant-scoped by construction |
-| AI agents | Run as the requesting user (interactive) or the worker client (background) | Same as caller | `Provenance` records `agentExecutionId`; `onBehalfOf` in `Principal` |
+| AI agents | Their own principal kind `agent`, never the raw user or worker credential | Capabilities = caller's capabilities ∩ the agent's allow-list; data scoped to the run's tenant, patient and case | `Provenance` and audit record `agentExecutionId` and `onBehalfOf`; `@asc/agents` context-scope assertions reject items outside the run scope; model-supplied IDs are never trusted |
 | Provisioner (CI/ops) | Super-admin, ops-only pipeline | Platform | Never present in app runtime config |
 
 **Job context propagation**
