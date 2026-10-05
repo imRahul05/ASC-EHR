@@ -874,7 +874,8 @@ Wybit staff never use super-admin to read PHI.
 | `action` (capability or `auth.login`, `auth.denied`, `breakglass.start`…) | Guard / handler |
 | `target` (resource type + id; never content) | Handler |
 | `outcome` (`allowed` / `denied` + gate number) | Guard |
-| `sessionId`, `ip`, `userAgent` | API |
+| `authz.roleVersions` (e.g. `rn-v3`), `authz.catalogVersion` (git SHA of `@asc/authz`), `authz.cache` (`hit` / `miss` / `bypass`) | Guard — lets an auditor reconstruct why a decision was made at that time |
+| `sessionId`, `ip` (hashed/truncated), `userAgent` | API |
 
 - Medplum `AuditEvent` covers FHIR access automatically. `@asc/audit` covers everything else and **fails closed**.
 - Denied events include the gate number, which makes misconfigured roles easy to spot.
