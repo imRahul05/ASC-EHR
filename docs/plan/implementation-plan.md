@@ -2,7 +2,7 @@
 
 > **Status:** v1.0 (2026-09-27). **Supersedes** the Gantt in [05-delivery-plan](../product/05-delivery-plan.md) §5.1 for day-to-day execution; 05 still owns decisions (D1–D8), risks and business open questions.
 > **Inputs:** [01 requirements](../product/01-requirements.md) · [02 build/reuse matrix](../product/02-build-reuse-matrix.md) · [03 target architecture](../product/03-target-architecture.md) · [04 flows](../product/04-end-to-end-flows.md) · [06 MindScript integration](../product/06-mindscript-integration.md) · [architecture rules](../agent/architecture.md) · [UI guidelines](../agent/ui-guidelines.md).
-> **IAM track:** auth, roles, permissions and tenancy are planned in [`iam/README.md`](iam/README.md) (phases I00–I17, proposed; replaces P05 after I00 sign-off).
+> **Auth & roles:** [`P05 — Auth & Roles`](phases/P05-auth-roles.md) is a modular single-hospital core in sub-phases P05a–P05j (index and design corrections in [`iam/README.md`](iam/README.md); Customer #2 steps in [`future-multi-tenancy-architecture.md`](../product/future-multi-tenancy-architecture.md)).
 > **Live status:** [`PROGRESS.md`](../../PROGRESS.md). **Mistakes to avoid:** [`LEARNING_MISTAKES.md`](../../LEARNING_MISTAKES.md).
 
 ---
@@ -45,7 +45,7 @@ T3 and T4 usually run in parallel (different workspaces, both only need T1/T2).
 | 1 | P02 | Local Medplum stack + `apps/bots` skeleton + seed | Platform | M | MP | [P02](phases/P02-local-medplum.md) |
 | 1 | P03 | `@asc/fhir` package (types, identifiers, builders) | Domain | S | MP+NEW | [P03](phases/P03-fhir-package.md) |
 | 1 | P04 | Medplum client wiring (web, api, worker) | Platform | S | MP | [P04](phases/P04-medplum-clients.md) |
-| 1 | P05 | Auth + roles as AccessPolicies (replace mock login) — **see [IAM plan](iam/README.md)** | Platform | M | MP | [P05](phases/P05-auth-roles.md) |
+| 1 | P05 | Auth + roles: modular core, sub-phases P05a–P05j (P05a–P05g start now) | Platform | M ×10 (S/M each) | MP+NEW | [P05](phases/P05-auth-roles.md) |
 | 1 | P06 | Azure infra (Terraform) — dev env | Infra | M | MP | [P06](phases/P06-azure-infra.md) |
 | 2 | P07 | `@asc/clinical-rules` + case state machine | Domain | M | NEW (+MS) | [P07](phases/P07-clinical-rules.md) |
 | 2 | P08 | Terminology + FSH profiles | Domain | M | MP+NEW | [P08](phases/P08-terminology-profiles.md) |
@@ -128,7 +128,7 @@ Dates are targets for sequencing, not commitments; `PROGRESS.md` holds actuals.
 | P02 | — | P04, P06 (config parity), P08, P12 | P00, P03, P06 |
 | P03 | — | P04, P07, P08, P11, P14 | P00, P02, P06, P09 |
 | P04 | P02, P03 | P05, P10 | P07, P08, P09 |
-| P05 | P04 | P12, P14, all clinical slices | P07–P11, P13 |
+| P05 | P05a–P05g: none · P05h: P02 · P05i–P05j: P04 | P12, P14, all clinical slices | P07–P11, P13 |
 | P06 | — (P02 for config parity) | P26 | anything |
 | P07 | P03 | P12, P15, P16, P19–P23 | P08–P11, P13 |
 | P08 | P02, P03 | P19, P22 | P07, P09–P13 |
@@ -243,7 +243,7 @@ ASC_EHR/
 ├── infra/
 │   ├── medplum/
 │   │   ├── medplum.config.local.json      NEW  P02
-│   │   ├── access-policies/<role>.json    NEW  P05  front-desk, rn, gi-physician, anesthesia, coder, admin
+│   │   ├── medplum.config.*.json          EDIT P05h hardening: registerEnabled false, saveAuditEvents true, storeBotInput false (AccessPolicies are compiled by @asc/authz, P05c)
 │   │   └── client-apps.json               NEW  P02  web (PKCE), api (on-behalf), worker (client-credentials)
 │   └── terraform/                         NEW  P06  modules/{aks,postgres,redis,storage,keyvault,appgw} · envs/{dev,staging,prod}
 ├── apps/
