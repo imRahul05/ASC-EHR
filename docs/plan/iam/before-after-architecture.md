@@ -1,6 +1,6 @@
 # Auth architecture — today vs after the IAM plan
 
-> Snapshot 2026-10-05. **Today** = `main` (mock auth). **After** = IAM plan I00–I17 done ([README](README.md), design [08](../../product/08-identity-access-and-tenancy.md)).
+> Snapshot 2026-10-05. **Today** = `main` (mock auth). **After** = [P05](../phases/P05-auth-roles.md) sub-phases P05a–P05j done: one hospital, tenant-ready ([index](README.md), design [08](../../product/08-identity-access-and-tenancy.md)). Multi-tenant host routing is a later step ([future doc](../../product/future-multi-tenancy-architecture.md)).
 
 ## 1. System view
 
@@ -20,15 +20,14 @@ flowchart LR
 ### After
 ```mermaid
 flowchart LR
-    U["Browser on tenant.apex"] --> MW["web middleware<br/>host → tenant"]
-    MW --> W["apps/web<br/>Principal from /me · useCan · workspaces"]
-    W -->|"PKCE + MFA"| MA["Medplum Auth"]
+    U["Browser"] --> W["apps/web<br/>Principal from /me · useCan · workspaces"]
+    W -->|"PKCE + TOTP"| MA["Medplum Auth<br/>hardened config"]
     W -->|"Bearer (memory only)"| API
     subgraph API ["apps/api — default deny"]
-        G1["1 tenant"] --> G2["2 identity<br/>/auth/me cached ≤60 s"] --> G3["3 facility"] --> G4["4 capability<br/>@asc/authz can()"]
+        G1["1 tenant<br/>StaticTenantResolver"] --> G2["2 identity<br/>IdentityPort, cached ≤60 s"] --> G3["3 facility grant"] --> G4["4 capability<br/>can(p, cap, facility)"]
     end
     G4 -->|"user token"| G5["5 Medplum AccessPolicy<br/>compiled from role templates"]
-    G5 --> FHIR[("FHIR store<br/>Project per tenant")]
+    G5 --> FHIR[("FHIR store<br/>one Project now")]
     G4 --> PG[("App Postgres<br/>tenant_id + RLS")]
     G4 --> AUD[("audit_events<br/>append-only")]
 ```
@@ -92,6 +91,6 @@ sequenceDiagram
 | Multi-role / multi-facility | Impossible | Grants per facility |
 | UI | Keyed by role | Workspaces from capabilities |
 | API enforcement | None | 5 gates, default deny |
-| Tenancy | None | Project per tenant + RLS |
-| Audit | Logger only | Append-only table + Medplum AuditEvent |
+| Tenancy | None | One tenant via `StaticTenantResolver`; `tenant_id` + RLS ready; Project per tenant for Customer #2 |
+| Audit | Logger only | Append-only table + Medplum AuditEvent (`saveAuditEvents: true`) |
 | Add "Technician" | ~20 files | Template file + config |
