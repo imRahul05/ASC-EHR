@@ -100,7 +100,11 @@ Work that **does not need Medplum** can start now (P05a–P05g in §13). P05h–
 ### 2.3 What would make us revisit
 
 - Medplum's login lacks a capability a hospital insists on that federation cannot provide (for example passkeys without an external IdP). Response: federate to Entra or Okta; we would **not** switch the IdP of record.
-- We move off Medplum as the data platform. In that case the `IdentityPort` abstraction (§7.6) keeps auth replaceable. Better Auth would then be the preferred replacement: it is open source, self-hosted and TypeScript.
+- We move off Medplum as the data platform. That is a **re-platform, not an adapter swap**: Medplum also provides the FHIR store, AccessPolicy enforcement (gate 5), `AuditEvent`, Subscriptions and Bots, and all of those would need replacing under a new ADR. `IdentityPort` only keeps the *identity provider* replaceable.
+
+**Identity-provider flexibility rule.** An enterprise IdP (Entra, Okta, Google) is added by **federating into Medplum** (`DomainConfiguration`), so Medplum still issues the user's token and checks its AccessPolicy on every FHIR call. We never let an external IdP's token replace the Medplum user token for FHIR access, and we never call Medplum with a service account on a user's behalf: either would remove gate 5. The long-term boundary is `IdP (federated) → Medplum token → app authorization (gates 1–4) → Medplum AccessPolicy (gate 5) → FHIR`.
+
+**Compliance is ours to operate.** Self-hosting in Azure under a BAA covers infrastructure obligations only. It does not make the system HIPAA- or SOC 2-compliant, and Medplum's own attestations cover its hosted service, not our deployment. We still own access reviews, audit retention and review, incident response, backup/restore tests, vulnerability management and workforce policies (tracked in P26).
 
 ### 2.4 How we run Medplum (self-hosted from open source)
 
