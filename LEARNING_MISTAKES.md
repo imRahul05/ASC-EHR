@@ -42,6 +42,7 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 10. Deployment differences are env vars validated in `@asc/config` (listed in `turbo.json` build env), never code; a deployed build must fail rather than fall back to a localhost default. (LM-010)
 11. Use leaf imports for @asc/ui in route files (src/app/**), auth, landing, and Server Components; root barrel is only for client feature components on signed-in routes. (LM-011)
 12. Inside typed code, trust TypeScript union types instead of adding defensive fallback values (data from outside — API responses, URLs, storage — is still validated with Zod at the boundary); dynamic imports must be statically type-checked. (LM-012)
+13. Planning/design docs: never mark an ADR `accepted` without a recorded human sign-off, write review findings into the docs they affect (not only into chat), and keep doc rewrites within the commit cap. (LM-013)
 
 ---
 
@@ -131,3 +132,10 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **Rule:** Trust TypeScript union types—do not add silent fallbacks that hide type mismatches or misattribute roles. Dynamic imports must be type-checked at compile-time (e.g. `lazyTab(() => import(...).then((m) => m.ExportName))`) rather than looking up export strings with unvalidated casts.
 - **How to check:** `pnpm check-types` and code review.
 - **Guarded by:** string-keyed imports: `pnpm check-types` via the type-safe `lazyTab` signature. Fallbacks on exhaustive types: not yet, code review only (`@typescript-eslint/no-unnecessary-condition` would catch them but flags 45 existing sites in `apps/web`; enable it in a follow-up).
+
+### LM-013 — Design/plan rewrites: no self-ratified ADRs, findings go into docs, commits stay small
+- **Seen:** 1 · 2026-10-05 · branch `worktree-iam-implementation-plan` · PR #21
+- **What went wrong:** An agent consolidating the IAM plan (1) flipped `docs/decisions/2026-10-03-medplum-as-identity-and-access-platform.md` to `accepted` with no recorded sign-off while 08 §15 still had open questions; (2) reported Medplum's unsafe defaults (`registerEnabled: true`, `saveAuditEvents: false`, `storeBotInput: true`) only in chat, so no checklist enforced them; (3) committed the whole rewrite as one 26-file, +510/−1655 commit; (4) left `Principal` in 08 §6.1 with a flat capability set that contradicted the per-facility-grants correction it claimed to keep.
+- **Rule:** ADR status changes to `accepted` only with the decision-maker's name and date in the front matter. Review findings that change what must be built go into the phase checklist and design doc in the same change. Doc rewrites follow [incremental-commits §4](docs/agent/incremental-commits.md#4-size-limits-and-commit-shape) like code. After a rewrite, grep the design doc for every type or rule the plan says it preserves.
+- **How to check:** `git show --stat` per commit (≤ 400 changed lines); `grep -n "status:" docs/decisions/*.md` against recorded sign-offs; link + anchor check over changed docs.
+- **Guarded by:** not yet — review only. A docs link/anchor check in CI (P01) would catch the broken references.
