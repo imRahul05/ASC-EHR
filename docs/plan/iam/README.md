@@ -25,7 +25,13 @@ The earlier 18-phase IAM track (I00–I17) was folded into P05 on 2026-10-05. It
 | D-A10 | Tenant-ready, one tenant: `tenant_id` + RLS, facility in `meta.accounts`, `StaticTenantResolver`; staff at two customers get two accounts | P05a, P05e |
 | D-A11 | Scope cut: multi-tenant routing, registry, provisioner, cross-tenant suite wait for Customer #2 | [future doc](../../product/future-multi-tenancy-architecture.md) |
 | D-A12 | Medplum hardened, not on defaults: `registerEnabled: false`, `saveAuditEvents: true`, `storeBotInput: false`, explicit super-admin credentials | P05h, P06 |
-| D-A13 | Medplum assumptions proven before use: spikes S1, S1b, S7 and a policy test against local Medplum | P05h |
+| D-A13 | Medplum assumptions proven before use: spikes S1, S1b, S6, S7 and a policy test against local Medplum | P05h |
+| D-A14 | Identity-provider flexibility, not Medplum portability: enterprise IdPs federate into Medplum, which keeps issuing the token gate 5 checks; leaving Medplum is a re-platform | ADR item 5, 08 §2.3 |
+| D-A15 | Authorization freshness: identity cache ≤ 60 s, bypassed for step-up capabilities, invalidated by our admin actions and a Medplum membership Subscription; fail closed | P05i, 08 §6 |
+| D-A16 | AI agents are principal kind `agent`: caller's capabilities ∩ agent allow-list, data scoped to the run; workers use their own client | P05a, 08 §9 |
+| D-A17 | Decision provenance in audit: role template versions, catalog version, gate, cache state | P05f, 08 §12.3 |
+| D-A18 | Hybrid token handling (httpOnly refresh cookie, ≤ 15 min in-memory access token, strict CSP); full BFF only if required | P05j, ADR item 6 |
+| D-A19 | Compliance is an operating programme we own; hosting under a BAA is not compliance | P26 |
 
 ## 3. Commit rules
 
