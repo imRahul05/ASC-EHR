@@ -2,6 +2,7 @@
 
 > **Status:** v1.0 (2026-09-27). **Supersedes** the Gantt in [05-delivery-plan](../product/05-delivery-plan.md) §5.1 for day-to-day execution; 05 still owns decisions (D1–D8), risks and business open questions.
 > **Inputs:** [01 requirements](../product/01-requirements.md) · [02 build/reuse matrix](../product/02-build-reuse-matrix.md) · [03 target architecture](../product/03-target-architecture.md) · [04 flows](../product/04-end-to-end-flows.md) · [06 MindScript integration](../product/06-mindscript-integration.md) · [architecture rules](../agent/architecture.md) · [UI guidelines](../agent/ui-guidelines.md).
+> **IAM track:** auth, roles, permissions and tenancy are planned in [`iam/README.md`](iam/README.md) (phases I00–I17, proposed; replaces P05 after I00 sign-off).
 > **Live status:** [`PROGRESS.md`](../../PROGRESS.md). **Mistakes to avoid:** [`LEARNING_MISTAKES.md`](../../LEARNING_MISTAKES.md).
 
 ---
@@ -44,7 +45,7 @@ T3 and T4 usually run in parallel (different workspaces, both only need T1/T2).
 | 1 | P02 | Local Medplum stack + `apps/bots` skeleton + seed | Platform | M | MP | [P02](phases/P02-local-medplum.md) |
 | 1 | P03 | `@asc/fhir` package (types, identifiers, builders) | Domain | S | MP+NEW | [P03](phases/P03-fhir-package.md) |
 | 1 | P04 | Medplum client wiring (web, api, worker) | Platform | S | MP | [P04](phases/P04-medplum-clients.md) |
-| 1 | P05 | Auth + roles as AccessPolicies (replace mock login) | Platform | M | MP | [P05](phases/P05-auth-roles.md) |
+| 1 | P05 | Auth + roles as AccessPolicies (replace mock login) — **see [IAM plan](iam/README.md)** | Platform | M | MP | [P05](phases/P05-auth-roles.md) |
 | 1 | P06 | Azure infra (Terraform) — dev env | Infra | M | MP | [P06](phases/P06-azure-infra.md) |
 | 2 | P07 | `@asc/clinical-rules` + case state machine | Domain | M | NEW (+MS) | [P07](phases/P07-clinical-rules.md) |
 | 2 | P08 | Terminology + FSH profiles | Domain | M | MP+NEW | [P08](phases/P08-terminology-profiles.md) |
