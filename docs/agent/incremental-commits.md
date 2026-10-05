@@ -20,7 +20,7 @@ This guide defines the expected behavior for committing code, especially during 
 
 ## 4. Size Limits and Commit Shape
 
-These limits apply to every phase in [`docs/plan/`](../plan/) (they are mandatory for the [IAM track](../plan/iam/README.md#3-commit-rules-for-this-track-mandatory)).
+These limits apply to every phase in [`docs/plan/`](../plan/) (they are mandatory for the [auth track, P05](../plan/iam/README.md#3-commit-rules)).
 
 | Rule | Limit |
 |---|---|
