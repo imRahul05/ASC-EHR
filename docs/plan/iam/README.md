@@ -1,7 +1,7 @@
 # IAM Implementation Plan — authentication, roles, permissions, tenancy
 
 > **Status:** v1.0, 2026-10-05. Execution plan for the design in [`08-identity-access-and-tenancy`](../../product/08-identity-access-and-tenancy.md) and the [IAM ADR](../../decisions/2026-10-03-medplum-as-identity-and-access-platform.md).
-> **Replaces:** [P05](../phases/P05-auth-roles.md) (kept only as a pointer). Does not replace the clinical plan: see [§6 edges into the main plan](#6-edges-into-the-main-plan).
+> **Replaces:** [P05](../phases/P05-auth-roles.md) once I00 is signed off (I00 C9 turns P05 into a pointer). Does not replace the clinical plan: see [§6 edges into the main plan](#6-edges-into-the-main-plan).
 > **Live status:** [`PROGRESS.md`](../../../PROGRESS.md). **Mistakes to avoid:** [`LEARNING_MISTAKES.md`](../../../LEARNING_MISTAKES.md).
 
 ---
@@ -69,7 +69,7 @@ Sizes are **estimates** in agent-days (S ≤ 1.5, M ≤ 3). Track A needs no Med
 | I02 | Role templates (8 + patient) and role × capability matrix | A | M | I01 | [I02](I02-role-templates.md) |
 | I03 | Policy compiler: template → AccessPolicy JSON | A | M | I02 | [I03](I03-policy-compiler.md) |
 | I04 | Workspace layer (persona / workspace resolution) | A | S | I01 | [I04](I04-workspace-layer.md) |
-| I05 | UI on mock: Principal, `useCan`, capability nav, remove `UserRole` | A | M | I02, I04 | [I05](I05-ui-on-mock.md) |
+| I05 | UI on mock: Principal, `useCan`, capability nav, remove `UserRole` (two PRs: I05a, I05b) | A | M | I02, I04 | [I05](I05-ui-on-mock.md) |
 | I06 | Tenancy foundation in app DB: registry, `tenant_id`, RLS, `withTenant` | A | M | I01 | [I06](I06-tenancy-foundation.md) |
 | I07 | Audit contract: tenant/facility fields, IAM events, append-only flag | A | S | I01 | [I07](I07-audit-contract.md) |
 | I08 | API security spine: default-deny, tenant, authn port, guards, `/me` | A | M | I01, I06, I07 | [I08](I08-api-security-spine.md) |
