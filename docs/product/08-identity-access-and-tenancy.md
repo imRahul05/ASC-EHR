@@ -397,7 +397,7 @@ Signing a note, attesting coding, break-glass and admin changes need a **fresh l
 ### 5.3 Hospital SSO (federation per tenant)
 
 - **Mechanism:** Medplum `DomainConfiguration`. Users whose email is on `metro.org` are sent to Metro's IdP. It needs the authorize, token and userinfo URLs plus a client id and secret ([Medplum docs: domain-level IdPs](https://www.medplum.com/docs/auth/domain-level-identity-providers)).
-- **Who configures it:** on our self-hosted Medplum, our super-admin creates the `DomainConfiguration` (the provisioner in I14 does this). No paid plan is involved.
+- **Who configures it:** on our self-hosted Medplum, our super-admin creates the `DomainConfiguration` (a seed/ops script for the first hospital; the tenant provisioner once multi-tenancy arrives). No paid plan is involved.
 - **Provisioning:**
   - *P1:* invite-only. A tenant admin invites users, which creates a membership with a role and facilities.
   - *Later:* SCIM from the hospital IdP (S2: confirm Medplum SCIM coverage), or just-in-time creation mapped from IdP groups to role templates.
