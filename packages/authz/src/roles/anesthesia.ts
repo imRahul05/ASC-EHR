@@ -1,5 +1,5 @@
 import type { RoleTemplate } from "@asc/types";
-import { ro, rw } from "./rules.js";
+import { REFERENCE_READ, ro, rw } from "./rules.js";
 
 // MD and CRNA share this role; the practitioner's qualification tells them
 // apart, and a workflow rule can require an MD co-sign (08 §7.3).
@@ -37,6 +37,10 @@ export const anesthesia: RoleTemplate = {
     ro("Composition"),
     rw("MedicationAdministration"),
     rw("Observation"),
+    ...REFERENCE_READ,
+    rw("Task"),
+    rw("Consent"),
+    ro("Procedure"),
   ],
   facilityScoped: true,
   requiresMfa: true,

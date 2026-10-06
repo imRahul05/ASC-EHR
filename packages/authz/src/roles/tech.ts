@@ -1,5 +1,5 @@
 import type { RoleTemplate } from "@asc/types";
-import { ro, rw } from "./rules.js";
+import { REFERENCE_READ, ro, rw } from "./rules.js";
 
 export const tech: RoleTemplate = {
   key: "tech",
@@ -25,6 +25,11 @@ export const tech: RoleTemplate = {
     ro("Composition"),
     ro("MedicationAdministration"),
     ro("Observation"),
+    ...REFERENCE_READ,
+    rw("Task"),
+    rw("Procedure"),
+    rw("Specimen"),
+    rw("DocumentReference"),
   ],
   facilityScoped: true,
   requiresMfa: true,

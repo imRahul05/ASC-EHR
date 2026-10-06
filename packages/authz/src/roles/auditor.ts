@@ -1,5 +1,5 @@
 import type { RoleTemplate } from "@asc/types";
-import { ro } from "./rules.js";
+import { REFERENCE_READ, ro } from "./rules.js";
 
 // All-site, read-only everywhere.
 export const auditor: RoleTemplate = {
@@ -19,6 +19,14 @@ export const auditor: RoleTemplate = {
     ro("Observation"),
     ro("ChargeItem"),
     ro("AuditEvent"),
+    ...REFERENCE_READ,
+    ro("Task"),
+    ro("Consent"),
+    ro("Procedure"),
+    ro("Specimen"),
+    ro("DiagnosticReport"),
+    ro("DocumentReference"),
+    ro("ServiceRequest"),
   ],
   facilityScoped: false,
   requiresMfa: true,

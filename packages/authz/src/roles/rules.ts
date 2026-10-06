@@ -5,3 +5,11 @@ import type { ResourceRule } from "@asc/types";
 export const rw = (resourceType: string): ResourceRule => ({ resourceType });
 
 export const ro = (resourceType: string): ResourceRule => ({ resourceType, readonly: true });
+
+// Directory data every staff role needs to render names, places and teams.
+const REFERENCE_TYPES = ["Practitioner", "PractitionerRole", "Organization", "Location"];
+
+export const REFERENCE_READ: readonly ResourceRule[] = REFERENCE_TYPES.map(ro);
+
+// Administrators maintain the directory (admin.users, admin.facility).
+export const REFERENCE_WRITE: readonly ResourceRule[] = REFERENCE_TYPES.map(rw);

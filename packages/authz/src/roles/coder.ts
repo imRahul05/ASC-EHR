@@ -1,5 +1,5 @@
 import type { RoleTemplate } from "@asc/types";
-import { ro, rw } from "./rules.js";
+import { REFERENCE_READ, ro, rw } from "./rules.js";
 
 // All-site role: coders work across facilities.
 export const coder: RoleTemplate = {
@@ -18,6 +18,10 @@ export const coder: RoleTemplate = {
     ro("MedicationAdministration"),
     ro("Observation"),
     rw("ChargeItem"),
+    ...REFERENCE_READ,
+    rw("Task"),
+    ro("Procedure"),
+    ro("DiagnosticReport"),
   ],
   facilityScoped: false,
   requiresMfa: true,

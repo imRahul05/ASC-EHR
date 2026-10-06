@@ -1,5 +1,5 @@
 import type { RoleTemplate } from "@asc/types";
-import { ro, rw } from "./rules.js";
+import { REFERENCE_READ, ro, rw } from "./rules.js";
 
 export const giPhysician: RoleTemplate = {
   key: "gi-physician",
@@ -44,6 +44,14 @@ export const giPhysician: RoleTemplate = {
     ro("MedicationAdministration"),
     ro("Observation"),
     ro("ChargeItem"),
+    ...REFERENCE_READ,
+    rw("Task"),
+    rw("Consent"),
+    rw("Procedure"),
+    rw("Specimen"),
+    rw("DiagnosticReport"),
+    rw("DocumentReference"),
+    rw("ServiceRequest"),
   ],
   facilityScoped: true,
   requiresMfa: true,
