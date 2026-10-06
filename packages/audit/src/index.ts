@@ -2,8 +2,11 @@ import { isProductionEnv } from "@asc/config/runtime";
 import { isSensitiveKey, logger as baseLogger } from "@asc/logger";
 import type { Logger } from "@asc/logger";
 
-export type ActorType = "user" | "system" | "agent";
+export type ActorType = "user" | "system" | "agent" | "worker" | "bot" | "service";
 export type Outcome = "SUCCESS" | "FAILURE" | "DENIED";
+
+/** Authorization gate that denied the request (P05 §3): 1 tenant, 2 identity, 3 facility, 4 capability, 5 Medplum policy. */
+export type AuditGate = 1 | 2 | 3 | 4 | 5;
 
 /** Audit `details` values are flat primitives only: no nested objects/arrays. */
 export type AuditDetailValue = string | number | boolean | null;
@@ -13,7 +16,14 @@ export interface AuditEvent {
   action: string;
   actorType: ActorType;
   actorId: string;
+  /** Legacy owner scope; `tenantId` and `facilityId` are the source of truth (Q-IAM-A). */
   organizationId?: string;
+  /** Principal or job context, IDs only (08 §12.3). Never taken from a request body. */
+  tenantId?: string;
+  facilityId?: string;
+  /** Medplum ProjectMembership id of the acting user (not a name or email). */
+  membershipId?: string;
+  sessionId?: string;
   patientId?: string;
   surgicalCaseId?: string;
   resourceType?: string;
@@ -22,6 +32,8 @@ export interface AuditEvent {
   requestId?: string;
   correlationId?: string;
   outcome: Outcome;
+  /** Set on denials: which gate refused (makes misconfigured roles easy to spot). */
+  gate?: AuditGate;
   timestamp: string; // ISO 8601
   /** Safe metadata only, NO PHI. Keys matching @asc/logger SENSITIVE_KEYS are rejected. */
   details?: AuditDetails;

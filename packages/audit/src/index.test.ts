@@ -48,6 +48,22 @@ describe("AuditClient", () => {
     expect(event?.detailsRedacted).toBeUndefined();
   });
 
+  it("carries tenant, facility, membership, session and gate fields unchanged", async () => {
+    const store = new MemoryStore();
+    const input: AuditEventInput = {
+      ...base,
+      actorType: "worker",
+      outcome: "DENIED",
+      gate: 3,
+      tenantId: "0b8f3c52-6f3e-4a77-9a55-3d6e1f0c2a10",
+      facilityId: "facility-1",
+      membershipId: "membership-1",
+      sessionId: "session-1",
+    };
+    await new AuditClient(store, { production: false }).logEvent(input);
+    expect(store.events[0]).toMatchObject(input);
+  });
+
   it("rejects PHI keys in details outside production", async () => {
     const store = new MemoryStore();
     const client = new AuditClient(store, { production: false });
