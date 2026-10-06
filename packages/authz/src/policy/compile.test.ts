@@ -1,0 +1,54 @@
+import type { RoleTemplate } from "@asc/types";
+import { describe, expect, it } from "vitest";
+import { roleRegistry } from "../roles/index.js";
+import { compileResourceRules, facilityCriteria } from "./compile.js";
+
+const template = (key: string): RoleTemplate => {
+  const found = roleRegistry.get(key);
+  if (found === undefined) throw new Error(`missing template ${key}`);
+  return found;
+};
+
+describe("compileResourceRules", () => {
+  it("adds facility criteria to every resource of a facility-scoped role", () => {
+    const rules = compileResourceRules(template("rn"));
+    expect(rules.length).toBeGreaterThan(0);
+    for (const rule of rules) expect(rule.criteria).toBe(facilityCriteria(rule.resourceType));
+    expect(facilityCriteria("Patient")).toBe("Patient?_compartment=%facility");
+  });
+
+  it("adds no facility criteria to all-site roles", () => {
+    for (const key of ["coder", "admin", "auditor"]) {
+      for (const rule of compileResourceRules(template(key))) expect(rule.criteria).toBeUndefined();
+    }
+  });
+
+  it("marks read-only rules and leaves writable ones unmarked", () => {
+    const byType = Object.fromEntries(compileResourceRules(template("rn")).map((r) => [r.resourceType, r]));
+    expect(byType.Patient?.readonly).toBe(true);
+    expect(byType.Encounter?.readonly).toBeUndefined();
+  });
+
+  it("omits resources the role does not list: Composition is hidden from front-desk", () => {
+    const types = compileResourceRules(template("front-desk")).map((r) => r.resourceType);
+    expect(types).not.toContain("Composition");
+  });
+
+  it("sorts resources so rule order does not matter", () => {
+    const rn = template("rn");
+    const shuffled = { ...rn, data: [...rn.data].reverse() };
+    expect(compileResourceRules(shuffled)).toEqual(compileResourceRules(rn));
+  });
+
+  it("rejects wildcard, empty and duplicate resource types", () => {
+    const rn = template("rn");
+    expect(() => compileResourceRules({ ...rn, data: [{ resourceType: "*" }] })).toThrow("wildcard");
+    expect(() => compileResourceRules({ ...rn, data: [{ resourceType: "" }] })).toThrow("wildcard");
+    const dup = [{ resourceType: "Patient" }, { resourceType: "Patient", readonly: true }];
+    expect(() => compileResourceRules({ ...rn, data: dup })).toThrow("duplicate");
+  });
+
+  it("refuses to compile portal roles until the patient compartment rule exists", () => {
+    expect(() => compileResourceRules(template("patient"))).toThrow("portal");
+  });
+});
