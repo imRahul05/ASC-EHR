@@ -1,8 +1,26 @@
+import type { Capability } from "@asc/types";
 import { describe, expect, it } from "vitest";
 import { ROLE_TEMPLATES, roleRegistry } from "./index.js";
 
+const keysWith = (capability: Capability) =>
+  roleRegistry
+    .all()
+    .filter((template) => template.capabilities.includes(capability))
+    .map((template) => template.key);
+
 describe("role templates", () => {
-  it("load into the registry (valid keys, versions, capabilities)", () => {
+  it("match the D-A7 role list and load into the registry", () => {
+    expect(roleRegistry.all().map((t) => t.key)).toEqual([
+      "front-desk",
+      "rn",
+      "tech",
+      "gi-physician",
+      "anesthesia",
+      "coder",
+      "admin",
+      "auditor",
+      "patient",
+    ]);
     expect(roleRegistry.all()).toHaveLength(ROLE_TEMPLATES.length);
   });
 
@@ -20,16 +38,25 @@ describe("role templates", () => {
   });
 
   it("signs notes only as gi-physician or anesthesia", () => {
-    const signers = roleRegistry
-      .all()
-      .filter((template) => template.capabilities.includes("note.sign"))
-      .map((template) => template.key);
-    expect(signers).toEqual(["gi-physician", "anesthesia"]);
+    expect(keysWith("note.sign")).toEqual(["gi-physician", "anesthesia"]);
   });
 
-  it("makes every staff template so far facility-scoped with MFA", () => {
-    for (const key of ["front-desk", "rn", "tech", "gi-physician", "anesthesia"]) {
-      expect(roleRegistry.get(key)).toMatchObject({ facilityScoped: true, requiresMfa: true, status: "active" });
+  it("scopes facilities per 08 s7.3: coder, admin, auditor and patient are not facility-scoped", () => {
+    const unscoped = roleRegistry
+      .all()
+      .filter((template) => !template.facilityScoped)
+      .map((template) => template.key);
+    expect(unscoped).toEqual(["coder", "admin", "auditor", "patient"]);
+  });
+
+  it("requires MFA for every staff role and not for patients", () => {
+    for (const template of roleRegistry.all()) {
+      expect(template.requiresMfa).toBe(template.key !== "patient");
     }
+  });
+
+  it("gives the patient template no staff capability", () => {
+    const capabilities = roleRegistry.get("patient")?.capabilities ?? [];
+    expect(capabilities.every((c) => c.startsWith("portal."))).toBe(true);
   });
 });
