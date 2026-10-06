@@ -13,6 +13,7 @@ import {
 import { queryKeys } from "@asc/api-client/react";
 import type { AuthSession, UserRole } from "@asc/types";
 import { useAuthStore } from "../lib/stores/auth.store";
+import { workspacesFor } from "../lib/workspaces";
 
 export function useDemoPresets() {
   return useQuery({ queryKey: queryKeys.auth.demoPresets, queryFn: getDemoPresets, staleTime: Infinity });
@@ -41,7 +42,8 @@ export function useAuth() {
     }
     // Clinical data is role-scoped: drop anything cached for the previous persona.
     queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== queryKeys.auth.all[0] });
-    router.push(next.user.role === "PATIENT" ? "/my-care" : "/dashboard");
+    const { principal: signedIn, facilityId: facility } = useAuthStore.getState();
+    router.push(workspacesFor(signedIn, facility)[0]?.home ?? "/dashboard");
   };
 
   const login = useMutation({ mutationFn: loginWithCredentials, onSuccess: startSession });

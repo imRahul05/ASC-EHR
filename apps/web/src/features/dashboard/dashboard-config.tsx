@@ -59,29 +59,33 @@ const NurseFlow: Panel = () => <NurseFlowPanel />;
 const AdminWork = roleWork("ADMIN", "My work items");
 const NurseWork = roleWork("NURSE", "My work items");
 
-/** Role home: subtitle, KPI tiles and the panels (main column + side column). Data, not a switch. */
-export const DASHBOARD_BY_ROLE: Readonly<
-  Record<StaffRole, { readonly description: string; readonly stats: readonly ((s: DashboardSummary) => Stat)[]; readonly main: readonly Panel[]; readonly side: readonly Panel[] }>
+/**
+ * Workspace home: subtitle, KPI tiles and the panels (main column + side column), keyed by
+ * workspace key (apps/web/src/lib/workspaces.ts). Data, not a switch. The test in
+ * dashboard-config.test.ts fails when a workspace has no entry.
+ */
+export const DASHBOARDS: Readonly<
+  Record<string, { readonly description: string; readonly stats: readonly ((s: DashboardSummary) => Stat)[]; readonly main: readonly Panel[]; readonly side: readonly Panel[] }>
 > = {
-  ADMIN: {
+  operations: {
     description: "Center operations, back-office queues and today's blockers.",
     stats: [STAT.casesToday, STAT.onTime, STAT.signatures, STAT.work],
     main: [CenterOps, CenterCases],
     side: [AdminWork, Alerts],
   },
-  SURGEON: {
+  physician: {
     description: "Your slate, notes waiting for your signature and your quality numbers.",
     stats: [STAT.casesToday, STAT.signatures, STAT.pathology, STAT.adr],
     main: [MySlate, AdrPanel],
     side: [SignQueuePanel, Alerts],
   },
-  NURSE: {
+  nursing: {
     description: "Who is where, and the next thing each patient needs.",
     stats: [STAT.casesToday, STAT.inRoom, STAT.inRecovery, STAT.work],
     main: [NurseFlow, CenterCases],
     side: [NurseWork, Alerts],
   },
-  ANESTHESIOLOGIST: {
+  anesthesia: {
     description: "Upcoming sedation cases by risk, and who is in the room now.",
     stats: [STAT.casesToday, STAT.inRoom, STAT.inRecovery, STAT.onTime],
     main: [AsaQueuePanel, CenterCases],

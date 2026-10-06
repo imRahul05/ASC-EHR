@@ -1,6 +1,7 @@
 import { grantedFacilityIds } from "@asc/authz/can";
 import { describe, expect, it } from "vitest";
 import { checkCapability } from "@/hooks/use-can";
+import { WORKSPACES } from "@/lib/workspaces";
 import { meFor } from "@/mocks/handlers/me";
 import { visibleNavItems } from "./nav-config";
 
@@ -69,6 +70,14 @@ describe("sidebar from capabilities", () => {
     expect(navKeys("float@ascehr.demo", "fac-lakeside")).toEqual(navKeys("surgeon@ascehr.demo"));
     expect(navKeys("float@ascehr.demo", "fac-lakeside")).toContain("quality");
     expect(navKeys("float@ascehr.demo", "fac-metro")).not.toContain("quality");
+  });
+
+  it("lets the workspace rename an entry: the physician's worklist is the Sign queue", () => {
+    const me = meFor("surgeon@ascehr.demo");
+    const can = (capability: Parameters<typeof checkCapability>[2]) => checkCapability(me?.principal ?? null, "fac-metro", capability);
+    const physician = WORKSPACES.find((workspace) => workspace.key === "physician");
+    expect(visibleNavItems(can).find((item) => item.key === "worklist")?.title).toBe("Worklist");
+    expect(visibleNavItems(can, physician?.navTitles).find((item) => item.key === "worklist")?.title).toBe("Sign queue");
   });
 
   it("shows nothing but help to a facility-scoped user with no current facility", () => {

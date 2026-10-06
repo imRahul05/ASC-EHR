@@ -78,9 +78,17 @@ const NAV_ITEMS: readonly NavItem[] = [
   nav("guide"),
 ];
 
-/** Sidebar and command-menu entries for what the user can do at the current facility. */
-export function visibleNavItems(can: (capability: readonly Capability[]) => boolean) {
-  return NAV_ITEMS.filter((item) => item.requiresAny === null || can(item.requiresAny));
+/**
+ * Sidebar and command-menu entries for what the user can do at the current facility.
+ * `titles` lets the current workspace rename an entry (e.g. Worklist is the physician's "Sign queue").
+ */
+export function visibleNavItems(
+  can: (capability: readonly Capability[]) => boolean,
+  titles: Readonly<Record<string, string>> = {},
+) {
+  return NAV_ITEMS.filter((item) => item.requiresAny === null || can(item.requiresAny)).map((item) =>
+    Object.hasOwn(titles, item.key) ? { ...item, title: titles[item.key] ?? item.title } : item,
+  );
 }
 
 /**
