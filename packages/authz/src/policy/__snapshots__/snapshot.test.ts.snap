@@ -84,7 +84,6 @@ exports[`compiled policies > anesthesia compiles to a stable AccessPolicy 1`] = 
       "resourceType": "Encounter",
     },
     {
-      "criteria": "Location?_compartment=%facility",
       "readonly": true,
       "resourceType": "Location",
     },
@@ -97,7 +96,6 @@ exports[`compiled policies > anesthesia compiles to a stable AccessPolicy 1`] = 
       "resourceType": "Observation",
     },
     {
-      "criteria": "Organization?_compartment=%facility",
       "readonly": true,
       "resourceType": "Organization",
     },
@@ -107,12 +105,10 @@ exports[`compiled policies > anesthesia compiles to a stable AccessPolicy 1`] = 
       "resourceType": "Patient",
     },
     {
-      "criteria": "Practitioner?_compartment=%facility",
       "readonly": true,
       "resourceType": "Practitioner",
     },
     {
-      "criteria": "PractitionerRole?_compartment=%facility",
       "readonly": true,
       "resourceType": "PractitionerRole",
     },
@@ -350,12 +346,10 @@ exports[`compiled policies > front-desk compiles to a stable AccessPolicy 1`] = 
       "resourceType": "Encounter",
     },
     {
-      "criteria": "Location?_compartment=%facility",
       "readonly": true,
       "resourceType": "Location",
     },
     {
-      "criteria": "Organization?_compartment=%facility",
       "readonly": true,
       "resourceType": "Organization",
     },
@@ -364,12 +358,10 @@ exports[`compiled policies > front-desk compiles to a stable AccessPolicy 1`] = 
       "resourceType": "Patient",
     },
     {
-      "criteria": "Practitioner?_compartment=%facility",
       "readonly": true,
       "resourceType": "Practitioner",
     },
     {
-      "criteria": "PractitionerRole?_compartment=%facility",
       "readonly": true,
       "resourceType": "PractitionerRole",
     },
@@ -441,7 +433,6 @@ exports[`compiled policies > gi-physician compiles to a stable AccessPolicy 1`] 
       "resourceType": "Encounter",
     },
     {
-      "criteria": "Location?_compartment=%facility",
       "readonly": true,
       "resourceType": "Location",
     },
@@ -456,7 +447,6 @@ exports[`compiled policies > gi-physician compiles to a stable AccessPolicy 1`] 
       "resourceType": "Observation",
     },
     {
-      "criteria": "Organization?_compartment=%facility",
       "readonly": true,
       "resourceType": "Organization",
     },
@@ -466,12 +456,10 @@ exports[`compiled policies > gi-physician compiles to a stable AccessPolicy 1`] 
       "resourceType": "Patient",
     },
     {
-      "criteria": "Practitioner?_compartment=%facility",
       "readonly": true,
       "resourceType": "Practitioner",
     },
     {
-      "criteria": "PractitionerRole?_compartment=%facility",
       "readonly": true,
       "resourceType": "PractitionerRole",
     },
@@ -545,7 +533,6 @@ exports[`compiled policies > rn compiles to a stable AccessPolicy 1`] = `
       "resourceType": "Encounter",
     },
     {
-      "criteria": "Location?_compartment=%facility",
       "readonly": true,
       "resourceType": "Location",
     },
@@ -560,7 +547,6 @@ exports[`compiled policies > rn compiles to a stable AccessPolicy 1`] = `
       "resourceType": "Observation",
     },
     {
-      "criteria": "Organization?_compartment=%facility",
       "readonly": true,
       "resourceType": "Organization",
     },
@@ -570,12 +556,10 @@ exports[`compiled policies > rn compiles to a stable AccessPolicy 1`] = `
       "resourceType": "Patient",
     },
     {
-      "criteria": "Practitioner?_compartment=%facility",
       "readonly": true,
       "resourceType": "Practitioner",
     },
     {
-      "criteria": "PractitionerRole?_compartment=%facility",
       "readonly": true,
       "resourceType": "PractitionerRole",
     },
@@ -641,7 +625,6 @@ exports[`compiled policies > tech compiles to a stable AccessPolicy 1`] = `
       "resourceType": "Encounter",
     },
     {
-      "criteria": "Location?_compartment=%facility",
       "readonly": true,
       "resourceType": "Location",
     },
@@ -656,7 +639,6 @@ exports[`compiled policies > tech compiles to a stable AccessPolicy 1`] = `
       "resourceType": "Observation",
     },
     {
-      "criteria": "Organization?_compartment=%facility",
       "readonly": true,
       "resourceType": "Organization",
     },
@@ -666,12 +648,10 @@ exports[`compiled policies > tech compiles to a stable AccessPolicy 1`] = `
       "resourceType": "Patient",
     },
     {
-      "criteria": "Practitioner?_compartment=%facility",
       "readonly": true,
       "resourceType": "Practitioner",
     },
     {
-      "criteria": "PractitionerRole?_compartment=%facility",
       "readonly": true,
       "resourceType": "PractitionerRole",
     },

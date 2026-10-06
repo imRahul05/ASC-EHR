@@ -16,11 +16,25 @@ const template = (key: string): RoleTemplate => {
 };
 
 describe("compileResourceRules", () => {
-  it("adds facility criteria to every resource of a facility-scoped role", () => {
-    const rules = compileResourceRules(template("rn"));
+  it("adds facility criteria to every non-shared resource of a facility-scoped role", () => {
+    const rn = template("rn");
+    const shared = new Set(rn.data.filter((rule) => rule.shared === true).map((rule) => rule.resourceType));
+    const rules = compileResourceRules(rn);
     expect(rules.length).toBeGreaterThan(0);
-    for (const rule of rules) expect(rule.criteria).toBe(facilityCriteria(rule.resourceType));
+    expect(shared.size).toBeGreaterThan(0);
+    for (const rule of rules) {
+      expect(rule.criteria).toBe(shared.has(rule.resourceType) ? undefined : facilityCriteria(rule.resourceType));
+    }
     expect(facilityCriteria("Patient")).toBe("Patient?_compartment=%facility");
+  });
+
+  it("skips facility criteria for shared rules only", () => {
+    const rn = template("rn");
+    const data = [{ resourceType: "Location", readonly: true, shared: true }, { resourceType: "Patient" }];
+    const [location, patient] = compileResourceRules({ ...rn, data });
+    expect(location?.criteria).toBeUndefined();
+    expect(location).not.toHaveProperty("shared");
+    expect(patient?.criteria).toBe(facilityCriteria("Patient"));
   });
 
   it("adds no facility criteria to all-site roles", () => {
