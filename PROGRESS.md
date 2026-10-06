@@ -20,8 +20,8 @@
 | Updated | 2026-10-06 |
 |---|---|
 | Current wave | 0 |
-| In progress | P05e in review (#36) |
-| Ready to start | P00b, P01, P02, P03, P09, P06 (needs Azure access) |
+| In progress | none (P05a–P05e merged; next auth phase is P05f) |
+| Ready to start | P00b, P01, P02, P03, P09, P06 (needs Azure access), P05f |
 | Blocked | P13 soft-blocked on Q-MS1 (fallback allowed) |
 | Go-live target | 2026-12-07 |
 
@@ -37,7 +37,7 @@
 | P02 | Local Medplum + bots skeleton | ready | — | | | | | |
 | P03 | `@asc/fhir` | ready | — | | | | | |
 | P04 | Medplum clients | pending | P02, P03 | | | | | |
-| P05 | Auth + roles (sub-phases P05a–P05j below) | ready (P05a) | P05h: P02 · P05i–j: P04 | | | | | |
+| P05 | Auth + roles (sub-phases P05a–P05j below) | in-progress (P05a–P05e done; P05f ready) | P05h: P02 · P05i–j: P04 | | | | | |
 | P06 | Azure infra (dev) | ready (external: subscription/BAA) | — | | | | | |
 | P07 | `@asc/clinical-rules` | pending | P03 | | | | | |
 | P08 | Terminology + profiles | pending | P02, P03 | | | | | |
@@ -68,8 +68,8 @@
 | P05b | Role templates, workspaces, lint guard | done | P05a | | `phase/P05b-roles-workspaces` | [#25](https://github.com/imRahul05/ASC-EHR/pull/25) | 2026-10-06 | 2026-10-06 |
 | P05c | Policy compiler | done | P05b | | `phase/P05c-policy-compiler` | [#26](https://github.com/imRahul05/ASC-EHR/pull/26) | 2026-10-06 | 2026-10-06 |
 | P05d | Web on capabilities (P05d1, P05d2) | done | P05b | | `phase/P05d2-workspaces` | [#32](https://github.com/imRahul05/ASC-EHR/pull/32), [#35](https://github.com/imRahul05/ASC-EHR/pull/35) | 2026-10-06 | 2026-10-06 |
-| P05e | App-DB tenancy (RLS, `withTenant`) | review | P05a | Claude (bg job 640ebd7d) | `phase/P05e-db-tenancy` | [#36](https://github.com/imRahul05/ASC-EHR/pull/36) | 2026-10-06 | |
-| P05f | Durable audit | pending | P05e | | | | | |
+| P05e | App-DB tenancy (RLS, `withTenant`) | done | P05a | Claude (bg job 640ebd7d) | `phase/P05e-db-tenancy` | [#36](https://github.com/imRahul05/ASC-EHR/pull/36) | 2026-10-06 | 2026-10-06 |
+| P05f | Durable audit | ready | P05e | | | | | |
 | P05g | API security spine | pending | P05a, P05e, P05f | | | | | |
 | P05h | Medplum hardening, spikes, seed, policy test | pending | P05c, P02 | | | | | |
 | P05i | Medplum identity in API | pending | P05g, P05h, P04 | | | | | |
@@ -81,6 +81,11 @@ Work completed before this plan existed, grouped from git history (`origin/main`
 
 | Date | Area | What | Ref |
 |---|---|---|---|
+| 2026-10-06 | Auth | **P05e** app-DB tenancy: `agent_runs.tenant_id` (NOT NULL, backfilled from `app.default_tenant_id`) and `facility_id`; row-level security enabled and **forced**, fail closed without `app.tenant_id`; owner vs runtime roles (`asc_runtime`: no ALTER, DELETE, TRUNCATE or RLS bypass); `createTenantDb().withTenant` is the only client the package exports (owner client in `@asc/db/migrate`); run store takes a tenant/facility scope; config `DEFAULT_TENANT_ID`, `MEDPLUM_PROJECT_ID`, `DATABASE_RUNTIME_URL`; 49 DB tests (skipped without `TEST_DATABASE_URL`, CI guard fails if skipped); decisions in [P05 plan](docs/plan/phases/P05-auth-roles.md); LM-015 | PR #36, branch `phase/P05e-db-tenancy` |
+| 2026-10-06 | Auth | **P05d** web on capabilities (mock auth): Principal in session, `useCan`/`Can`/`RequireCapability`, `RouteGuard` driven by `ROUTE_ACCESS`, workspaces and facility switcher, role labels from `@asc/authz` templates, `ParticipantRole` split from authz roles, access request instead of self-signup, `UserRole` removed, role-name lint baseline empty, tech identity added with config only | PRs #32, #35 (+ #33, #34 docs/progress) |
+| 2026-10-06 | Auth | **P05c** policy compiler in `@asc/authz`: templates compiled to parameterized `AccessPolicy` JSON (facility criteria, hidden/readonly fields, signed-note write constraint, `shared` directory data without facility filter), deterministic snapshots; no `@medplum/*` dependency yet | PR #26 |
+| 2026-10-06 | Auth | **P05b** role templates, workspaces, lint guard: role template registry and the D-A7 roles, grants built from assignments (per facility), workspace resolver from capabilities, `asc/no-role-name-comparison` lint rule, role × capability matrix snapshot | PRs #25, #29 (role-gap follow-up), #31 (rn `case.cancel` removed, coder `ai.generate` added) |
+| 2026-10-06 | Auth | **P05a** contracts and `@asc/authz` core: capability catalog, `Principal`/`Grant`/`TenantRef`/`RoleTemplate` types, authz Zod schemas, `can()` with facility-scoped grants, `authorize()` with gate and reason, `IdentityPort`/`TenantResolver` with `StaticTenantResolver` | PR #24 |
 | 2026-10-06 | Auth | P05b follow-up (before P05d): admin `case.read`/`whiteboard.read`, anesthesia `note.edit`, the 11 unassigned capabilities assigned, directory/task/clinical data types added to roles (directory data `shared`: no facility filter), 08 §7.3/§7.4 synced, orphan-capability test; reviews feed LM-014 | branch `phase/P05b-followup-role-gaps`, PR #29 |
 | 2026-10-05 | Docs | Auth hardening from architecture review (D-A14–D-A19): IdP flexibility via federation into Medplum (not Medplum portability), identity-cache bypass + invalidation (Subscription webhook), AI `agent` principal kind, decision provenance in audit, hybrid token handling + CSP, spike S6 restored, workflow × capability matrix test in P07, compliance controls in P26 | branch `worktree-iam-hardening-updates` |
 | 2026-10-05 | Docs | Auth plan folded from 18 IAM phases into P05 sub-phases P05a–P05j: modular single-hospital core (ports `IdentityPort`/`TenantResolver`, per-facility grants, roles as data, workspaces), Medplum hardening + spikes + policy test (P05h), durable audit (P05f), gated follow-ups (step-up, worker/SSE auth, break-glass, SSO, multi-tenancy); multi-tenant design kept in `future-multi-tenancy-architecture.md`; 08 `Principal` fixed to per-facility grants; ADR kept `proposed` pending ratification | branch `worktree-iam-implementation-plan`, PR #21 |
@@ -127,7 +132,7 @@ Full lists: [implementation plan §6](docs/plan/implementation-plan.md#6-cross-p
 
 ## 5. Next up
 
-1. **P00b** library upgrades (zod 4, bullmq 6, ioredis 6) — must land before Wave 2. In parallel: **P01** CI.
+1. **P05f** durable audit (needs P05e, done), then **P05g** API security spine. **P00b** library upgrades (zod 4, bullmq 6, ioredis 6) — must land before Wave 2. In parallel: **P01** CI (must run a Postgres service and set `TEST_DATABASE_URL`, see its acceptance list).
 2. In parallel: **P02** local Medplum, **P03** `@asc/fhir`.
 3. Escalate week-1 questions: Q-MS1, Azure subscription/BAA (P06), Q8 CPT licence.
 4. Wire `pnpm --filter web build && pnpm --filter web test:bundles` and Lighthouse CI into **P01** CI; re-measure `/login` mobile LCP on an HTTP/2 deploy preview (see web perf done-log entry).
