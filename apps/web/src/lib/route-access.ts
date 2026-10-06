@@ -21,3 +21,12 @@ export const ROUTE_ACCESS = {
   "my-care": ["portal.self.read"],
   guide: null,
 } as const satisfies Readonly<Record<string, readonly Capability[] | null>>;
+
+/**
+ * Capabilities that open a path: `null` = any signed-in user, `undefined` = the first path
+ * segment is not in the table (a route added without an entry), which is denied.
+ */
+export function accessForPath(pathname: string): readonly Capability[] | null | undefined {
+  const key = pathname.split("/")[1] ?? "";
+  return Object.hasOwn(ROUTE_ACCESS, key) ? ROUTE_ACCESS[key as keyof typeof ROUTE_ACCESS] : undefined;
+}
