@@ -51,6 +51,7 @@ export const resourceRuleSchema = z.object({
   hiddenFields: z.array(z.string()).optional(),
   readonlyFields: z.array(z.string()).optional(),
   lockWhenFinal: z.boolean().optional(),
+  shared: z.boolean().optional(),
 });
 
 export const roleTemplateSchema = z.object({
