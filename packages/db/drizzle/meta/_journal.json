@@ -8,6 +8,13 @@
       "when": 1790410712829,
       "tag": "0000_init_agent_runs",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791278261458,
+      "tag": "0001_add_tenant_facility_to_agent_runs",
+      "breakpoints": true
     }
   ]
 }

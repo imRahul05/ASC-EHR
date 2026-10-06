@@ -1,6 +1,6 @@
 import type { AgentExecutionMeta, AgentFailureKind, ContextManifestEntry } from '@asc/agents';
 import { sql } from 'drizzle-orm';
-import { boolean, check, index, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { boolean, check, index, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 export const AGENT_RUN_STATUSES = ['running', 'succeeded', 'failed'] as const;
 
@@ -21,8 +21,16 @@ export const agentRuns = pgTable(
     /** Fencing token: incremented on every claim; `succeed` / `fail` require the current value. */
     claim: integer('claim').notNull(),
     containsPhi: boolean('contains_phi').notNull(),
-    /** Internal ids only. Null = not scoped to that level; owner checks use IS NOT DISTINCT FROM. */
+    /**
+     * Source of truth for isolation (Q-IAM-A). `tenantId` is set from the
+     * `withTenant` scope, never from a request. `facilityId` is null for
+     * tenant-wide runs. Expand step: nullable until the backfill migration.
+     */
+    tenantId: uuid('tenant_id'),
+    facilityId: text('facility_id'),
+    /** Legacy owner scope, kept until @asc/agents migrates to tenant/facility. */
     orgId: text('org_id'),
+    /** Internal ids only. Null = not scoped to that level; owner checks use IS NOT DISTINCT FROM. */
     patientId: text('patient_id'),
     surgicalCaseId: text('surgical_case_id'),
     /** Context metadata only (keys, sources, hashes) — never values. */
