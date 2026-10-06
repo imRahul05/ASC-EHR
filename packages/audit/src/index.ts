@@ -2,6 +2,10 @@ import { isProductionEnv } from "@asc/config/runtime";
 import { isSensitiveKey, logger as baseLogger } from "@asc/logger";
 import type { Logger } from "@asc/logger";
 
+import { truncateClientIp } from "./client-ip.js";
+
+export { truncateClientIp } from "./client-ip.js";
+
 export type ActorType = "user" | "system" | "agent" | "worker" | "bot" | "service";
 export type Outcome = "SUCCESS" | "FAILURE" | "DENIED";
 
@@ -39,9 +43,18 @@ export interface AuditEvent {
   details?: AuditDetails;
   /** Set when disallowed `details` entries were dropped (production only). */
   detailsRedacted?: boolean;
+  /** Network prefix of the client (`203.0.113.0/24`), never the full address. Set by the client from `clientIp`. */
+  clientIpPrefix?: string;
+  /** Browser/client string, cut to {@link MAX_USER_AGENT_LENGTH}. */
+  userAgent?: string;
 }
 
-export type AuditEventInput = Omit<AuditEvent, "timestamp" | "detailsRedacted">;
+/** The raw `clientIp` is reduced to `clientIpPrefix` before any store sees the event. */
+export type AuditEventInput = Omit<AuditEvent, "timestamp" | "detailsRedacted" | "clientIpPrefix"> & {
+  clientIp?: string;
+};
+
+export const MAX_USER_AGENT_LENGTH = 200;
 
 /**
  * Storage seam for audit events. The planned durable store is Medplum
@@ -152,10 +165,13 @@ export class AuditClient {
    * rejects, the rejection propagates so audit loss is visible to the caller.
    */
   async logEvent(event: AuditEventInput): Promise<void> {
-    const { details, ...rest } = event;
+    const { details, clientIp, userAgent, ...rest } = event;
+    const clientIpPrefix = clientIp === undefined ? undefined : truncateClientIp(clientIp);
     const fullEvent: AuditEvent = {
       ...rest,
       ...sanitizeDetails(details, this.production),
+      ...(clientIpPrefix === undefined ? {} : { clientIpPrefix }),
+      ...(userAgent === undefined ? {} : { userAgent: userAgent.slice(0, MAX_USER_AGENT_LENGTH) }),
       timestamp: new Date().toISOString(),
     };
     await this.store.save(fullEvent);
