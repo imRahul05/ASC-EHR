@@ -17,7 +17,8 @@ import {
   UsersRound,
   type LucideIcon,
 } from "@asc/ui/icons";
-import type { UserRole } from "@asc/types";
+import type { Capability, UserRole } from "@asc/types";
+import { ROUTE_ACCESS } from "@/lib/route-access";
 
 /** Every signed-in screen (docs/product/07-mock-frontend.md §4). Keys are the first path segment. */
 const ROUTES = {
@@ -44,11 +45,48 @@ interface NavItem {
   readonly href: string;
   readonly title: string;
   readonly icon: LucideIcon;
+  /** Shown when the user holds any of these capabilities; null = every signed-in user. */
+  readonly requiresAny: readonly Capability[] | null;
 }
 
-const nav = (key: RouteKey, title?: string): NavItem => ({ key, ...ROUTES[key], title: title ?? ROUTES[key].title });
+const nav = (key: RouteKey, title?: string): NavItem => ({
+  key,
+  ...ROUTES[key],
+  title: title ?? ROUTES[key].title,
+  requiresAny: ROUTE_ACCESS[key],
+});
 
-/** Sidebar per role — data, not a switch (spec §2). */
+const PORTAL: readonly Capability[] = ["portal.self.read"];
+
+/** Every sidebar entry in display order. Each declares the capability that shows it. */
+const NAV_ITEMS: readonly NavItem[] = [
+  nav("dashboard"),
+  nav("whiteboard"),
+  nav("schedule"),
+  nav("patients"),
+  nav("referrals"),
+  nav("worklist"),
+  nav("pathology"),
+  nav("coding"),
+  nav("quality"),
+  nav("audit"),
+  nav("admin"),
+  nav("my-care"),
+  { key: "my-care-prep", href: "/my-care?view=prep", title: "Prep", icon: ClipboardList, requiresAny: PORTAL },
+  { key: "my-care-escort", href: "/my-care?view=escort", title: "Escort", icon: UsersRound, requiresAny: PORTAL },
+  { key: "my-care-results", href: "/my-care?view=results", title: "Results & instructions", icon: FileHeart, requiresAny: PORTAL },
+  nav("guide"),
+];
+
+/** Sidebar and command-menu entries for what the user can do at the current facility. */
+export function visibleNavItems(can: (capability: readonly Capability[]) => boolean) {
+  return NAV_ITEMS.filter((item) => item.requiresAny === null || can(item.requiresAny));
+}
+
+/**
+ * Sidebar per role. Superseded by NAV_ITEMS + visibleNavItems; only the help sheet still
+ * reads it, and P05d2 removes it with UserRole.
+ */
 export const NAV_BY_ROLE: Readonly<Record<UserRole, readonly NavItem[]>> = {
   ADMIN: [
     nav("dashboard"),
@@ -74,10 +112,10 @@ export const NAV_BY_ROLE: Readonly<Record<UserRole, readonly NavItem[]>> = {
   ],
   ANESTHESIOLOGIST: [nav("dashboard"), nav("whiteboard"), nav("schedule"), nav("patients"), nav("guide")],
   PATIENT: [
-    { key: "my-care", href: "/my-care", title: "My procedure", icon: HeartHandshake },
-    { key: "my-care-prep", href: "/my-care?view=prep", title: "Prep", icon: ClipboardList },
-    { key: "my-care-escort", href: "/my-care?view=escort", title: "Escort", icon: UsersRound },
-    { key: "my-care-results", href: "/my-care?view=results", title: "Results & instructions", icon: FileHeart },
+    nav("my-care"),
+    { key: "my-care-prep", href: "/my-care?view=prep", title: "Prep", icon: ClipboardList, requiresAny: PORTAL },
+    { key: "my-care-escort", href: "/my-care?view=escort", title: "Escort", icon: UsersRound, requiresAny: PORTAL },
+    { key: "my-care-results", href: "/my-care?view=results", title: "Results & instructions", icon: FileHeart, requiresAny: PORTAL },
     nav("guide"),
   ],
 };

@@ -8,7 +8,6 @@
  */
 export const ROLE_CHECK_BASELINE = [
   "src/components/shell/app-sidebar.tsx",
-  "src/components/shell/command-menu.tsx",
   "src/features/dashboard/role-dashboard.tsx",
   "src/features/guide/guide-personas.tsx",
   "src/features/guide/use-tour.ts",

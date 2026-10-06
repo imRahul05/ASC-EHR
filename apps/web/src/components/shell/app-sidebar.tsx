@@ -19,7 +19,8 @@ import {
 import { Activity } from "@asc/ui/icons";
 import type { UserRole } from "@asc/types";
 import { useAuth } from "../../hooks/use-auth";
-import { NAV_BY_ROLE, ROLE_LABEL } from "./nav-config";
+import { useCan } from "../../hooks/use-can";
+import { ROLE_LABEL, visibleNavItems } from "./nav-config";
 
 function isActive(href: string, pathname: string, view: string | null): boolean {
   const [path, query] = href.split("?");
@@ -28,20 +29,22 @@ function isActive(href: string, pathname: string, view: string | null): boolean 
   return view === null || path !== "/my-care";
 }
 
-function NavMenu({ role, withSearchParams }: { readonly role: UserRole; readonly withSearchParams: boolean }) {
+type NavItems = ReturnType<typeof visibleNavItems>;
+
+function NavMenu({ items, withSearchParams }: { readonly items: NavItems; readonly withSearchParams: boolean }) {
   const pathname = usePathname();
-  return withSearchParams ? <NavMenuWithView role={role} pathname={pathname} /> : <NavList role={role} pathname={pathname} view={null} />;
+  return withSearchParams ? <NavMenuWithView items={items} pathname={pathname} /> : <NavList items={items} pathname={pathname} view={null} />;
 }
 
-function NavMenuWithView({ role, pathname }: { readonly role: UserRole; readonly pathname: string }) {
+function NavMenuWithView({ items, pathname }: { readonly items: NavItems; readonly pathname: string }) {
   const view = useSearchParams().get("view");
-  return <NavList role={role} pathname={pathname} view={view} />;
+  return <NavList items={items} pathname={pathname} view={view} />;
 }
 
-function NavList({ role, pathname, view }: { readonly role: UserRole; readonly pathname: string; readonly view: string | null }) {
+function NavList({ items, pathname, view }: { readonly items: NavItems; readonly pathname: string; readonly view: string | null }) {
   return (
     <SidebarMenu>
-      {NAV_BY_ROLE[role].map((item) => {
+      {items.map((item) => {
         const Icon = item.icon;
         return (
           <SidebarMenuItem key={item.key}>
@@ -62,9 +65,11 @@ function NavList({ role, pathname, view }: { readonly role: UserRole; readonly p
   );
 }
 
-/** Role-aware navigation (NAV_BY_ROLE). */
+/** Navigation from capabilities: each entry shows when the user can use it at the current facility. */
 export function AppSidebar() {
   const { user } = useAuth();
+  const can = useCan();
+  const items = visibleNavItems(can);
   const role: UserRole = user?.role ?? "SURGEON";
 
   return (
@@ -85,8 +90,8 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupLabel className="text-[11px] font-medium text-muted-foreground">{ROLE_LABEL[role].label}</SidebarGroupLabel>
           <SidebarGroupContent>
-            <Suspense fallback={<NavMenu role={role} withSearchParams={false} />}>
-              <NavMenu role={role} withSearchParams />
+            <Suspense fallback={<NavMenu items={items} withSearchParams={false} />}>
+              <NavMenu items={items} withSearchParams />
             </Suspense>
           </SidebarGroupContent>
         </SidebarGroup>
