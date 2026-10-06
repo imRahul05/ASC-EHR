@@ -27,7 +27,14 @@ function compileRule(rule: ResourceRule, facilityScoped: boolean): AccessPolicyR
     resourceType: rule.resourceType,
     ...(facilityScoped ? { criteria: facilityCriteria(rule.resourceType) } : {}),
     ...(rule.readonly === true ? { readonly: true } : {}),
+    ...(rule.hiddenFields?.length ? { hiddenFields: normalizeFields(rule.hiddenFields) } : {}),
+    ...(rule.readonlyFields?.length ? { readonlyFields: normalizeFields(rule.readonlyFields) } : {}),
   };
+}
+
+// Sorted and de-duplicated so field order in a template never changes the policy.
+function normalizeFields(fields: readonly string[]): string[] {
+  return [...new Set(fields)].sort();
 }
 
 // Facility-scoped roles get facility criteria on every resource; all-site roles

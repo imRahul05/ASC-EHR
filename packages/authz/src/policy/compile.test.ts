@@ -29,6 +29,18 @@ describe("compileResourceRules", () => {
     expect(byType.Encounter?.readonly).toBeUndefined();
   });
 
+  it("compiles hidden and readonly fields sorted and de-duplicated, and omits empty lists", () => {
+    const rn = template("rn");
+    const data = [
+      { resourceType: "Patient", hiddenFields: ["telecom", "address", "telecom"], readonlyFields: ["name"] },
+      { resourceType: "Encounter", hiddenFields: [], readonlyFields: [] },
+    ];
+    const [encounter, patient] = compileResourceRules({ ...rn, data });
+    expect(patient).toMatchObject({ hiddenFields: ["address", "telecom"], readonlyFields: ["name"] });
+    expect(encounter).not.toHaveProperty("hiddenFields");
+    expect(encounter).not.toHaveProperty("readonlyFields");
+  });
+
   it("omits resources the role does not list: Composition is hidden from front-desk", () => {
     const types = compileResourceRules(template("front-desk")).map((r) => r.resourceType);
     expect(types).not.toContain("Composition");
