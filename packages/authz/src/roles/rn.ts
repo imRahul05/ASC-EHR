@@ -28,7 +28,6 @@ export const rn: RoleTemplate = {
     "fax.send",
     "pathology.letter.send",
     "ai.generate",
-    "case.cancel",
   ],
   data: [
     ro("Patient"),

@@ -600,7 +600,7 @@ Source of truth in code: `packages/authz/src/roles/*.ts`, pinned row by row in `
 | patient.read | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
 | patient.register / merge / eligibility.check | ✔ / – / ✔ | – | – | – | – | – | ✔ / ✔ / ✔ | – |
 | schedule.read / manage / whiteboard.read | ✔ / ✔ / ✔ | ✔ / – / ✔ | ✔ / – / ✔ | ✔ / – / ✔ | ✔ / – / ✔ | – | ✔ / ✔ / ✔ | – |
-| case.read / advance / cancel | ✔ / ✔ (check-in) / ✔ | ✔ / ✔ / ✔ | ✔ / – / – | ✔ / ✔ / ✔ | ✔ / ✔ / – | ✔ / – / – | ✔ / – / ✔ | ✔ / – / – |
+| case.read / advance / cancel | ✔ / ✔ (check-in) / ✔ | ✔ / ✔ / – | ✔ / – / – | ✔ / ✔ / ✔ | ✔ / ✔ / – | ✔ / – / – | ✔ / – / ✔ | ✔ / – / – |
 | hp.document, medhold.review | – | ✔ | – | ✔ | ✔ | – | – | – |
 | consent.collect / witness | ✔ / – | ✔ / ✔ | – | ✔ / ✔ | ✔ / ✔ | – | – | – |
 | timeout.participate | – | ✔ | ✔ | ✔ | ✔ | – | – | – |
@@ -612,7 +612,7 @@ Source of truth in code: `packages/authz/src/roles/*.ts`, pinned row by row in `
 | pathology.reconcile / letter.send | – | ✔ / ✔ | – | ✔ / ✔ | – | – | – | – |
 | referral.triage | – | ✔ | – | ✔ | – | – | – | – |
 | fax.send | ✔ | ✔ | – | – | – | – | – | – |
-| ai.generate | – | ✔ | – | ✔ | ✔ | – | – | – |
+| ai.generate | – | ✔ | – | ✔ | ✔ | ✔ | – | – |
 | admin.* | – | – | – | – | – | – | ✔ | – |
 | audit.read | – | – | – | – | – | – | ✔ | ✔ |
 | breakglass.invoke | – | ✔ | – | ✔ | ✔ | – | – | – |
