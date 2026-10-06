@@ -34,18 +34,26 @@ Colour is never the only signal (chip = colour + icon/text).
 
 ## 2. Personas & navigation
 
-Existing `UserRole` values are kept; demo presets log in with one click.
+A persona is a label for one-click demo sign-in; it grants nothing. What a user sees comes from their role
+assignments (templates in `@asc/authz`, per facility) → capabilities → workspace. Roles are data; there is no
+role enum in the web app.
 
-| Role | Person (demo) | Home | Main nav |
+| Persona (demo preset) | Role assignments | Workspace (home) | Main nav |
 |---|---|---|---|
-| `ADMIN` | Front desk / scheduler / coder / center admin | Center operations | Dashboard · Schedule · Patients · Referrals · Worklist · Coding · Quality · Audit · Admin |
-| `NURSE` | Pre-op / procedure / PACU RN | Whiteboard | Dashboard · Whiteboard · Schedule · Patients · Worklist |
-| `SURGEON` | Gastroenterologist | Today's slate + sign queue | Dashboard · Schedule · Patients · Worklist (sign queue) · Pathology · Quality |
-| `ANESTHESIOLOGIST` | CRNA / anesthesiologist | Anesthesia queue | Dashboard · Whiteboard · Schedule · Patients |
-| `PATIENT` | Patient portal | My procedure | My procedure · Prep · Escort · Results & instructions |
+| Front desk / Admin | `front-desk` @ Metro + `admin`, `coder`, `auditor` (all sites) | Center operations | Dashboard · Whiteboard · Schedule · Patients · Referrals · Worklist · Coding · Quality · Audit · Admin |
+| Nurse | `rn` @ Metro | Nursing | Dashboard · Whiteboard · Schedule · Patients · Referrals · Worklist · Pathology |
+| Gastroenterologist | `gi-physician` @ Metro | Physician | Dashboard · Whiteboard · Schedule · Patients · Referrals · Sign queue · Pathology · Coding · Quality |
+| Anesthesia | `anesthesia` @ Metro | Anesthesia | Dashboard · Whiteboard · Schedule · Patients · Worklist |
+| Patient | `patient` | Patient portal | My procedure · Prep · Escort · Results & instructions |
 
-Nav is a config map `NAV_BY_ROLE` (no `switch`). Global: command palette (⌘K) to jump to patient/case/route,
-theme toggle, role switcher (demo), "Reset demo data".
+Not presets: `float@ascehr.demo` (`rn` at Metro, `gi-physician` at Lakeside: the facility switcher changes nav and
+workspace) and `tech@ascehr.demo` (`tech` at Metro: added by identity data and workspace config only).
+
+Nav is data: each entry in `NAV_ITEMS` lists the capabilities that show it (`lib/route-access.ts`), and the same
+table guards every route (`RouteGuard` in the dashboard layout; a route missing from the table is denied).
+Workspaces live in `lib/workspaces.ts` with their dashboards in `features/dashboard/dashboard-config.tsx`.
+Global: command palette (⌘K) to jump to patient/case/route, theme toggle, persona, workspace and facility
+switchers, "Reset demo data". There is no self-signup: `/signup` is a request for access.
 
 ## 3. Domain model (mock of FHIR shapes; types in `@asc/types/src/clinical.ts`)
 
@@ -74,7 +82,7 @@ no blocking gap-chips; `transitionAllowed(from, to)`. Each returns `RuleResult {
 | Route | Screen | Owner |
 |---|---|---|
 | `/` | Landing page (product site: hero, how it works, modules, security, CTA) | A |
-| `/login`, `/signup` | Auth + demo persona picker (refresh existing) | A |
+| `/login`, `/signup` | Sign-in + demo persona picker; request access (no self-signup) | A |
 | `/dashboard` | Role home (config per role) | D |
 | `/schedule` | Day board by room (time grid), book-case sheet (patient search, procedure, intent, room/block, team; conflict check) | A |
 | `/patients`, `/patients/new`, `/patients/[patientId]` | List + search · registration (dup check, coverage, eligibility 270/271 mock, escort) · chart | A |
@@ -204,9 +212,9 @@ tab-specific actions, e.g. check-in, discharge). Default tab follows the phase (
 | A | `landing/landing-page.tsx` (`/`), `schedule/schedule-board.tsx`, `patients/patient-list.tsx`, `patients/patient-registration.tsx`, `patients/patient-chart.tsx` (`{ patientId }`), `referrals/referral-inbox.tsx`; restyle `components/auth/*` |
 | B | `whiteboard/whiteboard-board.tsx`, `case/tabs/pre-procedure-tab.tsx`, `case/tabs/pre-op-tab.tsx` |
 | C | `case/tabs/procedure-tab.tsx`, `case/tabs/anesthesia-tab.tsx`, `case/tabs/note-tab.tsx` |
-| D | `dashboard/role-dashboard.tsx`, `worklist/worklist-view.tsx`, `pathology/pathology-queue.tsx`, `coding/coding-queue.tsx`, `quality/quality-dashboard.tsx`, `audit/audit-log.tsx`, `admin/admin-console.tsx`, `portal/my-care-view.tsx` (`?view=prep|escort|results`), `case/tabs/recovery-tab.tsx`, `case/tabs/coding-tab.tsx`, `case/tabs/pathology-tab.tsx` |
+| D | `dashboard/workspace-dashboard.tsx`, `worklist/worklist-view.tsx`, `pathology/pathology-queue.tsx`, `coding/coding-queue.tsx`, `quality/quality-dashboard.tsx`, `audit/audit-log.tsx`, `admin/admin-console.tsx`, `portal/my-care-view.tsx` (`?view=prep|escort|results`), `case/tabs/recovery-tab.tsx`, `case/tabs/coding-tab.tsx`, `case/tabs/pathology-tab.tsx` |
 
-Shared shell (foundation owns; ask before changing): `components/shell/*` (`NAV_BY_ROLE`, top bar, ⌘K, persona
+Shared shell (foundation owns; ask before changing): `components/shell/*` (`NAV_ITEMS`, top bar, ⌘K, persona
 switcher), `features/case/{case-workspace,gate-panel,phase-history,case-tabs,use-case-tab}`, `mocks/**`.
 Pages in `app/**/page.tsx` are thin and already point at the files above.
 

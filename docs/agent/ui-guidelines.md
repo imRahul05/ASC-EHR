@@ -99,18 +99,17 @@ Components stay small and declarative. Hooks are for synchronising with somethin
 **Config-driven forms.** Describe fields as data with `FieldConfig` from `@asc/ui`, render with `FormField`, validate with the shared Zod schema. When the set of fields depends on something (role, procedure), keep that mapping **once** in `@asc/validation` so the schema and the form read the same source.
 
 ```tsx
-// apps/web — signup (abridged). No useState at all: RHF owns values + errors.
-const FIELD_UI: Record<SignupFieldName, FieldConfig<SignupFieldName>> = {
-  fullName: { name: "fullName", label: "Full Legal Name", autoComplete: "name" },
-  npi: { name: "npi", label: "NPI", mono: true, maxLength: 10 },
-  // …one entry per field
-};
+// apps/web — request access (abridged). RHF owns values + errors; the Zod schema in @asc/validation
+// says which fields are required.
+const FIELDS: readonly FieldConfig<keyof AccessRequestFormData>[] = [
+  { name: "fullName", label: "Full name", autoComplete: "name" },
+  { name: "email", label: "Work email", type: "email", autoComplete: "email" },
+  { name: "facilityCode", label: "Facility ID (optional)", mono: true },
+];
 
-const fields = fieldsForRole(role); // from SIGNUP_ROLE_FIELDS in @asc/validation (also drives the schema)
-
-{fields.map((field) => (
-  <FormField key={field.name} id={`signup-${field.name}`} label={field.label} error={errors[field.name]?.message}>
-    <Input id={`signup-${field.name}`} type={field.type ?? "text"} {...register(field.name)} />
+{FIELDS.map((field) => (
+  <FormField key={field.name} id={`access-${field.name}`} label={field.label} error={errors[field.name]?.message}>
+    <Input id={`access-${field.name}`} type={field.type ?? "text"} {...register(field.name)} />
   </FormField>
 ))}
 ```
