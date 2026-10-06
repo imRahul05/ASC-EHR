@@ -22,6 +22,13 @@
       "when": 1791278343279,
       "tag": "0002_backfill_tenant_not_null",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791278384479,
+      "tag": "0003_enable_rls_agent_runs",
+      "breakpoints": true
     }
   ]
 }
