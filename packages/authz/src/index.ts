@@ -3,3 +3,4 @@ export * from "./can.js";
 export * from "./agent.js";
 export * from "./ports.js";
 export * from "./roles/registry.js";
+export * from "./roles/index.js";
