@@ -1,0 +1,45 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`role x capability matrix > pins the full matrix 1`] = `
+"capability | front-desk | rn | tech | gi-physician | anesthesia | coder | admin | auditor | patient
+patient.read | Y | Y | Y | Y | Y | Y | Y | Y | -
+patient.register | Y | - | - | - | - | - | Y | - | -
+patient.merge | - | - | - | - | - | - | - | - | -
+patient.eligibility.check | - | - | - | - | - | - | - | - | -
+schedule.read | Y | Y | Y | Y | Y | - | Y | - | -
+schedule.manage | Y | - | - | - | - | - | Y | - | -
+whiteboard.read | Y | Y | Y | Y | Y | - | - | - | -
+case.read | Y | Y | Y | Y | Y | Y | - | Y | -
+case.advance | Y | Y | - | Y | Y | - | - | - | -
+case.cancel | - | - | - | - | - | - | - | - | -
+hp.document | - | Y | - | Y | Y | - | - | - | -
+medhold.review | - | Y | - | Y | Y | - | - | - | -
+consent.collect | Y | Y | - | Y | Y | - | - | - | -
+consent.witness | - | - | - | - | - | - | - | - | -
+timeout.participate | - | - | - | - | - | - | - | - | -
+procedure.document | - | Y | Y | Y | - | - | - | - | -
+specimen.manage | - | Y | Y | Y | - | - | - | - | -
+image.manage | - | - | - | - | - | - | - | - | -
+anesthesia.document | - | - | - | - | Y | - | - | - | -
+note.draft | - | - | - | Y | - | - | - | - | -
+note.edit | - | - | - | Y | - | - | - | - | -
+note.sign | - | - | - | Y | Y | - | - | - | -
+note.addend | - | - | - | - | - | - | - | - | -
+pacu.document | - | Y | - | - | Y | - | - | - | -
+discharge.approve | - | Y | - | Y | Y | - | - | - | -
+coding.review | - | - | - | Y | - | Y | - | - | -
+coding.attest | - | - | - | - | - | Y | - | - | -
+charge.export | - | - | - | - | - | Y | - | - | -
+pathology.reconcile | - | Y | - | Y | - | - | - | - | -
+pathology.letter.send | - | - | - | - | - | - | - | - | -
+referral.triage | - | - | - | - | - | - | - | - | -
+fax.send | - | - | - | - | - | - | - | - | -
+ai.generate | - | - | - | - | - | - | - | - | -
+admin.users | - | - | - | - | - | - | Y | - | -
+admin.roles | - | - | - | - | - | - | Y | - | -
+admin.facility | - | - | - | - | - | - | Y | - | -
+audit.read | - | - | - | - | - | - | Y | Y | -
+breakglass.invoke | - | Y | - | Y | Y | - | - | - | -
+portal.self.read | - | - | - | - | - | - | - | - | Y
+portal.self.forms | - | - | - | - | - | - | - | - | Y"
+`;
