@@ -642,6 +642,8 @@ R = read-only, RW = read-write, – = no access (the resource type is omitted fr
 | ChargeItem | – | – | R | – | RW | – | R |
 | AuditEvent | – | – | – | – | – | R | R |
 
+Directory data (Practitioner, PractitionerRole, Organization, Location) is tenant-wide and carries no facility tag, so its rules are `shared` and the policy compiler adds **no** `%facility` criteria to them. Every other resource keeps the facility filter.
+
 Administrators see no clinical documents: only the case (Encounter) read-only for scheduling, plus patient demographics and the directory.
 
 Medplum features used: `criteria` with `%facility`, `readonly`, `hiddenFields`, `readonlyFields`, and `writeConstraint` (FHIRPath with `%before`/`%after`). For example, a signed note can never be overwritten: `%before.exists() implies %before.status != 'final'`.
