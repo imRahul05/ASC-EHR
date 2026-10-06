@@ -17,10 +17,10 @@
 
 ## 1. Snapshot (update on every phase change)
 
-| Updated | 2026-09-30 |
+| Updated | 2026-10-06 |
 |---|---|
 | Current wave | 0 |
-| In progress | — |
+| In progress | P05a in review (PR #24). After merge: P05b and P05e can start (parallel lanes) |
 | Ready to start | P00b, P01, P02, P03, P09, P06 (needs Azure access), P05a |
 | Blocked | P13 soft-blocked on Q-MS1 (fallback allowed) |
 | Go-live target | 2026-12-07 |
@@ -64,7 +64,7 @@
 
 | ID | Sub-phase | Status | Depends on | Owner | Branch | PR | Started | Finished |
 |---|---|---|---|---|---|---|---|---|
-| P05a | Contracts + `@asc/authz` core (`can()`, ports) | ready | — | | | | | |
+| P05a | Contracts + `@asc/authz` core (`can()`, ports) | in review | — | | `phase/P05a-authz-core` | [#24](https://github.com/imRahul05/ASC-EHR/pull/24) | 2026-10-06 | |
 | P05b | Role templates, workspaces, lint guard | pending | P05a | | | | | |
 | P05c | Policy compiler | pending | P05b | | | | | |
 | P05d | Web on capabilities (P05d1, P05d2) | pending | P05b | | | | | |

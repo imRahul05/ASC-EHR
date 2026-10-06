@@ -1,20 +1,12 @@
 {
-  "name": "@asc/validation",
+  "name": "@asc/authz",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
-    "./auth": "./src/auth.ts",
-    "./authz": "./src/authz.ts",
-    "./escort": "./src/escort.ts",
-    "./patient": "./src/patient.ts",
-    "./schedule": "./src/schedule.ts",
-    "./api-error": "./src/api-error.ts",
-    "./health": "./src/health.ts",
-    "./jobs": "./src/jobs.ts",
-    "./agents/discharge-instructions": "./src/agents/discharge-instructions.ts"
+    "./testing": "./src/testing.ts"
   },
   "scripts": {
     "lint": "eslint --max-warnings 0",
@@ -22,8 +14,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@asc/types": "workspace:*",
-    "zod": "^3.25.67"
+    "@asc/types": "workspace:*"
   },
   "devDependencies": {
     "@asc/eslint-config": "workspace:*",
