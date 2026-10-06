@@ -11,6 +11,7 @@ export const API_ROUTE_PATTERNS = {
   authDemoLogin: "/auth/demo-login",
   authDemoPresets: "/auth/demo-presets",
   authSignup: "/auth/signup",
+  me: "/me",
 
   // Patients & referrals (front desk)
   patients: "/patients",
@@ -101,6 +102,7 @@ export const API_ROUTES = {
   authDemoLogin: P.authDemoLogin,
   authDemoPresets: P.authDemoPresets,
   authSignup: P.authSignup,
+  me: P.me,
 
   patients: P.patients,
   patientDuplicateCheck: P.patientDuplicateCheck,
