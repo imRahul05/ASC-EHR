@@ -1,7 +1,7 @@
 import type { RoleTemplate } from "@asc/types";
 import { describe, expect, it } from "vitest";
 import { roleRegistry } from "../roles/index.js";
-import { compileResourceRules, facilityCriteria } from "./compile.js";
+import { compileResourceRules, facilityCriteria, LOCK_WHEN_FINAL } from "./compile.js";
 
 const template = (key: string): RoleTemplate => {
   const found = roleRegistry.get(key);
@@ -39,6 +39,15 @@ describe("compileResourceRules", () => {
     expect(patient).toMatchObject({ hiddenFields: ["address", "telecom"], readonlyFields: ["name"] });
     expect(encounter).not.toHaveProperty("hiddenFields");
     expect(encounter).not.toHaveProperty("readonlyFields");
+  });
+
+  it("adds the signed-note write constraint to physician Composition only", () => {
+    const composition = (key: string) =>
+      compileResourceRules(template(key)).find((rule) => rule.resourceType === "Composition");
+    expect(composition("gi-physician")?.writeConstraint).toEqual([LOCK_WHEN_FINAL]);
+    expect(composition("gi-physician")?.readonly).toBeUndefined();
+    expect(composition("anesthesia")?.writeConstraint).toBeUndefined();
+    expect(LOCK_WHEN_FINAL.expression).toBe("%before.exists() implies %before.status != 'final'");
   });
 
   it("omits resources the role does not list: Composition is hidden from front-desk", () => {

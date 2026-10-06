@@ -1,5 +1,12 @@
 import type { ResourceRule, RoleTemplate } from "@asc/types";
-import type { AccessPolicyResource } from "./types.js";
+import type { AccessPolicyExpression, AccessPolicyResource } from "./types.js";
+
+// A `final` resource can never be overwritten (08 §7.4). %before is Medplum's
+// write-constraint variable for the stored version.
+export const LOCK_WHEN_FINAL: AccessPolicyExpression = {
+  language: "text/fhirpath",
+  expression: "%before.exists() implies %before.status != 'final'",
+};
 
 // The only place that knows how a resource is limited to the member's facility.
 // `%facility` is a policy parameter bound per membership (08 §7.4); spike S1
@@ -29,6 +36,7 @@ function compileRule(rule: ResourceRule, facilityScoped: boolean): AccessPolicyR
     ...(rule.readonly === true ? { readonly: true } : {}),
     ...(rule.hiddenFields?.length ? { hiddenFields: normalizeFields(rule.hiddenFields) } : {}),
     ...(rule.readonlyFields?.length ? { readonlyFields: normalizeFields(rule.readonlyFields) } : {}),
+    ...(rule.lockWhenFinal === true ? { writeConstraint: [LOCK_WHEN_FINAL] } : {}),
   };
 }
 
