@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AuditClient,
   AuditDetailsError,
+  AuditStoreNotAppendOnlyError,
   AuditStoreNotConfiguredError,
   createAuditClient,
   LoggerAuditStore,
@@ -13,6 +14,7 @@ import type { AuditEvent, AuditEventInput, AuditStore } from "./index.js";
 
 class MemoryStore implements AuditStore {
   readonly durable = true;
+  readonly appendOnly = true;
   events: AuditEvent[] = [];
   save(event: AuditEvent): Promise<void> {
     this.events.push(event);
@@ -115,6 +117,18 @@ describe("createAuditClient", () => {
     expect(() => createAuditClient(new LoggerAuditStore(), { production: true })).toThrow(
       AuditStoreNotConfiguredError,
     );
+  });
+
+  it("refuses a durable store that is not append-only in production", () => {
+    const editable: AuditStore = { durable: true, save: () => Promise.resolve() };
+    expect(() => createAuditClient(editable, { production: true })).toThrow(AuditStoreNotAppendOnlyError);
+    expect(() => createAuditClient({ ...editable, appendOnly: false }, { production: true })).toThrow(
+      AuditStoreNotAppendOnlyError,
+    );
+  });
+
+  it("allows a durable store that is not append-only outside production", () => {
+    expect(() => createAuditClient({ durable: true, save: () => Promise.resolve() }, { production: false })).not.toThrow();
   });
 
   it("accepts a durable store in production", async () => {

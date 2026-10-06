@@ -88,6 +88,13 @@ export interface AuditStore {
    * Non-durable stores are refused in production.
    */
   readonly durable?: boolean;
+  /**
+   * True only for stores that cannot update, delete or truncate saved events
+   * (enforced by the store itself, e.g. no UPDATE/DELETE grant plus a trigger).
+   * An audit trail that can be edited is not an audit trail: production
+   * requires `durable` and `appendOnly`.
+   */
+  readonly appendOnly?: boolean;
 }
 
 /**
@@ -126,6 +133,16 @@ export class AuditDecisionError extends Error {
         "(letters, digits, '.', '_', '-'), never free text.",
     );
     this.name = "AuditDecisionError";
+  }
+}
+
+export class AuditStoreNotAppendOnlyError extends Error {
+  constructor() {
+    super(
+      "The configured AuditStore is durable but not append-only: refusing it in production. " +
+        "The store must reject UPDATE, DELETE and TRUNCATE of saved events and declare appendOnly = true.",
+    );
+    this.name = "AuditStoreNotAppendOnlyError";
   }
 }
 
@@ -235,13 +252,17 @@ export class AuditClient {
 /**
  * Creates an AuditClient. Without a store, falls back to LoggerAuditStore,
  * except in production where it fails closed (throws AuditStoreNotConfiguredError).
- * A non-durable store passed explicitly in production is also refused.
+ * A non-durable store, or a durable one that is not append-only, passed
+ * explicitly in production is also refused.
  */
 export function createAuditClient(store?: AuditStore, options: AuditClientOptions = {}): AuditClient {
   const production = options.production ?? isProductionEnv();
-  const resolved = store ?? new LoggerAuditStore();
+  const resolved: AuditStore = store ?? new LoggerAuditStore();
   if (production && resolved.durable !== true) {
     throw new AuditStoreNotConfiguredError();
+  }
+  if (production && resolved.appendOnly !== true) {
+    throw new AuditStoreNotAppendOnlyError();
   }
   return new AuditClient(resolved, { production });
 }
