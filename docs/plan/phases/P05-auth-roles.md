@@ -207,6 +207,20 @@ Workspaces: `@asc/audit`, `@asc/db`.
 - [ ] Client IP stored hashed/truncated unless compliance says otherwise
 - [ ] Allow/deny events carry decision provenance: role template versions, `@asc/authz` catalog version (git SHA), gate number, cache `hit`/`miss`/`bypass` (08 §12.3)
 
+#### P05f decisions (2026-10-06)
+
+Recorded here so the P05g agent finds them. Evidence (commands, test names) lives in the P05f PR; the checklist above stays unticked, as for P05a–P05e. No new env variables.
+
+1. **Event shape is additive.** `AuditEvent` gains `tenantId`, `facilityId`, `membershipId`, `sessionId`, `gate` (1–5), `decision` (`roleVersions`, `catalogVersion`, `cache`), `clientIpPrefix` and `userAgent` (cut to 200 characters); actor types gain `worker`, `bot`, `service`. `organizationId` stays (Q-IAM-A). **P05g must set `tenantId` (from the resolved tenant) and `facilityId` on every event.**
+2. **Tenant on the store, fail closed.** The Postgres store writes inside `withTenant(event.tenantId ?? defaultTenantId)`. `defaultTenantId` is `DEFAULT_TENANT_ID` from `@asc/config`, passed by the app at wiring time (`configureAuditStore(createPostgresAuditStore(tenantDb, { defaultTenantId }))`). With neither, the save is refused (`AuditTenantMissingError`), never written to a guessed tenant.
+3. **Client IP (Q-IAM-B).** The client reduces `clientIp` to a /24 (IPv4) or /48 (IPv6) prefix before any store sees the event; an unparseable value is dropped, never echoed. A keyed hash was rejected: a hash of a /24 is trivially reversible. Compliance may still ask for full IPs or hashes; that is a change in `truncateClientIp` only.
+4. **IAM vocabulary.** `auth.login|logout|denied`, `membership.activated|disabled|facility_granted|facility_revoked`, `role.assigned|revoked|template_changed`, `user.invited`, built with `iamEvent(action, base, details)` (typed details; `auth.denied` is always `DENIED` and needs a `gate`). Detail strings must look like identifiers (`[A-Za-z0-9._:-]`, ≤ 128): an email or name throws outside production and is dropped, with `detailsRedacted`, in production.
+5. **Decision provenance.** `decision.roleVersions` (e.g. `rn-v3`), `catalogVersion` (git SHA of `@asc/authz`) and `cache` (`hit|miss|bypass`) must be short identifiers; free text throws outside production and is dropped in production. P05g fills them from the principal and the identity adapter.
+6. **Production gate.** `createAuditClient` refuses a store that is not `durable` **and** `appendOnly`. The Postgres store declares both.
+7. **Append-only in three layers.** The runtime role has `SELECT, INSERT` only; no UPDATE or DELETE policy exists; triggers reject UPDATE, DELETE and TRUNCATE for everyone including the owner. Known limits: an owner can drop a trigger on purpose (a reviewable DDL change), and a superuser can disable triggers with `session_replication_role = replica`. There is no purge path: retention, archiving or export is a later, owner-side design.
+8. **Same RLS pattern as `agent_runs`.** `tenant_id NOT NULL`, ENABLE + FORCE, a read policy and an insert policy, explicit grants. Owner-side reads need `app.tenant_id` too (see P05e decision 4). Tests cannot `TRUNCATE` the table, so each test uses its own tenant id.
+9. **Open for P05g: audit-write failure.** `AuditClient` propagates a store failure. P05g decides what a route does when the audit write for an allow or a denial fails (default proposal: a denial still returns 403, an allowed PHI read returns 503 and no data).
+
 ### P05g — API security spine · M · needs P05a, P05e, P05f
 Workspace: `apps/api` (packages: `@fastify/helmet` 13.1.1, `@fastify/rate-limit` 11.2.0).
 
