@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { UserRole } from "@asc/types";
+import type { DemoPersonaId, UserRole } from "@asc/types";
 import { Skeleton } from "@asc/ui/components/ui/skeleton";
 import { toast } from "@asc/ui/components/ui/sonner";
 import { cn } from "@asc/ui/lib/utils";
@@ -21,12 +21,12 @@ const PERSONAS: Readonly<Record<UserRole, { readonly label: string; readonly ico
 export function DemoLoginBar() {
   const { loginWithDemo, isDemoLoggingIn } = useAuth();
   const presets = useDemoPresets();
-  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [pendingId, setPendingId] = useState<DemoPersonaId | null>(null);
   const ordered = (presets.data ?? []).toSorted(
     (a, b) => PERSONAS[a.role].order - PERSONAS[b.role].order,
   );
 
-  const signIn = async (presetId: string) => {
+  const signIn = async (presetId: DemoPersonaId) => {
     setPendingId(presetId);
     try {
       await loginWithDemo(presetId);

@@ -1,5 +1,5 @@
 import { API_ROUTES } from "@asc/config/api";
-import type { AuthSession, DemoAccountPreset, LoginCredentials, SignupPayload } from "@asc/types";
+import type { AuthSession, DemoAccountPreset, DemoPersonaId, LoginCredentials, SignupPayload } from "@asc/types";
 import { meResponseSchema, type MeResponse } from "@asc/validation/authz";
 import { http } from "./http";
 
@@ -7,7 +7,7 @@ export function loginWithCredentials(credentials: LoginCredentials): Promise<Aut
   return http.post<AuthSession>(API_ROUTES.authLogin, credentials);
 }
 
-export function loginWithDemoPreset(presetId: string): Promise<AuthSession> {
+export function loginWithDemoPreset(presetId: DemoPersonaId): Promise<AuthSession> {
   return http.post<AuthSession>(API_ROUTES.authDemoLogin, { presetId });
 }
 

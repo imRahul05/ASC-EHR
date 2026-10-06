@@ -30,8 +30,11 @@ export interface AuthSession {
   readonly expiresAt: string;
 }
 
+/** Demo personas are labels for one-click sign-in (a person, not a permission). */
+export type DemoPersonaId = "demo-admin" | "demo-nurse" | "demo-surgeon" | "demo-anesthesia" | "demo-patient";
+
 export interface DemoAccountPreset {
-  readonly id: string;
+  readonly id: DemoPersonaId;
   readonly role: UserRole;
   readonly email: string;
   readonly fullName: string;
