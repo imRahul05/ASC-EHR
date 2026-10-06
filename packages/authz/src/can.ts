@@ -1,10 +1,23 @@
-import type { Capability, Grant, Principal } from "@asc/types";
+import type { Capability, Grant, Principal, RoleKey } from "@asc/types";
 
 export interface AuthzContext {
   readonly facilityId?: string;
   readonly patientId?: string;
   readonly caseId?: string;
 }
+
+// Gate numbers follow 08 §6: 3 = facility, 4 = capability (+ run scope).
+export type DenyGate = 3 | 4;
+
+export type DenyReason =
+  | "no-grant-at-facility"
+  | "capability-not-granted"
+  | "outside-run-scope"
+  | "patient-capability-not-portal";
+
+export type AuthzDecision =
+  | { readonly allowed: true; readonly roleKeys: readonly RoleKey[] }
+  | { readonly allowed: false; readonly gate: DenyGate; readonly reason: DenyReason };
 
 // Grants that apply at the target. Facility grants only count when the target
 // names that exact facility; without a facilityId only all-site grants count
@@ -21,8 +34,9 @@ export function isPortalCapability(capability: Capability): boolean {
   return capability.startsWith("portal.");
 }
 
-// An AI run only acts on the patient (and case, when set) it was started for.
-function withinRunScope(principal: Principal, context: AuthzContext): boolean {
+// A patient acts on their own record; an AI run only on the patient (and
+// case, when set) it was started for.
+function withinScope(principal: Principal, context: AuthzContext): boolean {
   if (principal.kind === "patient") {
     return context.patientId === undefined || context.patientId === principal.patientId;
   }
@@ -33,8 +47,20 @@ function withinRunScope(principal: Principal, context: AuthzContext): boolean {
   return true;
 }
 
+export function authorize(principal: Principal, capability: Capability, context: AuthzContext = {}): AuthzDecision {
+  const grants = applicableGrants(principal, context.facilityId);
+  if (grants.length === 0) return { allowed: false, gate: 3, reason: "no-grant-at-facility" };
+
+  if (principal.kind === "patient" && !isPortalCapability(capability)) {
+    return { allowed: false, gate: 4, reason: "patient-capability-not-portal" };
+  }
+  if (!withinScope(principal, context)) return { allowed: false, gate: 4, reason: "outside-run-scope" };
+
+  const matching = grants.filter((grant) => grant.capabilities.includes(capability));
+  if (matching.length === 0) return { allowed: false, gate: 4, reason: "capability-not-granted" };
+  return { allowed: true, roleKeys: [...new Set(matching.flatMap((grant) => grant.roleKeys))] };
+}
+
 export function can(principal: Principal, capability: Capability, context: AuthzContext = {}): boolean {
-  if (principal.kind === "patient" && !isPortalCapability(capability)) return false;
-  if (!withinRunScope(principal, context)) return false;
-  return applicableGrants(principal, context.facilityId).some((grant) => grant.capabilities.includes(capability));
+  return authorize(principal, capability, context).allowed;
 }
