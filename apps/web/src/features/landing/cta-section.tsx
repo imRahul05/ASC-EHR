@@ -21,7 +21,7 @@ export function CtaSection() {
               Open the demo <ArrowRight aria-hidden />
             </Button>
             <Button render={<Link href="/signup" />} nativeButton={false} size="lg" variant="outline" className="h-11 px-5 text-[15px]">
-              Create an account
+              Request access
             </Button>
           </div>
         </div>

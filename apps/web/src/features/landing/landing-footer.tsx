@@ -21,7 +21,7 @@ const COLUMNS = [
     title: "Demo",
     links: [
       { href: "/login", label: "Sign in" },
-      { href: "/signup", label: "Create account" },
+      { href: "/signup", label: "Request access" },
     ],
   },
 ] as const;

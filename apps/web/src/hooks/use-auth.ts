@@ -7,7 +7,6 @@ import {
   getMe,
   loginWithCredentials,
   loginWithDemoPreset,
-  registerUser,
   setAccessToken,
 } from "@asc/api-client";
 import { queryKeys } from "@asc/api-client/react";
@@ -55,7 +54,6 @@ export function useAuth() {
 
   const login = useMutation({ mutationFn: loginWithCredentials, onSuccess: startSession });
   const demoLogin = useMutation({ mutationFn: loginWithDemoPreset, onSuccess: startSession });
-  const signup = useMutation({ mutationFn: registerUser, onSuccess: startSession });
 
   /** Demo persona switch = demo login as that preset. */
   const switchPersona = (personaId: DemoPersonaId) => demoLogin.mutateAsync(personaId);
@@ -78,8 +76,6 @@ export function useAuth() {
     isLoggingIn: login.isPending,
     loginWithDemo: demoLogin.mutateAsync,
     isDemoLoggingIn: demoLogin.isPending,
-    signup: signup.mutateAsync,
-    isSigningUp: signup.isPending,
     switchPersona,
     logout,
   };

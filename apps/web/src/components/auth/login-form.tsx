@@ -112,9 +112,9 @@ export function LoginForm() {
 
       <div className="text-center pt-2">
         <p className="text-xs text-muted-foreground">
-          New here?{" "}
+          No account yet?{" "}
           <Link href="/signup" className="font-medium text-foreground underline-offset-4 hover:underline">
-            Create an account
+            Request access
           </Link>
         </p>
       </div>
