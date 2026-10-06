@@ -40,8 +40,16 @@ describe("demo identities", () => {
     expect(can(user, "note.sign")).toBe(false);
   });
 
-  it("make admin an all-site role and the surgeon a Metro-only physician", () => {
-    expect(can(staff("admin@ascehr.demo"), "admin.users", { facilityId: "fac-lakeside" })).toBe(true);
+  it("make the admin persona hold front-desk at Metro plus three all-site roles", () => {
+    const admin = staff("admin@ascehr.demo");
+    expect(can(admin, "admin.users", { facilityId: "fac-lakeside" })).toBe(true);
+    expect(can(admin, "coding.attest", { facilityId: "fac-lakeside" })).toBe(true);
+    expect(can(admin, "audit.read")).toBe(true);
+    expect(can(admin, "schedule.manage", { facilityId: "fac-metro" })).toBe(true);
+    expect(can(admin, "note.sign", { facilityId: "fac-metro" })).toBe(false);
+  });
+
+  it("make the surgeon a Metro-only physician", () => {
     const surgeon = staff("surgeon@ascehr.demo");
     expect(can(surgeon, "note.sign", { facilityId: "fac-metro" })).toBe(true);
     expect(can(surgeon, "note.sign", { facilityId: "fac-lakeside" })).toBe(false);

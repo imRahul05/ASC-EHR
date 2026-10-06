@@ -42,7 +42,15 @@ export const DEMO_IDENTITIES: Readonly<Record<string, DemoIdentity>> = {
   "surgeon@ascehr.demo": { assignments: [{ roleKey: "gi-physician", facilityId: METRO }] },
   "anesthesia@ascehr.demo": { assignments: [{ roleKey: "anesthesia", facilityId: METRO }] },
   "nurse@ascehr.demo": { assignments: [{ roleKey: "rn", facilityId: METRO }] },
-  "admin@ascehr.demo": { assignments: [{ roleKey: "admin" }] },
+  // The "Front desk & admin" persona: one person holding several roles, three of them all-site.
+  "admin@ascehr.demo": {
+    assignments: [
+      { roleKey: "front-desk", facilityId: METRO },
+      { roleKey: "admin" },
+      { roleKey: "coder" },
+      { roleKey: "auditor" },
+    ],
+  },
   "patient@ascehr.demo": { assignments: [{ roleKey: "patient" }], patientId: "pat_105" },
   // "User X": a nurse at Metro who works as a physician at Lakeside.
   "float@ascehr.demo": {

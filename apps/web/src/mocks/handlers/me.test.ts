@@ -14,8 +14,9 @@ describe("mock /me", () => {
     expect(me?.facilities.map((f) => f.id)).toEqual(["fac-metro", "fac-lakeside"]);
   });
 
-  it("gives all-site roles no facility list and a patient a patient principal", () => {
-    expect(meFor("admin@ascehr.demo")?.facilities).toEqual([]);
+  it("lists only facilities named by facility grants (all-site roles add none) and gives a patient a patient principal", () => {
+    expect(meFor("admin@ascehr.demo")?.facilities.map((f) => f.id)).toEqual(["fac-metro"]);
+    expect(meFor("patient@ascehr.demo")?.facilities).toEqual([]);
     const patient = meFor("patient@ascehr.demo")?.principal;
     expect(patient).toMatchObject({ kind: "patient", patientId: "pat_105" });
     if (patient) expect(can(patient, "note.sign")).toBe(false);
