@@ -1,15 +1,12 @@
 import { z } from "zod";
 import { CAPABILITY_CATALOG } from "@asc/types/capability";
 import type { Capability } from "@asc/types/capability";
-import type { Principal, RoleTemplate } from "@asc/types/authz";
 
 // Authorization contracts: Principal, role templates and GET /me (08 §6, §7).
 
-const capabilityKeys: ReadonlySet<string> = new Set(CAPABILITY_CATALOG.map((entry) => entry.key));
+const capabilityKeys = CAPABILITY_CATALOG.map((entry) => entry.key) as [Capability, ...Capability[]];
 
-export const capabilitySchema = z
-  .string()
-  .refine((value): value is Capability => capabilityKeys.has(value), "Unknown capability");
+export const capabilitySchema = z.enum(capabilityKeys);
 
 export const roleKeySchema = z.string().min(1);
 
@@ -34,7 +31,7 @@ const principalBase = {
   grants: z.array(grantSchema),
 };
 
-export const principalSchema: z.ZodType<Principal, z.ZodTypeDef, unknown> = z.discriminatedUnion("kind", [
+export const principalSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("staff"), membershipId: z.string().min(1), ...principalBase }),
   z.object({ kind: z.literal("patient"), patientId: z.string().min(1), ...principalBase }),
   z.object({ kind: z.literal("service"), clientId: z.string().min(1), ...principalBase }),
@@ -56,7 +53,7 @@ export const resourceRuleSchema = z.object({
   lockWhenFinal: z.boolean().optional(),
 });
 
-export const roleTemplateSchema: z.ZodType<RoleTemplate, z.ZodTypeDef, unknown> = z.object({
+export const roleTemplateSchema = z.object({
   key: roleKeySchema,
   version: z.number().int().positive(),
   label: z.string().min(1),
