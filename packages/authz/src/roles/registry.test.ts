@@ -1,6 +1,6 @@
 import type { Capability, RoleTemplate } from "@asc/types";
 import { describe, expect, it } from "vitest";
-import { createRoleRegistry } from "./registry.js";
+import { createRoleRegistry } from "./registry";
 
 function template(key: string, overrides: Partial<RoleTemplate> = {}): RoleTemplate {
   return {

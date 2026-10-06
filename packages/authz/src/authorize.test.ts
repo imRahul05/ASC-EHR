@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { authorize } from "./can.js";
-import { allGrant, facilityGrant, patientPrincipal, staffPrincipal } from "./fixtures.js";
+import { authorize } from "./can";
+import { allGrant, facilityGrant, patientPrincipal, staffPrincipal } from "./fixtures";
 
 const user = staffPrincipal([
   facilityGrant("A", ["rn"], ["case.read"]),

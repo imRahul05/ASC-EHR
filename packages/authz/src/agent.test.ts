@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { deriveAgentPrincipal } from "./agent.js";
-import { can } from "./can.js";
-import { facilityGrant, staffPrincipal } from "./fixtures.js";
+import { deriveAgentPrincipal } from "./agent";
+import { can } from "./can";
+import { facilityGrant, staffPrincipal } from "./fixtures";
 
 const caller = staffPrincipal([
   facilityGrant("A", ["rn"], ["case.read", "note.draft", "ai.generate"]),

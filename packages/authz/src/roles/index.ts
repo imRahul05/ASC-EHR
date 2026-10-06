@@ -1,13 +1,13 @@
-import { createRoleRegistry } from "./registry.js";
-import { admin } from "./admin.js";
-import { anesthesia } from "./anesthesia.js";
-import { auditor } from "./auditor.js";
-import { coder } from "./coder.js";
-import { frontDesk } from "./front-desk.js";
-import { giPhysician } from "./gi-physician.js";
-import { patient } from "./patient.js";
-import { rn } from "./rn.js";
-import { tech } from "./tech.js";
+import { createRoleRegistry } from "./registry";
+import { admin } from "./admin";
+import { anesthesia } from "./anesthesia";
+import { auditor } from "./auditor";
+import { coder } from "./coder";
+import { frontDesk } from "./front-desk";
+import { giPhysician } from "./gi-physician";
+import { patient } from "./patient";
+import { rn } from "./rn";
+import { tech } from "./tech";
 
 // D-A7 role list.
 export const ROLE_TEMPLATES = [frontDesk, rn, tech, giPhysician, anesthesia, coder, admin, auditor, patient];

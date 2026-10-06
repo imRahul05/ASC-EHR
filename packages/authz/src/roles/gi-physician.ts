@@ -1,5 +1,5 @@
 import type { RoleTemplate } from "@asc/types";
-import { REFERENCE_READ, ro, rw } from "./rules.js";
+import { REFERENCE_READ, ro, rw } from "./rules";
 
 export const giPhysician: RoleTemplate = {
   key: "gi-physician",

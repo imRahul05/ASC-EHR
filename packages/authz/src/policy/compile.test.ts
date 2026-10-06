@@ -1,13 +1,13 @@
 import type { RoleTemplate } from "@asc/types";
 import { describe, expect, it } from "vitest";
-import { roleRegistry } from "../roles/index.js";
+import { roleRegistry } from "../roles/index";
 import {
   compilePolicy,
   compileResourceRules,
   facilityCriteria,
   LOCK_WHEN_FINAL,
   ROLE_TEMPLATE_TAG_SYSTEM,
-} from "./compile.js";
+} from "./compile";
 
 const template = (key: string): RoleTemplate => {
   const found = roleRegistry.get(key);
