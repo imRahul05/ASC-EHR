@@ -87,7 +87,7 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **Guarded by:** lint (`BROWSER_ENTRY_POINT_PATHS` in `@asc/eslint-config/app`, now including `@asc/authz`, used by the Next.js config and `@asc/api-client`); `packages/authz/src/module-format.test.ts` (NodeNext tsconfig, no relative runtime imports in leaf-reachable files); P01 Playwright smoke test will cover the rest.
 
 ### LM-006 — Only `@asc/config` reads `process.env`
-- **Seen:** 1 · `packages/audit/src/index.ts` (and logger/telemetry defaults) · fixed 2026-09-27, PR #9
+- **Seen:** 2 · `packages/audit/src/index.ts` (and logger/telemetry defaults) · fixed 2026-09-27, PR #9; again 2026-10-06, `packages/db/src/__tests__/test-db.ts` (shared test helper read `TEST_DATABASE_URL`; the lint exemption covers `*.test.ts` only, so the helper takes the URL as a parameter)
 - **What went wrong:** `@asc/audit` decided production mode from `process.env.NODE_ENV` itself, and logger/telemetry defaulted to `process.env`, contrary to "env is parsed once in @asc/config".
 - **Rule:** Use `parseEnv()` / `publicEnv` / `getProcessEnv()` / `isProductionEnv()` from `@asc/config` (`@asc/config/runtime` for packages).
 - **How to check:** `grep -rn "process\.env" packages/*/src apps/*/src | grep -v packages/config`

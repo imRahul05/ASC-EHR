@@ -173,9 +173,9 @@ Workspaces: `@asc/db`, `@asc/config`.
 | 6 | `feat(db): add withTenant and run agent run store inside it` |
 | 7 | `test(db): tenant isolation and missing-context cases` |
 
-- [ ] No `app.tenant_id` set → zero rows, insert rejected (fail closed)
-- [ ] Runtime role cannot alter tables or bypass RLS
-- [ ] `agent_runs.org_id` meaning resolved (default: keep until `@asc/agents` migrates; new columns are the source of truth)
+- [x] No `app.tenant_id` set → zero rows, insert rejected (fail closed)
+- [x] Runtime role cannot alter tables or bypass RLS
+- [x] `agent_runs.org_id` meaning resolved (default: keep until `@asc/agents` migrates; new columns are the source of truth)
 
 ### P05f — Durable audit · S · needs P05e
 Workspaces: `@asc/audit`, `@asc/db`.
