@@ -2,16 +2,16 @@ import { buildGrants, roleRegistry } from "@asc/authz";
 import { API_ROUTES } from "@asc/config/api";
 import type { Principal } from "@asc/types";
 import { http, HttpResponse } from "msw";
-import { DEMO_FACILITIES, DEMO_IDENTITIES, DEMO_TENANT } from "../data/identities";
-import { MOCK_USER_PROFILES } from "../data/users";
+import { DEMO_FACILITIES, DEMO_TENANT } from "../data/identities";
 import { emailForAuthorization } from "../db/sessions";
+import { findUser } from "../db/users";
 import { apiUrl } from "./api-url";
 
 /** The Principal and facility names for a demo user, built from role assignments by @asc/authz. */
 export function meFor(email: string) {
-  const identity = Object.hasOwn(DEMO_IDENTITIES, email) ? DEMO_IDENTITIES[email] : undefined;
-  const profile = Object.hasOwn(MOCK_USER_PROFILES, email) ? MOCK_USER_PROFILES[email] : undefined;
-  if (identity === undefined || profile === undefined) return undefined;
+  const user = findUser(email);
+  if (user === undefined) return undefined;
+  const { identity, profile } = user;
 
   const grants = buildGrants(identity.assignments, roleRegistry);
   const base = { id: profile.id, tenant: DEMO_TENANT, grants };
