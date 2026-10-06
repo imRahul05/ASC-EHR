@@ -2,6 +2,8 @@ import js from "@eslint/js";
 import eslintConfigPrettier from "eslint-config-prettier";
 import turboPlugin from "eslint-plugin-turbo";
 import tseslint from "typescript-eslint";
+import { ascPlugin } from "./plugin.js";
+import { ROLE_CHECK_BASELINE } from "./role-check-baseline.js";
 
 /** Env is read only inside @asc/config (parseEnv / publicEnv / getProcessEnv). */
 export const PROCESS_ENV_RULE = [
@@ -58,5 +60,15 @@ export const config = tseslint.config(
       "@typescript-eslint/no-unsafe-member-access": "off",
     },
   },
+  {
+    // Code checks capabilities with can(), never role names (P05). Baseline
+    // files are exempt until P05d empties the list.
+    files: ["**/*.ts", "**/*.tsx"],
+    plugins: { asc: ascPlugin },
+    rules: { "asc/no-role-name-comparison": "error" },
+  },
+  ...(ROLE_CHECK_BASELINE.length > 0
+    ? [{ files: ROLE_CHECK_BASELINE, rules: { "asc/no-role-name-comparison": "off" } }]
+    : []),
   eslintConfigPrettier,
 );
