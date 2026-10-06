@@ -8,7 +8,6 @@ import type {
   ProcedureCase,
   Room,
   StaffRef,
-  UserRole,
   WorkItem,
 } from "@asc/types";
 import { createSeedState } from "./seed";
@@ -230,8 +229,4 @@ export function patientListItem(patientId: string): PatientListItem | null {
     allergyCount: patient.allergies.length,
     ...(next ? { nextCaseId: next.id, nextCaseStart: next.scheduledStart } : {}),
   };
-}
-
-export function isStaffRole(role: UserRole | "SYSTEM"): role is Exclude<UserRole, "PATIENT"> {
-  return role !== "PATIENT" && role !== "SYSTEM";
 }

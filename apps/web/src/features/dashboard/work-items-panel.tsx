@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { useWorklist } from "@asc/api-client/react";
 import { formatDateTime } from "@asc/clinical-rules/time";
-import type { StaffRole, WorkItem, WorkItemType } from "@asc/types";
+import type { ParticipantRole, WorkItem, WorkItemType } from "@asc/types";
 import { Badge, Button, EmptyState, ErrorState, LoadingSkeleton, SectionCard } from "@asc/ui";
 import { ListChecks } from "@asc/ui/icons";
 import { workItemHref } from "../worklist/work-item-links";
 
 interface WorkItemsPanelProps {
-  readonly role: StaffRole;
+  readonly role: ParticipantRole;
   readonly title: string;
   readonly type?: WorkItemType;
   readonly limit?: number;

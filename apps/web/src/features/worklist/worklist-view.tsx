@@ -6,7 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ApiError } from "@asc/api-client";
 import { useCompleteWorkItem, useWorklist } from "@asc/api-client/react";
 import { formatDateTime } from "@asc/clinical-rules/time";
-import type { StaffRole, WorkItem, WorkItemType } from "@asc/types";
+import type { ParticipantRole, WorkItem, WorkItemType } from "@asc/types";
 import {
   Badge,
   Button,
@@ -31,7 +31,7 @@ type TabId = WorkItemType | "all";
 type StatusFilter = WorkItem["status"];
 
 const TABS: readonly TabId[] = ["all", "sign_note", "eligibility_failed", "referral_intake", "pending_pathology", "coding", "result_letter", "med_hold_review"];
-const ROLE_LABEL: Readonly<Record<StaffRole, string>> = { ADMIN: "Front desk / coder", SURGEON: "Surgeon", NURSE: "Nurse", ANESTHESIOLOGIST: "Anesthesia" };
+const ROLE_LABEL: Readonly<Record<ParticipantRole, string>> = { ADMIN: "Front desk / coder", SURGEON: "Surgeon", NURSE: "Nurse", ANESTHESIOLOGIST: "Anesthesia" };
 const PRIORITY_CLASS: Readonly<Record<WorkItem["priority"], string>> = {
   high: "border-destructive/30 bg-destructive/8 text-destructive",
   normal: "text-muted-foreground",

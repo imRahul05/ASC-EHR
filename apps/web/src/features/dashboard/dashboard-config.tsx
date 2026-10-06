@@ -1,4 +1,4 @@
-import type { DashboardSummary, StaffRole, UserProfile } from "@asc/types";
+import type { DashboardSummary, ParticipantRole, UserProfile } from "@asc/types";
 import type { StatCardProps } from "@asc/ui";
 import { Activity, BedDouble, CalendarDays, ChartLine, Clock, FileSignature, ListChecks, Microscope } from "@asc/ui/icons";
 import { AdrPanel } from "./adr-panel";
@@ -47,7 +47,7 @@ const STAT = {
 
 /** Sign-queue panel bound to its type (keeps the config a list of components). */
 const SignQueuePanel: Panel = () => <WorkItemsPanel role="SURGEON" type="sign_note" title="Sign queue" />;
-const roleWork = (role: StaffRole, title: string): Panel => {
+const roleWork = (role: ParticipantRole, title: string): Panel => {
   const RoleWorkPanel: Panel = () => <WorkItemsPanel role={role} title={title} />;
   return RoleWorkPanel;
 };

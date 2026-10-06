@@ -1,4 +1,4 @@
-import type { ProcedureCode, ProcedureIntent, StaffRole } from "@asc/types";
+import type { ProcedureCode, ProcedureIntent, ParticipantRole } from "@asc/types";
 import type { SegmentedOption, SelectOption } from "@asc/ui";
 import { CASE_DURATIONS_MIN } from "@asc/validation/schedule";
 
@@ -33,7 +33,7 @@ export const TEAM_FIELDS = [
   { name: "surgeonId", label: "Gastroenterologist", role: "SURGEON" },
   { name: "anesthesiaId", label: "Anesthesia", role: "ANESTHESIOLOGIST" },
   { name: "nurseId", label: "Nurse", role: "NURSE" },
-] as const satisfies readonly { name: string; label: string; role: StaffRole }[];
+] as const satisfies readonly { name: string; label: string; role: ParticipantRole }[];
 
 export const DEFAULT_START_TIME = "09:30";
 export const DEFAULT_ROOM_ID = "room-2";
