@@ -23,6 +23,8 @@ import type { UserRole } from "@asc/types";
 import { HelpButton } from "../../features/guide/help-button";
 import { useAuth } from "../../hooks/use-auth";
 import { CommandMenu } from "./command-menu";
+import { FacilitySwitcher } from "./facility-switcher";
+import { WorkspaceSwitcher } from "./workspace-switcher";
 import { ROLE_LABEL, routeTitle } from "./nav-config";
 
 const ROLES = Object.keys(ROLE_LABEL) as UserRole[];
@@ -60,7 +62,7 @@ function RoleSwitcher({ role, onSwitch }: { readonly role: UserRole; readonly on
 /** Sticky top bar: sidebar toggle, breadcrumb, ⌘K, persona switcher, theme, user menu. */
 export function TopBar() {
   const pathname = usePathname();
-  const { user, switchRole, logout } = useAuth();
+  const { user, facilities, facilityId, switchRole, logout } = useAuth();
   const resetDemo = useResetDemo();
   const role: UserRole = user?.role ?? "SURGEON";
   const title = routeTitle(pathname);
@@ -77,7 +79,7 @@ export function TopBar() {
         <SidebarTrigger className="text-muted-foreground" />
         <Separator orientation="vertical" className="mx-1 h-4" />
         <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-sm">
-          <span className="hidden truncate text-muted-foreground sm:inline">{user?.facilityName ?? "Metro GI Center"}</span>
+          <span className="hidden truncate text-muted-foreground sm:inline">{facilities.find((facility) => facility.id === facilityId)?.name ?? user?.facilityName ?? "Metro GI Center"}</span>
           {title && <ChevronRight aria-hidden className="hidden size-3.5 text-muted-foreground/60 sm:inline" />}
           {title && <span className="truncate font-medium text-foreground">{title}</span>}
         </nav>
@@ -86,6 +88,8 @@ export function TopBar() {
       <div className="flex items-center gap-1.5">
         <CommandMenu />
         <HelpButton />
+        <FacilitySwitcher />
+        <WorkspaceSwitcher />
         <RoleSwitcher role={role} onSwitch={(next) => void switchRole(next)} />
         <ThemeToggle className="size-8" />
         <DropdownMenu>
