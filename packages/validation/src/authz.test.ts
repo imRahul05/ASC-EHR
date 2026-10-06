@@ -39,7 +39,10 @@ describe("authz schemas", () => {
     expect(principalSchema.safeParse(staff).success).toBe(true);
     expect(principalSchema.safeParse(agent).success).toBe(true);
     expect(principalSchema.safeParse({ ...staff, kind: "admin" }).success).toBe(false);
-    expect(meResponseSchema.safeParse({ principal: staff }).success).toBe(true);
+    const me = { principal: staff, facilities: [{ id: "A", name: "Facility A" }] };
+    expect(meResponseSchema.safeParse(me).success).toBe(true);
+    expect(meResponseSchema.safeParse({ principal: staff }).success).toBe(false);
+    expect(meResponseSchema.safeParse({ ...me, facilities: [{ id: "A" }] }).success).toBe(false);
   });
 
   it("parses a role template", () => {

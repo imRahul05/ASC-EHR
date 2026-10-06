@@ -66,6 +66,12 @@ export const roleTemplateSchema = z.object({
 });
 
 // GET /me
-export const meResponseSchema = z.object({ principal: principalSchema });
+export const facilityRefSchema = z.object({ id: z.string().min(1), name: z.string().min(1) });
+
+// The principal plus display names for the facilities its grants name (facility switcher).
+export const meResponseSchema = z.object({
+  principal: principalSchema,
+  facilities: z.array(facilityRefSchema),
+});
 
 export type MeResponse = z.infer<typeof meResponseSchema>;
