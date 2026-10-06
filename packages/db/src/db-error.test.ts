@@ -1,10 +1,15 @@
 import { DrizzleQueryError } from 'drizzle-orm/errors';
+import postgres from 'postgres';
 import { describe, expect, it } from 'vitest';
 
 import { DatabaseError, toSafeDbError } from './db-error.js';
 
-function pgError(code: string, constraint?: string): Error {
-  return Object.assign(new Error('new row violates check constraint; Failing row contains (CANARY-ROW)'), {
+/** postgres.js builds PostgresError from the server's error fields; its typings declare no such constructor. */
+const PostgresErrorFromFields = postgres.PostgresError as unknown as new (fields: Record<string, unknown>) => postgres.PostgresError;
+
+function pgError(code: string, constraint?: string): postgres.PostgresError {
+  return new PostgresErrorFromFields({
+    message: 'new row violates check constraint',
     code,
     constraint_name: constraint,
     detail: 'Failing row contains (CANARY-DETAIL)',
@@ -31,6 +36,13 @@ describe('toSafeDbError', () => {
     const safe = toSafeDbError(new DrizzleQueryError('select 1', ['CANARY-PARAM'], new Error('connection reset CANARY')));
     expect(safe).toBeInstanceOf(DatabaseError);
     expect((safe as Error).message).toBe('Database operation failed');
+  });
+
+  it('does not mistake Node system errors with five-character codes for database errors', () => {
+    for (const code of ['EPIPE', 'EBUSY', 'EBADF', 'E2BIG']) {
+      const own = Object.assign(new Error(`socket problem ${code}`), { code });
+      expect(toSafeDbError(own)).toBe(own);
+    }
   });
 
   it('passes through errors that are not driver failures', () => {

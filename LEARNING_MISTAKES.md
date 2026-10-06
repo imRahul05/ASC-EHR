@@ -160,9 +160,9 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **Guarded by:** `packages/db/src/__tests__/require-db-in-ci.test.ts` (skips only). The rest: not yet, review only.
 
 ### LM-016 — Never surface a raw database driver error: it contains the bound values
-- **Seen:** 1 · 2026-10-06 · found in P05f while testing a failing audit insert (the P05e run store had the same exposure)
+- **Seen:** 1 · 2026-10-06 · found in P05f while testing a failing audit insert (the P05e run store had the same exposure); the first fix matched on the shape of `error.code` and was corrected in review (PR #38)
 - **What went wrong:** `withTenant` (P05e) let Drizzle's `DrizzleQueryError` escape. Its message is `Failed query: <sql> params: <every bound value>`; for `agent_runs.succeed` the parameters include `output` (model output, PHI), for `audit_events` the event details and ids. Anything that logs or returns `error.message` (a Fastify error handler, `logger.error({ err })`, a BullMQ `failedReason`) would have written PHI to a non-PHI sink. Postgres also puts the failing row in the error's `DETAIL`.
-- **Rule:** All app database access goes through `withTenant`, which converts driver failures to `DatabaseError` (SQLSTATE and constraint name only). Do not read `error.cause`, `error.params` or `error.detail`, and do not add a code path that talks to the database without `withTenant`.
+- **Rule:** All app database access goes through `withTenant`, which converts driver failures to `DatabaseError` (SQLSTATE and constraint name only). Do not read `error.cause`, `error.params` or `error.detail`, and do not add a code path that talks to the database without `withTenant`. Recognise driver errors by class (`DrizzleQueryError`, `postgres.PostgresError`), never by the shape of `code`: Node system errors such as `EPIPE` and `EBUSY` are also five uppercase characters.
 - **How to check:** `pnpm --filter @asc/db test` (`db-error.test.ts`, and the canary assertions in `audit-store.test.ts`); grep for `.cause` and `.params` in code that handles database errors.
 - **Guarded by:** `packages/db/src/db-error.test.ts` and `audit-store.test.ts` (canary strings must not appear in the error). Raw clients outside `withTenant` are not covered: the owner client lives in `@asc/db/migrate` for migrations only.
 

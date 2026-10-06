@@ -1,4 +1,5 @@
 import { DrizzleQueryError } from 'drizzle-orm/errors';
+import postgres from 'postgres';
 
 /**
  * A database failure that is safe to log, return or audit: SQLSTATE and
@@ -19,23 +20,16 @@ export class DatabaseError extends Error {
   }
 }
 
-const SQLSTATE = /^[0-9A-Z]{5}$/;
-
-function field(source: unknown, name: string): string | undefined {
-  if (typeof source !== 'object' || source === null || !(name in source)) return undefined;
-  const value = (source as Record<string, unknown>)[name];
-  return typeof value === 'string' ? value : undefined;
-}
-
 /**
- * Replaces a driver failure (a Drizzle query error or a Postgres error with a
- * SQLSTATE) with a `DatabaseError`. Anything else, such as an error thrown by
- * the caller's own callback, passes through unchanged.
+ * Replaces a driver failure with a `DatabaseError`: a Drizzle query error (its
+ * message lists the bound parameters) or a Postgres server error (`DETAIL` holds
+ * the failing row). Recognised by class, not by the shape of `code`: Node system
+ * errors such as `EPIPE` or `EBUSY` are five characters too. Anything else, such as
+ * an error thrown by the caller's own callback or a socket error, passes through unchanged.
  */
 export function toSafeDbError(error: unknown): unknown {
   const wrapped = error instanceof DrizzleQueryError;
   const source: unknown = wrapped ? error.cause : error;
-  const code = field(source, 'code');
-  if (code !== undefined && SQLSTATE.test(code)) return new DatabaseError(code, field(source, 'constraint_name'));
+  if (source instanceof postgres.PostgresError) return new DatabaseError(source.code, source.constraint_name);
   return wrapped ? new DatabaseError() : error;
 }
