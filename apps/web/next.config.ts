@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
   // Internal packages export TypeScript source (just-in-time packages); Next compiles them.
   transpilePackages: [
     "@asc/api-client",
+    "@asc/authz",
     "@asc/clinical-rules",
     "@asc/config",
     "@asc/types",

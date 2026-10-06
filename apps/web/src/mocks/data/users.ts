@@ -92,6 +92,17 @@ export const MOCK_USER_PROFILES: Record<string, UserProfile> = {
     careStage: "Circulating & PACU Stage 2",
     department: "Clinical Nursing",
   },
+  // Not a demo preset: sign in by email to try two facilities with different roles.
+  "float@ascehr.demo": {
+    id: "usr_float_01",
+    email: "float@ascehr.demo",
+    fullName: "Jordan Reyes, RN",
+    role: "NURSE",
+    roleTitle: "Float Nurse (Metro) / Physician (Lakeside)",
+    initials: "JR",
+    facilityName: "Metro GI Ambulatory Surgery Center",
+    department: "Clinical Nursing",
+  },
   "admin@ascehr.demo": {
     id: "usr_admin_01",
     email: "admin@ascehr.demo",

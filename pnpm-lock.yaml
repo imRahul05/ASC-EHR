@@ -99,6 +99,9 @@ importers:
       '@asc/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@asc/authz':
+        specifier: workspace:*
+        version: link:../../packages/authz
       '@asc/clinical-rules':
         specifier: workspace:*
         version: link:../../packages/clinical-rules
