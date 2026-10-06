@@ -94,6 +94,16 @@ export const MOCK_USER_PROFILES: Record<string, UserProfile> = {
     facilityName: "Metro GI Ambulatory Surgery Center",
     department: "Clinical Nursing",
   },
+  // Not a demo preset: a role added by data only (template + identity + workspace config).
+  "tech@ascehr.demo": {
+    id: "usr_tech_01",
+    email: "tech@ascehr.demo",
+    fullName: "Priya Nand, CET",
+    roleTitle: "Endoscopy Technician",
+    initials: "PN",
+    facilityName: "Metro GI Ambulatory Surgery Center",
+    department: "Endoscopy Suite",
+  },
   "admin@ascehr.demo": {
     id: "usr_admin_01",
     email: "admin@ascehr.demo",

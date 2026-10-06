@@ -85,6 +85,12 @@ export const DASHBOARDS: Readonly<
     main: [NurseFlow, CenterCases],
     side: [NurseWork, Alerts],
   },
+  tech: {
+    description: "Rooms, upcoming cases and the specimens waiting on you.",
+    stats: [STAT.casesToday, STAT.inRoom, STAT.pathology],
+    main: [CenterCases],
+    side: [Alerts],
+  },
   anesthesia: {
     description: "Upcoming sedation cases by risk, and who is in the room now.",
     stats: [STAT.casesToday, STAT.inRoom, STAT.inRecovery, STAT.onTime],

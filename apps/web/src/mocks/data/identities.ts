@@ -34,6 +34,7 @@ export const DEMO_IDENTITIES: Readonly<Record<string, DemoIdentity>> = {
     ],
   },
   "patient@ascehr.demo": { assignments: [{ roleKey: "patient" }], patientId: "pat_105" },
+  "tech@ascehr.demo": { assignments: [{ roleKey: "tech", facilityId: METRO }] },
   // "User X": a nurse at Metro who works as a physician at Lakeside.
   "float@ascehr.demo": {
     assignments: [
