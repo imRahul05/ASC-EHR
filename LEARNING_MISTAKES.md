@@ -43,6 +43,7 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 11. Use leaf imports for @asc/ui in route files (src/app/**), auth, landing, and Server Components; root barrel is only for client feature components on signed-in routes. (LM-011)
 12. Inside typed code, trust TypeScript union types instead of adding defensive fallback values (data from outside — API responses, URLs, storage — is still validated with Zod at the boundary); dynamic imports must be statically type-checked. (LM-012)
 13. Planning/design docs: never mark an ADR `accepted` without a recorded human sign-off, write review findings into the docs they affect (not only into chat), and keep doc rewrites within the commit cap. (LM-013)
+14. Authz templates: every catalog capability is held by some role, each capability comes with the data rights it needs, and tenant-wide directory data is `shared` (never facility-filtered); lint rules that inspect TypeScript must see through `as`/`!`/`satisfies`. (LM-014)
 
 ---
 
@@ -139,3 +140,10 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **Rule:** ADR status changes to `accepted` only with the decision-maker's name and date in the front matter. Review findings that change what must be built go into the phase checklist and design doc in the same change. Doc rewrites follow [incremental-commits §4](docs/agent/incremental-commits.md#4-size-limits-and-commit-shape) like code. After a rewrite, grep the design doc for every type or rule the plan says it preserves.
 - **How to check:** `git show --stat` per commit (≤ 400 changed lines); `grep -n "status:" docs/decisions/*.md` against recorded sign-offs; link + anchor check over changed docs.
 - **Guarded by:** not yet — review only. A docs link/anchor check in CI (P01) would catch the broken references.
+
+### LM-014 — Authz templates: no orphan capabilities, matching data rights, shared data not facility-filtered
+- **Seen:** 1 · 2026-10-06 · PRs #25 and #29 (found in review)
+- **What went wrong:** The first P05b templates left 11 catalog capabilities (`timeout.participate`, `note.addend`, …) held by no role, gave `admin` no `case.read`, and had no data rights for resources a capability needs (a capability without Medplum access is refused at gate 5). The P05c compiler then put `_compartment=%facility` on every resource, including `Practitioner`, `Organization` and `Location`, which carry no facility tag, so facility-scoped staff would have seen no doctors or rooms (only visible in P05h against real Medplum). The role-name lint rule also missed comparisons wrapped in `as const` or `!`.
+- **Rule:** When adding or changing a role template, assign every capability to at least one role, list the FHIR resource types each capability reads or writes, and mark tenant-wide directory data `shared` so the compiler skips the facility filter. Check a compiled policy for what a role can still *see*, not only for what it is denied. Lint rules over TypeScript unwrap `TSAsExpression`, `TSNonNullExpression`, `TSSatisfiesExpression` and `TSTypeAssertion`.
+- **How to check:** `pnpm --filter @asc/authz test` (orphan test, directory-data test, matrix and policy snapshots); review the snapshot diff for widened or hidden resources.
+- **Guarded by:** `packages/authz/src/roles/matrix.test.ts` (no orphans, all capabilities documented), `policy/snapshot.test.ts` (directory data never facility-filtered), `eslint-config/rules/no-role-name-comparison.test.js` (TypeScript wrappers). Real-Medplum check: P05h policy test.
