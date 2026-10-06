@@ -13,6 +13,8 @@ export const tech: RoleTemplate = {
     "case.read",
     "procedure.document",
     "specimen.manage",
+    "timeout.participate",
+    "image.manage",
   ],
   data: [
     ro("Patient"),

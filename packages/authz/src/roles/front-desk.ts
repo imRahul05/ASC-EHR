@@ -15,6 +15,9 @@ export const frontDesk: RoleTemplate = {
     "case.read",
     "case.advance",
     "consent.collect",
+    "patient.eligibility.check",
+    "case.cancel",
+    "fax.send",
   ],
   // No Composition: front desk never sees clinical notes.
   data: [rw("Patient"), rw("Coverage"), rw("Appointment"), rw("Encounter")],

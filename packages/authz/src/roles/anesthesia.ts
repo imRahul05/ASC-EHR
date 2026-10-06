@@ -22,6 +22,11 @@ export const anesthesia: RoleTemplate = {
     "pacu.document",
     "discharge.approve",
     "breakglass.invoke",
+    "note.edit",
+    "note.addend",
+    "consent.witness",
+    "timeout.participate",
+    "ai.generate",
   ],
   data: [
     ro("Patient"),
