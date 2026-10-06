@@ -219,7 +219,8 @@ Recorded here so the P05g agent finds them. Evidence (commands, test names) live
 6. **Production gate.** `createAuditClient` refuses a store that is not `durable` **and** `appendOnly`. The Postgres store declares both.
 7. **Append-only in three layers.** The runtime role has `SELECT, INSERT` only; no UPDATE or DELETE policy exists; triggers reject UPDATE, DELETE and TRUNCATE for everyone including the owner. Known limits: an owner can drop a trigger on purpose (a reviewable DDL change), and a superuser can disable triggers with `session_replication_role = replica`. There is no purge path: retention, archiving or export is a later, owner-side design.
 8. **Same RLS pattern as `agent_runs`.** `tenant_id NOT NULL`, ENABLE + FORCE, a read policy and an insert policy, explicit grants. Owner-side reads need `app.tenant_id` too (see P05e decision 4). Tests cannot `TRUNCATE` the table, so each test uses its own tenant id.
-9. **Open for P05g: audit-write failure.** `AuditClient` propagates a store failure. P05g decides what a route does when the audit write for an allow or a denial fails (default proposal: a denial still returns 403, an allowed PHI read returns 503 and no data).
+9. **Database errors are sanitized.** `withTenant` rethrows driver failures as `DatabaseError` (SQLSTATE, constraint). Drizzle's message lists all bound parameters, so `agent_runs.output` (PHI) and audit details would otherwise leak into any log or error response (LM-016; found here, also fixes the P05e run store). P05g's error handler must not read `error.cause`.
+10. **Open for P05g: audit-write failure.** `AuditClient` propagates a store failure. P05g decides what a route does when the audit write for an allow or a denial fails (default proposal: a denial still returns 403, an allowed PHI read returns 503 and no data).
 
 ### P05g — API security spine · M · needs P05a, P05e, P05f
 Workspace: `apps/api` (packages: `@fastify/helmet` 13.1.1, `@fastify/rate-limit` 11.2.0).
