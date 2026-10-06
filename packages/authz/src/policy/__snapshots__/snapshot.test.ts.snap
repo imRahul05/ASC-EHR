@@ -1,0 +1,409 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`compiled policies > admin compiles to a stable AccessPolicy 1`] = `
+{
+  "meta": {
+    "tag": [
+      {
+        "code": "admin",
+        "system": "https://asc-ehr.app/role-template",
+        "version": "1",
+      },
+    ],
+  },
+  "name": "admin-v1",
+  "resource": [
+    {
+      "resourceType": "Appointment",
+    },
+    {
+      "readonly": true,
+      "resourceType": "AuditEvent",
+    },
+    {
+      "resourceType": "Coverage",
+    },
+    {
+      "resourceType": "Patient",
+    },
+  ],
+  "resourceType": "AccessPolicy",
+}
+`;
+
+exports[`compiled policies > anesthesia compiles to a stable AccessPolicy 1`] = `
+{
+  "meta": {
+    "tag": [
+      {
+        "code": "anesthesia",
+        "system": "https://asc-ehr.app/role-template",
+        "version": "1",
+      },
+    ],
+  },
+  "name": "anesthesia-v1",
+  "resource": [
+    {
+      "criteria": "Appointment?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Appointment",
+    },
+    {
+      "criteria": "Composition?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Composition",
+    },
+    {
+      "criteria": "Coverage?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Coverage",
+    },
+    {
+      "criteria": "Encounter?_compartment=%facility",
+      "resourceType": "Encounter",
+    },
+    {
+      "criteria": "MedicationAdministration?_compartment=%facility",
+      "resourceType": "MedicationAdministration",
+    },
+    {
+      "criteria": "Observation?_compartment=%facility",
+      "resourceType": "Observation",
+    },
+    {
+      "criteria": "Patient?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Patient",
+    },
+    {
+      "criteria": "QuestionnaireResponse?_compartment=%facility",
+      "resourceType": "QuestionnaireResponse",
+    },
+  ],
+  "resourceType": "AccessPolicy",
+}
+`;
+
+exports[`compiled policies > auditor compiles to a stable AccessPolicy 1`] = `
+{
+  "meta": {
+    "tag": [
+      {
+        "code": "auditor",
+        "system": "https://asc-ehr.app/role-template",
+        "version": "1",
+      },
+    ],
+  },
+  "name": "auditor-v1",
+  "resource": [
+    {
+      "readonly": true,
+      "resourceType": "Appointment",
+    },
+    {
+      "readonly": true,
+      "resourceType": "AuditEvent",
+    },
+    {
+      "readonly": true,
+      "resourceType": "ChargeItem",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Composition",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Coverage",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Encounter",
+    },
+    {
+      "readonly": true,
+      "resourceType": "MedicationAdministration",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Observation",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Patient",
+    },
+    {
+      "readonly": true,
+      "resourceType": "QuestionnaireResponse",
+    },
+  ],
+  "resourceType": "AccessPolicy",
+}
+`;
+
+exports[`compiled policies > coder compiles to a stable AccessPolicy 1`] = `
+{
+  "meta": {
+    "tag": [
+      {
+        "code": "coder",
+        "system": "https://asc-ehr.app/role-template",
+        "version": "1",
+      },
+    ],
+  },
+  "name": "coder-v1",
+  "resource": [
+    {
+      "readonly": true,
+      "resourceType": "Appointment",
+    },
+    {
+      "resourceType": "ChargeItem",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Composition",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Coverage",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Encounter",
+    },
+    {
+      "readonly": true,
+      "resourceType": "MedicationAdministration",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Observation",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Patient",
+    },
+    {
+      "readonly": true,
+      "resourceType": "QuestionnaireResponse",
+    },
+  ],
+  "resourceType": "AccessPolicy",
+}
+`;
+
+exports[`compiled policies > front-desk compiles to a stable AccessPolicy 1`] = `
+{
+  "meta": {
+    "tag": [
+      {
+        "code": "front-desk",
+        "system": "https://asc-ehr.app/role-template",
+        "version": "1",
+      },
+    ],
+  },
+  "name": "front-desk-v1",
+  "resource": [
+    {
+      "criteria": "Appointment?_compartment=%facility",
+      "resourceType": "Appointment",
+    },
+    {
+      "criteria": "Coverage?_compartment=%facility",
+      "resourceType": "Coverage",
+    },
+    {
+      "criteria": "Encounter?_compartment=%facility",
+      "resourceType": "Encounter",
+    },
+    {
+      "criteria": "Patient?_compartment=%facility",
+      "resourceType": "Patient",
+    },
+  ],
+  "resourceType": "AccessPolicy",
+}
+`;
+
+exports[`compiled policies > gi-physician compiles to a stable AccessPolicy 1`] = `
+{
+  "meta": {
+    "tag": [
+      {
+        "code": "gi-physician",
+        "system": "https://asc-ehr.app/role-template",
+        "version": "1",
+      },
+    ],
+  },
+  "name": "gi-physician-v1",
+  "resource": [
+    {
+      "criteria": "Appointment?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Appointment",
+    },
+    {
+      "criteria": "ChargeItem?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "ChargeItem",
+    },
+    {
+      "criteria": "Composition?_compartment=%facility",
+      "resourceType": "Composition",
+      "writeConstraint": [
+        {
+          "expression": "%before.exists() implies %before.status != 'final'",
+          "language": "text/fhirpath",
+        },
+      ],
+    },
+    {
+      "criteria": "Coverage?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Coverage",
+    },
+    {
+      "criteria": "Encounter?_compartment=%facility",
+      "resourceType": "Encounter",
+    },
+    {
+      "criteria": "MedicationAdministration?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "MedicationAdministration",
+    },
+    {
+      "criteria": "Observation?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Observation",
+    },
+    {
+      "criteria": "Patient?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Patient",
+    },
+    {
+      "criteria": "QuestionnaireResponse?_compartment=%facility",
+      "resourceType": "QuestionnaireResponse",
+    },
+  ],
+  "resourceType": "AccessPolicy",
+}
+`;
+
+exports[`compiled policies > rn compiles to a stable AccessPolicy 1`] = `
+{
+  "meta": {
+    "tag": [
+      {
+        "code": "rn",
+        "system": "https://asc-ehr.app/role-template",
+        "version": "1",
+      },
+    ],
+  },
+  "name": "rn-v1",
+  "resource": [
+    {
+      "criteria": "Appointment?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Appointment",
+    },
+    {
+      "criteria": "Composition?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Composition",
+    },
+    {
+      "criteria": "Coverage?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Coverage",
+    },
+    {
+      "criteria": "Encounter?_compartment=%facility",
+      "resourceType": "Encounter",
+    },
+    {
+      "criteria": "MedicationAdministration?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "MedicationAdministration",
+    },
+    {
+      "criteria": "Observation?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Observation",
+    },
+    {
+      "criteria": "Patient?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Patient",
+    },
+    {
+      "criteria": "QuestionnaireResponse?_compartment=%facility",
+      "resourceType": "QuestionnaireResponse",
+    },
+  ],
+  "resourceType": "AccessPolicy",
+}
+`;
+
+exports[`compiled policies > tech compiles to a stable AccessPolicy 1`] = `
+{
+  "meta": {
+    "tag": [
+      {
+        "code": "tech",
+        "system": "https://asc-ehr.app/role-template",
+        "version": "1",
+      },
+    ],
+  },
+  "name": "tech-v1",
+  "resource": [
+    {
+      "criteria": "Appointment?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Appointment",
+    },
+    {
+      "criteria": "Composition?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Composition",
+    },
+    {
+      "criteria": "Coverage?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Coverage",
+    },
+    {
+      "criteria": "Encounter?_compartment=%facility",
+      "resourceType": "Encounter",
+    },
+    {
+      "criteria": "MedicationAdministration?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "MedicationAdministration",
+    },
+    {
+      "criteria": "Observation?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Observation",
+    },
+    {
+      "criteria": "Patient?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Patient",
+    },
+    {
+      "criteria": "QuestionnaireResponse?_compartment=%facility",
+      "resourceType": "QuestionnaireResponse",
+    },
+  ],
+  "resourceType": "AccessPolicy",
+}
+`;
