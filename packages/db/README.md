@@ -48,6 +48,15 @@ Single hospital, tenant-ready ([08 §4.4](../../docs/product/08-identity-access-
 - `claim` is a fencing token; `succeed` / `fail` apply only to `status = 'running' AND claim = $claim`.
 - All timestamps use the database clock (`now()`).
 
+## Audit trail (P05f)
+
+`audit_events` is the durable, append-only audit store behind `@asc/audit`. `createPostgresAuditStore(tenantDb, { defaultTenantId? })` implements `AuditStore` (`durable` and `appendOnly`); inject it at startup with `configureAuditStore`.
+
+- **Append-only, three layers:** the runtime role has `SELECT, INSERT` only; there is no UPDATE or DELETE policy; triggers reject UPDATE, DELETE and TRUNCATE for everyone, including the owner. A superuser can still disable triggers (`session_replication_role = replica`) and an owner can drop one on purpose: both are deliberate acts, not mistakes. There is no purge path.
+- **Tenant:** same pattern as `agent_runs` (`tenant_id NOT NULL`, RLS enabled and forced). Every save runs in `withTenant(event.tenantId ?? defaultTenantId)`; with neither, it throws `AuditTenantMissingError`.
+- **No PHI:** IDs, keys and flat primitives only. `client_ip_prefix` is a /24 or /48 prefix; the raw address never reaches the store.
+- **Tests:** the table cannot be truncated, so tests use one tenant id per test instead of `TRUNCATE`.
+
 ## ⚠️ PHI
 
 `agent_runs.output` stores model output → **PHI**. Staging/production must use encrypted-at-rest Postgres (Azure Postgres Flexible Server), TLS, a least-privilege role, and a retention policy. Never copy rows into Redis, logs, telemetry or audit details. Never load real PHI into the local compose database.
