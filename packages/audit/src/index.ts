@@ -3,8 +3,10 @@ import { isSensitiveKey, logger as baseLogger } from "@asc/logger";
 import type { Logger } from "@asc/logger";
 
 import { truncateClientIp } from "./client-ip.js";
+import { isIamAction, sanitizeIamDetails } from "./iam-events.js";
 
 export { truncateClientIp } from "./client-ip.js";
+export * from "./iam-events.js";
 
 export type ActorType = "user" | "system" | "agent" | "worker" | "bot" | "service";
 export type Outcome = "SUCCESS" | "FAILURE" | "DENIED";
@@ -15,6 +17,8 @@ export type AuditGate = 1 | 2 | 3 | 4 | 5;
 /** Audit `details` values are flat primitives only: no nested objects/arrays. */
 export type AuditDetailValue = string | number | boolean | null;
 export type AuditDetails = Record<string, AuditDetailValue>;
+/** What callers pass: `undefined` entries (optional fields) are skipped, never stored. */
+export type AuditInputDetails = Record<string, AuditDetailValue | undefined>;
 
 export type AuditCacheState = "hit" | "miss" | "bypass";
 
@@ -65,7 +69,8 @@ export interface AuditEvent {
 }
 
 /** The raw `clientIp` is reduced to `clientIpPrefix` before any store sees the event. */
-export type AuditEventInput = Omit<AuditEvent, "timestamp" | "detailsRedacted" | "clientIpPrefix"> & {
+export type AuditEventInput = Omit<AuditEvent, "timestamp" | "detailsRedacted" | "clientIpPrefix" | "details"> & {
+  details?: AuditInputDetails;
   clientIp?: string;
 };
 
@@ -207,11 +212,18 @@ export class AuditClient {
   async logEvent(event: AuditEventInput): Promise<void> {
     const { details, decision, clientIp, userAgent, ...rest } = event;
     const sanitizedDecision = sanitizeDecision(decision, this.production);
+    const sanitizedDetails = sanitizeDetails(details, this.production);
+    const iam = isIamAction(rest.action)
+      ? sanitizeIamDetails(sanitizedDetails.details, this.production)
+      : sanitizedDetails;
     const clientIpPrefix = clientIp === undefined ? undefined : truncateClientIp(clientIp);
     const fullEvent: AuditEvent = {
       ...rest,
-      ...sanitizeDetails(details, this.production),
+      ...iam,
       ...sanitizedDecision,
+      ...(sanitizedDetails.detailsRedacted || iam.detailsRedacted || sanitizedDecision.detailsRedacted
+        ? { detailsRedacted: true }
+        : {}),
       ...(clientIpPrefix === undefined ? {} : { clientIpPrefix }),
       ...(userAgent === undefined ? {} : { userAgent: userAgent.slice(0, MAX_USER_AGENT_LENGTH) }),
       timestamp: new Date().toISOString(),
