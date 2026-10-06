@@ -1,8 +1,10 @@
 import { API_ROUTES } from "@asc/config/api";
 import type { AuthSession, LoginCredentials, SignupPayload, UserProfile, UserRole } from "@asc/types";
+import { accessRequestSchema } from "@asc/validation/auth";
 import { delay, http, HttpResponse } from "msw";
 import { signupIdentity } from "../data/identities";
 import { DEMO_PRESETS } from "../data/users";
+import { addAccessRequest } from "../db/access-requests";
 import { openSession } from "../db/sessions";
 import { findUser, registerSignedUpUser } from "../db/users";
 import { apiUrl } from "./api-url";
@@ -58,6 +60,15 @@ export const authHandlers = [
     const user = preset === undefined ? undefined : findUser(preset.email);
     if (user === undefined) return error(404, "DEMO_PRESET_UNKNOWN", "Unknown demo preset");
     return HttpResponse.json(session(user.profile, "mock_demo_jwt"));
+  }),
+
+  // No account is created and nobody is signed in. Known and unknown emails get the same answer.
+  http.post(apiUrl(API_ROUTES.authAccessRequest), async ({ request }) => {
+    await delay(200);
+    const parsed = accessRequestSchema.safeParse(await request.json());
+    if (!parsed.success) return error(400, "ACCESS_REQUEST_INVALID", "Check your name and email");
+    addAccessRequest(parsed.data);
+    return HttpResponse.json({ status: "received" }, { status: 202 });
   }),
 
   http.post(apiUrl(API_ROUTES.authSignup), async ({ request }) => {

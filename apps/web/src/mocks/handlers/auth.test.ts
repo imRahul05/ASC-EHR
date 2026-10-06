@@ -2,6 +2,7 @@ import { API_ROUTES } from "@asc/config/api";
 import type { AuthSession } from "@asc/types";
 import { setupServer } from "msw/node";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { pendingAccessRequests } from "../db/access-requests";
 import { apiUrl } from "./api-url";
 import { authHandlers } from "./auth";
 import { meHandlers } from "./me";
@@ -41,6 +42,24 @@ describe("mock auth fails closed", () => {
     const body = (await response.json()) as { principal: { kind: string }; facilities: unknown[] };
     expect(body.principal.kind).toBe("staff");
     expect(body.facilities).toHaveLength(2);
+  });
+
+  it("takes an access request without creating an account or a session", async () => {
+    const request = { fullName: "Jordan Reyes", email: "jordan.reyes@example.org" };
+    const response = await post(API_ROUTES.authAccessRequest, { ...request, role: "ADMIN" });
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual({ status: "received" });
+    expect(pendingAccessRequests()).toContainEqual(request);
+    expect((await post(API_ROUTES.authLogin, { email: request.email, password: "x" })).status).toBe(401);
+  });
+
+  it("answers an access request for a known email like any other, so accounts cannot be probed", async () => {
+    const response = await post(API_ROUTES.authAccessRequest, { fullName: "Marcus Vance", email: "admin@ascehr.demo" });
+    expect(response.status).toBe(202);
+  });
+
+  it("rejects an invalid access request", async () => {
+    expect((await post(API_ROUTES.authAccessRequest, { fullName: "J", email: "nope" })).status).toBe(400);
   });
 
   it("gives a new signup an identity, and refuses to re-register an existing email", async () => {
