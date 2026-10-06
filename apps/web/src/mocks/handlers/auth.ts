@@ -2,6 +2,7 @@ import { API_ROUTES } from "@asc/config/api";
 import type { AuthSession, LoginCredentials, SignupPayload, UserProfile, UserRole } from "@asc/types";
 import { delay, http, HttpResponse } from "msw";
 import { DEMO_PRESETS, MOCK_USER_PROFILES } from "../data/users";
+import { openSession } from "../db/sessions";
 import { apiUrl } from "./api-url";
 
 const DAY_MS = 86_400_000;
@@ -17,11 +18,9 @@ const ROLE_TITLES: Record<UserRole, string> = {
 };
 
 function session(user: UserProfile, tokenPrefix: string): AuthSession {
-  return {
-    user,
-    token: `${tokenPrefix}_${user.id}_${Date.now()}`,
-    expiresAt: new Date(Date.now() + DAY_MS).toISOString(),
-  };
+  const token = `${tokenPrefix}_${user.id}_${Date.now()}`;
+  openSession(token, user.email);
+  return { user, token, expiresAt: new Date(Date.now() + DAY_MS).toISOString() };
 }
 
 function initialsOf(fullName: string): string {
