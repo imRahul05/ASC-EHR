@@ -15,6 +15,11 @@ export const BROWSER_ENTRY_POINT_PATHS = [
     message:
       "In browser code import a subpath: @asc/config/public-env or @asc/config/api.",
   },
+  {
+    name: "@asc/authz",
+    message:
+      "In browser code import a leaf: @asc/authz/can, /grants, /roles or /workspaces (the root barrel uses NodeNext .js re-exports).",
+  },
 ];
 
 const APP_RESTRICTED_PATHS = [
