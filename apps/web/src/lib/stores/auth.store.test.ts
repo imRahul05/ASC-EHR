@@ -6,7 +6,7 @@ import { useAuthStore } from "./auth.store";
 const session: AuthSession = {
   token: "t",
   expiresAt: "2099-01-01T00:00:00.000Z",
-  user: { id: "u1", email: "u@x.dev", fullName: "U One", role: "NURSE", roleTitle: "RN", initials: "UO", facilityName: "A" },
+  user: { id: "u1", email: "u@x.dev", fullName: "U One", roleTitle: "RN", initials: "UO", facilityName: "A" },
 };
 
 const me: MeResponse = {

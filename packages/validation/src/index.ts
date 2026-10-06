@@ -20,7 +20,7 @@ export * from "./agents/discharge-instructions.js";
 // Background job contracts — enqueued by apps/api, processed by apps/worker
 export * from "./jobs.js";
 
-// Authentication and multi-persona signup (single role→fields map drives schema and form)
+// Authentication: login and access requests
 export * from "./auth.js";
 
 // API error body

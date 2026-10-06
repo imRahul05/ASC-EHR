@@ -62,13 +62,7 @@ describe("mock auth fails closed", () => {
     expect((await post(API_ROUTES.authAccessRequest, { fullName: "J", email: "nope" })).status).toBe(400);
   });
 
-  it("gives a new signup an identity, and refuses to re-register an existing email", async () => {
-    const payload = { email: "new.nurse@example.com", password: "secret1", fullName: "New Nurse", role: "NURSE" };
-    const signup = await post(API_ROUTES.authSignup, payload);
-    expect(signup.status).toBe(200);
-    const { token } = (await signup.json()) as AuthSession;
-    expect((await me(token)).status).toBe(200);
-    expect((await post(API_ROUTES.authSignup, payload)).status).toBe(409);
-    expect((await post(API_ROUTES.authSignup, { ...payload, email: "admin@ascehr.demo" })).status).toBe(409);
+  it("has no self-signup: accounts exist only by invitation", () => {
+    expect(API_ROUTES).not.toHaveProperty("authSignup");
   });
 });

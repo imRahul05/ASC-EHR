@@ -1,5 +1,5 @@
 import { API_ROUTES } from "@asc/config/api";
-import type { AuthSession, DemoAccountPreset, DemoPersonaId, LoginCredentials, SignupPayload } from "@asc/types";
+import type { AuthSession, DemoAccountPreset, DemoPersonaId, LoginCredentials } from "@asc/types";
 import { accessRequestSchema, type AccessRequestFormData } from "@asc/validation/auth";
 import { meResponseSchema, type MeResponse } from "@asc/validation/authz";
 import { http } from "./http";
@@ -14,10 +14,6 @@ export function loginWithDemoPreset(presetId: DemoPersonaId): Promise<AuthSessio
 
 export function getDemoPresets(): Promise<readonly DemoAccountPreset[]> {
   return http.get<readonly DemoAccountPreset[]>(API_ROUTES.authDemoPresets);
-}
-
-export function registerUser(payload: SignupPayload): Promise<AuthSession> {
-  return http.post<AuthSession>(API_ROUTES.authSignup, payload);
 }
 
 /**
