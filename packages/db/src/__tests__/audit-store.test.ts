@@ -9,6 +9,7 @@ import { AuditClient, createAuditClient, iamEvent, type AuditEvent } from '@asc/
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { AuditTenantMissingError, createPostgresAuditStore } from '../audit-store.js';
+import { DatabaseError } from '../db-error.js';
 import { auditEvents } from '../schema/audit-events.js';
 import { connectRuntime, createTestSchema, runtimeUrl, type RuntimeAccess, type TestSchema } from './test-db.js';
 
@@ -136,13 +137,25 @@ describeDb(TEST_DATABASE_URL ? 'PostgresAuditStore' : 'PostgresAuditStore (SKIPP
     expect(JSON.stringify(rows)).not.toContain('203.0.113.57');
   });
 
-  it('propagates a database failure to the caller (audit loss is visible)', async () => {
+  it('propagates a database failure as a DatabaseError without the event values', async () => {
     const tenantId = randomUUID();
     const store = createPostgresAuditStore(runtime.tenantDb);
     // gate outside 1..5 violates the CHECK constraint
-    await expect(
-      store.save({ action: 'x', actorType: 'user', actorId: 'u', tenantId, outcome: 'DENIED', gate: 9 as never, timestamp: new Date().toISOString() }),
-    ).rejects.toThrow();
+    const error = await store
+      .save({
+        action: 'CANARY-ACTION',
+        actorType: 'user',
+        actorId: 'CANARY-ACTOR',
+        tenantId,
+        outcome: 'DENIED',
+        gate: 9 as never,
+        details: { note: 'CANARY-DETAIL' },
+        timestamp: new Date().toISOString(),
+      })
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(DatabaseError);
+    expect(error).toMatchObject({ sqlState: '23514', constraint: 'audit_events_gate_check' });
+    expect(JSON.stringify({ message: (error as Error).message, own: Object.entries(error as object) })).not.toContain('CANARY');
     expect(await rowsOf(tenantId)).toHaveLength(0);
   });
 });

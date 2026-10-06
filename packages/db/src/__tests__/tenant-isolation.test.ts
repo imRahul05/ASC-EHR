@@ -86,10 +86,12 @@ describeDb(TEST_DATABASE_URL ? 'tenant isolation (runtime role)' : 'tenant isola
       const a = createPostgresAgentRunStore(runtime.tenantDb, { tenantId: TENANT_A });
       const b = createPostgresAgentRunStore(runtime.tenantDb, { tenantId: TENANT_B });
       await a.begin(start, stale);
-      // The primary key is still global (open question in the PR): tenant B's insert collides
-      // and is rejected by RLS. It must not claim, overwrite or reveal the row.
+      // The primary key is still global (open question in the plan): tenant B's insert collides
+      // with a row it cannot see, so begin finds nothing to claim and fails. It must not claim,
+      // overwrite or reveal the row.
       const error = await b.begin(start, stale).catch((e: unknown) => e);
       expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toMatch(/vanished during begin/);
       expect(await a.get('job-1')).toMatchObject({ status: 'running', claim: 1 });
       expect(await count(TENANT_B)).toBe(0);
     });
