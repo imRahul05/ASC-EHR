@@ -46,6 +46,7 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 14. Authz templates: every catalog capability is held by some role, each capability comes with the data rights it needs, and tenant-wide directory data is `shared` (never facility-filtered); lint rules that inspect TypeScript must see through `as`/`!`/`satisfies`. (LM-014)
 15. Finishing a phase PR: record the phase's decisions in its plan file (decisions block, not only the PR body), leave the plan checklist unticked (evidence goes in the PR), update every `.env*.example` and `docs/DEPLOYMENT_CONFIGURATION.md` for each new env var, write down rules a later migration must follow, and never let a CI run pass with skipped DB tests. (LM-015)
 16. Driver errors carry data: Drizzle's "Failed query" message lists every bound parameter and Postgres puts the failing row in `DETAIL`. Database access goes through `withTenant`, which turns them into `DatabaseError` (SQLSTATE and constraint only); never log or return a raw driver error. (LM-016)
+17. A guard must validate every field its spec names, and have a test per field: a typed union is not a runtime check at a boundary that takes untyped input. (LM-017)
 
 ---
 
@@ -164,3 +165,10 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **Rule:** All app database access goes through `withTenant`, which converts driver failures to `DatabaseError` (SQLSTATE and constraint name only). Do not read `error.cause`, `error.params` or `error.detail`, and do not add a code path that talks to the database without `withTenant`.
 - **How to check:** `pnpm --filter @asc/db test` (`db-error.test.ts`, and the canary assertions in `audit-store.test.ts`); grep for `.cause` and `.params` in code that handles database errors.
 - **Guarded by:** `packages/db/src/db-error.test.ts` and `audit-store.test.ts` (canary strings must not appear in the error). Raw clients outside `withTenant` are not covered: the owner client lives in `@asc/db/migrate` for migrations only.
+
+### LM-017 — A validator covers every field its spec names, with a test for each
+- **Seen:** 1 · 2026-10-06 · PR #38 (P05f), found in review
+- **What went wrong:** The P05f decision said `decision.roleVersions`, `catalogVersion` and `cache` must be short identifiers or rejected, but `sanitizeDecision` checked only the first two. The `cache` field was protected by its TypeScript union alone, so a value from an adapter result or JSON would have been written to the audit table unchecked. The tests covered the two checked fields and never tried a bad `cache`.
+- **Rule:** When a guard exists to keep free text out of a PHI-free store, list the fields from the spec and validate each at runtime (allowed set for enums, token pattern for ids), then add a rejecting test and a production-drops test per field. Types protect typed callers only (LM-012 is about not adding fallbacks inside typed code, not about skipping validation where untyped data arrives).
+- **How to check:** `pnpm --filter @asc/audit test` (`decision.test.ts` has a case per field); compare the spec's field list with the validator.
+- **Guarded by:** `packages/audit/src/decision.test.ts` (one rejecting case per decision field).

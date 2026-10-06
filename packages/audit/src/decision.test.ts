@@ -43,6 +43,33 @@ describe("decision provenance", () => {
     );
   });
 
+  it("rejects a cache state that is not hit, miss or bypass", async () => {
+    const client = new AuditClient(store, { production: false });
+    const forged = { ...decision, cache: "Jane Doe was here" as never };
+    await expect(client.logEvent({ ...base, decision: forged })).rejects.toBeInstanceOf(AuditDecisionError);
+    await expect(client.logEvent({ ...base, decision: { ...decision, cache: "" as never } })).rejects.toBeInstanceOf(
+      AuditDecisionError,
+    );
+  });
+
+  it("accepts each valid cache state", async () => {
+    events.length = 0;
+    const client = new AuditClient(store, { production: false });
+    for (const cache of ["hit", "miss", "bypass"] as const) await client.logEvent({ ...base, decision: { ...decision, cache } });
+    expect(events.map((e) => e.decision?.cache)).toEqual(["hit", "miss", "bypass"]);
+  });
+
+  it("drops a decision with a free-text cache state in production and marks the event", async () => {
+    events.length = 0;
+    await new AuditClient(store, { production: true }).logEvent({
+      ...base,
+      decision: { ...decision, cache: "Jane Doe was here" as never },
+    });
+    expect(events[0]).not.toHaveProperty("decision");
+    expect(events[0]?.detailsRedacted).toBe(true);
+    expect(JSON.stringify(events[0])).not.toContain("Jane");
+  });
+
   it("drops an invalid decision in production, keeps the event and marks it", async () => {
     events.length = 0;
     await new AuditClient(store, { production: true }).logEvent({

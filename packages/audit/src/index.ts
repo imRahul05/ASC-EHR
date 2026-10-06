@@ -20,7 +20,8 @@ export type AuditDetails = Record<string, AuditDetailValue>;
 /** What callers pass: `undefined` entries (optional fields) are skipped, never stored. */
 export type AuditInputDetails = Record<string, AuditDetailValue | undefined>;
 
-export type AuditCacheState = "hit" | "miss" | "bypass";
+export const AUDIT_CACHE_STATES = ["hit", "miss", "bypass"] as const;
+export type AuditCacheState = (typeof AUDIT_CACHE_STATES)[number];
 
 /**
  * Why an allow/deny decision was made (08 §12.3), so an auditor can reconstruct
@@ -130,7 +131,7 @@ export class AuditDecisionError extends Error {
   constructor() {
     super(
       "Audit decision rejected: role versions and catalog version must be short identifiers " +
-        "(letters, digits, '.', '_', '-'), never free text.",
+        "(letters, digits, '.', '_', '-') and cache must be hit, miss or bypass, never free text.",
     );
     this.name = "AuditDecisionError";
   }
@@ -201,7 +202,9 @@ export function sanitizeDecision(
 ): { decision?: AuditDecision; detailsRedacted?: boolean } {
   if (decision === undefined) return {};
   const valid =
-    DECISION_TOKEN.test(decision.catalogVersion) && decision.roleVersions.every((v) => DECISION_TOKEN.test(v));
+    (AUDIT_CACHE_STATES as readonly string[]).includes(decision.cache) &&
+    DECISION_TOKEN.test(decision.catalogVersion) &&
+    decision.roleVersions.every((v) => DECISION_TOKEN.test(v));
   if (valid) return { decision: { ...decision, roleVersions: [...decision.roleVersions] } };
   if (!production) throw new AuditDecisionError();
   return { detailsRedacted: true };
