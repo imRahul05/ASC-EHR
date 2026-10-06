@@ -17,7 +17,7 @@ import {
   UsersRound,
   type LucideIcon,
 } from "@asc/ui/icons";
-import type { Capability, UserRole } from "@asc/types";
+import type { Capability } from "@asc/types";
 import { ROUTE_ACCESS } from "@/lib/route-access";
 
 /** Every signed-in screen (docs/product/07-mock-frontend.md §4). Keys are the first path segment. */
@@ -91,54 +91,8 @@ export function visibleNavItems(
   );
 }
 
-/**
- * Sidebar per role. Superseded by NAV_ITEMS + visibleNavItems; only the help sheet still
- * reads it, and P05d2 removes it with UserRole.
- */
-export const NAV_BY_ROLE: Readonly<Record<UserRole, readonly NavItem[]>> = {
-  ADMIN: [
-    nav("dashboard"),
-    nav("schedule"),
-    nav("patients"),
-    nav("referrals"),
-    nav("worklist"),
-    nav("coding"),
-    nav("quality"),
-    nav("audit"),
-    nav("admin"),
-    nav("guide"),
-  ],
-  NURSE: [nav("dashboard"), nav("whiteboard"), nav("schedule"), nav("patients"), nav("worklist"), nav("guide")],
-  SURGEON: [
-    nav("dashboard"),
-    nav("schedule"),
-    nav("patients"),
-    nav("worklist", "Sign queue"),
-    nav("pathology"),
-    nav("quality"),
-    nav("guide"),
-  ],
-  ANESTHESIOLOGIST: [nav("dashboard"), nav("whiteboard"), nav("schedule"), nav("patients"), nav("guide")],
-  PATIENT: [
-    nav("my-care"),
-    { key: "my-care-prep", href: "/my-care?view=prep", title: "Prep", icon: ClipboardList, requiresAny: PORTAL },
-    { key: "my-care-escort", href: "/my-care?view=escort", title: "Escort", icon: UsersRound, requiresAny: PORTAL },
-    { key: "my-care-results", href: "/my-care?view=results", title: "Results & instructions", icon: FileHeart, requiresAny: PORTAL },
-    nav("guide"),
-  ],
-};
-
 /** Page title for the top bar breadcrumb, from the first path segment. */
 export function routeTitle(pathname: string): string {
   const segment = pathname.split("/")[1] ?? "";
   return segment in ROUTES ? ROUTES[segment as RouteKey].title : "";
 }
-
-/** Role labels for the demo persona switcher. */
-export const ROLE_LABEL: Readonly<Record<UserRole, { readonly label: string; readonly description: string }>> = {
-  ADMIN: { label: "Front desk & admin", description: "Scheduling, referrals, coding, audit" },
-  NURSE: { label: "Nurse", description: "Pre-op, procedure room, PACU" },
-  SURGEON: { label: "Gastroenterologist", description: "Slate, notes, pathology" },
-  ANESTHESIOLOGIST: { label: "Anesthesia", description: "Sedation and airway" },
-  PATIENT: { label: "Patient", description: "Portal: prep, escort, results" },
-};

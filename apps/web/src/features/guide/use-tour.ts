@@ -2,8 +2,9 @@
 
 import { useEffect } from "react";
 import { useCaseDetails } from "@asc/api-client/react";
-import { useAuth } from "@/hooks/use-auth";
-import { ROLE_BADGE, TOUR_PHASE_HINT, TOUR_STEPS } from "./guide-content";
+import { useCan } from "@/hooks/use-can";
+import { PERSONAS } from "@/lib/personas";
+import { TOUR_PHASE_HINT, TOUR_STEPS } from "./guide-content";
 import { markStepsDone, useGuideState } from "./guide-store";
 
 const CASE_STEPS = TOUR_STEPS.flatMap((step) => ("caseId" in step ? [step] : []));
@@ -15,8 +16,8 @@ const CASE_IDS = CASE_STEPS.map((step) => step.caseId);
  */
 export function useTour() {
   const guide = useGuideState();
-  const { user } = useAuth();
-  const watching = guide.tour === "active" && user !== null && user.role !== "PATIENT";
+  const can = useCan();
+  const watching = guide.tour === "active" && can("case.read");
   const cases = useCaseDetails(CASE_IDS, { enabled: watching });
 
   const autoDone: readonly string[] = CASE_STEPS.filter((step, index) => {
@@ -34,7 +35,7 @@ export function useTour() {
     id: step.id,
     title: step.title,
     description: step.description,
-    badge: ROLE_BADGE[step.role],
+    badge: PERSONAS[step.persona].short,
     done: guide.done.includes(step.id) || autoDone.includes(step.id),
     autoHint: "caseId" in step ? ("autoHint" in step ? step.autoHint : TOUR_PHASE_HINT) : undefined,
   }));

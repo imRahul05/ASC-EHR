@@ -19,24 +19,28 @@ import {
   toast,
 } from "@asc/ui";
 import { Check, ChevronDown, ChevronRight, LogOut, RotateCcw } from "@asc/ui/icons";
-import type { UserRole } from "@asc/types";
 import { HelpButton } from "../../features/guide/help-button";
-import { useAuth } from "../../hooks/use-auth";
+import { useAuth, useCurrentPersona, useDemoPresets } from "../../hooks/use-auth";
+import { PERSONAS } from "../../lib/personas";
+import { roleLabelsFor } from "../../lib/role-labels";
 import { CommandMenu } from "./command-menu";
 import { FacilitySwitcher } from "./facility-switcher";
 import { WorkspaceSwitcher } from "./workspace-switcher";
-import { ROLE_LABEL, routeTitle } from "./nav-config";
+import { routeTitle } from "./nav-config";
 
-const ROLES = Object.keys(ROLE_LABEL) as UserRole[];
+function PersonaSwitcher() {
+  const { user, switchPersona } = useAuth();
+  const presets = useDemoPresets();
+  const current = useCurrentPersona();
+  const ordered = (presets.data ?? []).toSorted((a, b) => PERSONAS[a.id].order - PERSONAS[b.id].order);
 
-function RoleSwitcher({ role, onSwitch }: { readonly role: UserRole; readonly onSwitch: (role: UserRole) => void }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
           <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs font-medium" data-testid="role-switcher">
             <span className="hidden text-muted-foreground md:inline">Viewing as</span>
-            {ROLE_LABEL[role].label}
+            {current === null ? (user?.fullName.split(",")[0] ?? "You") : PERSONAS[current].label}
             <ChevronDown className="size-3 text-muted-foreground" />
           </Button>
         }
@@ -44,12 +48,12 @@ function RoleSwitcher({ role, onSwitch }: { readonly role: UserRole; readonly on
       <DropdownMenuContent align="end" sideOffset={8} className="w-64">
         <DropdownMenuGroup>
           <DropdownMenuLabel className="text-[11px] font-normal text-muted-foreground">Switch demo persona</DropdownMenuLabel>
-          {ROLES.map((item) => (
-            <DropdownMenuItem key={item} onClick={() => onSwitch(item)} className="items-start gap-2 py-2" data-testid={`role-option-${item}`}>
-              <Check className={item === role ? "mt-0.5 size-3.5 text-primary" : "mt-0.5 size-3.5 opacity-0"} />
+          {ordered.map((preset) => (
+            <DropdownMenuItem key={preset.id} onClick={() => void switchPersona(preset.id)} className="items-start gap-2 py-2" data-testid={`role-option-${preset.id.replace("demo-", "")}`}>
+              <Check className={preset.id === current ? "mt-0.5 size-3.5 text-primary" : "mt-0.5 size-3.5 opacity-0"} />
               <span className="flex flex-col">
-                <span className="text-xs font-medium">{ROLE_LABEL[item].label}</span>
-                <span className="text-[11px] text-muted-foreground">{ROLE_LABEL[item].description}</span>
+                <span className="text-xs font-medium">{PERSONAS[preset.id].label}</span>
+                <span className="text-[11px] text-muted-foreground">{PERSONAS[preset.id].description}</span>
               </span>
             </DropdownMenuItem>
           ))}
@@ -62,9 +66,8 @@ function RoleSwitcher({ role, onSwitch }: { readonly role: UserRole; readonly on
 /** Sticky top bar: sidebar toggle, breadcrumb, ⌘K, persona switcher, theme, user menu. */
 export function TopBar() {
   const pathname = usePathname();
-  const { user, facilities, facilityId, switchRole, logout } = useAuth();
+  const { user, principal, facilities, facilityId, logout } = useAuth();
   const resetDemo = useResetDemo();
-  const role: UserRole = user?.role ?? "SURGEON";
   const title = routeTitle(pathname);
 
   const onReset = () =>
@@ -90,7 +93,7 @@ export function TopBar() {
         <HelpButton />
         <FacilitySwitcher />
         <WorkspaceSwitcher />
-        <RoleSwitcher role={role} onSwitch={(next) => void switchRole(next)} />
+        <PersonaSwitcher />
         <ThemeToggle className="size-8" />
         <DropdownMenu>
           <DropdownMenuTrigger
@@ -107,6 +110,7 @@ export function TopBar() {
               <DropdownMenuLabel className="font-normal">
                 <p className="text-sm font-medium text-foreground">{user?.fullName}</p>
                 <p className="text-xs text-muted-foreground">{user?.roleTitle}</p>
+                <p className="text-[11px] text-muted-foreground" data-testid="user-roles">{roleLabelsFor(principal, facilityId).join(" · ")}</p>
               </DropdownMenuLabel>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />

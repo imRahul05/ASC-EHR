@@ -1,20 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import type { DemoPersonaId, UserRole } from "@asc/types";
+import type { DemoPersonaId } from "@asc/types";
 import { Skeleton } from "@asc/ui/components/ui/skeleton";
 import { toast } from "@asc/ui/components/ui/sonner";
 import { cn } from "@asc/ui/lib/utils";
 import { ArrowRight, Building2, HeartPulse, Loader2, ShieldPlus, Stethoscope, UserRound, type LucideIcon } from "@asc/ui/icons";
+import { PERSONAS } from "../../lib/personas";
 import { useAuth, useDemoPresets } from "../../hooks/use-auth";
 
-/** Persona labels from docs/product/07-mock-frontend.md §2 (display order = demo script order). */
-const PERSONAS: Readonly<Record<UserRole, { readonly label: string; readonly icon: LucideIcon; readonly lands: string; readonly order: number }>> = {
-  ADMIN: { label: "Front desk / Admin", icon: Building2, lands: "Center operations", order: 0 },
-  NURSE: { label: "Nurse", icon: HeartPulse, lands: "Whiteboard", order: 1 },
-  SURGEON: { label: "Gastroenterologist", icon: Stethoscope, lands: "Slate + sign queue", order: 2 },
-  ANESTHESIOLOGIST: { label: "Anesthesia", icon: ShieldPlus, lands: "Anesthesia queue", order: 3 },
-  PATIENT: { label: "Patient", icon: UserRound, lands: "My procedure", order: 4 },
+/** Persona icons (labels and order live in lib/personas.ts, keyed by preset id). */
+const PERSONA_ICON: Readonly<Record<DemoPersonaId, LucideIcon>> = {
+  "demo-admin": Building2,
+  "demo-nurse": HeartPulse,
+  "demo-surgeon": Stethoscope,
+  "demo-anesthesia": ShieldPlus,
+  "demo-patient": UserRound,
 };
 
 /** One-click demo sign-in: a card per persona (all five roles). Export name kept for the login page. */
@@ -23,7 +24,7 @@ export function DemoLoginBar() {
   const presets = useDemoPresets();
   const [pendingId, setPendingId] = useState<DemoPersonaId | null>(null);
   const ordered = (presets.data ?? []).toSorted(
-    (a, b) => PERSONAS[a.role].order - PERSONAS[b.role].order,
+    (a, b) => PERSONAS[a.id].order - PERSONAS[b.id].order,
   );
 
   const signIn = async (presetId: DemoPersonaId) => {
@@ -53,8 +54,8 @@ export function DemoLoginBar() {
             </li>
           ))}
         {ordered.map((preset, index) => {
-          const persona = PERSONAS[preset.role];
-          const Icon = persona.icon;
+          const persona = PERSONAS[preset.id];
+          const Icon = PERSONA_ICON[preset.id];
           const pending = pendingId === preset.id;
           return (
             <li key={preset.id} className={cn(index === 0 && "sm:col-span-2")}>
@@ -63,7 +64,7 @@ export function DemoLoginBar() {
                 onClick={() => void signIn(preset.id)}
                 disabled={isDemoLoggingIn}
                 aria-label={`Sign in as ${persona.label} (${preset.fullName})`}
-                data-testid={`demo-persona-${preset.role.toLowerCase()}`}
+                data-testid={`demo-persona-${preset.id.replace("demo-", "")}`}
                 className={cn(
                   "group flex w-full items-center gap-3 rounded-xl border border-border bg-card p-3 text-left shadow-xs outline-none transition-colors motion-reduce:transition-none",
                   "hover:border-primary/40 hover:bg-accent/60 focus-visible:ring-3 focus-visible:ring-ring/40 disabled:opacity-60",

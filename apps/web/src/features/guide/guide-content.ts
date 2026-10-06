@@ -1,5 +1,5 @@
 import { PHASE_ORDER } from "@asc/clinical-rules/phases";
-import type { CaseDetail, CasePhase, UserRole } from "@asc/types";
+import type { CaseDetail, CasePhase, DemoPersonaId } from "@asc/types";
 import {
   Bot,
   ClipboardCheck,
@@ -27,8 +27,6 @@ interface HelpEntry {
   readonly purpose: string;
   readonly steps: readonly string[];
   readonly records?: readonly RecordLink[];
-  /** Omit to derive from NAV_BY_ROLE. */
-  readonly roles?: readonly UserRole[];
   readonly mocked: string;
   readonly production: string;
 }
@@ -37,8 +35,6 @@ interface TabHelp extends HelpEntry {
   /** One line for the hint strip at the top of the tab. */
   readonly hint: string;
 }
-
-const STAFF: readonly UserRole[] = ["ADMIN", "NURSE", "SURGEON", "ANESTHESIOLOGIST"];
 
 const caseLink = (caseId: string, tab: string, label: string, hint: string): RecordLink => ({
   label,
@@ -174,7 +170,6 @@ export const ROUTE_HELP: Readonly<Record<string, HelpEntry>> = {
       { label: "Prep checklist", href: "/my-care?view=prep" },
       { label: "Results & instructions", href: "/my-care?view=results" },
     ],
-    roles: ["PATIENT"],
     mocked: "Robert Miller (case 0915) is the demo patient.",
     production: "Patient-facing app with its own sign-in; reads only this patient's records.",
   },
@@ -183,7 +178,6 @@ export const ROUTE_HELP: Readonly<Record<string, HelpEntry>> = {
     purpose: "Everything in the demo, grouped by the patient journey, plus personas, shortcuts and answers.",
     steps: ["Start or restart the guided tour.", "Pick a feature and click Open (the persona switches for you).", "Reset demo data if you want a clean slate."],
     records: [],
-    roles: [...STAFF, "PATIENT"],
     mocked: "This page only exists in the demo.",
     production: "Real training material would live in the staff handbook.",
   },
@@ -198,7 +192,6 @@ export const CASE_TAB_HELP: Readonly<Record<string, TabHelp>> = {
     purpose: "History & physical before the day: AI pre-visit brief, medications with hold rules, allergies, airway.",
     steps: ["Read the pre-visit brief and accept or edit it.", "Review each medication hold (e.g. apixaban) and mark holds reviewed.", "Set ASA and Mallampati, then Sign H&P."],
     records: [caseLink("case_107", "pre-procedure", "Case 0917 · H&P unsigned", "Apixaban hold pending, penicillin allergy")],
-    roles: STAFF,
     mocked: "The brief is canned text built from the demo chart.",
     production: "Pre-visit agent drafts the brief from Medplum records; a clinician accepts and signs.",
   },
@@ -211,7 +204,6 @@ export const CASE_TAB_HELP: Readonly<Record<string, TabHelp>> = {
       caseLink("case_107", "pre-op", "Case 0917 · in pre-op", "Consents pending"),
       caseLink("case_108", "pre-op", "Case 0918 · arrived", "Start pre-op"),
     ],
-    roles: STAFF,
     mocked: "Signatures are stored in memory as images.",
     production: "Consent + QuestionnaireResponse in Medplum; the API re-runs the readiness gate.",
   },
@@ -228,7 +220,6 @@ export const CASE_TAB_HELP: Readonly<Record<string, TabHelp>> = {
       caseLink("case_104", "procedure", "Case 0914 · ready, time-out not done", "Start here"),
       caseLink("case_103", "procedure", "Case 0913 · in procedure", "Jar A logged, no scope-out yet"),
     ],
-    roles: STAFF,
     mocked: "Narration is a scripted transcript, not real speech-to-text.",
     production: "Room tablet streams audio to speech-to-text; events and specimens become FHIR resources.",
   },
@@ -238,7 +229,6 @@ export const CASE_TAB_HELP: Readonly<Record<string, TabHelp>> = {
     purpose: "Anesthesia record: vitals grid, drug administration with running totals, airway, sedation times.",
     steps: ["Set sedation start.", "Add a propofol dose and a set of vitals.", "Record airway support, then sedation end."],
     records: [caseLink("case_103", "anesthesia", "Case 0913 · in procedure", "Record doses live")],
-    roles: STAFF,
     mocked: "Monitors are not connected; you type the values.",
     production: "Device integration feeds vitals; entries queue offline on the room tablet.",
   },
@@ -255,7 +245,6 @@ export const CASE_TAB_HELP: Readonly<Record<string, TabHelp>> = {
       caseLink("case_106", "note", "Case 0916 · in recovery, no note", "Generating finds a missing jar size"),
       caseLink("case_101", "note", "Case 0911 · draft waiting", "Blocking gap: prep score"),
     ],
-    roles: STAFF,
     mocked: "The stream is a scripted mock of the note agent (~6 s).",
     production: "Note agent runs as a worker job via the AI gateway; draft-first, the clinician signs.",
   },
@@ -268,7 +257,6 @@ export const CASE_TAB_HELP: Readonly<Record<string, TabHelp>> = {
       caseLink("case_106", "recovery", "Case 0916 · just arrived", "No Aldrete yet"),
       caseLink("case_102", "recovery", "Case 0912 · ready to go", "Aldrete 10, instructions drafted"),
     ],
-    roles: STAFF,
     mocked: "Instructions are template text from the mock agent.",
     production: "Discharge agent drafts from the signed note; a nurse approves before the patient sees it.",
   },
@@ -278,7 +266,6 @@ export const CASE_TAB_HELP: Readonly<Record<string, TabHelp>> = {
     purpose: "CPT/ICD/modifier suggestions with evidence and confidence, coder attestation, charge export.",
     steps: ["Open each code's evidence and accept or edit it.", "Attest the coding.", "Export charges (you confirm first)."],
     records: [caseLink("case_113", "coding", "Case 0897 · coding in review", "45385 + Z12.11 suggested")],
-    roles: STAFF,
     mocked: "Export produces a fake 837P line list.",
     production: "Coding agent suggests; coder attests; claim goes to the clearinghouse.",
   },
@@ -291,7 +278,6 @@ export const CASE_TAB_HELP: Readonly<Record<string, TabHelp>> = {
       caseLink("case_115", "pathology", "Case 0871 · awaiting results", "Start here"),
       caseLink("case_113", "pathology", "Case 0897 · received", "Needs reconciling"),
     ],
-    roles: STAFF,
     mocked: "You enter results by hand.",
     production: "Lab results arrive over HL7; the interval follows guideline rules in @asc/clinical-rules.",
   },
@@ -307,21 +293,21 @@ export const TOUR_PHASE_HINT = "Ticks itself when the case moves on.";
 export const TOUR_STEPS = [
   {
     id: "referral",
-    role: "ADMIN",
+    persona: "demo-admin",
     title: "Turn a fax into a patient",
     description: "Open a referral, check the AI-extracted facts against the fax, then create the patient.",
     href: "/referrals",
   },
   {
     id: "book",
-    role: "ADMIN",
+    persona: "demo-admin",
     title: "Book a case",
     description: "Click Book case, pick the patient, colonoscopy, screening, Room 2 at 09:30. Conflicts show before you save.",
     href: "/schedule",
   },
   {
     id: "confirm",
-    role: "ADMIN",
+    persona: "demo-admin",
     title: "Confirm a scheduled case",
     description: "Case 0919's insurance shows inactive. Re-check eligibility on the patient's chart, then Confirm case here.",
     href: "/cases/case_109?tab=pre-procedure",
@@ -330,7 +316,7 @@ export const TOUR_STEPS = [
   },
   {
     id: "pre-op",
-    role: "NURSE",
+    persona: "demo-nurse",
     title: "Get a patient ready",
     description: "Sign the H&P and review the apixaban hold, then on Pre-op sign consents and record vitals until the gate is green.",
     href: "/cases/case_107?tab=pre-procedure",
@@ -339,7 +325,7 @@ export const TOUR_STEPS = [
   },
   {
     id: "time-out",
-    role: "NURSE",
+    persona: "demo-nurse",
     title: "Run the time-out",
     description: "Tick every time-out item, attest for surgeon, nurse and anesthesia, then Start procedure.",
     href: "/cases/case_104?tab=procedure",
@@ -348,14 +334,14 @@ export const TOUR_STEPS = [
   },
   {
     id: "anesthesia",
-    role: "ANESTHESIOLOGIST",
+    persona: "demo-anesthesia",
     title: "Chart sedation",
     description: "On the flowsheet, add a propofol dose and a set of vitals for the case in the room.",
     href: "/cases/case_103?tab=anesthesia",
   },
   {
     id: "procedure",
-    role: "NURSE",
+    persona: "demo-nurse",
     title: "Finish the procedure",
     description: "Tap scope out, log a second polyp jar, then End procedure. The case moves to recovery.",
     href: "/cases/case_103?tab=procedure",
@@ -364,7 +350,7 @@ export const TOUR_STEPS = [
   },
   {
     id: "note",
-    role: "SURGEON",
+    persona: "demo-surgeon",
     title: "Sign the AI note",
     description: "Click Generate, fix the blocking gap chip (a missing jar size), review, then sign. AI never signs for you.",
     href: "/cases/case_106?tab=note",
@@ -374,7 +360,7 @@ export const TOUR_STEPS = [
   },
   {
     id: "discharge",
-    role: "NURSE",
+    persona: "demo-nurse",
     title: "Discharge from recovery",
     description: "Aldrete is 10. Approve the AI discharge instructions, confirm the escort, then Discharge.",
     href: "/cases/case_102?tab=recovery",
@@ -383,7 +369,7 @@ export const TOUR_STEPS = [
   },
   {
     id: "coding",
-    role: "ADMIN",
+    persona: "demo-admin",
     title: "Code and bill",
     description: "Accept the suggested 45385 and Z12.11 (check the evidence), attest, then export charges.",
     href: "/cases/case_113?tab=coding",
@@ -393,7 +379,7 @@ export const TOUR_STEPS = [
   },
   {
     id: "pathology",
-    role: "SURGEON",
+    persona: "demo-surgeon",
     title: "Close the loop on pathology",
     description: "Record tubular adenoma for each jar, set surveillance to 5 years, send the letter, then Close case.",
     href: "/cases/case_115?tab=pathology",
@@ -402,14 +388,14 @@ export const TOUR_STEPS = [
   },
   {
     id: "portal",
-    role: "PATIENT",
+    persona: "demo-patient",
     title: "See it as the patient",
     description: "The portal shows prep, escort, discharge instructions and the result letter in plain language.",
     href: "/my-care?view=results",
   },
 ] as const satisfies readonly {
   id: string;
-  role: UserRole;
+  persona: DemoPersonaId;
   title: string;
   description: string;
   href: string;
@@ -438,9 +424,9 @@ export const GUIDE_SECTIONS = [
     title: "Before the day",
     icon: Inbox,
     items: [
-      { key: "referrals", role: "ADMIN", href: "/referrals" },
-      { key: "patients", role: "ADMIN", href: "/patients" },
-      { key: "schedule", role: "ADMIN", href: "/schedule" },
+      { key: "referrals", persona: "demo-admin", href: "/referrals" },
+      { key: "patients", persona: "demo-admin", href: "/patients" },
+      { key: "schedule", persona: "demo-admin", href: "/schedule" },
     ],
   },
   {
@@ -448,12 +434,12 @@ export const GUIDE_SECTIONS = [
     title: "Day of procedure",
     icon: ClipboardCheck,
     items: [
-      { key: "whiteboard", role: "NURSE", href: "/whiteboard" },
-      { key: "pre-procedure", role: "NURSE", href: "/cases/case_107?tab=pre-procedure" },
-      { key: "pre-op", role: "NURSE", href: "/cases/case_107?tab=pre-op" },
-      { key: "procedure", role: "NURSE", href: "/cases/case_104?tab=procedure" },
-      { key: "anesthesia", role: "ANESTHESIOLOGIST", href: "/cases/case_103?tab=anesthesia" },
-      { key: "recovery", role: "NURSE", href: "/cases/case_102?tab=recovery" },
+      { key: "whiteboard", persona: "demo-nurse", href: "/whiteboard" },
+      { key: "pre-procedure", persona: "demo-nurse", href: "/cases/case_107?tab=pre-procedure" },
+      { key: "pre-op", persona: "demo-nurse", href: "/cases/case_107?tab=pre-op" },
+      { key: "procedure", persona: "demo-nurse", href: "/cases/case_104?tab=procedure" },
+      { key: "anesthesia", persona: "demo-anesthesia", href: "/cases/case_103?tab=anesthesia" },
+      { key: "recovery", persona: "demo-nurse", href: "/cases/case_102?tab=recovery" },
     ],
   },
   {
@@ -461,10 +447,10 @@ export const GUIDE_SECTIONS = [
     title: "After the procedure",
     icon: FileText,
     items: [
-      { key: "note", role: "SURGEON", href: "/cases/case_106?tab=note" },
-      { key: "coding", role: "ADMIN", href: "/coding" },
-      { key: "pathology", role: "SURGEON", href: "/pathology" },
-      { key: "my-care", role: "PATIENT", href: "/my-care" },
+      { key: "note", persona: "demo-surgeon", href: "/cases/case_106?tab=note" },
+      { key: "coding", persona: "demo-admin", href: "/coding" },
+      { key: "pathology", persona: "demo-surgeon", href: "/pathology" },
+      { key: "my-care", persona: "demo-patient", href: "/my-care" },
     ],
   },
   {
@@ -472,32 +458,14 @@ export const GUIDE_SECTIONS = [
     title: "Running the center",
     icon: LayoutDashboard,
     items: [
-      { key: "dashboard", role: "ADMIN", href: "/dashboard" },
-      { key: "worklist", role: "SURGEON", href: "/worklist" },
-      { key: "quality", role: "ADMIN", href: "/quality" },
-      { key: "audit", role: "ADMIN", href: "/audit" },
-      { key: "admin", role: "ADMIN", href: "/admin" },
+      { key: "dashboard", persona: "demo-admin", href: "/dashboard" },
+      { key: "worklist", persona: "demo-surgeon", href: "/worklist" },
+      { key: "quality", persona: "demo-admin", href: "/quality" },
+      { key: "audit", persona: "demo-admin", href: "/audit" },
+      { key: "admin", persona: "demo-admin", href: "/admin" },
     ],
   },
-] as const satisfies readonly { id: string; title: string; icon: LucideIcon; items: readonly { key: string; role: UserRole; href: string }[] }[];
-
-/** Short persona names for badges. */
-export const ROLE_BADGE: Readonly<Record<UserRole, string>> = {
-  ADMIN: "Front desk",
-  NURSE: "Nurse",
-  SURGEON: "Surgeon",
-  ANESTHESIOLOGIST: "Anesthesia",
-  PATIENT: "Patient",
-};
-
-/** What each persona is for (names come from the demo presets). */
-export const PERSONA_GUIDE: Readonly<Record<UserRole, { readonly lands: string; readonly tryThis: string }>> = {
-  ADMIN: { lands: "Center operations", tryThis: "Referrals, booking, coding, audit" },
-  NURSE: { lands: "Whiteboard", tryThis: "Check-in, pre-op, room, recovery" },
-  SURGEON: { lands: "Slate + sign queue", tryThis: "AI note, pathology, quality" },
-  ANESTHESIOLOGIST: { lands: "Anesthesia queue", tryThis: "Sedation flowsheet, airway" },
-  PATIENT: { lands: "My procedure", tryThis: "Prep, escort, results" },
-};
+] as const satisfies readonly { id: string; title: string; icon: LucideIcon; items: readonly { key: string; persona: DemoPersonaId; href: string }[] }[];
 
 export const SHORTCUTS = [
   { id: "search", keys: ["⌘", "K"], label: "Search patients, cases and pages (Ctrl+K on Windows)" },
