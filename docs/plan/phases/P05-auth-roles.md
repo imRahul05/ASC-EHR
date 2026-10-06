@@ -92,6 +92,7 @@ Workspaces: `@asc/authz`, `@asc/eslint-config`.
 - [ ] Matrix snapshot equals 08 §7.3; any widening is a reviewed diff
 - [ ] Lint rule ships with a file-by-file baseline of today's violators; P05d empties it
 - [ ] Workspace resolver takes definitions as input (no UI list hardcoded in `@asc/authz`)
+- [ ] Every catalog capability is held by at least one role, and each capability has the data rights it needs (orphan test in `roles/matrix.test.ts`; follow-up PR #29)
 
 ### P05c — Policy compiler · S · needs P05b
 Workspace: `@asc/authz` (pure; no `@medplum/*` dependency yet).
@@ -107,6 +108,8 @@ Workspace: `@asc/authz` (pure; no `@medplum/*` dependency yet).
 
 - [ ] Facility criteria syntax isolated in one function (P05h spike S1 confirms it)
 - [ ] No wildcard resource types; `Composition` hidden for `front-desk`; all-site roles have no facility criteria
+- [ ] Shared directory data (`Practitioner`, `PractitionerRole`, `Organization`, `Location`) never gets facility criteria (rules marked `shared`); clinical data always does
+- [ ] Portal (`portal.*`) templates are refused by the compiler until the patient-compartment rule exists (P2)
 
 ### P05d — Web on capabilities (mock) · M (two PRs) · needs P05b
 Workspaces: `apps/web` (+ one-line `@asc/config`, small `@asc/api-client`, `@asc/types` contract changes).
@@ -222,6 +225,7 @@ Workspaces: `infra/medplum`, `apps/bots`, `docs/decisions`.
 | `defaultSuperAdminEmail` / `Password` | unset | set from secrets; rotated after first boot; never in app runtime config |
 
 - [ ] Policy test: front-desk cannot read `Composition`; `rn` @ A cannot read B resources; a `final` Composition cannot be updated
+- [ ] Policy test: `rn` @ A can still read `Practitioner`, `PractitionerRole`, `Organization` and `Location` (shared directory data has no facility tag; spike S1 confirms it stays readable without `%facility`)
 - [ ] Every spike passes or has a fallback recorded in the ADR **before** P05i starts
 - [ ] S6 measures how long a disabled membership or changed policy keeps working at gate 5 (Medplum) and with our cache (gates 1–4)
 - [ ] Seed is idempotent (second run = no changes); synthetic data only

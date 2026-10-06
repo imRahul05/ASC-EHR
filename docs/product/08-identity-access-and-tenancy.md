@@ -928,7 +928,7 @@ Follow-ups that are not part of P05 (step-up, worker and stream auth, service-to
 
 | ID | Spike (≤ ½ day each, on local Medplum 5.1.42) | Confirms | Runs in |
 |---|---|---|---|
-| S1 | Parameterized policy with `_compartment=%facility` + `meta.accounts`; `writeConstraint` on `Composition`; access-token lifetime setting on `ClientApplication`; claim that carries auth time for step-up | §4.3, §5.1, §5.2, §7.4 | **P05h** |
+| S1 | Parameterized policy with `_compartment=%facility` + `meta.accounts`; `writeConstraint` on `Composition`; access-token lifetime setting on `ClientApplication`; claim that carries auth time for step-up; shared directory resources (`Practitioner`, `Location`, … no facility tag) stay readable under a facility-scoped membership | §4.3, §5.1, §5.2, §7.4 | **P05h** |
 | S1b | Two `access[]` entries with different policies: union behaviour for `hiddenFields`, `readonly`, `writeConstraint` | §4.3, §7.4 | **P05h** |
 | S7 | `/auth/me` payload carries membership `access[]` with parameters (enough to build grants) | §6.1 | **P05h** |
 | S2 | `DomainConfiguration` with Entra ID (OIDC) on self-hosted; SCIM endpoint coverage | §5.3 | SSO follow-up |
