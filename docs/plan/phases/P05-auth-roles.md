@@ -133,6 +133,7 @@ Workspaces: `apps/web` (+ one-line `@asc/config`, small `@asc/api-client`, `@asc
 |---|---|
 | 1 | `feat(web): workspace definitions, home routing and dashboard by workspace` |
 | 2 | `feat(web): add workspace and facility switcher` |
+| 2b | `feat(web): guard every signed-in route from the route table` |
 | 3 | `refactor(web): role labels from templates; guide switches identity` |
 | 4 | `refactor(types): separate clinical participant roles from authz roles` |
 | 5 | `refactor(web): replace self-signup role picker with access request` |
@@ -142,6 +143,8 @@ Workspaces: `apps/web` (+ one-line `@asc/config`, small `@asc/api-client`, `@asc
 
 - [ ] Each web commit loads in `pnpm dev` (LM-005); bundle budgets pass
 - [ ] Direct URL to a guarded route without the capability shows 403 (test per route)
+- [ ] Every signed-in route is guarded, not only admin, audit, coding and quality (P05d1 left `/referrals`, `/pathology` and the rest hidden from nav but reachable): one `RequireCapability` in the dashboard layout driven by `ROUTE_ACCESS` (`apps/web/src/lib/route-access.ts`), a test per route in that table, and a test that fails if a route has no entry
+- [ ] Workspaces restore per-workspace labels dropped in P05d1 (e.g. "Sign queue" for the physician workspace)
 - [ ] User X demo: switching facility changes nav and workspaces
 - [ ] `grep -rn "UserRole\|NAV_BY_ROLE\|DASHBOARD_BY_ROLE"` is empty at the end
 - [ ] Commit 8 touches only identity data, workspace config and a test (proves "new role = data")
