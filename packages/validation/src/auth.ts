@@ -91,3 +91,15 @@ export const signupSchema = z
   });
 
 export type SignupFormData = z.infer<typeof signupSchema>;
+
+/**
+ * Request for an account. Accounts are invited by an administrator (no self-signup), so this
+ * only asks to be contacted: no role, no clinical identifiers. Roles are assigned by the admin.
+ */
+export const accessRequestSchema = z.object({
+  fullName: z.string().trim().min(2, "Full name is required"),
+  email: z.string().trim().email("Please enter a valid email address"),
+  facilityCode: z.string().trim().optional(),
+});
+
+export type AccessRequestFormData = z.infer<typeof accessRequestSchema>;

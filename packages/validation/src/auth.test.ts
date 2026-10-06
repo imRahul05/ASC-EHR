@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SIGNUP_ROLE_FIELDS, signupSchema, userRoleSchema } from "./auth.js";
+import { accessRequestSchema, SIGNUP_ROLE_FIELDS, signupSchema, userRoleSchema } from "./auth.js";
 
 const base = { fullName: "Test User", email: "test@example.org", password: "Password@123" };
 
@@ -29,5 +29,25 @@ describe("signupSchema (driven by SIGNUP_ROLE_FIELDS)", () => {
 
   it("treats whitespace-only values as missing", () => {
     expect(issuePaths({ ...base, role: "ADMIN", facilityCode: "   " })).toEqual(["facilityCode"]);
+  });
+});
+
+describe("accessRequestSchema", () => {
+  const request = { fullName: "Jordan Reyes", email: "jordan@example.org" };
+
+  it("accepts a name and email, with the facility code optional", () => {
+    expect(accessRequestSchema.safeParse(request).success).toBe(true);
+    expect(accessRequestSchema.safeParse({ ...request, facilityCode: " ASC-1 " }).data?.facilityCode).toBe("ASC-1");
+  });
+
+  it("rejects a short name or an invalid email", () => {
+    expect(accessRequestSchema.safeParse({ ...request, fullName: "J" }).success).toBe(false);
+    expect(accessRequestSchema.safeParse({ ...request, email: "not-an-email" }).success).toBe(false);
+  });
+
+  it("carries no role: a role in the input is dropped, never granted", () => {
+    const parsed = accessRequestSchema.safeParse({ ...request, role: "ADMIN", password: "x" });
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).toEqual(request);
   });
 });
