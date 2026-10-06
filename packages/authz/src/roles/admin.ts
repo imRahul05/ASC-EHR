@@ -21,6 +21,7 @@ export const admin: RoleTemplate = {
     "patient.merge",
     "patient.eligibility.check",
     "case.cancel",
+    "quality.read",
   ],
   data: [
     rw("Patient"),

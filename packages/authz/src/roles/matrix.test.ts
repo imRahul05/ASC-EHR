@@ -45,6 +45,7 @@ const DOCUMENTED: readonly (readonly [Capability, readonly string[]])[] = [
   ["admin.roles", ["admin"]],
   ["admin.facility", ["admin"]],
   ["audit.read", ["admin", "auditor"]],
+  ["quality.read", ["gi-physician", "admin", "auditor"]],
   ["breakglass.invoke", CLINICAL],
   ["portal.self.read", ["patient"]],
   ["portal.self.forms", ["patient"]],

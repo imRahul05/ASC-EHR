@@ -7,7 +7,7 @@ export const auditor: RoleTemplate = {
   version: 1,
   label: "Auditor",
   status: "active",
-  capabilities: ["patient.read", "case.read", "audit.read"],
+  capabilities: ["patient.read", "case.read", "audit.read", "quality.read"],
   data: [
     ro("Patient"),
     ro("Coverage"),

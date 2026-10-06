@@ -32,6 +32,7 @@ export const giPhysician: RoleTemplate = {
     "pathology.letter.send",
     "ai.generate",
     "case.cancel",
+    "quality.read",
   ],
   data: [
     ro("Patient"),
