@@ -1,5 +1,6 @@
 import { API_ROUTES } from "@asc/config/api";
 import type { AuthSession, DemoAccountPreset, DemoPersonaId, LoginCredentials, SignupPayload } from "@asc/types";
+import { accessRequestSchema, type AccessRequestFormData } from "@asc/validation/auth";
 import { meResponseSchema, type MeResponse } from "@asc/validation/authz";
 import { http } from "./http";
 
@@ -17,6 +18,14 @@ export function getDemoPresets(): Promise<readonly DemoAccountPreset[]> {
 
 export function registerUser(payload: SignupPayload): Promise<AuthSession> {
   return http.post<AuthSession>(API_ROUTES.authSignup, payload);
+}
+
+/**
+ * Ask an administrator for an account. Never signs anyone in or creates one; the response is
+ * the same whether or not the email is known, so it cannot be used to probe for accounts.
+ */
+export async function requestAccess(payload: AccessRequestFormData): Promise<void> {
+  await http.post<unknown>(API_ROUTES.authAccessRequest, accessRequestSchema.parse(payload));
 }
 
 /** The signed-in principal (per-facility grants) and display names for its facilities. */
