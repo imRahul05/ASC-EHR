@@ -1,5 +1,5 @@
 import type { RoleTemplate } from "@asc/types";
-import { REFERENCE_WRITE, ro, rw } from "./rules.js";
+import { REFERENCE_WRITE, ro, rw } from "@asc/authz/roles/rules";
 
 // All-site role. No clinical-note access: administration is not care.
 export const admin: RoleTemplate = {
@@ -21,6 +21,7 @@ export const admin: RoleTemplate = {
     "patient.merge",
     "patient.eligibility.check",
     "case.cancel",
+    "quality.read",
   ],
   data: [
     rw("Patient"),

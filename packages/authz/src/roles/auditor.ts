@@ -1,5 +1,5 @@
 import type { RoleTemplate } from "@asc/types";
-import { REFERENCE_READ, ro } from "./rules.js";
+import { REFERENCE_READ, ro } from "@asc/authz/roles/rules";
 
 // All-site, read-only everywhere.
 export const auditor: RoleTemplate = {
@@ -7,7 +7,7 @@ export const auditor: RoleTemplate = {
   version: 1,
   label: "Auditor",
   status: "active",
-  capabilities: ["patient.read", "case.read", "audit.read"],
+  capabilities: ["patient.read", "case.read", "audit.read", "quality.read"],
   data: [
     ro("Patient"),
     ro("Coverage"),

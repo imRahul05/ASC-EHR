@@ -8,6 +8,7 @@ export const queryKeys = {
   auth: {
     all: ["auth"] as const,
     demoPresets: ["auth", "demo-presets"] as const,
+    me: ["auth", "me"] as const,
   },
   patients: {
     all: ["patients"] as const,

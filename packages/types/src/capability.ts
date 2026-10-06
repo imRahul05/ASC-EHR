@@ -38,6 +38,7 @@ export const CAPABILITY_CATALOG = [
   { key: "admin.roles", stepUp: true, phase: "P1" },
   { key: "admin.facility", stepUp: true, phase: "P1" },
   { key: "audit.read", stepUp: false, phase: "P1" },
+  { key: "quality.read", stepUp: false, phase: "P1" },
   { key: "breakglass.invoke", stepUp: true, phase: "P1" },
   { key: "portal.self.read", stepUp: false, phase: "P2" },
   { key: "portal.self.forms", stepUp: false, phase: "P2" },

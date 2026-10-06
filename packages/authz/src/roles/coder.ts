@@ -1,5 +1,5 @@
 import type { RoleTemplate } from "@asc/types";
-import { REFERENCE_READ, ro, rw } from "./rules.js";
+import { REFERENCE_READ, ro, rw } from "@asc/authz/roles/rules";
 
 // All-site role: coders work across facilities.
 export const coder: RoleTemplate = {

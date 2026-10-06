@@ -39,6 +39,7 @@ admin.users | - | - | - | - | - | - | Y | - | -
 admin.roles | - | - | - | - | - | - | Y | - | -
 admin.facility | - | - | - | - | - | - | Y | - | -
 audit.read | - | - | - | - | - | - | Y | Y | -
+quality.read | - | - | - | Y | - | - | Y | Y | -
 breakglass.invoke | - | Y | - | Y | Y | - | - | - | -
 portal.self.read | - | - | - | - | - | - | - | - | Y
 portal.self.forms | - | - | - | - | - | - | - | - | Y"

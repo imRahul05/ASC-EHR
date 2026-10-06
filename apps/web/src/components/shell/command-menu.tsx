@@ -11,8 +11,8 @@ import type { CommandGroup } from "@asc/ui/components/navigation/command-palette
 
 import { CircleHelp, Map as MapIcon, Search, Sparkles, Stethoscope, UserRound } from "@asc/ui/icons";
 import { openHelp, showWelcome, startTour } from "../../features/guide/guide-store";
-import { useAuth } from "../../hooks/use-auth";
-import { NAV_BY_ROLE } from "./nav-config";
+import { useCan } from "../../hooks/use-can";
+import { visibleNavItems } from "./nav-config";
 
 const CommandPalette = dynamic(
   () => import("@asc/ui/components/navigation/command-palette").then((mod) => mod.CommandPalette),
@@ -30,9 +30,8 @@ const CLOSED: PaletteState = { open: false, query: "" };
 export function CommandMenu() {
   const [palette, setPalette] = useState<PaletteState>(CLOSED);
   const router = useRouter();
-  const { user } = useAuth();
-  const role = user?.role ?? "SURGEON";
-  const canSearchRecords = role !== "PATIENT";
+  const can = useCan();
+  const canSearchRecords = can("patient.read");
   const search = useSearch(canSearchRecords && palette.open ? palette.query : "");
 
   // Global shortcut: subscribing to a browser event is a legitimate effect.
@@ -57,7 +56,7 @@ export function CommandMenu() {
     {
       id: "pages",
       label: "Pages",
-      items: NAV_BY_ROLE[role]
+      items: visibleNavItems(can)
         .filter((item) => item.title.toLowerCase().includes(needle))
         .map((item) => ({ id: `page-${item.key}`, label: item.title, icon: item.icon, onSelect: () => router.push(item.href) })),
     },

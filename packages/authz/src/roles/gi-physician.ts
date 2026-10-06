@@ -1,5 +1,5 @@
 import type { RoleTemplate } from "@asc/types";
-import { REFERENCE_READ, ro, rw } from "./rules.js";
+import { REFERENCE_READ, ro, rw } from "@asc/authz/roles/rules";
 
 export const giPhysician: RoleTemplate = {
   key: "gi-physician",
@@ -32,6 +32,7 @@ export const giPhysician: RoleTemplate = {
     "pathology.letter.send",
     "ai.generate",
     "case.cancel",
+    "quality.read",
   ],
   data: [
     ro("Patient"),

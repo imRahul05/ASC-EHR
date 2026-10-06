@@ -2,8 +2,6 @@
   "extends": "@asc/typescript-config/base.json",
   "compilerOptions": {
     "noEmit": true,
-    "module": "esnext",
-    "moduleResolution": "bundler",
     "types": ["node"]
   },
   "include": ["src"],

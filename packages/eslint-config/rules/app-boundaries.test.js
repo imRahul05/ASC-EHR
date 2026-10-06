@@ -65,8 +65,12 @@ describe("app boundary rules", () => {
   });
 
   it("requires leaf subpaths of Node-style packages in browser code only", async () => {
-    const code = 'import { loginSchema } from "@asc/validation";\nimport { API_ROUTES } from "@asc/config";';
-    assert.deepEqual(await lint(code, { browser: true }), ["no-restricted-imports:1", "no-restricted-imports:2"]);
+    const code = [
+      'import { loginSchema } from "@asc/validation";',
+      'import { API_ROUTES } from "@asc/config";',
+      'import { can } from "@asc/authz";',
+    ].join("\n");
+    assert.deepEqual(await lint(code, { browser: true }), [1, 2, 3].map((line) => `no-restricted-imports:${line}`));
     assert.deepEqual(await lint(code, { browser: false }), []);
   });
 
@@ -75,6 +79,7 @@ describe("app boundary rules", () => {
       'import { http } from "@asc/api-client";',
       'import { loginSchema } from "@asc/validation/auth";',
       'import { API_ROUTES } from "@asc/config/api";',
+      'import { can } from "@asc/authz/can";',
       'import { Sun } from "@asc/ui/icons";',
       'import { ThemeToggle } from "@asc/ui";',
       "interface Props { readonly id: string }",

@@ -1,5 +1,5 @@
 import type { RoleTemplate } from "@asc/types";
-import { REFERENCE_READ, ro, rw } from "./rules.js";
+import { REFERENCE_READ, ro, rw } from "@asc/authz/roles/rules";
 
 // MD and CRNA share this role; the practitioner's qualification tells them
 // apart, and a workflow rule can require an MD co-sign (08 §7.3).

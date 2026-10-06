@@ -6,6 +6,11 @@
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
+    "./can": "./src/can.ts",
+    "./grants": "./src/grants.ts",
+    "./workspaces": "./src/workspaces.ts",
+    "./roles": "./src/roles/index.ts",
+    "./roles/*": "./src/roles/*.ts",
     "./testing": "./src/testing.ts"
   },
   "scripts": {

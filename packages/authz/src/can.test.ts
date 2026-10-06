@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { can } from "./can.js";
+import { can, grantedFacilityIds } from "./can.js";
 import { allGrant, facilityGrant, patientPrincipal, staffPrincipal } from "./fixtures.js";
 
 describe("can", () => {
@@ -44,6 +44,17 @@ describe("can", () => {
     expect(can(patient, "portal.self.read", { patientId: "patient-1" })).toBe(true);
     expect(can(patient, "note.sign")).toBe(false);
     expect(can(patient, "patient.read")).toBe(false);
+  });
+
+  it("lists the facilities a principal holds facility grants at, once each, in order", () => {
+    const user = staffPrincipal([
+      facilityGrant("B", ["rn"], ["case.read"]),
+      allGrant(["auditor"], ["audit.read"]),
+      facilityGrant("A", ["rn"], ["case.read"]),
+      facilityGrant("B", ["tech"], ["case.read"]),
+    ]);
+    expect(grantedFacilityIds(user)).toEqual(["B", "A"]);
+    expect(grantedFacilityIds(staffPrincipal([allGrant(["admin"], ["admin.users"])]))).toEqual([]);
   });
 
   it("limits a patient to their own record", () => {

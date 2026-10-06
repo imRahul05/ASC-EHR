@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import {
   getDemoPresets,
+  getMe,
   loginWithCredentials,
   loginWithDemoPreset,
   registerUser,
@@ -21,13 +22,23 @@ export function useAuth() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const session = useAuthStore((state) => state.session);
+  const principal = useAuthStore((state) => state.principal);
+  const facilities = useAuthStore((state) => state.facilities);
+  const facilityId = useAuthStore((state) => state.facilityId);
   const setSession = useAuthStore((state) => state.setSession);
+  const selectFacility = useAuthStore((state) => state.selectFacility);
   const clearSession = useAuthStore((state) => state.clearSession);
 
-  const startSession = (next: AuthSession) => {
+  const startSession = async (next: AuthSession) => {
     // Token stays in memory (module variable in @asc/api-client), never in browser storage.
     setAccessToken(next.token);
-    setSession(next);
+    try {
+      // Sign-in only completes once the server has returned the principal (fail closed).
+      setSession(next, await getMe());
+    } catch (error) {
+      setAccessToken(null);
+      throw error;
+    }
     // Clinical data is role-scoped: drop anything cached for the previous persona.
     queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== queryKeys.auth.all[0] });
     router.push(next.user.role === "PATIENT" ? "/my-care" : "/dashboard");
@@ -53,7 +64,11 @@ export function useAuth() {
 
   return {
     user: session?.user ?? null,
-    isAuthenticated: session !== null,
+    principal,
+    facilities,
+    facilityId,
+    selectFacility,
+    isAuthenticated: session !== null && principal !== null,
     login: login.mutateAsync,
     isLoggingIn: login.isPending,
     loginWithDemo: demoLogin.mutateAsync,

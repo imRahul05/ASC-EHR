@@ -9,10 +9,12 @@
     "start": "next start",
     "lint": "eslint --max-warnings 0",
     "check-types": "tsc --noEmit",
+    "test": "vitest run src --passWithNoTests",
     "test:bundles": "vitest run perf/"
   },
   "dependencies": {
     "@asc/api-client": "workspace:*",
+    "@asc/authz": "workspace:*",
     "@asc/clinical-rules": "workspace:*",
     "@asc/config": "workspace:*",
     "@asc/types": "workspace:*",
