@@ -62,7 +62,8 @@ function qualityMetrics(): QualityMetrics {
   const total = history.reduce((sum, point) => sum + point.cases, 0);
   const weighted = (key: "adr" | "cir" | "withdrawalMin" | "bbpsAdequate" | "turnaroundMin") =>
     Math.round((history.reduce((sum, point) => sum + point[key] * point.cases, 0) / Math.max(1, total)) * 1000) / 1000;
-  const surgeons = STAFF_LIST.filter((member) => member.role === "SURGEON");
+  // The care-team job (participant role) names who performs procedures; it is not an access check.
+  const { SURGEON: surgeons = [] } = Object.groupBy(STAFF_LIST, (member) => member.role);
   return {
     from: history[0]?.date ?? toIsoDate(new Date()),
     to: history.at(-1)?.date ?? toIsoDate(new Date()),
