@@ -149,6 +149,17 @@ Workspaces: `apps/web` (+ one-line `@asc/config`, small `@asc/api-client`, `@asc
 - [ ] `grep -rn "UserRole\|NAV_BY_ROLE\|DASHBOARD_BY_ROLE"` is empty at the end
 - [ ] Commit 8 touches only identity data, workspace config and a test (proves "new role = data")
 
+#### P05d decisions (2026-10-06)
+
+Recorded here so the next auth agent finds them. Code: `apps/web` unless noted. Rationale lives in PRs #32 and #35.
+
+1. **Persona = label.** Demo personas are keyed by `DemoPersonaId` (`@asc/types`) in `lib/personas.ts`: label, landing page, order. They grant nothing. Role names shown in the UI (user menu, help sheet "Who sees this") come from the `@asc/authz` role templates (`lib/role-labels.ts`), never from a hard-coded list.
+2. **`ParticipantRole` is not an authorization role.** `SURGEON | ANESTHESIOLOGIST | NURSE | ADMIN` (`@asc/types`) is a care-team job label on the staff directory, work-queue owners, time-out attestations and audit actors. It must **never** be used to grant, show or hide anything. Authorization uses capabilities only: `can(principal, capability, { facilityId })`, `useCan`, `RequireCapability`. If a feature seems to need "is this person a nurse?", it needs a capability (or a role template change), not a `ParticipantRole` check. `UserRole` no longer exists; `asc/no-role-name-comparison` (empty baseline, test-enforced) catches role-name branching.
+3. **One route guard.** `RouteGuard` in the dashboard layout checks the first path segment against `lib/route-access.ts` (`ROUTE_ACCESS`), the same table the sidebar uses. A route **missing from the table is denied** (403). A test fails if a route folder has no entry. Add the capability there when adding a screen.
+4. **No matching workspace → empty dashboard.** A user whose capabilities at the current facility open no workspace sees an empty state, not a default. Fail closed.
+5. **Access request, not signup.** `POST /auth/access-requests` (`requestAccess` in `@asc/api-client`) always returns 202 for known and unknown emails (no account enumeration) and creates no account and no session. The schema drops any `role` sent. Admin review and invitations come with real Medplum (P05h/P05j).
+6. **Open decision: workspace overlap.** A role whose capabilities are a subset of another's (the tech's are a subset of the nurse's and physician's) shows up as an extra option in those users' workspace switcher; their default does not change. Accepted for now. If it becomes a problem, add an optional `hiddenWhen` (capabilities that hide a workspace) to the workspace definition in `@asc/authz` (`WorkspaceDefinition`) and the resolver. Tracked as Q-IAM-C in `PROGRESS.md`.
+
 ### P05e — App-DB tenancy · S · needs P05a
 Workspaces: `@asc/db`, `@asc/config`.
 

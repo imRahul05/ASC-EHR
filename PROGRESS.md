@@ -121,6 +121,7 @@ Work completed before this plan existed, grouped from git history (`origin/main`
 | Q8 | CPT licence | P08, P22 | business | open |
 | Q15/Q-MS7 | STT vendor + BAA | P18 | eng | open |
 | Q-MS4/5 | faxagnet + Integuru hosting/BAA/outbound | P24 | MindScript team | open |
+| Q-IAM-C | Workspace overlap: roles whose capabilities are a subset of another's (tech ⊂ nurse/physician) appear as an extra workspace option in the switcher. Add `hiddenWhen` to workspace definitions? ([P05 §4 P05d decisions](docs/plan/phases/P05-auth-roles.md)) | none (UX only) | eng lead | open: accepted for now |
 
 Full lists: [implementation plan §6](docs/plan/implementation-plan.md#6-cross-phase-open-questions), each phase file, [05 §5.4](docs/product/05-delivery-plan.md), [06 §7](docs/product/06-mindscript-integration.md#7-open-questions-for-the-mindscript-team).
 
