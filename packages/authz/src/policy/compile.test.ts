@@ -1,7 +1,13 @@
 import type { RoleTemplate } from "@asc/types";
 import { describe, expect, it } from "vitest";
 import { roleRegistry } from "../roles/index.js";
-import { compileResourceRules, facilityCriteria, LOCK_WHEN_FINAL } from "./compile.js";
+import {
+  compilePolicy,
+  compileResourceRules,
+  facilityCriteria,
+  LOCK_WHEN_FINAL,
+  ROLE_TEMPLATE_TAG_SYSTEM,
+} from "./compile.js";
 
 const template = (key: string): RoleTemplate => {
   const found = roleRegistry.get(key);
@@ -67,6 +73,14 @@ describe("compileResourceRules", () => {
     expect(() => compileResourceRules({ ...rn, data: [{ resourceType: "" }] })).toThrow("wildcard");
     const dup = [{ resourceType: "Patient" }, { resourceType: "Patient", readonly: true }];
     expect(() => compileResourceRules({ ...rn, data: dup })).toThrow("duplicate");
+  });
+
+  it("names and tags a policy by role key and version", () => {
+    const policy = compilePolicy({ ...template("gi-physician"), version: 3 });
+    expect(policy.resourceType).toBe("AccessPolicy");
+    expect(policy.name).toBe("gi-physician-v3");
+    expect(policy.meta.tag).toEqual([{ system: ROLE_TEMPLATE_TAG_SYSTEM, code: "gi-physician", version: "3" }]);
+    expect(policy.resource.length).toBeGreaterThan(0);
   });
 
   it("refuses to compile portal roles until the patient compartment rule exists", () => {

@@ -1,5 +1,7 @@
 import type { ResourceRule, RoleTemplate } from "@asc/types";
-import type { AccessPolicyExpression, AccessPolicyResource } from "./types.js";
+import type { AccessPolicy, AccessPolicyExpression, AccessPolicyResource } from "./types.js";
+
+export const ROLE_TEMPLATE_TAG_SYSTEM = "https://asc-ehr.app/role-template";
 
 // A `final` resource can never be overwritten (08 §7.4). %before is Medplum's
 // write-constraint variable for the stored version.
@@ -53,4 +55,17 @@ export function compileResourceRules(template: RoleTemplate): AccessPolicyResour
   return template.data
     .map((rule) => compileRule(rule, template.facilityScoped))
     .sort((a, b) => a.resourceType.localeCompare(b.resourceType, "en"));
+}
+
+// One policy per template version, named `<key>-v<version>` and tagged so the
+// provisioner can find, upsert and garbage-collect policies by role and version.
+export function compilePolicy(template: RoleTemplate): AccessPolicy {
+  return {
+    resourceType: "AccessPolicy",
+    name: `${template.key}-v${template.version}`,
+    meta: {
+      tag: [{ system: ROLE_TEMPLATE_TAG_SYSTEM, code: template.key, version: String(template.version) }],
+    },
+    resource: compileResourceRules(template),
+  };
 }
