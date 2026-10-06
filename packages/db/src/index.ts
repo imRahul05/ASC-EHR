@@ -8,4 +8,4 @@
 
 export { createDb, MIGRATIONS_FOLDER, runMigrations, type CreateDbOptions, type Db } from './client.js';
 export * from './schema/index.js';
-export { createPostgresAgentRunStore } from './agent-run-store.js';
+export { createPostgresAgentRunStore, type AgentRunScope } from './agent-run-store.js';

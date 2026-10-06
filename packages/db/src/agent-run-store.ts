@@ -12,7 +12,17 @@ import { and, eq, sql } from 'drizzle-orm';
 import type { Db } from './client.js';
 import { agentRuns, type AgentRunRow } from './schema/agent-runs.js';
 
-export function createPostgresAgentRunStore(db: Db): AgentRunStore {
+/**
+ * Who the runs belong to. Comes from the principal or job context (IDs only),
+ * never from a request body or query string. `facilityId` is omitted for
+ * tenant-wide runs.
+ */
+export interface AgentRunScope {
+  readonly tenantId: string;
+  readonly facilityId?: string;
+}
+
+export function createPostgresAgentRunStore(db: Db, scope: AgentRunScope): AgentRunStore {
   async function finish(
     executionId: string,
     claim: number,
@@ -44,6 +54,8 @@ export function createPostgresAgentRunStore(db: Db): AgentRunStore {
           status: 'running',
           claim: 1,
           containsPhi: start.containsPhi,
+          tenantId: scope.tenantId,
+          facilityId: scope.facilityId ?? null,
           orgId: start.orgId ?? null,
           patientId: start.patientId ?? null,
           surgicalCaseId: start.surgicalCaseId ?? null,
@@ -69,6 +81,8 @@ export function createPostgresAgentRunStore(db: Db): AgentRunStore {
             errorName: sql`NULL`,
           },
           setWhere: sql`${agentRuns.agent} = excluded.agent
+            AND ${agentRuns.tenantId} = excluded.tenant_id
+            AND ${agentRuns.facilityId} IS NOT DISTINCT FROM excluded.facility_id
             AND ${agentRuns.orgId} IS NOT DISTINCT FROM excluded.org_id
             AND ${agentRuns.patientId} IS NOT DISTINCT FROM excluded.patient_id
             AND ${agentRuns.surgicalCaseId} IS NOT DISTINCT FROM excluded.surgical_case_id

@@ -26,6 +26,7 @@ const suiteName = TEST_DATABASE_URL
   ? 'PostgresAgentRunStore (AgentRunStore contract)'
   : 'PostgresAgentRunStore (SKIPPED: set TEST_DATABASE_URL to run against Postgres, see `pnpm db:up`)';
 
+const TENANT_ID = '0b8f3c52-6f3e-4a77-9a55-3d6e1f0c2a10';
 const start: AgentRunStart = { executionId: 'job-1', agent: 'test-agent', promptVersion: '2026-01-01.1', containsPhi: true };
 const stale = { staleAfterMs: 60_000 };
 const meta = {
@@ -62,7 +63,7 @@ describeDb(suiteName, () => {
     client = postgres(url, { max: 20, onnotice: () => {}, connection: { search_path: schemaName } });
     db = drizzle(client, { schema });
     await runMigrations(db, { migrationsSchema: schemaName });
-    store = createPostgresAgentRunStore(db);
+    store = createPostgresAgentRunStore(db, { tenantId: TENANT_ID });
   });
 
   afterAll(async () => {

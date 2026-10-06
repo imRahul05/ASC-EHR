@@ -24,9 +24,9 @@ export const agentRuns = pgTable(
     /**
      * Source of truth for isolation (Q-IAM-A). `tenantId` is set from the
      * `withTenant` scope, never from a request. `facilityId` is null for
-     * tenant-wide runs. Expand step: nullable until the backfill migration.
+     * tenant-wide runs.
      */
-    tenantId: uuid('tenant_id'),
+    tenantId: uuid('tenant_id').notNull(),
     facilityId: text('facility_id'),
     /** Legacy owner scope, kept until @asc/agents migrates to tenant/facility. */
     orgId: text('org_id'),
