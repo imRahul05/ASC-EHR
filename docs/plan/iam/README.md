@@ -32,6 +32,7 @@ The earlier 18-phase IAM track (I00–I17) was folded into P05 on 2026-10-05. It
 | D-A17 | Decision provenance in audit: role template versions, catalog version, gate, cache state | P05f, 08 §12.3 |
 | D-A18 | Hybrid token handling (httpOnly refresh cookie, ≤ 15 min in-memory access token, strict CSP); full BFF only if required | P05j, ADR item 6 |
 | D-A19 | Compliance is an operating programme we own; hosting under a BAA is not compliance | P26 |
+| D-A20 | Tenant-wide directory data (`Practitioner`, `PractitionerRole`, `Organization`, `Location`) is `shared`: policies give it no `%facility` filter, so facility-scoped staff can still see doctors and rooms; clinical data keeps the filter | P05b follow-up (#29), proven in P05h (S1 + policy test) |
 
 ## 3. Commit rules
 
