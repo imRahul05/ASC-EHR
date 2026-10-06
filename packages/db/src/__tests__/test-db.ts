@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 
-import { runMigrations, type Db } from '../client.js';
+import { runMigrations, type Db } from '../migrate.js';
 import * as schema from '../schema/index.js';
 
 export interface TestSchema {

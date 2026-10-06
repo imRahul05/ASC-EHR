@@ -17,7 +17,7 @@ import postgres from 'postgres';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createPostgresAgentRunStore } from '../agent-run-store.js';
-import { runMigrations, type Db } from '../client.js';
+import { runMigrations, type Db } from '../migrate.js';
 import * as schema from '../schema/index.js';
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;

@@ -9,7 +9,7 @@
 import type { AgentRunBeginResult, AgentRunRecord, AgentRunStart, AgentRunStore } from '@asc/agents';
 import { and, eq, sql } from 'drizzle-orm';
 
-import type { Db } from './client.js';
+import type { Db } from './migrate.js';
 import { agentRuns, type AgentRunRow } from './schema/agent-runs.js';
 
 /**

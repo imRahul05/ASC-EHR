@@ -9,7 +9,7 @@ import { join } from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { MIGRATIONS_FOLDER } from '../client.js';
+import { MIGRATIONS_FOLDER } from '../migrate.js';
 import { createTestSchema, type TestSchema } from './test-db.js';
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
