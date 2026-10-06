@@ -12,6 +12,7 @@ import postgres from 'postgres';
 
 import { runMigrations, type Db } from '../migrate.js';
 import * as schema from '../schema/index.js';
+import { wrapTenantDb, type TenantDb } from '../tenant.js';
 
 export interface TestSchema {
   schemaName: string;
@@ -39,4 +40,30 @@ export async function createTestSchema(url: string, prefix: string, options: { m
       await client.end();
     },
   };
+}
+
+/**
+ * Runtime-role URL: the owner URL with the local runtime login (see
+ * docker/postgres/init/01-runtime-role.sql). An explicit URL wins.
+ */
+export function runtimeUrl(ownerUrl: string, explicit?: string): string {
+  if (explicit) return explicit;
+  const url = new URL(ownerUrl);
+  url.username = 'asc_app';
+  url.password = 'asc_app';
+  return url.toString();
+}
+
+export interface RuntimeAccess {
+  /** Tenant-scoped access, as the app gets it. */
+  tenantDb: TenantDb;
+  /** Raw runtime-role connection (no tenant context) for attack and missing-context cases. */
+  client: postgres.Sql;
+  close: () => Promise<void>;
+}
+
+/** Connects as the runtime role, pinned to the throwaway schema. */
+export function connectRuntime(url: string, schemaName: string): RuntimeAccess {
+  const client = postgres(url, { max: 20, onnotice: () => {}, connection: { search_path: schemaName } });
+  return { tenantDb: wrapTenantDb(drizzle(client, { schema })), client, close: () => client.end({ timeout: 5 }) };
 }

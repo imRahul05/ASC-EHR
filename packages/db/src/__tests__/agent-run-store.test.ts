@@ -8,17 +8,13 @@
  * Each run migrates into its own throwaway schema and drops it afterwards.
  */
 
-import { randomUUID } from 'node:crypto';
-
 import type { AgentRunStart, AgentRunStore } from '@asc/agents';
 import { sql } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createPostgresAgentRunStore } from '../agent-run-store.js';
-import { runMigrations, type Db } from '../migrate.js';
-import * as schema from '../schema/index.js';
+import type { TenantTx } from '../tenant.js';
+import { connectRuntime, createTestSchema, runtimeUrl, type RuntimeAccess, type TestSchema } from './test-db.js';
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 const describeDb = TEST_DATABASE_URL ? describe : describe.skip;
@@ -42,43 +38,45 @@ const meta = {
 } as const;
 
 describeDb(suiteName, () => {
-  const schemaName = `test_agent_runs_${randomUUID().replaceAll('-', '')}`;
-  let client: postgres.Sql;
-  let db: Db;
+  let t: TestSchema;
+  let runtime: RuntimeAccess;
   let store: AgentRunStore;
+
+  /** Owner-side helper: owner queries are also subject to FORCE row-level security, so set the tenant. */
+  const asTenant = <T>(fn: (tx: TenantTx) => Promise<T>): Promise<T> =>
+    t.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.tenant_id', ${TENANT_ID}, true)`);
+      return fn(tx);
+    });
 
   /** The database clock is `now()`, so "advancing time" moves the run's start into the past. */
   const age = async (executionId: string, ms: number) => {
-    await db.execute(
-      sql`UPDATE agent_runs SET started_at = started_at - (${ms}::double precision * interval '1 millisecond') WHERE execution_id = ${executionId}`,
+    await asTenant((tx) =>
+      tx.execute(
+        sql`UPDATE agent_runs SET started_at = started_at - (${ms}::double precision * interval '1 millisecond') WHERE execution_id = ${executionId}`,
+      ),
     );
   };
 
   beforeAll(async () => {
     const url = TEST_DATABASE_URL as string;
-    const admin = postgres(url, { max: 1, onnotice: () => {} });
-    await admin.unsafe(`CREATE SCHEMA "${schemaName}"`);
-    await admin.end();
-
-    client = postgres(url, { max: 20, onnotice: () => {}, connection: { search_path: schemaName } });
-    db = drizzle(client, { schema });
-    await runMigrations(db, { migrationsSchema: schemaName });
-    store = createPostgresAgentRunStore(db, { tenantId: TENANT_ID });
+    t = await createTestSchema(url, 'test_agent_runs');
+    runtime = connectRuntime(runtimeUrl(url, process.env.TEST_RUNTIME_DATABASE_URL), t.schemaName);
+    store = createPostgresAgentRunStore(runtime.tenantDb, { tenantId: TENANT_ID });
   });
 
   afterAll(async () => {
-    if (!client) return;
-    await client.unsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
-    await client.end();
+    await runtime?.close();
+    await t?.drop();
   });
 
   beforeEach(async () => {
-    await db.execute(sql`TRUNCATE agent_runs`);
+    await t.db.execute(sql`TRUNCATE agent_runs`);
   });
 
-  it('migrates into the isolated schema', async () => {
-    const rows = await db.execute<{ schema: string }>(sql`SELECT current_schema() AS schema`);
-    expect(rows[0]?.schema).toBe(schemaName);
+  it('migrates into the isolated schema and the store connects as the runtime role', async () => {
+    const rows = await runtime.client`SELECT current_schema() AS schema, current_user AS role`;
+    expect(rows[0]).toEqual({ schema: t.schemaName, role: 'asc_app' });
   });
 
   it('begin claims a new run once; a second begin returns it unclaimed', async () => {
@@ -114,8 +112,8 @@ describeDb(suiteName, () => {
   it('stores output as a JSON object, not a double-encoded string', async () => {
     await store.begin(start, stale);
     await store.succeed('job-1', { claim: 1, output: { answer: 'x' }, meta });
-    const rows = await db.execute<{ type: string }>(
-      sql`SELECT jsonb_typeof(output) AS type FROM agent_runs WHERE execution_id = 'job-1'`,
+    const rows = await asTenant((tx) =>
+      tx.execute<{ type: string }>(sql`SELECT jsonb_typeof(output) AS type FROM agent_runs WHERE execution_id = 'job-1'`),
     );
     expect(rows[0]?.type).toBe('object');
   });
@@ -203,7 +201,7 @@ describeDb(suiteName, () => {
     }
 
     // Also when stale-running: another owner never takes it over.
-    await db.execute(sql`UPDATE agent_runs SET status = 'running'`);
+    await asTenant((tx) => tx.execute(sql`UPDATE agent_runs SET status = 'running'`));
     await age('job-1', 61_000);
     expect((await store.begin({ ...scoped, patientId: 'pat-2' }, stale)).claimed).toBe(false);
 
