@@ -586,7 +586,7 @@ Code only ever calls `can(principal, "note.sign")`. Role names appear in exactly
 | Pathology | `pathology.reconcile`, `pathology.letter.send` |
 | Referral / fax | `referral.triage`, `fax.send` |
 | AI | `ai.generate` (any agent run); per-agent caps are possible later |
-| Admin | `admin.users`, `admin.roles`, `admin.facility`, `audit.read`, **`breakglass.invoke`** ⓢ |
+| Admin | `admin.users`, `admin.roles`, `admin.facility`, `audit.read`, `quality.read`, **`breakglass.invoke`** ⓢ |
 | Portal | `portal.self.read`, `portal.self.forms` |
 
 ⓢ = needs step-up (fresh login).
@@ -615,6 +615,7 @@ Source of truth in code: `packages/authz/src/roles/*.ts`, pinned row by row in `
 | ai.generate | – | ✔ | – | ✔ | ✔ | ✔ | – | – |
 | admin.* | – | – | – | – | – | – | ✔ | – |
 | audit.read | – | – | – | – | – | – | ✔ | ✔ |
+| quality.read | – | – | – | ✔ | – | – | ✔ | ✔ |
 | breakglass.invoke | – | ✔ | – | ✔ | ✔ | – | – | – |
 | Facility-scoped | yes | yes | yes | yes | yes | no (all) | no (all) | no (all) |
 
