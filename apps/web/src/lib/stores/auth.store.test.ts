@@ -6,7 +6,7 @@ import { useAuthStore } from "./auth.store";
 const session: AuthSession = {
   token: "t",
   expiresAt: "2099-01-01T00:00:00.000Z",
-  user: { id: "u1", email: "u@x.dev", fullName: "U One", role: "NURSE", roleTitle: "RN", initials: "UO", facilityName: "A" },
+  user: { id: "u1", email: "u@x.dev", fullName: "U One", roleTitle: "RN", initials: "UO", facilityName: "A" },
 };
 
 const me: MeResponse = {
@@ -45,6 +45,17 @@ describe("auth store", () => {
     expect(useAuthStore.getState().facilityId).toBe("B");
     useAuthStore.getState().selectFacility("C");
     expect(useAuthStore.getState().facilityId).toBe("B");
+  });
+
+  it("remembers a picked workspace and forgets it when the facility changes or on sign-out", () => {
+    useAuthStore.getState().setSession(session, me);
+    useAuthStore.getState().selectWorkspace("physician");
+    expect(useAuthStore.getState().workspaceKey).toBe("physician");
+    useAuthStore.getState().selectFacility("B");
+    expect(useAuthStore.getState().workspaceKey).toBeNull();
+    useAuthStore.getState().selectWorkspace("nursing");
+    useAuthStore.getState().clearSession();
+    expect(useAuthStore.getState().workspaceKey).toBeNull();
   });
 
   it("has no current facility for an all-site principal, and ignores selection when signed out", () => {

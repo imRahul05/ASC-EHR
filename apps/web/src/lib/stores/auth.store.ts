@@ -12,17 +12,21 @@ interface AuthState {
   readonly facilities: MeResponse["facilities"];
   /** The facility checks run against. Null for principals with only all-site grants. */
   readonly facilityId: string | null;
+  /** Workspace the user picked; the effective one is resolved from capabilities (use-workspace). */
+  readonly workspaceKey: string | null;
   readonly setSession: (session: AuthSession, me: MeResponse) => void;
-  /** Ignored unless the principal holds a grant at that facility. */
+  /** Ignored unless the principal holds a grant at that facility. Resets the picked workspace. */
   readonly selectFacility: (facilityId: string) => void;
+  readonly selectWorkspace: (workspaceKey: string | null) => void;
   readonly clearSession: () => void;
 }
 
-const SIGNED_OUT: Pick<AuthState, "session" | "principal" | "facilities" | "facilityId"> = {
+const SIGNED_OUT: Pick<AuthState, "session" | "principal" | "facilities" | "facilityId" | "workspaceKey"> = {
   session: null,
   principal: null,
   facilities: [],
   facilityId: null,
+  workspaceKey: null,
 };
 
 export const useAuthStore = create<AuthState>()((set, get) => ({
@@ -33,10 +37,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       principal: me.principal,
       facilities: me.facilities,
       facilityId: grantedFacilityIds(me.principal)[0] ?? null,
+      workspaceKey: null,
     }),
   selectFacility: (facilityId) => {
     const { principal } = get();
-    if (principal !== null && grantedFacilityIds(principal).includes(facilityId)) set({ facilityId });
+    if (principal !== null && grantedFacilityIds(principal).includes(facilityId)) set({ facilityId, workspaceKey: null });
   },
+  selectWorkspace: (workspaceKey) => set({ workspaceKey }),
   clearSession: () => set(SIGNED_OUT),
 }));

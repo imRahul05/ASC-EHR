@@ -1,5 +1,5 @@
 import type { RoleAssignment } from "@asc/authz/grants";
-import type { TenantRef, UserRole } from "@asc/types";
+import type { TenantRef } from "@asc/types";
 
 // Demo identities: which roles each demo user holds, and where. Roles are data
 // (templates in @asc/authz); the mock /me builds the Principal from these.
@@ -19,24 +19,6 @@ interface DemoIdentity {
   readonly patientId?: string;
 }
 
-// Temporary: signup still asks for a legacy role. Removed with the role picker (P05d2).
-// buildGrants ignores the facility for all-site roles, so every signup is placed at Metro.
-const SIGNUP_ROLE: Readonly<Record<UserRole, { readonly roleKey: string; readonly portal: boolean }>> = {
-  SURGEON: { roleKey: "gi-physician", portal: false },
-  ANESTHESIOLOGIST: { roleKey: "anesthesia", portal: false },
-  NURSE: { roleKey: "rn", portal: false },
-  ADMIN: { roleKey: "admin", portal: false },
-  PATIENT: { roleKey: "patient", portal: true },
-};
-
-export function signupIdentity(role: UserRole, userId: string): DemoIdentity {
-  const { roleKey, portal } = SIGNUP_ROLE[role];
-  return {
-    assignments: [{ roleKey, facilityId: METRO }],
-    ...(portal ? { patientId: `pat_${userId}` } : {}),
-  };
-}
-
 /** Keyed by sign-in email. A user at two facilities holds separate grants at each. */
 export const DEMO_IDENTITIES: Readonly<Record<string, DemoIdentity>> = {
   "surgeon@ascehr.demo": { assignments: [{ roleKey: "gi-physician", facilityId: METRO }] },
@@ -52,6 +34,7 @@ export const DEMO_IDENTITIES: Readonly<Record<string, DemoIdentity>> = {
     ],
   },
   "patient@ascehr.demo": { assignments: [{ roleKey: "patient" }], patientId: "pat_105" },
+  "tech@ascehr.demo": { assignments: [{ roleKey: "tech", facilityId: METRO }] },
   // "User X": a nurse at Metro who works as a physician at Lakeside.
   "float@ascehr.demo": {
     assignments: [

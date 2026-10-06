@@ -1,15 +1,7 @@
-export type UserRole =
-  | "SURGEON"
-  | "ANESTHESIOLOGIST"
-  | "NURSE"
-  | "ADMIN"
-  | "PATIENT";
-
 export interface UserProfile {
   readonly id: string;
   readonly email: string;
   readonly fullName: string;
-  readonly role: UserRole;
   readonly roleTitle: string;
   readonly initials: string;
   readonly avatarUrl?: string;
@@ -30,9 +22,11 @@ export interface AuthSession {
   readonly expiresAt: string;
 }
 
+/** Demo personas are labels for one-click sign-in (a person, not a permission). */
+export type DemoPersonaId = "demo-admin" | "demo-nurse" | "demo-surgeon" | "demo-anesthesia" | "demo-patient";
+
 export interface DemoAccountPreset {
-  readonly id: string;
-  readonly role: UserRole;
+  readonly id: DemoPersonaId;
   readonly email: string;
   readonly fullName: string;
   readonly roleTitle: string;
@@ -44,20 +38,4 @@ export interface DemoAccountPreset {
 export interface LoginCredentials {
   readonly email: string;
   readonly password: string;
-}
-
-export interface SignupPayload {
-  readonly email: string;
-  readonly password: string;
-  readonly fullName: string;
-  readonly role: UserRole;
-  readonly npi?: string;
-  readonly licenseNumber?: string;
-  readonly specialty?: string;
-  readonly careStage?: string;
-  readonly department?: string;
-  readonly facilityCode?: string;
-  readonly dateOfBirth?: string;
-  readonly escortName?: string;
-  readonly escortPhone?: string;
 }

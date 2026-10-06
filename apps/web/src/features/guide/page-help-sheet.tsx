@@ -4,15 +4,14 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@asc/api-client/react";
-import type { CaseDetail, UserRole } from "@asc/types";
+import type { CaseDetail } from "@asc/types";
 import { Button, HelpSheet } from "@asc/ui";
 import { LifeBuoy, Map as MapIcon, Sparkles } from "@asc/ui/icons";
-import { NAV_BY_ROLE, ROLE_LABEL } from "@/components/shell/nav-config";
 import { DEFAULT_TAB_BY_PHASE, isCaseTab } from "@/features/case/case-tab-ids";
+import { accessForPath } from "@/lib/route-access";
+import { roleLabelsWith } from "@/lib/role-labels";
 import { CASE_TAB_HELP, ROUTE_HELP } from "./guide-content";
 import { closeHelp, setTourCollapsed, showWelcome, startTour, updateGuide, useGuideState } from "./guide-store";
-
-const ROLES = Object.keys(ROLE_LABEL) as UserRole[];
 
 /** The sheet never resets progress; restarting lives in the Help center. */
 const TOUR_BUTTON = {
@@ -29,8 +28,11 @@ const TOUR_BUTTON = {
 
 const recordTestId = (href: string) => href.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
 
-const rolesFor = (key: string, explicit?: readonly UserRole[]) =>
-  (explicit ?? ROLES.filter((role) => NAV_BY_ROLE[role].some((item) => item.key === key))).map((role) => ROLE_LABEL[role].label);
+/** Roles whose templates hold a capability that opens this screen (labels come from the templates). */
+const rolesFor = (segment: string) => {
+  const access = accessForPath(`/${segment}`);
+  return access === undefined ? [] : roleLabelsWith(access);
+};
 
 /** Help for the current route (and, in the case workspace, the open tab). Opened by the top-bar ? button or the `?` key. */
 export function PageHelpSheet() {
@@ -66,7 +68,7 @@ export function PageHelpSheet() {
       purpose={help.purpose}
       steps={help.steps}
       records={(help.records ?? []).map((record) => ({ id: recordTestId(record.href), label: record.label, hint: record.hint, onSelect: () => open(record.href) }))}
-      roles={rolesFor(segment, help.roles)}
+      roles={rolesFor(segment)}
       mocked={help.mocked}
       production={help.production}
       footer={

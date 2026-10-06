@@ -6,7 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ApiError } from "@asc/api-client";
 import { useCompleteWorkItem, useWorklist } from "@asc/api-client/react";
 import { formatDateTime } from "@asc/clinical-rules/time";
-import type { StaffRole, UserRole, WorkItem, WorkItemType } from "@asc/types";
+import type { ParticipantRole, WorkItem, WorkItemType } from "@asc/types";
 import {
   Badge,
   Button,
@@ -24,15 +24,14 @@ import {
   type DataTableColumn,
 } from "@asc/ui";
 import { AlarmClock, Check, ListChecks } from "@asc/ui/icons";
-import { useAuth } from "@/hooks/use-auth";
+import { useCan } from "@/hooks/use-can";
 import { WORK_ITEM_TYPE_LABEL, workItemHref } from "./work-item-links";
 
 type TabId = WorkItemType | "all";
 type StatusFilter = WorkItem["status"];
 
 const TABS: readonly TabId[] = ["all", "sign_note", "eligibility_failed", "referral_intake", "pending_pathology", "coding", "result_letter", "med_hold_review"];
-const DEFAULT_TAB: Readonly<Record<UserRole, TabId>> = { SURGEON: "sign_note", ADMIN: "all", NURSE: "all", ANESTHESIOLOGIST: "all", PATIENT: "all" };
-const ROLE_LABEL: Readonly<Record<StaffRole, string>> = { ADMIN: "Front desk / coder", SURGEON: "Surgeon", NURSE: "Nurse", ANESTHESIOLOGIST: "Anesthesia" };
+const ROLE_LABEL: Readonly<Record<ParticipantRole, string>> = { ADMIN: "Front desk / coder", SURGEON: "Surgeon", NURSE: "Nurse", ANESTHESIOLOGIST: "Anesthesia" };
 const PRIORITY_CLASS: Readonly<Record<WorkItem["priority"], string>> = {
   high: "border-destructive/30 bg-destructive/8 text-destructive",
   normal: "text-muted-foreground",
@@ -55,12 +54,13 @@ export function WorklistView() {
 }
 
 function WorklistContent() {
-  const { user } = useAuth();
+  const can = useCan();
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
   const requested = params.get("type");
-  const tab: TabId = isTab(requested) ? requested : DEFAULT_TAB[user?.role ?? "ADMIN"];
+  // Whoever drafts notes (physicians) lands on their sign queue; everyone else on all work.
+  const tab: TabId = isTab(requested) ? requested : can("note.draft") ? "sign_note" : "all";
   const status: StatusFilter = params.get("status") === "done" ? "done" : "open";
   const list = useWorklist({ status });
   const complete = useCompleteWorkItem();

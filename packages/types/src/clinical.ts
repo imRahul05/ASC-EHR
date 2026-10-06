@@ -3,7 +3,6 @@
  * Spec: docs/product/07-mock-frontend.md §3 · state machine: docs/product/04-end-to-end-flows.md §4.2.
  * All timestamps are ISO-8601 strings. All data in demos/fixtures is synthetic.
  */
-import type { UserRole } from "./auth.js";
 
 /** ISO-8601 date-time string. */
 export type IsoDateTime = string;
@@ -58,7 +57,12 @@ export interface RuleResult {
 // ─── People & staff ─────────────────────────────────────────────────────────
 
 export type Sex = "F" | "M" | "X";
-export type StaffRole = Exclude<UserRole, "PATIENT">;
+/**
+ * A person's job on the care team: a label on staff, work-queue owners and time-out
+ * attestations. It says who does what in a case; it grants nothing (authorization is
+ * capabilities from role templates in @asc/authz).
+ */
+export type ParticipantRole = "SURGEON" | "ANESTHESIOLOGIST" | "NURSE" | "ADMIN";
 
 export interface StaffRef {
   readonly id: string;
@@ -67,7 +71,7 @@ export interface StaffRef {
 }
 
 export interface StaffMember extends StaffRef {
-  readonly role: StaffRole;
+  readonly role: ParticipantRole;
   readonly title: string;
   readonly npi?: string;
   readonly active: boolean;
@@ -837,7 +841,7 @@ export interface WorkItem {
   readonly type: WorkItemType;
   readonly title: string;
   readonly detail: string;
-  readonly ownerRole: StaffRole;
+  readonly ownerRole: ParticipantRole;
   readonly priority: "low" | "normal" | "high";
   readonly status: "open" | "done";
   readonly dueAt: IsoDateTime;
@@ -851,7 +855,7 @@ export interface WorkItem {
 export interface AuditActor {
   readonly id: string;
   readonly name: string;
-  readonly role: UserRole | "SYSTEM";
+  readonly role: ParticipantRole | "PATIENT" | "SYSTEM";
 }
 
 export interface AuditEvent {
@@ -1164,7 +1168,7 @@ export interface SendResultLetterPayload {
 
 export interface WorklistQuery {
   readonly type?: WorkItemType;
-  readonly role?: StaffRole;
+  readonly role?: ParticipantRole;
   readonly status?: WorkItem["status"];
 }
 

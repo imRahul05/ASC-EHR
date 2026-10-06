@@ -2,6 +2,7 @@ import { API_ROUTES } from "@asc/config/api";
 import type { AuthSession } from "@asc/types";
 import { setupServer } from "msw/node";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { pendingAccessRequests } from "../db/access-requests";
 import { apiUrl } from "./api-url";
 import { authHandlers } from "./auth";
 import { meHandlers } from "./me";
@@ -43,13 +44,25 @@ describe("mock auth fails closed", () => {
     expect(body.facilities).toHaveLength(2);
   });
 
-  it("gives a new signup an identity, and refuses to re-register an existing email", async () => {
-    const payload = { email: "new.nurse@example.com", password: "secret1", fullName: "New Nurse", role: "NURSE" };
-    const signup = await post(API_ROUTES.authSignup, payload);
-    expect(signup.status).toBe(200);
-    const { token } = (await signup.json()) as AuthSession;
-    expect((await me(token)).status).toBe(200);
-    expect((await post(API_ROUTES.authSignup, payload)).status).toBe(409);
-    expect((await post(API_ROUTES.authSignup, { ...payload, email: "admin@ascehr.demo" })).status).toBe(409);
+  it("takes an access request without creating an account or a session", async () => {
+    const request = { fullName: "Jordan Reyes", email: "jordan.reyes@example.org" };
+    const response = await post(API_ROUTES.authAccessRequest, { ...request, role: "ADMIN" });
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual({ status: "received" });
+    expect(pendingAccessRequests()).toContainEqual(request);
+    expect((await post(API_ROUTES.authLogin, { email: request.email, password: "x" })).status).toBe(401);
+  });
+
+  it("answers an access request for a known email like any other, so accounts cannot be probed", async () => {
+    const response = await post(API_ROUTES.authAccessRequest, { fullName: "Marcus Vance", email: "admin@ascehr.demo" });
+    expect(response.status).toBe(202);
+  });
+
+  it("rejects an invalid access request", async () => {
+    expect((await post(API_ROUTES.authAccessRequest, { fullName: "J", email: "nope" })).status).toBe(400);
+  });
+
+  it("has no self-signup: accounts exist only by invitation", () => {
+    expect(API_ROUTES).not.toHaveProperty("authSignup");
   });
 });

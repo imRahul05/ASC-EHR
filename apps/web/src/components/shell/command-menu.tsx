@@ -12,6 +12,7 @@ import type { CommandGroup } from "@asc/ui/components/navigation/command-palette
 import { CircleHelp, Map as MapIcon, Search, Sparkles, Stethoscope, UserRound } from "@asc/ui/icons";
 import { openHelp, showWelcome, startTour } from "../../features/guide/guide-store";
 import { useCan } from "../../hooks/use-can";
+import { useWorkspace } from "../../hooks/use-workspace";
 import { visibleNavItems } from "./nav-config";
 
 const CommandPalette = dynamic(
@@ -31,6 +32,7 @@ export function CommandMenu() {
   const [palette, setPalette] = useState<PaletteState>(CLOSED);
   const router = useRouter();
   const can = useCan();
+  const { current } = useWorkspace();
   const canSearchRecords = can("patient.read");
   const search = useSearch(canSearchRecords && palette.open ? palette.query : "");
 
@@ -56,7 +58,7 @@ export function CommandMenu() {
     {
       id: "pages",
       label: "Pages",
-      items: visibleNavItems(can)
+      items: visibleNavItems(can, current?.navTitles)
         .filter((item) => item.title.toLowerCase().includes(needle))
         .map((item) => ({ id: `page-${item.key}`, label: item.title, icon: item.icon, onSelect: () => router.push(item.href) })),
     },

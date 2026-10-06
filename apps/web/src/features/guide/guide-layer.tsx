@@ -35,7 +35,7 @@ function TourPanel() {
     if (!step) return;
     // On a phone the open panel would cover the screen we just navigated to.
     if (window.matchMedia(NARROW_QUERY).matches) setTourCollapsed(true);
-    void goTo(step.role, step.href, step.id);
+    void goTo(step.persona, step.href, step.id);
   };
   const onDismiss = () => {
     dismissTour();

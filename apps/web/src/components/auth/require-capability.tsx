@@ -1,9 +1,9 @@
 "use client";
 
 import type { Capability } from "@asc/types";
-import { ErrorState } from "@asc/ui/components/clinical/error-state";
 import type { ReactNode } from "react";
 import { useCan } from "../../hooks/use-can";
+import { ForbiddenState } from "./forbidden-state";
 
 interface RequireCapabilityProps {
   /** One capability, or several meaning "any of these". */
@@ -18,12 +18,5 @@ interface RequireCapabilityProps {
 export function RequireCapability({ capability, children }: RequireCapabilityProps) {
   const can = useCan();
   if (can(capability)) return children;
-  return (
-    <div data-testid="forbidden-state" data-status="403">
-      <ErrorState
-        title="You don't have access to this screen"
-        message="Your role at this facility doesn't include it. Ask an administrator if you need access."
-      />
-    </div>
-  );
+  return <ForbiddenState />;
 }

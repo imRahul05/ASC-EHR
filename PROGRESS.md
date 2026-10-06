@@ -20,7 +20,7 @@
 | Updated | 2026-10-06 |
 |---|---|
 | Current wave | 0 |
-| In progress | — |
+| In progress | P05d2 in review (#35) |
 | Ready to start | P00b, P01, P02, P03, P09, P06 (needs Azure access), P05d, P05e |
 | Blocked | P13 soft-blocked on Q-MS1 (fallback allowed) |
 | Go-live target | 2026-12-07 |
@@ -67,7 +67,7 @@
 | P05a | Contracts + `@asc/authz` core (`can()`, ports) | done | — | | `phase/P05a-authz-core` | [#24](https://github.com/imRahul05/ASC-EHR/pull/24) | 2026-10-06 | 2026-10-06 |
 | P05b | Role templates, workspaces, lint guard | done | P05a | | `phase/P05b-roles-workspaces` | [#25](https://github.com/imRahul05/ASC-EHR/pull/25) | 2026-10-06 | 2026-10-06 |
 | P05c | Policy compiler | done | P05b | | `phase/P05c-policy-compiler` | [#26](https://github.com/imRahul05/ASC-EHR/pull/26) | 2026-10-06 | 2026-10-06 |
-| P05d | Web on capabilities (P05d1, P05d2) | P05d1 done; P05d2 ready | P05b | | `phase/P05d1-web-principal` | [#32](https://github.com/imRahul05/ASC-EHR/pull/32) (P05d1) | 2026-10-06 | |
+| P05d | Web on capabilities (P05d1, P05d2) | P05d1 done; P05d2 in review | P05b | | `phase/P05d2-workspaces` | [#32](https://github.com/imRahul05/ASC-EHR/pull/32), [#35](https://github.com/imRahul05/ASC-EHR/pull/35) | 2026-10-06 | |
 | P05e | App-DB tenancy (RLS, `withTenant`) | pending | P05a | | | | | |
 | P05f | Durable audit | pending | P05e | | | | | |
 | P05g | API security spine | pending | P05a, P05e, P05f | | | | | |
@@ -121,6 +121,7 @@ Work completed before this plan existed, grouped from git history (`origin/main`
 | Q8 | CPT licence | P08, P22 | business | open |
 | Q15/Q-MS7 | STT vendor + BAA | P18 | eng | open |
 | Q-MS4/5 | faxagnet + Integuru hosting/BAA/outbound | P24 | MindScript team | open |
+| Q-IAM-C | Workspace overlap: roles whose capabilities are a subset of another's (tech ⊂ nurse/physician) appear as an extra workspace option in the switcher. Add `hiddenWhen` to workspace definitions? ([P05 §4 P05d decisions](docs/plan/phases/P05-auth-roles.md)) | none (UX only) | eng lead | open: accepted for now |
 
 Full lists: [implementation plan §6](docs/plan/implementation-plan.md#6-cross-phase-open-questions), each phase file, [05 §5.4](docs/product/05-delivery-plan.md), [06 §7](docs/product/06-mindscript-integration.md#7-open-questions-for-the-mindscript-team).
 

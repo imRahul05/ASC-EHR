@@ -17,10 +17,10 @@ import {
   SidebarRail,
 } from "@asc/ui";
 import { Activity } from "@asc/ui/icons";
-import type { UserRole } from "@asc/types";
 import { useAuth } from "../../hooks/use-auth";
 import { useCan } from "../../hooks/use-can";
-import { ROLE_LABEL, visibleNavItems } from "./nav-config";
+import { useWorkspace } from "../../hooks/use-workspace";
+import { visibleNavItems } from "./nav-config";
 
 function isActive(href: string, pathname: string, view: string | null): boolean {
   const [path, query] = href.split("?");
@@ -69,13 +69,13 @@ function NavList({ items, pathname, view }: { readonly items: NavItems; readonly
 export function AppSidebar() {
   const { user } = useAuth();
   const can = useCan();
-  const items = visibleNavItems(can);
-  const role: UserRole = user?.role ?? "SURGEON";
+  const { current } = useWorkspace();
+  const items = visibleNavItems(can, current?.navTitles);
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
       <SidebarHeader className="px-3 pt-4 pb-2">
-        <Link href={role === "PATIENT" ? "/my-care" : "/dashboard"} className="flex items-center gap-2.5 rounded-lg px-1 py-1 outline-none focus-visible:ring-3 focus-visible:ring-ring/40">
+        <Link href={current?.home ?? "/dashboard"} className="flex items-center gap-2.5 rounded-lg px-1 py-1 outline-none focus-visible:ring-3 focus-visible:ring-ring/40">
           <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-xs">
             <Activity className="size-4" />
           </span>
@@ -88,7 +88,7 @@ export function AppSidebar() {
 
       <SidebarContent className="px-1">
         <SidebarGroup>
-          <SidebarGroupLabel className="text-[11px] font-medium text-muted-foreground">{ROLE_LABEL[role].label}</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-[11px] font-medium text-muted-foreground">{current?.label ?? "Workspace"}</SidebarGroupLabel>
           <SidebarGroupContent>
             <Suspense fallback={<NavMenu items={items} withSearchParams={false} />}>
               <NavMenu items={items} withSearchParams />
