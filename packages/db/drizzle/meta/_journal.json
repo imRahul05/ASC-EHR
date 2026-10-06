@@ -8,6 +8,34 @@
       "when": 1790410712829,
       "tag": "0000_init_agent_runs",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791278261458,
+      "tag": "0001_add_tenant_facility_to_agent_runs",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791278343279,
+      "tag": "0002_backfill_tenant_not_null",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791278384479,
+      "tag": "0003_enable_rls_agent_runs",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791278413935,
+      "tag": "0004_runtime_role_grants",
+      "breakpoints": true
     }
   ]
 }

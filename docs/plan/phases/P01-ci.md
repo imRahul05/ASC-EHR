@@ -51,6 +51,7 @@ apps/web/e2e/smoke.spec.ts        NEW
 - [ ] PR shows green checks for ci + evals (mock)
 - [ ] Breaking an eval case fails CI
 - [ ] No secrets in PR workflows; nightly uses environment-scoped secrets
+- [ ] `ci.yml` runs a Postgres service and sets `TEST_DATABASE_URL`, so the `@asc/db` RLS and tenant-isolation tests run; `CI=true` without it fails `require-db-in-ci.test.ts` ([P05e decisions](P05-auth-roles.md), #8)
 - [ ] PROGRESS.md updated
 
 ## Open questions

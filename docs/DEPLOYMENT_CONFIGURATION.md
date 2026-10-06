@@ -42,6 +42,12 @@ Parsed once at startup by `apiEnvSchema` (`packages/config/src/env.ts`). An inva
 |---|---|---|
 | `CORS_ORIGINS` | Browser origins allowed to call the API cross-origin. | Comma-separated **exact origins**: `https://app.example.com,https://staging.example.com`. No `*`, no path, no trailing slash — anything else fails startup. |
 | *(unset)* | — | Development/test: `http://localhost:3000` (`next dev`). Deployed (`NODE_ENV=production`/`staging`): **no origin allowed** (deny by default). |
+| `DATABASE_RUNTIME_URL` | App-owned Postgres as the **runtime role** (member of `asc_runtime`). | `postgres://` URL, TLS (`?sslmode=require`) when deployed. Never the table owner: it cannot alter tables or bypass row-level security. Optional until P05g. |
+| `DATABASE_URL` | The **owner** URL. | Migrations only (`pnpm db:migrate`); keep it out of the running app's environment once P05g reads `DATABASE_RUNTIME_URL`. |
+| `DEFAULT_TENANT_ID` | The one configured tenant (single hospital). | UUID. Read by `StaticTenantResolver`, never from a request. |
+| `MEDPLUM_PROJECT_ID` | Medplum Project of that tenant. | Non-empty string. |
+
+The worker reads the same four database and tenant variables (`workerEnvSchema`). Both are optional until P05g makes them required for the API; the database role split and RLS are described in [`packages/db/README.md`](../packages/db/README.md).
 
 CORS policy (`apps/api/src/app.ts`): methods `GET POST PUT PATCH DELETE`; headers `Accept Authorization Content-Type X-Correlation-Id X-Request-Id`; preflight cached 10 minutes; **no credentials** — auth is an in-memory Bearer token, never a cookie (LM-004).
 

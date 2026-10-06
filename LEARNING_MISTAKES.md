@@ -44,6 +44,7 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 12. Inside typed code, trust TypeScript union types instead of adding defensive fallback values (data from outside — API responses, URLs, storage — is still validated with Zod at the boundary); dynamic imports must be statically type-checked. (LM-012)
 13. Planning/design docs: never mark an ADR `accepted` without a recorded human sign-off, write review findings into the docs they affect (not only into chat), and keep doc rewrites within the commit cap. (LM-013)
 14. Authz templates: every catalog capability is held by some role, each capability comes with the data rights it needs, and tenant-wide directory data is `shared` (never facility-filtered); lint rules that inspect TypeScript must see through `as`/`!`/`satisfies`. (LM-014)
+15. Finishing a phase PR: record the phase's decisions in its plan file (decisions block, not only the PR body), leave the plan checklist unticked (evidence goes in the PR), update every `.env*.example` and `docs/DEPLOYMENT_CONFIGURATION.md` for each new env var, write down rules a later migration must follow, and never let a CI run pass with skipped DB tests. (LM-015)
 
 ---
 
@@ -87,7 +88,7 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **Guarded by:** lint (`BROWSER_ENTRY_POINT_PATHS` in `@asc/eslint-config/app`, now including `@asc/authz`, used by the Next.js config and `@asc/api-client`); `packages/authz/src/module-format.test.ts` (NodeNext tsconfig, no relative runtime imports in leaf-reachable files); P01 Playwright smoke test will cover the rest.
 
 ### LM-006 — Only `@asc/config` reads `process.env`
-- **Seen:** 1 · `packages/audit/src/index.ts` (and logger/telemetry defaults) · fixed 2026-09-27, PR #9
+- **Seen:** 2 · `packages/audit/src/index.ts` (and logger/telemetry defaults) · fixed 2026-09-27, PR #9; again 2026-10-06, `packages/db/src/__tests__/test-db.ts` (shared test helper read `TEST_DATABASE_URL`; the lint exemption covers `*.test.ts` only, so the helper takes the URL as a parameter)
 - **What went wrong:** `@asc/audit` decided production mode from `process.env.NODE_ENV` itself, and logger/telemetry defaulted to `process.env`, contrary to "env is parsed once in @asc/config".
 - **Rule:** Use `parseEnv()` / `publicEnv` / `getProcessEnv()` / `isProductionEnv()` from `@asc/config` (`@asc/config/runtime` for packages).
 - **How to check:** `grep -rn "process\.env" packages/*/src apps/*/src | grep -v packages/config`
@@ -148,3 +149,10 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **Rule:** When adding or changing a role template, assign every capability to at least one role, list the FHIR resource types each capability reads or writes, and mark tenant-wide directory data `shared` so the compiler skips the facility filter. Check a compiled policy for what a role can still *see*, not only for what it is denied. Lint rules over TypeScript unwrap `TSAsExpression`, `TSNonNullExpression`, `TSSatisfiesExpression` and `TSTypeAssertion`.
 - **How to check:** `pnpm --filter @asc/authz test` (orphan test, directory-data test, matrix and policy snapshots); review the snapshot diff for widened or hidden resources.
 - **Guarded by:** `packages/authz/src/roles/matrix.test.ts` (no orphans, all capabilities documented), `policy/snapshot.test.ts` (directory data never facility-filtered), `eslint-config/rules/no-role-name-comparison.test.js` (TypeScript wrappers). Real-Medplum check: P05h policy test.
+
+### LM-015 — Phase PRs: decisions in the plan, unticked checklist, env examples, no silent skips
+- **Seen:** 1 · 2026-10-06 · PR #36 (P05e), found in review
+- **What went wrong:** P05e left its decisions only in the PR body and `@asc/db` README (the P05d decisions block in the P05 plan was the standard), ticked the plan checklist (P05a–P05d are left unticked on purpose, evidence lives in the PR), added `DATABASE_RUNTIME_URL`, `DEFAULT_TENANT_ID` and `MEDPLUM_PROJECT_ID` to `@asc/config` without touching `apps/*/.env*.example` or `docs/DEPLOYMENT_CONFIGURATION.md`, let 49 DB tests skip silently (green without a database, so CI would never run the RLS tests), and never wrote down that FORCE row-level security also applies to the table owner, so a later owner-side migration or job needs `app.tenant_id` set.
+- **Rule:** When closing a phase: add a "Pxx decisions" block to its plan file (include rules later migrations must follow); do not tick the plan checklist; add every new env var to the four `.env*.example` files of each app that parses it and to `docs/DEPLOYMENT_CONFIGURATION.md` (extends LM-010); a suite that can skip needs a CI guard that fails when the prerequisite is missing.
+- **How to check:** `git diff --stat origin/main -- packages/config apps/*/.env* docs/DEPLOYMENT_CONFIGURATION.md` together; `grep -c "\[x\]" docs/plan/phases/P05-auth-roles.md`; `CI=true pnpm --filter @asc/db test` without a database must fail.
+- **Guarded by:** `packages/db/src/__tests__/require-db-in-ci.test.ts` (skips only). The rest: not yet, review only.

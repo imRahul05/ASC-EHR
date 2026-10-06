@@ -177,6 +177,19 @@ Workspaces: `@asc/db`, `@asc/config`.
 - [ ] Runtime role cannot alter tables or bypass RLS
 - [ ] `agent_runs.org_id` meaning resolved (default: keep until `@asc/agents` migrates; new columns are the source of truth)
 
+#### P05e decisions (2026-10-06)
+
+Recorded here so the next DB agent (P05f, P05g) finds them. Code: `packages/db` unless noted. Evidence (commands, test names) lives in PR #36; the checklist above is deliberately left unticked, as for P05a–P05d.
+
+1. **Two roles.** The **owner** runs migrations (`DATABASE_URL`). The app connects as a member of the group role `asc_runtime` (`DATABASE_RUNTIME_URL`; login `asc_app` locally via `docker/postgres/init/01-runtime-role.sql`, created by infra in P06). Migration `0004` creates `asc_runtime` (`NOLOGIN NOSUPERUSER NOBYPASSRLS`) and grants **per table**, never default privileges. It has `SELECT, INSERT, UPDATE` on `agent_runs` and no `DELETE`, so a retention/purge job needs an owner-side path with tenant context.
+2. **`withTenant` is the only client the package exports.** `createTenantDb().withTenant(tenantId, tx => …)` opens a transaction and sets `app.tenant_id` with `set_config(…, true)` (transaction-local). The tenant id comes from the principal or job context, never from a request, and a non-UUID is rejected before it reaches SQL. The owner client lives in `@asc/db/migrate` (migrations and tooling only).
+3. **RLS is enabled and forced; unset context fails closed.** Policy `tenant_isolation` on `tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid`, for read and write. **Every new tenant table (P05f `audit_events`) repeats this in its own migration: `tenant_id NOT NULL`, ENABLE + FORCE, the policy, explicit grants.**
+4. **FORCE applies to the owner too.** Schema-only DDL is unaffected, but any later migration or owner-side job that reads or writes `agent_runs` rows must set `app.tenant_id` in its transaction (`SELECT set_config('app.tenant_id', $1, true)`). A superuser bypasses RLS, so this only bites with a non-superuser owner, which is what Azure uses. Migration `0002` is safe only because it runs before RLS is enabled.
+5. **Backfill input.** Migration `0002` backfills rows written before tenancy from the session setting `app.default_tenant_id` (`?app.default_tenant_id=<uuid>` on the migration URL, or `createMigrationDb({ defaultTenantId })`) and stops if any row would stay without a tenant.
+6. **`org_id` stays** until `@asc/agents` migrates (Q-IAM-A). The run store takes an `AgentRunScope` (`tenantId`, optional `facilityId`); takeover requires the same tenant (RLS) and the same facility.
+7. **Open: global primary key.** `execution_id` is still the sole primary key. Another tenant reusing an id gets an error (never data or a claim). A composite `(tenant_id, execution_id)` would remove that; decide before ids can collide across tenants.
+8. **Tests.** Isolation is proven as the runtime login `asc_app`, not the owner (a local superuser owner bypasses RLS). The DB suites skip without `TEST_DATABASE_URL`; `require-db-in-ci.test.ts` fails when `CI` is set and the URL is not, so P01 CI must provide a Postgres.
+
 ### P05f — Durable audit · S · needs P05e
 Workspaces: `@asc/audit`, `@asc/db`.
 

@@ -244,10 +244,15 @@ pnpm db:migrate   # apply packages/db/drizzle migrations
 pnpm db:down      # stop (named volume keeps data; `docker compose down -v` wipes it)
 
 # app env (apps/api, apps/worker .env)
-DATABASE_URL=postgres://asc:asc@localhost:5432/asc_ehr
+DATABASE_URL=postgres://asc:asc@localhost:5432/asc_ehr               # OWNER: migrations only
+DATABASE_RUNTIME_URL=postgres://asc_app:asc_app@localhost:5432/asc_ehr  # RUNTIME: what the app connects with
+DEFAULT_TENANT_ID=<uuid>        # the one configured tenant (single hospital, tenant-ready)
+MEDPLUM_PROJECT_ID=<id>         # Medplum Project of that tenant
 
-# DB integration tests (skipped when unset)
+# DB integration tests (skipped when unset); the runtime login defaults to asc_app/asc_app
 TEST_DATABASE_URL=postgres://asc:asc@localhost:5432/asc_ehr pnpm --filter @asc/db test
 ```
+
+The app never connects as the table owner: `agent_runs` has row-level security **forced**, and the runtime role (`asc_runtime`, login `asc_app` locally) cannot alter tables or bypass RLS. A volume created before this change lacks the login: `docker compose exec -T postgres psql -U asc -d asc_ehr < docker/postgres/init/01-runtime-role.sql`. Details: [`packages/db/README.md`](../packages/db/README.md).
 
 Never load real PHI locally. `agent_runs.output` holds model output (PHI) in staging/production, so those databases require encryption at rest, TLS, least-privilege roles and a retention policy (see the Postgres ADR).

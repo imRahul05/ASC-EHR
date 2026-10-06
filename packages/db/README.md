@@ -8,10 +8,11 @@ The clinical record is **not** here — it lives in Medplum (FHIR). This package
 
 | Path | What |
 |---|---|
-| `src/client.ts` | `createDb({ url, max? })` → `{ db, close }`. The URL comes from the app (`parseEnv()` in `@asc/config`); this package never reads `process.env`. |
+| `src/tenant.ts` | `createTenantDb({ url, max? })` → `{ withTenant(tenantId, tx => …), close }`. The **only** client the package root exports. `url` is `DATABASE_RUNTIME_URL` (parsed by the app with `parseEnv()`); this package never reads `process.env`. |
+| `src/migrate.ts` | `@asc/db/migrate`: owner-side `createMigrationDb`, `runMigrations`, `MIGRATIONS_FOLDER`. Migrations and tooling only; not re-exported from the root. |
 | `src/schema/` | Drizzle table definitions (`agent_runs`). |
 | `drizzle/` | Generated SQL migrations — commit them, never edit applied ones. |
-| `src/agent-run-store.ts` | `createPostgresAgentRunStore(db)` — implements `AgentRunStore` from `@asc/agents`. |
+| `src/agent-run-store.ts` | `createPostgresAgentRunStore(tenantDb, { tenantId, facilityId? })` — implements `AgentRunStore` from `@asc/agents`. |
 
 ## Commands (from repo root)
 
@@ -24,7 +25,21 @@ pnpm db:down
 TEST_DATABASE_URL=postgres://asc:asc@localhost:5432/asc_ehr pnpm --filter @asc/db test
 ```
 
-Integration tests migrate into a throwaway schema per run and are skipped when `TEST_DATABASE_URL` is unset.
+Integration tests migrate into a throwaway schema per run and are skipped when `TEST_DATABASE_URL` is unset (without it, `pnpm --filter @asc/db test` reports the DB suites as skipped). Tests that prove isolation connect as the runtime login `asc_app` (derived from `TEST_DATABASE_URL`; override with `TEST_RUNTIME_DATABASE_URL`). The owner in `TEST_DATABASE_URL` may be a superuser, which bypasses RLS: that is why behaviour is tested as `asc_app`.
+
+## Tenancy (P05e)
+
+Single hospital, tenant-ready ([08 §4.4](../../docs/product/08-identity-access-and-tenancy.md)):
+
+- `agent_runs.tenant_id uuid NOT NULL` and `facility_id text` (null = tenant-wide) are the source of truth (Q-IAM-A). `org_id` stays until `@asc/agents` migrates.
+- Row-level security is **enabled and forced**. Policy `tenant_isolation` compares `tenant_id` with `app.tenant_id`. If that setting is unset or empty, reads return no rows and inserts/updates are rejected (fail closed).
+- `withTenant` opens a transaction and sets `app.tenant_id` with `set_config(…, true)` (transaction-local, so it never leaks across pooled connections). The tenant id comes from the principal or job context, never from a request body or query string; a non-UUID is rejected before it touches the database.
+- Two roles: the **owner** runs migrations (`DATABASE_URL`); the app connects as a member of `asc_runtime` (`DATABASE_RUNTIME_URL`; `asc_app` locally). `asc_runtime` is `NOLOGIN NOSUPERUSER NOBYPASSRLS`, owns nothing and has `SELECT, INSERT, UPDATE` on `agent_runs` only: no `DELETE`, `TRUNCATE`, `ALTER`, or `CREATE`. Each new table's migration grants explicitly.
+- Local login: `docker/postgres/init/01-runtime-role.sql` (new volumes run it automatically; for an old volume see [Environments](../../docs/ENVIRONMENTS_AND_DEPLOYMENT.md#local-postgres-development)).
+- Backfill: migration `0002` gives rows written before tenancy the configured tenant, read from the session setting `app.default_tenant_id`, and stops if any row would stay without one. Pass it as a URL parameter: `DATABASE_URL='postgres://…/asc_ehr?app.default_tenant_id=<DEFAULT_TENANT_ID>' pnpm db:migrate`, or `createMigrationDb({ url, defaultTenantId })`. An empty table needs nothing.
+- **FORCE applies to the owner too.** A later migration or owner-side job that reads or writes `agent_runs` rows must run `SELECT set_config('app.tenant_id', $1, true)` in its transaction, or it sees no rows (with a non-superuser owner, as on Azure; a superuser bypasses RLS). Schema-only DDL is unaffected. Each new tenant table repeats the pattern: `tenant_id NOT NULL`, ENABLE + FORCE, policy, explicit grants to `asc_runtime`.
+- CI: the DB suites skip without `TEST_DATABASE_URL`; `require-db-in-ci.test.ts` fails when `CI` is set and it is not.
+- `execution_id` is still a global primary key: another tenant reusing an id gets an error, never data. Revisit with a composite key if ids can collide across tenants.
 
 ## `agent_runs` and the run store
 
