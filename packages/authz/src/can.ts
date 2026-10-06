@@ -28,6 +28,12 @@ export function applicableGrants(principal: Principal, facilityId?: string): Gra
   );
 }
 
+// Facilities the principal holds a facility-scoped grant at, in grant order.
+// All-site grants name no facility, so they add none.
+export function grantedFacilityIds(principal: Principal): string[] {
+  return [...new Set(principal.grants.flatMap((grant) => (grant.scope === "facility" ? [grant.facilityId] : [])))];
+}
+
 // A patient only ever acts on their own portal; a forged staff grant on a
 // patient principal is ignored.
 export function isPortalCapability(capability: Capability): boolean {
