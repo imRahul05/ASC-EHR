@@ -5,3 +5,4 @@ export * from "./ports.js";
 export * from "./roles/registry.js";
 export * from "./roles/index.js";
 export * from "./grants.js";
+export * from "./workspaces.js";
