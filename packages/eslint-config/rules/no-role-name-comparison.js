@@ -28,13 +28,29 @@ export const ROLE_NAMES = new Set([
 
 const COMPARISON_OPERATORS = new Set(["==", "===", "!=", "!=="]);
 
-/** @param {import("estree").Node | null | undefined} node */
-function isRoleName(node) {
+const TS_WRAPPERS = new Set(["TSAsExpression", "TSSatisfiesExpression", "TSNonNullExpression", "TSTypeAssertion"]);
+
+/**
+ * Strips TypeScript-only wrappers (`x as const`, `x!`, `<T>x`, `x satisfies T`)
+ * so they cannot hide a comparison.
+ * @param {any} node
+ * @returns {any}
+ */
+function unwrap(node) {
+  let current = node;
+  while (current && TS_WRAPPERS.has(current.type)) current = current.expression;
+  return current;
+}
+
+/** @param {any} value */
+function isRoleName(value) {
+  const node = unwrap(value);
   return node?.type === "Literal" && typeof node.value === "string" && ROLE_NAMES.has(node.value);
 }
 
-/** @param {import("estree").Node | null | undefined} node */
-function isRoleLike(node) {
+/** @param {any} value */
+function isRoleLike(value) {
+  const node = unwrap(value);
   if (node?.type === "ChainExpression") return isRoleLike(node.expression);
   if (node?.type === "Identifier") return /role/i.test(node.name);
   if (node?.type === "MemberExpression" && !node.computed && node.property.type === "Identifier") {
@@ -68,12 +84,13 @@ export default {
       },
       CallExpression(node) {
         const { callee } = node;
+        const list = callee.type === "MemberExpression" ? unwrap(callee.object) : undefined;
         if (
           callee.type === "MemberExpression" &&
           callee.property.type === "Identifier" &&
           callee.property.name === "includes" &&
-          callee.object.type === "ArrayExpression" &&
-          callee.object.elements.some((element) => isRoleName(element)) &&
+          list?.type === "ArrayExpression" &&
+          list.elements.some((element) => isRoleName(element)) &&
           isRoleLike(node.arguments[0])
         ) {
           context.report({ node, messageId: "roleName" });
