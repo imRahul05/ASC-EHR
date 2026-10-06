@@ -593,19 +593,26 @@ Code only ever calls `can(principal, "note.sign")`. Role names appear in exactly
 
 ### 7.3 Role template × capability (P1 proposal; merges code, P05 and M12-1 lists)
 
+Source of truth in code: `packages/authz/src/roles/*.ts`, pinned row by row in `roles/matrix.test.ts`. Every catalog capability is held by at least one role (a test fails otherwise), so no capability is silently unassigned. Read capabilities (`schedule.read`, `whiteboard.read`, `case.read`) go to every role that works on the schedule or cases.
+
 | Capability group | front-desk | rn | tech | gi-physician | anesthesia | coder | admin | auditor |
 |---|---|---|---|---|---|---|---|---|
-| patient.read / register | ✔ / ✔ | ✔ / – | ✔ / – | ✔ / – | ✔ / – | ✔ / – | ✔ / ✔ | ✔ / – |
-| schedule.manage | ✔ | – | – | – | – | – | ✔ | – |
-| case.advance | ✔ (check-in) | ✔ | – | ✔ | ✔ | – | – | – |
+| patient.read | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
+| patient.register / merge / eligibility.check | ✔ / – / ✔ | – | – | – | – | – | ✔ / ✔ / ✔ | – |
+| schedule.read / manage / whiteboard.read | ✔ / ✔ / ✔ | ✔ / – / ✔ | ✔ / – / ✔ | ✔ / – / ✔ | ✔ / – / ✔ | – | ✔ / ✔ / ✔ | – |
+| case.read / advance / cancel | ✔ / ✔ (check-in) / ✔ | ✔ / ✔ / ✔ | ✔ / – / – | ✔ / ✔ / ✔ | ✔ / ✔ / – | ✔ / – / – | ✔ / – / ✔ | ✔ / – / – |
 | hp.document, medhold.review | – | ✔ | – | ✔ | ✔ | – | – | – |
-| consent.collect | ✔ | ✔ | – | ✔ | ✔ | – | – | – |
-| procedure.document, specimen.manage | – | ✔ | ✔ | ✔ | – | – | – | – |
+| consent.collect / witness | ✔ / – | ✔ / ✔ | – | ✔ / ✔ | ✔ / ✔ | – | – | – |
+| timeout.participate | – | ✔ | ✔ | ✔ | ✔ | – | – | – |
+| procedure.document, specimen.manage, image.manage | – | ✔ | ✔ | ✔ | – | – | – | – |
 | anesthesia.document | – | – | – | – | ✔ | – | – | – |
-| note.draft / note.sign | – | – | – | ✔ / ✔ | – / ✔ (anesthesia note) | – | – | – |
+| note.draft / edit / sign / addend | – | – | – | ✔ / ✔ / ✔ / ✔ | – / ✔ / ✔ (anesthesia note) / ✔ | – | – | – |
 | pacu.document / discharge.approve | – | ✔ / ✔ | – | – / ✔ | ✔ / ✔ | – | – | – |
 | coding.review / attest / charge.export | – | – | – | ✔ / – / – | – | ✔ / ✔ / ✔ | – | – |
-| pathology.reconcile | – | ✔ | – | ✔ | – | – | – | – |
+| pathology.reconcile / letter.send | – | ✔ / ✔ | – | ✔ / ✔ | – | – | – | – |
+| referral.triage | – | ✔ | – | ✔ | – | – | – | – |
+| fax.send | ✔ | ✔ | – | – | – | – | – | – |
+| ai.generate | – | ✔ | – | ✔ | ✔ | – | – | – |
 | admin.* | – | – | – | – | – | – | ✔ | – |
 | audit.read | – | – | – | – | – | – | ✔ | ✔ |
 | breakglass.invoke | – | ✔ | – | ✔ | ✔ | – | – | – |
@@ -615,15 +622,29 @@ CRNA is not a separate role. `anesthesia` plus the practitioner's `qualification
 
 ### 7.4 Data rules (what each role sees in Medplum)
 
-| Resource | front-desk | rn / tech | gi-physician | anesthesia | coder | auditor |
-|---|---|---|---|---|---|---|
-| Patient, Coverage, Appointment | RW | R | R | R | R | R |
-| Encounter (case) | RW (status fields only via API) | RW | RW | RW | R | R |
-| QuestionnaireResponse (H&P, nursing) | – | RW | RW | RW | R | R |
-| Composition (procedure note) | **hidden** | R | RW (`writeConstraint`: no edit once `final`) | R | R | R |
-| MedicationAdministration, Observation (AIMS) | – | R | R | RW | R | R |
-| ChargeItem | – | – | R | – | RW | R |
-| AuditEvent | – | – | – | – | – | R |
+R = read-only, RW = read-write, – = no access (the resource type is omitted from the compiled policy).
+
+| Resource | front-desk | rn / tech | gi-physician | anesthesia | coder | admin | auditor |
+|---|---|---|---|---|---|---|---|
+| Patient, Coverage, Appointment | RW | R | R | R | R | RW | R |
+| Practitioner, PractitionerRole, Organization, Location | R | R | R | R | R | RW | R |
+| Encounter (case) | RW (status fields only via API) | RW | RW | RW | R | R | R |
+| Task (worklists) | RW | RW | RW | RW | RW | – | R |
+| QuestionnaireResponse (H&P, nursing) | – | RW | RW | RW | R | – | R |
+| Consent | RW | RW (tech –) | RW | RW | – | – | R |
+| Procedure | – | RW | RW | R | R | – | R |
+| Specimen | – | RW | RW | – | – | – | R |
+| DiagnosticReport (pathology) | – | RW (tech –) | RW | – | R | – | R |
+| DocumentReference (images, faxes, letters) | RW | RW | RW | – | – | – | R |
+| ServiceRequest (referrals) | RW | RW (tech –) | RW | – | – | – | R |
+| Composition (procedure note) | **hidden** | R | RW (`writeConstraint`: no edit once `final`) | R | R | – | R |
+| MedicationAdministration, Observation (AIMS) | – | R | R | RW | R | – | R |
+| ChargeItem | – | – | R | – | RW | – | R |
+| AuditEvent | – | – | – | – | – | R | R |
+
+Directory data (Practitioner, PractitionerRole, Organization, Location) is tenant-wide and carries no facility tag, so its rules are `shared` and the policy compiler adds **no** `%facility` criteria to them. Every other resource keeps the facility filter.
+
+Administrators see no clinical documents: only the case (Encounter) read-only for scheduling, plus patient demographics and the directory.
 
 Medplum features used: `criteria` with `%facility`, `readonly`, `hiddenFields`, `readonlyFields`, and `writeConstraint` (FHIRPath with `%before`/`%after`). For example, a signed note can never be overwritten: `%before.exists() implies %before.status != 'final'`.
 

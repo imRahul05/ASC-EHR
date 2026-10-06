@@ -34,7 +34,8 @@ function assertCompilable(template: RoleTemplate): void {
 function compileRule(rule: ResourceRule, facilityScoped: boolean): AccessPolicyResource {
   return {
     resourceType: rule.resourceType,
-    ...(facilityScoped ? { criteria: facilityCriteria(rule.resourceType) } : {}),
+    // Shared directory data has no facility tag; filtering it would hide it entirely.
+    ...(facilityScoped && rule.shared !== true ? { criteria: facilityCriteria(rule.resourceType) } : {}),
     ...(rule.readonly === true ? { readonly: true } : {}),
     ...(rule.hiddenFields?.length ? { hiddenFields: normalizeFields(rule.hiddenFields) } : {}),
     ...(rule.readonlyFields?.length ? { readonlyFields: normalizeFields(rule.readonlyFields) } : {}),

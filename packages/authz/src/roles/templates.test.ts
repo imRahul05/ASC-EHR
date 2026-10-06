@@ -55,6 +55,42 @@ describe("role templates", () => {
     }
   });
 
+  it("lets every staff role read the directory and only admin write it", () => {
+    for (const template of roleRegistry.all().filter((t) => t.key !== "patient")) {
+      for (const type of ["Practitioner", "PractitionerRole", "Organization", "Location"]) {
+        const rule = template.data.find((r) => r.resourceType === type);
+        expect(rule, `${template.key} ${type}`).toBeDefined();
+        expect(rule?.readonly === true, `${template.key} ${type}`).toBe(template.key !== "admin");
+      }
+    }
+  });
+
+  it("gives Task read-write to working roles and read-only to the auditor", () => {
+    const task = (key: string) => roleRegistry.get(key)?.data.find((r) => r.resourceType === "Task");
+    for (const key of ["front-desk", "rn", "tech", "gi-physician", "anesthesia", "coder"]) {
+      expect(task(key), key).toBeDefined();
+      expect(task(key)?.readonly, key).toBeUndefined();
+    }
+    expect(task("auditor")?.readonly).toBe(true);
+    expect(task("admin")).toBeUndefined();
+  });
+
+  it("gives every template a unique resource type per rule", () => {
+    for (const template of roleRegistry.all()) {
+      const types = template.data.map((rule) => rule.resourceType);
+      expect(new Set(types).size, template.key).toBe(types.length);
+    }
+  });
+
+  it("keeps clinical documents away from front-desk and admin", () => {
+    for (const key of ["front-desk", "admin"]) {
+      const types = roleRegistry.get(key)?.data.map((r) => r.resourceType) ?? [];
+      for (const clinical of ["Composition", "QuestionnaireResponse", "MedicationAdministration"]) {
+        expect(types, key).not.toContain(clinical);
+      }
+    }
+  });
+
   it("gives the patient template no staff capability", () => {
     const capabilities = roleRegistry.get("patient")?.capabilities ?? [];
     expect(capabilities.every((c) => c.startsWith("portal."))).toBe(true);

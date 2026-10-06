@@ -65,6 +65,9 @@ export interface ResourceRule {
   readonly hiddenFields?: readonly string[];
   readonly readonlyFields?: readonly string[];
   readonly lockWhenFinal?: boolean;
+  // Tenant-wide directory data (practitioners, sites) that carries no facility
+  // tag: the compiler must not add the facility filter to it.
+  readonly shared?: boolean;
 }
 
 export interface RoleTemplate {

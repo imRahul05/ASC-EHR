@@ -1,5 +1,5 @@
 import type { RoleTemplate } from "@asc/types";
-import { ro, rw } from "./rules.js";
+import { REFERENCE_WRITE, ro, rw } from "./rules.js";
 
 // All-site role. No clinical-note access: administration is not care.
 export const admin: RoleTemplate = {
@@ -16,8 +16,21 @@ export const admin: RoleTemplate = {
     "admin.roles",
     "admin.facility",
     "audit.read",
+    "case.read",
+    "whiteboard.read",
+    "patient.merge",
+    "patient.eligibility.check",
+    "case.cancel",
   ],
-  data: [rw("Patient"), rw("Coverage"), rw("Appointment"), ro("AuditEvent")],
+  data: [
+    rw("Patient"),
+    rw("Coverage"),
+    rw("Appointment"),
+    // Read-only case view for scheduling; no clinical documents.
+    ro("Encounter"),
+    ro("AuditEvent"),
+    ...REFERENCE_WRITE,
+  ],
   facilityScoped: false,
   requiresMfa: true,
 };

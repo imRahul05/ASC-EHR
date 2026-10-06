@@ -24,7 +24,23 @@ exports[`compiled policies > admin compiles to a stable AccessPolicy 1`] = `
       "resourceType": "Coverage",
     },
     {
+      "readonly": true,
+      "resourceType": "Encounter",
+    },
+    {
+      "resourceType": "Location",
+    },
+    {
+      "resourceType": "Organization",
+    },
+    {
       "resourceType": "Patient",
+    },
+    {
+      "resourceType": "Practitioner",
+    },
+    {
+      "resourceType": "PractitionerRole",
     },
   ],
   "resourceType": "AccessPolicy",
@@ -55,6 +71,10 @@ exports[`compiled policies > anesthesia compiles to a stable AccessPolicy 1`] = 
       "resourceType": "Composition",
     },
     {
+      "criteria": "Consent?_compartment=%facility",
+      "resourceType": "Consent",
+    },
+    {
       "criteria": "Coverage?_compartment=%facility",
       "readonly": true,
       "resourceType": "Coverage",
@@ -62,6 +82,10 @@ exports[`compiled policies > anesthesia compiles to a stable AccessPolicy 1`] = 
     {
       "criteria": "Encounter?_compartment=%facility",
       "resourceType": "Encounter",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Location",
     },
     {
       "criteria": "MedicationAdministration?_compartment=%facility",
@@ -72,13 +96,34 @@ exports[`compiled policies > anesthesia compiles to a stable AccessPolicy 1`] = 
       "resourceType": "Observation",
     },
     {
+      "readonly": true,
+      "resourceType": "Organization",
+    },
+    {
       "criteria": "Patient?_compartment=%facility",
       "readonly": true,
       "resourceType": "Patient",
     },
     {
+      "readonly": true,
+      "resourceType": "Practitioner",
+    },
+    {
+      "readonly": true,
+      "resourceType": "PractitionerRole",
+    },
+    {
+      "criteria": "Procedure?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Procedure",
+    },
+    {
       "criteria": "QuestionnaireResponse?_compartment=%facility",
       "resourceType": "QuestionnaireResponse",
+    },
+    {
+      "criteria": "Task?_compartment=%facility",
+      "resourceType": "Task",
     },
   ],
   "resourceType": "AccessPolicy",
@@ -116,11 +161,27 @@ exports[`compiled policies > auditor compiles to a stable AccessPolicy 1`] = `
     },
     {
       "readonly": true,
+      "resourceType": "Consent",
+    },
+    {
+      "readonly": true,
       "resourceType": "Coverage",
     },
     {
       "readonly": true,
+      "resourceType": "DiagnosticReport",
+    },
+    {
+      "readonly": true,
+      "resourceType": "DocumentReference",
+    },
+    {
+      "readonly": true,
       "resourceType": "Encounter",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Location",
     },
     {
       "readonly": true,
@@ -132,11 +193,39 @@ exports[`compiled policies > auditor compiles to a stable AccessPolicy 1`] = `
     },
     {
       "readonly": true,
+      "resourceType": "Organization",
+    },
+    {
+      "readonly": true,
       "resourceType": "Patient",
     },
     {
       "readonly": true,
+      "resourceType": "Practitioner",
+    },
+    {
+      "readonly": true,
+      "resourceType": "PractitionerRole",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Procedure",
+    },
+    {
+      "readonly": true,
       "resourceType": "QuestionnaireResponse",
+    },
+    {
+      "readonly": true,
+      "resourceType": "ServiceRequest",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Specimen",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Task",
     },
   ],
   "resourceType": "AccessPolicy",
@@ -173,7 +262,15 @@ exports[`compiled policies > coder compiles to a stable AccessPolicy 1`] = `
     },
     {
       "readonly": true,
+      "resourceType": "DiagnosticReport",
+    },
+    {
+      "readonly": true,
       "resourceType": "Encounter",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Location",
     },
     {
       "readonly": true,
@@ -185,11 +282,30 @@ exports[`compiled policies > coder compiles to a stable AccessPolicy 1`] = `
     },
     {
       "readonly": true,
+      "resourceType": "Organization",
+    },
+    {
+      "readonly": true,
       "resourceType": "Patient",
     },
     {
       "readonly": true,
+      "resourceType": "Practitioner",
+    },
+    {
+      "readonly": true,
+      "resourceType": "PractitionerRole",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Procedure",
+    },
+    {
+      "readonly": true,
       "resourceType": "QuestionnaireResponse",
+    },
+    {
+      "resourceType": "Task",
     },
   ],
   "resourceType": "AccessPolicy",
@@ -214,16 +330,48 @@ exports[`compiled policies > front-desk compiles to a stable AccessPolicy 1`] = 
       "resourceType": "Appointment",
     },
     {
+      "criteria": "Consent?_compartment=%facility",
+      "resourceType": "Consent",
+    },
+    {
       "criteria": "Coverage?_compartment=%facility",
       "resourceType": "Coverage",
+    },
+    {
+      "criteria": "DocumentReference?_compartment=%facility",
+      "resourceType": "DocumentReference",
     },
     {
       "criteria": "Encounter?_compartment=%facility",
       "resourceType": "Encounter",
     },
     {
+      "readonly": true,
+      "resourceType": "Location",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Organization",
+    },
+    {
       "criteria": "Patient?_compartment=%facility",
       "resourceType": "Patient",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Practitioner",
+    },
+    {
+      "readonly": true,
+      "resourceType": "PractitionerRole",
+    },
+    {
+      "criteria": "ServiceRequest?_compartment=%facility",
+      "resourceType": "ServiceRequest",
+    },
+    {
+      "criteria": "Task?_compartment=%facility",
+      "resourceType": "Task",
     },
   ],
   "resourceType": "AccessPolicy",
@@ -264,13 +412,29 @@ exports[`compiled policies > gi-physician compiles to a stable AccessPolicy 1`] 
       ],
     },
     {
+      "criteria": "Consent?_compartment=%facility",
+      "resourceType": "Consent",
+    },
+    {
       "criteria": "Coverage?_compartment=%facility",
       "readonly": true,
       "resourceType": "Coverage",
     },
     {
+      "criteria": "DiagnosticReport?_compartment=%facility",
+      "resourceType": "DiagnosticReport",
+    },
+    {
+      "criteria": "DocumentReference?_compartment=%facility",
+      "resourceType": "DocumentReference",
+    },
+    {
       "criteria": "Encounter?_compartment=%facility",
       "resourceType": "Encounter",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Location",
     },
     {
       "criteria": "MedicationAdministration?_compartment=%facility",
@@ -283,13 +447,41 @@ exports[`compiled policies > gi-physician compiles to a stable AccessPolicy 1`] 
       "resourceType": "Observation",
     },
     {
+      "readonly": true,
+      "resourceType": "Organization",
+    },
+    {
       "criteria": "Patient?_compartment=%facility",
       "readonly": true,
       "resourceType": "Patient",
     },
     {
+      "readonly": true,
+      "resourceType": "Practitioner",
+    },
+    {
+      "readonly": true,
+      "resourceType": "PractitionerRole",
+    },
+    {
+      "criteria": "Procedure?_compartment=%facility",
+      "resourceType": "Procedure",
+    },
+    {
       "criteria": "QuestionnaireResponse?_compartment=%facility",
       "resourceType": "QuestionnaireResponse",
+    },
+    {
+      "criteria": "ServiceRequest?_compartment=%facility",
+      "resourceType": "ServiceRequest",
+    },
+    {
+      "criteria": "Specimen?_compartment=%facility",
+      "resourceType": "Specimen",
+    },
+    {
+      "criteria": "Task?_compartment=%facility",
+      "resourceType": "Task",
     },
   ],
   "resourceType": "AccessPolicy",
@@ -320,13 +512,29 @@ exports[`compiled policies > rn compiles to a stable AccessPolicy 1`] = `
       "resourceType": "Composition",
     },
     {
+      "criteria": "Consent?_compartment=%facility",
+      "resourceType": "Consent",
+    },
+    {
       "criteria": "Coverage?_compartment=%facility",
       "readonly": true,
       "resourceType": "Coverage",
     },
     {
+      "criteria": "DiagnosticReport?_compartment=%facility",
+      "resourceType": "DiagnosticReport",
+    },
+    {
+      "criteria": "DocumentReference?_compartment=%facility",
+      "resourceType": "DocumentReference",
+    },
+    {
       "criteria": "Encounter?_compartment=%facility",
       "resourceType": "Encounter",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Location",
     },
     {
       "criteria": "MedicationAdministration?_compartment=%facility",
@@ -339,13 +547,41 @@ exports[`compiled policies > rn compiles to a stable AccessPolicy 1`] = `
       "resourceType": "Observation",
     },
     {
+      "readonly": true,
+      "resourceType": "Organization",
+    },
+    {
       "criteria": "Patient?_compartment=%facility",
       "readonly": true,
       "resourceType": "Patient",
     },
     {
+      "readonly": true,
+      "resourceType": "Practitioner",
+    },
+    {
+      "readonly": true,
+      "resourceType": "PractitionerRole",
+    },
+    {
+      "criteria": "Procedure?_compartment=%facility",
+      "resourceType": "Procedure",
+    },
+    {
       "criteria": "QuestionnaireResponse?_compartment=%facility",
       "resourceType": "QuestionnaireResponse",
+    },
+    {
+      "criteria": "ServiceRequest?_compartment=%facility",
+      "resourceType": "ServiceRequest",
+    },
+    {
+      "criteria": "Specimen?_compartment=%facility",
+      "resourceType": "Specimen",
+    },
+    {
+      "criteria": "Task?_compartment=%facility",
+      "resourceType": "Task",
     },
   ],
   "resourceType": "AccessPolicy",
@@ -381,8 +617,16 @@ exports[`compiled policies > tech compiles to a stable AccessPolicy 1`] = `
       "resourceType": "Coverage",
     },
     {
+      "criteria": "DocumentReference?_compartment=%facility",
+      "resourceType": "DocumentReference",
+    },
+    {
       "criteria": "Encounter?_compartment=%facility",
       "resourceType": "Encounter",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Location",
     },
     {
       "criteria": "MedicationAdministration?_compartment=%facility",
@@ -395,13 +639,37 @@ exports[`compiled policies > tech compiles to a stable AccessPolicy 1`] = `
       "resourceType": "Observation",
     },
     {
+      "readonly": true,
+      "resourceType": "Organization",
+    },
+    {
       "criteria": "Patient?_compartment=%facility",
       "readonly": true,
       "resourceType": "Patient",
     },
     {
+      "readonly": true,
+      "resourceType": "Practitioner",
+    },
+    {
+      "readonly": true,
+      "resourceType": "PractitionerRole",
+    },
+    {
+      "criteria": "Procedure?_compartment=%facility",
+      "resourceType": "Procedure",
+    },
+    {
       "criteria": "QuestionnaireResponse?_compartment=%facility",
       "resourceType": "QuestionnaireResponse",
+    },
+    {
+      "criteria": "Specimen?_compartment=%facility",
+      "resourceType": "Specimen",
+    },
+    {
+      "criteria": "Task?_compartment=%facility",
+      "resourceType": "Task",
     },
   ],
   "resourceType": "AccessPolicy",

@@ -13,7 +13,7 @@ describe("buildGrants", () => {
       version: 1,
       label: "Clinical supervisor",
       status: "active",
-      capabilities: ["case.cancel"],
+      capabilities: ["note.sign"],
       data: [],
       facilityScoped: true,
       requiresMfa: true,
@@ -30,8 +30,8 @@ describe("buildGrants", () => {
     expect(grants.map((g) => (g.scope === "facility" ? g.facilityId : "all"))).toEqual(["A", "B"]);
 
     const userX = staffPrincipal(grants);
-    expect(can(userX, "case.cancel", { facilityId: "A" })).toBe(false);
-    expect(can(userX, "case.cancel", { facilityId: "B" })).toBe(true);
+    expect(can(userX, "note.sign", { facilityId: "A" })).toBe(false);
+    expect(can(userX, "note.sign", { facilityId: "B" })).toBe(true);
     expect(can(userX, "case.advance", { facilityId: "A" })).toBe(true);
   });
 

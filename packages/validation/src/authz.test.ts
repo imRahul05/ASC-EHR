@@ -49,7 +49,10 @@ describe("authz schemas", () => {
       label: "Registered nurse",
       status: "active",
       capabilities: ["case.read"],
-      data: [{ resourceType: "Patient", readonly: true }],
+      data: [
+        { resourceType: "Patient", readonly: true },
+        { resourceType: "Location", readonly: true, shared: true },
+      ],
       facilityScoped: true,
       requiresMfa: true,
     };
