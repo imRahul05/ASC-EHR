@@ -29,6 +29,13 @@
       "when": 1791278384479,
       "tag": "0003_enable_rls_agent_runs",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791278413935,
+      "tag": "0004_runtime_role_grants",
+      "breakpoints": true
     }
   ]
 }
