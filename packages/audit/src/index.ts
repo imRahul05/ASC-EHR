@@ -16,6 +16,19 @@ export type AuditGate = 1 | 2 | 3 | 4 | 5;
 export type AuditDetailValue = string | number | boolean | null;
 export type AuditDetails = Record<string, AuditDetailValue>;
 
+export type AuditCacheState = "hit" | "miss" | "bypass";
+
+/**
+ * Why an allow/deny decision was made (08 §12.3), so an auditor can reconstruct
+ * it later: role template versions (`rn-v3`), the `@asc/authz` catalog version
+ * (git SHA) and whether the identity came from the cache.
+ */
+export interface AuditDecision {
+  readonly roleVersions: readonly string[];
+  readonly catalogVersion: string;
+  readonly cache: AuditCacheState;
+}
+
 export interface AuditEvent {
   action: string;
   actorType: ActorType;
@@ -36,6 +49,8 @@ export interface AuditEvent {
   requestId?: string;
   correlationId?: string;
   outcome: Outcome;
+  /** Allow and deny events carry the provenance of the decision. */
+  decision?: AuditDecision;
   /** Set on denials: which gate refused (makes misconfigured roles easy to spot). */
   gate?: AuditGate;
   timestamp: string; // ISO 8601
@@ -99,6 +114,16 @@ export class AuditDetailsError extends Error {
   }
 }
 
+export class AuditDecisionError extends Error {
+  constructor() {
+    super(
+      "Audit decision rejected: role versions and catalog version must be short identifiers " +
+        "(letters, digits, '.', '_', '-'), never free text.",
+    );
+    this.name = "AuditDecisionError";
+  }
+}
+
 export class AuditStoreNotConfiguredError extends Error {
   constructor() {
     super(
@@ -145,6 +170,21 @@ export function sanitizeDetails(
   return { details: clean, detailsRedacted: true };
 }
 
+const DECISION_TOKEN = /^[A-Za-z0-9._-]{1,64}$/;
+
+/** Same policy as `sanitizeDetails`: throw outside production, drop (and mark) in production. */
+export function sanitizeDecision(
+  decision: AuditDecision | undefined,
+  production: boolean,
+): { decision?: AuditDecision; detailsRedacted?: boolean } {
+  if (decision === undefined) return {};
+  const valid =
+    DECISION_TOKEN.test(decision.catalogVersion) && decision.roleVersions.every((v) => DECISION_TOKEN.test(v));
+  if (valid) return { decision: { ...decision, roleVersions: [...decision.roleVersions] } };
+  if (!production) throw new AuditDecisionError();
+  return { detailsRedacted: true };
+}
+
 export interface AuditClientOptions {
   /** Defaults to `isProductionEnv()` from @asc/config at construction. */
   production?: boolean;
@@ -165,11 +205,13 @@ export class AuditClient {
    * rejects, the rejection propagates so audit loss is visible to the caller.
    */
   async logEvent(event: AuditEventInput): Promise<void> {
-    const { details, clientIp, userAgent, ...rest } = event;
+    const { details, decision, clientIp, userAgent, ...rest } = event;
+    const sanitizedDecision = sanitizeDecision(decision, this.production);
     const clientIpPrefix = clientIp === undefined ? undefined : truncateClientIp(clientIp);
     const fullEvent: AuditEvent = {
       ...rest,
       ...sanitizeDetails(details, this.production),
+      ...sanitizedDecision,
       ...(clientIpPrefix === undefined ? {} : { clientIpPrefix }),
       ...(userAgent === undefined ? {} : { userAgent: userAgent.slice(0, MAX_USER_AGENT_LENGTH) }),
       timestamp: new Date().toISOString(),
