@@ -1,5 +1,5 @@
 import type { RoleTemplate } from "@asc/types";
-import { REFERENCE_READ, rw } from "./rules";
+import { REFERENCE_READ, rw } from "@asc/authz/roles/rules";
 
 export const frontDesk: RoleTemplate = {
   key: "front-desk",

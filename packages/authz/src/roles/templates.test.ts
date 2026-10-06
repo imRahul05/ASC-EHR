@@ -1,6 +1,6 @@
 import type { Capability } from "@asc/types";
 import { describe, expect, it } from "vitest";
-import { ROLE_TEMPLATES, roleRegistry } from "./index";
+import { ROLE_TEMPLATES, roleRegistry } from "./index.js";
 
 const keysWith = (capability: Capability) =>
   roleRegistry

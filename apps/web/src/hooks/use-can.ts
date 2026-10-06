@@ -1,6 +1,6 @@
 "use client";
 
-import { can, type AuthzContext } from "@asc/authz";
+import { can, type AuthzContext } from "@asc/authz/can";
 import type { Capability, Principal } from "@asc/types";
 import { useAuthStore } from "../lib/stores/auth.store";
 

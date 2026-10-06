@@ -1,5 +1,5 @@
 import type { Capability, Principal } from "@asc/types";
-import { can, type AuthzContext } from "./can";
+import { can, type AuthzContext } from "@asc/authz/can";
 
 // A workspace is a UI surface (home, nav, dashboard) shown when the principal
 // holds at least one of its capabilities. Definitions come from the app (D-A4);

@@ -1,4 +1,4 @@
-import type { RoleAssignment } from "@asc/authz";
+import type { RoleAssignment } from "@asc/authz/grants";
 import type { TenantRef, UserRole } from "@asc/types";
 
 // Demo identities: which roles each demo user holds, and where. Roles are data

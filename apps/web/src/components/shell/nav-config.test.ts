@@ -1,4 +1,4 @@
-import { grantedFacilityIds } from "@asc/authz";
+import { grantedFacilityIds } from "@asc/authz/can";
 import { describe, expect, it } from "vitest";
 import { checkCapability } from "@/hooks/use-can";
 import { meFor } from "@/mocks/handlers/me";

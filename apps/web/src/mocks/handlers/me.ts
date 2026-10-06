@@ -1,4 +1,5 @@
-import { buildGrants, roleRegistry } from "@asc/authz";
+import { buildGrants } from "@asc/authz/grants";
+import { roleRegistry } from "@asc/authz/roles";
 import { API_ROUTES } from "@asc/config/api";
 import type { Principal } from "@asc/types";
 import { http, HttpResponse } from "msw";

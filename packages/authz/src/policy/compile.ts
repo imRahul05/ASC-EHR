@@ -1,5 +1,5 @@
 import type { ResourceRule, RoleTemplate } from "@asc/types";
-import type { AccessPolicy, AccessPolicyExpression, AccessPolicyResource } from "./types";
+import type { AccessPolicy, AccessPolicyExpression, AccessPolicyResource } from "./types.js";
 
 export const ROLE_TEMPLATE_TAG_SYSTEM = "https://asc-ehr.app/role-template";
 

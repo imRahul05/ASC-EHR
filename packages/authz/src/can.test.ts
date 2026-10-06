@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { can, grantedFacilityIds } from "./can";
-import { allGrant, facilityGrant, patientPrincipal, staffPrincipal } from "./fixtures";
+import { can, grantedFacilityIds } from "./can.js";
+import { allGrant, facilityGrant, patientPrincipal, staffPrincipal } from "./fixtures.js";
 
 describe("can", () => {
   it("does not leak a supervisor role held at facility B into facility A", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { roleRegistry } from "../roles/index";
-import { compilePolicy } from "./compile";
+import { roleRegistry } from "../roles/index.js";
+import { compilePolicy } from "./compile.js";
 
 const DIRECTORY_TYPES = new Set(["Practitioner", "PractitionerRole", "Organization", "Location"]);
 

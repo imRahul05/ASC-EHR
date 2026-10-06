@@ -1,7 +1,7 @@
 import { CAPABILITY_CATALOG } from "@asc/types/capability";
 import type { Capability } from "@asc/types";
 import { describe, expect, it } from "vitest";
-import { roleRegistry } from "./index";
+import { roleRegistry } from "./index.js";
 
 const STAFF = ["front-desk", "rn", "tech", "gi-physician", "anesthesia", "coder", "admin", "auditor"];
 const CLINICAL = ["rn", "gi-physician", "anesthesia"];

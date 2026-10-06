@@ -1,5 +1,5 @@
 import type { RoleTemplate } from "@asc/types";
-import { REFERENCE_WRITE, ro, rw } from "./rules";
+import { REFERENCE_WRITE, ro, rw } from "@asc/authz/roles/rules";
 
 // All-site role. No clinical-note access: administration is not care.
 export const admin: RoleTemplate = {

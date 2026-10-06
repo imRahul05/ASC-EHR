@@ -1,10 +1,10 @@
 import type { RoleTemplate } from "@asc/types";
 import { describe, expect, it } from "vitest";
-import { can } from "./can";
-import { buildGrants } from "./grants";
-import { staffPrincipal } from "./fixtures";
-import { roleRegistry } from "./roles/index";
-import { createRoleRegistry } from "./roles/registry";
+import { can } from "./can.js";
+import { buildGrants } from "./grants.js";
+import { staffPrincipal } from "./fixtures.js";
+import { roleRegistry } from "./roles/index.js";
+import { createRoleRegistry } from "./roles/registry.js";
 
 describe("buildGrants", () => {
   it("builds one grant per facility and never merges across facilities", () => {

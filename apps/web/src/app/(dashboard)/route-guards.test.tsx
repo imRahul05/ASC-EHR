@@ -1,4 +1,4 @@
-import { grantedFacilityIds } from "@asc/authz";
+import { grantedFacilityIds } from "@asc/authz/can";
 import type { Principal } from "@asc/types";
 import { isValidElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";

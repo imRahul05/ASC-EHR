@@ -1,5 +1,5 @@
 import type { Principal, TenantRef } from "@asc/types";
-import type { IdentityPort, IdentityResult, TenantRequestInfo, TenantResolver } from "./ports";
+import type { IdentityPort, IdentityResult, TenantRequestInfo, TenantResolver } from "./ports.js";
 
 // Test fakes. Production code must never import "@asc/authz/testing".
 export class FakeIdentityPort implements IdentityPort {
@@ -34,4 +34,4 @@ export class FakeTenantResolver implements TenantResolver {
     return Promise.resolve(host !== undefined && Object.hasOwn(this.byHost, host) ? this.byHost[host] : undefined);
   }
 }
-export * from "./fixtures";
+export * from "./fixtures.js";

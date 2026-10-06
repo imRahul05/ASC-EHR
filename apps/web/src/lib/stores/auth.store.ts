@@ -1,4 +1,4 @@
-import { grantedFacilityIds } from "@asc/authz";
+import { grantedFacilityIds } from "@asc/authz/can";
 import type { AuthSession, Principal } from "@asc/types";
 import type { MeResponse } from "@asc/validation/authz";
 import { create } from "zustand";

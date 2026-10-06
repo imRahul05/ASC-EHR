@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { facilityGrant, staffPrincipal, TEST_TENANT } from "./fixtures";
-import { StaticTenantResolver, type TenantResolver } from "./ports";
-import { FakeIdentityPort, FakeTenantResolver } from "./testing";
+import { facilityGrant, staffPrincipal, TEST_TENANT } from "./fixtures.js";
+import { StaticTenantResolver, type TenantResolver } from "./ports.js";
+import { FakeIdentityPort, FakeTenantResolver } from "./testing.js";
 
 const principal = staffPrincipal([facilityGrant("A", ["rn"], ["case.read"])]);
 

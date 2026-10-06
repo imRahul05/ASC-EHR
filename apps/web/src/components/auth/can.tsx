@@ -1,6 +1,6 @@
 "use client";
 
-import type { AuthzContext } from "@asc/authz";
+import type { AuthzContext } from "@asc/authz/can";
 import type { Capability } from "@asc/types";
 import type { ReactNode } from "react";
 import { useCan } from "../../hooks/use-can";

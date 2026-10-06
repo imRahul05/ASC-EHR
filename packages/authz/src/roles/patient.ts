@@ -1,5 +1,5 @@
 import type { RoleTemplate } from "@asc/types";
-import { ro, rw } from "./rules";
+import { ro, rw } from "@asc/authz/roles/rules";
 
 // Portal role (P2). A patient never receives a staff capability; the
 // principal kind and can() enforce that independently of this template.

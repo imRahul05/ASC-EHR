@@ -1,5 +1,5 @@
 import type { RoleTemplate } from "@asc/types";
-import { REFERENCE_READ, ro } from "./rules";
+import { REFERENCE_READ, ro } from "@asc/authz/roles/rules";
 
 // All-site, read-only everywhere.
 export const auditor: RoleTemplate = {

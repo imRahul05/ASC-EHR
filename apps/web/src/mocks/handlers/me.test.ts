@@ -1,4 +1,4 @@
-import { can } from "@asc/authz";
+import { can } from "@asc/authz/can";
 import { describe, expect, it } from "vitest";
 import { openSession } from "../db/sessions";
 import { meFor, resolveMe } from "./me";

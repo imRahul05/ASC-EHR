@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildGrants } from "./grants";
-import { staffPrincipal } from "./fixtures";
-import { roleRegistry } from "./roles/index";
-import { defaultWorkspace, resolveWorkspaces, type WorkspaceDefinition } from "./workspaces";
+import { buildGrants } from "./grants.js";
+import { staffPrincipal } from "./fixtures.js";
+import { roleRegistry } from "./roles/index.js";
+import { defaultWorkspace, resolveWorkspaces, type WorkspaceDefinition } from "./workspaces.js";
 
 // Test-only definitions: real ones live in apps/web.
 const DEFINITIONS: readonly (WorkspaceDefinition & { home: string })[] = [

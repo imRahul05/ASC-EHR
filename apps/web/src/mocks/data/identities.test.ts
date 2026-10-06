@@ -1,4 +1,6 @@
-import { buildGrants, can, roleRegistry } from "@asc/authz";
+import { can } from "@asc/authz/can";
+import { buildGrants } from "@asc/authz/grants";
+import { roleRegistry } from "@asc/authz/roles";
 import type { Principal } from "@asc/types";
 import { describe, expect, it } from "vitest";
 import { DEMO_FACILITIES, DEMO_IDENTITIES, DEMO_TENANT } from "./identities";

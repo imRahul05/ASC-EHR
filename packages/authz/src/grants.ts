@@ -1,5 +1,5 @@
 import type { Capability, Grant, RoleKey } from "@asc/types";
-import type { RoleRegistry } from "./roles/registry";
+import type { RoleRegistry } from "./roles/registry.js";
 
 // One role held by a user, optionally at one facility.
 export interface RoleAssignment {
