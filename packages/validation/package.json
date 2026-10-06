@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./auth": "./src/auth.ts",
+    "./authz": "./src/authz.ts",
     "./escort": "./src/escort.ts",
     "./patient": "./src/patient.ts",
     "./schedule": "./src/schedule.ts",
@@ -21,6 +22,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@asc/types": "workspace:*",
     "zod": "^3.25.67"
   },
   "devDependencies": {
