@@ -8,7 +8,9 @@ const FORBIDDEN = [/process\.env/, /\bfetch\(/, /from "node:(?!$)/, /from "@medp
 
 describe("@asc/authz purity", () => {
   it("source files do no I/O and read no environment", () => {
-    const files = readdirSync(srcDir).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"));
+    const files = (readdirSync(srcDir, { recursive: true }) as string[]).filter(
+      (f) => f.endsWith(".ts") && !f.endsWith(".test.ts"),
+    );
     for (const file of files) {
       const text = readFileSync(join(srcDir, file), "utf8");
       for (const pattern of FORBIDDEN) {
