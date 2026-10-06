@@ -20,7 +20,7 @@
 | Updated | 2026-10-06 |
 |---|---|
 | Current wave | 0 |
-| In progress | P05f (durable audit) |
+| In progress | P05f in review (#38) |
 | Ready to start | P00b, P01, P02, P03, P09, P06 (needs Azure access) |
 | Blocked | P13 soft-blocked on Q-MS1 (fallback allowed) |
 | Go-live target | 2026-12-07 |
@@ -69,7 +69,7 @@
 | P05c | Policy compiler | done | P05b | | `phase/P05c-policy-compiler` | [#26](https://github.com/imRahul05/ASC-EHR/pull/26) | 2026-10-06 | 2026-10-06 |
 | P05d | Web on capabilities (P05d1, P05d2) | done | P05b | | `phase/P05d2-workspaces` | [#32](https://github.com/imRahul05/ASC-EHR/pull/32), [#35](https://github.com/imRahul05/ASC-EHR/pull/35) | 2026-10-06 | 2026-10-06 |
 | P05e | App-DB tenancy (RLS, `withTenant`) | done | P05a | Claude (bg job 640ebd7d) | `phase/P05e-db-tenancy` | [#36](https://github.com/imRahul05/ASC-EHR/pull/36) | 2026-10-06 | 2026-10-06 |
-| P05f | Durable audit | in-progress | P05e | Claude (bg job 640ebd7d) | `phase/P05f-durable-audit` | | 2026-10-06 | |
+| P05f | Durable audit | review | P05e | Claude (bg job 640ebd7d) | `phase/P05f-durable-audit` | [#38](https://github.com/imRahul05/ASC-EHR/pull/38) | 2026-10-06 | |
 | P05g | API security spine | pending | P05a, P05e, P05f | | | | | |
 | P05h | Medplum hardening, spikes, seed, policy test | pending | P05c, P02 | | | | | |
 | P05i | Medplum identity in API | pending | P05g, P05h, P04 | | | | | |
