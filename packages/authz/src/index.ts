@@ -4,3 +4,4 @@ export * from "./agent.js";
 export * from "./ports.js";
 export * from "./roles/registry.js";
 export * from "./roles/index.js";
+export * from "./grants.js";
