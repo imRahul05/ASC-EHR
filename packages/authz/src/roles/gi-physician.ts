@@ -1,0 +1,42 @@
+import type { RoleTemplate } from "@asc/types";
+import { ro, rw } from "./rules.js";
+
+export const giPhysician: RoleTemplate = {
+  key: "gi-physician",
+  version: 1,
+  label: "GI physician",
+  status: "active",
+  capabilities: [
+    "patient.read",
+    "schedule.read",
+    "whiteboard.read",
+    "case.read",
+    "case.advance",
+    "hp.document",
+    "medhold.review",
+    "consent.collect",
+    "procedure.document",
+    "specimen.manage",
+    "note.draft",
+    "note.edit",
+    "note.sign",
+    "discharge.approve",
+    "coding.review",
+    "pathology.reconcile",
+    "breakglass.invoke",
+  ],
+  data: [
+    ro("Patient"),
+    ro("Coverage"),
+    ro("Appointment"),
+    rw("Encounter"),
+    rw("QuestionnaireResponse"),
+    // A signed (`final`) procedure note can never be overwritten.
+    { resourceType: "Composition", lockWhenFinal: true },
+    ro("MedicationAdministration"),
+    ro("Observation"),
+    ro("ChargeItem"),
+  ],
+  facilityScoped: true,
+  requiresMfa: true,
+};
