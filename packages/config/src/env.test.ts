@@ -85,6 +85,32 @@ describe("parseEnv", () => {
     );
   });
 
+  it("accepts the runtime database URL and the configured tenant for api and worker", () => {
+    const source = {
+      DATABASE_RUNTIME_URL: "postgres://asc_app:asc_app@localhost:5432/asc_ehr",
+      DEFAULT_TENANT_ID: "0b8f3c52-6f3e-4a77-9a55-3d6e1f0c2a10",
+      MEDPLUM_PROJECT_ID: "project-1",
+    };
+    for (const schema of [apiEnvSchema, workerEnvSchema]) {
+      expect(parseEnv(schema, source)).toMatchObject(source);
+      expect(parseEnv(schema, {})).not.toHaveProperty("DEFAULT_TENANT_ID");
+    }
+  });
+
+  it("rejects a bad tenant id or runtime URL without echoing them", () => {
+    const secretish = "mysql://root:hunter2@db:3306/x";
+    expect(() => parseEnv(apiEnvSchema, { DEFAULT_TENANT_ID: "not-a-uuid" })).toThrow(
+      "DEFAULT_TENANT_ID (invalid)",
+    );
+    expect(() => parseEnv(workerEnvSchema, { MEDPLUM_PROJECT_ID: "" })).toThrow(
+      "MEDPLUM_PROJECT_ID (invalid)",
+    );
+    expect(() => parseEnv(apiEnvSchema, { DATABASE_RUNTIME_URL: secretish })).toThrow(
+      "DATABASE_RUNTIME_URL (invalid)",
+    );
+    expect(() => parseEnv(apiEnvSchema, { DATABASE_RUNTIME_URL: secretish })).not.toThrow(/hunter2/);
+  });
+
   it("reports missing required variables by name only", () => {
     const schema = z.object({ DATABASE_URL: z.string().url() });
     expect(() => parseEnv(schema, {})).toThrow("DATABASE_URL (missing)");

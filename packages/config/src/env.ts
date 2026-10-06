@@ -33,6 +33,24 @@ export const databaseUrlSchema = z
   .refine((value) => /^postgres(ql)?:\/\//.test(value), { message: "expected a postgres:// URL" })
   .optional();
 
+/**
+ * Runtime database role URL (`asc_app`, member of `asc_runtime`): NOT the table
+ * owner, cannot alter tables or bypass row-level security. Apps use this URL;
+ * `DATABASE_URL` is the owner URL for migrations only. Optional until the API
+ * and worker open a tenant-scoped connection (P05g). Holds credentials: never log it.
+ */
+export const databaseRuntimeUrlSchema = databaseUrlSchema;
+
+/**
+ * The one configured tenant (single hospital, tenant-ready). Read by
+ * `StaticTenantResolver`; never taken from a request. Optional until P05g
+ * resolves the tenant on every request.
+ */
+export const defaultTenantIdSchema = z.string().uuid().optional();
+
+/** Medplum Project of the configured tenant (token project must equal this, gate 1). */
+export const medplumProjectIdSchema = z.string().min(1).optional();
+
 /** Origin of `next dev` (apps/web). Allowed by CORS only in development/test. */
 export const DEV_WEB_ORIGIN = "http://localhost:3000";
 
@@ -71,6 +89,9 @@ export const apiEnvSchema = z.object({
   HOST: z.string().min(1).default("0.0.0.0"),
   CORS_ORIGINS: corsOriginsSchema,
   DATABASE_URL: databaseUrlSchema,
+  DATABASE_RUNTIME_URL: databaseRuntimeUrlSchema,
+  DEFAULT_TENANT_ID: defaultTenantIdSchema,
+  MEDPLUM_PROJECT_ID: medplumProjectIdSchema,
   LOG_LEVEL: logLevelSchema,
   OTEL_EXPORTER_OTLP_ENDPOINT: otelEndpointSchema,
 });
@@ -93,6 +114,9 @@ export const workerEnvSchema = z.object({
   APP_ENV: appEnvSchema,
   REDIS_URL: z.string().url().default("redis://localhost:6379"),
   DATABASE_URL: databaseUrlSchema,
+  DATABASE_RUNTIME_URL: databaseRuntimeUrlSchema,
+  DEFAULT_TENANT_ID: defaultTenantIdSchema,
+  MEDPLUM_PROJECT_ID: medplumProjectIdSchema,
   // Queue NAMES are code constants (apps/worker/src/queues.ts); only capacity
   // knobs live in env. Concurrency is per worker process; the rate limit is
   // enforced by BullMQ across ALL workers of a queue (jobs per duration).
