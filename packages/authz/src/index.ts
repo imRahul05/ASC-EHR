@@ -1,2 +1,2 @@
 // @asc/authz: pure authorization core (can, authorize, ports). No I/O, no environment reads.
-export {};
+export * from "./can.js";
