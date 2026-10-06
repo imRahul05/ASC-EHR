@@ -20,8 +20,8 @@
 | Updated | 2026-10-06 |
 |---|---|
 | Current wave | 0 |
-| In progress | P05a in review (PR #24). After merge: P05b and P05e can start (parallel lanes) |
-| Ready to start | P00b, P01, P02, P03, P09, P06 (needs Azure access), P05a |
+| In progress | P05b (then P05c). P05e can run in a parallel lane |
+| Ready to start | P00b, P01, P02, P03, P09, P06 (needs Azure access), P05e |
 | Blocked | P13 soft-blocked on Q-MS1 (fallback allowed) |
 | Go-live target | 2026-12-07 |
 
@@ -64,8 +64,8 @@
 
 | ID | Sub-phase | Status | Depends on | Owner | Branch | PR | Started | Finished |
 |---|---|---|---|---|---|---|---|---|
-| P05a | Contracts + `@asc/authz` core (`can()`, ports) | in review | — | | `phase/P05a-authz-core` | [#24](https://github.com/imRahul05/ASC-EHR/pull/24) | 2026-10-06 | |
-| P05b | Role templates, workspaces, lint guard | pending | P05a | | | | | |
+| P05a | Contracts + `@asc/authz` core (`can()`, ports) | done | — | | `phase/P05a-authz-core` | [#24](https://github.com/imRahul05/ASC-EHR/pull/24) | 2026-10-06 | 2026-10-06 |
+| P05b | Role templates, workspaces, lint guard | in progress | P05a | | `phase/P05b-roles-workspaces` | | 2026-10-06 | |
 | P05c | Policy compiler | pending | P05b | | | | | |
 | P05d | Web on capabilities (P05d1, P05d2) | pending | P05b | | | | | |
 | P05e | App-DB tenancy (RLS, `withTenant`) | pending | P05a | | | | | |
