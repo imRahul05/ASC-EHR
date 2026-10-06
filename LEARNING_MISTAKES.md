@@ -34,7 +34,7 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 2. Claims about MindScript must cite `docs/MindScript-How-It-Works.md`; anything not in it is "confirm", not fact. (LM-002)
 3. Few hooks per component: group related state into one object / `useReducer` / react-hook-form, derive instead of syncing with effects, and render repeated fields from a config array with `.map()`. (LM-003)
 4. Never keep auth tokens or user/patient profiles in `localStorage`/`sessionStorage`; signed-in areas must be guarded. (LM-004)
-5. Browser code imports leaf subpaths (`@asc/validation/auth`), and a UI change is only done when the page loads in `pnpm dev` — typecheck alone does not prove it. (LM-005)
+5. Browser code imports leaf subpaths (`@asc/validation/auth`), and a UI change is only done when the page loads in `pnpm dev` — typecheck alone does not prove it. Packages used by both browser and Node apps keep NodeNext `.js` imports and expose leaf subpaths (`@asc/authz/can`). (LM-005)
 6. Only `@asc/config` reads `process.env`. (LM-006)
 7. Lookup tables keyed by user/AST strings use own-property checks (`Object.hasOwn`), never `in`. (LM-007)
 8. Next 16 conventions differ: `error.tsx` gets `retry` (not `reset`), `params`/`searchParams` are Promises; a Base UI `Button` rendered as a link needs `nativeButton={false}`. Check `node_modules/next/dist/docs`. (LM-008)
@@ -79,11 +79,12 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **Guarded by:** not yet — add a Playwright check in P01 (`apps/web/e2e`).
 
 ### LM-005 — Verify UI changes in the running app; browser code imports leaf subpaths
-- **Seen:** 1 · since commit `abaacbb` (2026-09-26), found 2026-09-27 while fixing PR #9
+- **Seen:** 2 · since commit `abaacbb` (2026-09-26), found 2026-09-27 while fixing PR #9; again 2026-10-06, PR #32 (`@asc/authz`)
 - **What went wrong:** `@asc/validation`'s root entry re-exports with NodeNext `.js` specifiers (`./agents/discharge-instructions.js`). `tsc` accepts that, but Turbopack in `apps/web` cannot map `.js` back to `.ts`, so any browser import of `@asc/validation` (the login form) failed with *Module not found* and the pages returned 500. Lint, typecheck and tests were all green, so nobody noticed.
 - **Rule:** Browser code (apps/web, `@asc/api-client`) imports leaf subpaths (`@asc/validation/auth`, `@asc/config/public-env`, `@asc/config/api`); packages consumed only by the browser use `moduleResolution: "bundler"` with extensionless imports (like `@asc/ui`). A UI task is done only after the page loads in `pnpm dev` (or an e2e test passes).
+- **Also seen (PR #32):** `@asc/authz` was switched to `moduleResolution: "bundler"` with extensionless imports so the web app could import it, which broke `apps/api` (NodeNext) type-checking the first time the API imported it. **Rule for a package used by both browser and Node apps:** keep NodeNext and `.js` relative imports; export leaf subpaths (`@asc/authz/can`, `/grants`, `/roles`, `/workspaces`); browser code imports only leaves; a file a leaf reaches imports its siblings by leaf name (package self-reference, e.g. `@asc/authz/can`), never by relative `.js`. Only packages used by the browser alone may go extensionless.
 - **How to check:** `pnpm --filter web dev` and open the changed routes; `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/login` → 200.
-- **Guarded by:** lint (`BROWSER_ENTRY_POINT_PATHS` in `@asc/eslint-config/app`, used by the Next.js config and `@asc/api-client`); P01 Playwright smoke test will cover the rest.
+- **Guarded by:** lint (`BROWSER_ENTRY_POINT_PATHS` in `@asc/eslint-config/app`, now including `@asc/authz`, used by the Next.js config and `@asc/api-client`); `packages/authz/src/module-format.test.ts` (NodeNext tsconfig, no relative runtime imports in leaf-reachable files); P01 Playwright smoke test will cover the rest.
 
 ### LM-006 — Only `@asc/config` reads `process.env`
 - **Seen:** 1 · `packages/audit/src/index.ts` (and logger/telemetry defaults) · fixed 2026-09-27, PR #9
