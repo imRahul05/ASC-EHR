@@ -7,7 +7,8 @@ export const coder: RoleTemplate = {
   version: 1,
   label: "Medical coder",
   status: "active",
-  capabilities: ["patient.read", "case.read", "coding.review", "coding.attest", "charge.export"],
+  // ai.generate: AI coding suggestions (P22).
+  capabilities: ["patient.read", "case.read", "coding.review", "coding.attest", "charge.export", "ai.generate"],
   data: [
     ro("Patient"),
     ro("Coverage"),

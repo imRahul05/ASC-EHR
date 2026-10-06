@@ -11,7 +11,7 @@ schedule.manage | Y | - | - | - | - | - | Y | - | -
 whiteboard.read | Y | Y | Y | Y | Y | - | Y | - | -
 case.read | Y | Y | Y | Y | Y | Y | Y | Y | -
 case.advance | Y | Y | - | Y | Y | - | - | - | -
-case.cancel | Y | Y | - | Y | - | - | Y | - | -
+case.cancel | Y | - | - | Y | - | - | Y | - | -
 hp.document | - | Y | - | Y | Y | - | - | - | -
 medhold.review | - | Y | - | Y | Y | - | - | - | -
 consent.collect | Y | Y | - | Y | Y | - | - | - | -
@@ -34,7 +34,7 @@ pathology.reconcile | - | Y | - | Y | - | - | - | - | -
 pathology.letter.send | - | Y | - | Y | - | - | - | - | -
 referral.triage | - | Y | - | Y | - | - | - | - | -
 fax.send | Y | Y | - | - | - | - | - | - | -
-ai.generate | - | Y | - | Y | Y | - | - | - | -
+ai.generate | - | Y | - | Y | Y | Y | - | - | -
 admin.users | - | - | - | - | - | - | Y | - | -
 admin.roles | - | - | - | - | - | - | Y | - | -
 admin.facility | - | - | - | - | - | - | Y | - | -
