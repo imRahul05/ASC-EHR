@@ -125,6 +125,9 @@ describe("no committed credentials", () => {
     expect(medplumPart).toContain("POSTGRES_PASSWORD: ${MEDPLUM_DB_PASSWORD");
     expect(medplumPart).not.toMatch(/PASSWORD:\s+(?!\$\{)[^\s#]+/);
     expect(medplumPart).not.toMatch(/--requirepass",\s*"(?!\$\{)/);
+    // Redis must refuse an empty password (an empty --requirepass means no authentication at all).
+    expect(medplumPart).toContain('test -n "$$REDIS_PASSWORD"');
+    expect(medplumPart).toContain('exec redis-server --requirepass "$$REDIS_PASSWORD"');
     expect(medplumPart).not.toMatch(/redis-cli -a /);
   });
 });

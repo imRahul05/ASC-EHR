@@ -64,8 +64,14 @@ services:
     container_name: asc-medplum-redis
     profiles: ["medplum"]
     restart: unless-stopped
-    command: ["redis-server", "--requirepass", "${MEDPLUM_REDIS_PASSWORD:-}"]
+    # An empty --requirepass means NO password, so refuse to start without one (for example when
+    # started without --env-file). The default stays empty so plain compose commands still parse.
+    command:
+      - sh
+      - -c
+      - 'test -n "$$REDIS_PASSWORD" || { echo "MEDPLUM_REDIS_PASSWORD is not set: start the stack with pnpm medplum:up" >&2; exit 1; }; exec redis-server --requirepass "$$REDIS_PASSWORD"'
     environment:
+      REDIS_PASSWORD: ${MEDPLUM_REDIS_PASSWORD:-}
       # redis-cli reads the password from here, so it is not on the healthcheck command line.
       REDISCLI_AUTH: ${MEDPLUM_REDIS_PASSWORD:-}
     ports:
