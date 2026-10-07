@@ -452,6 +452,8 @@ flowchart LR
 | 4 Capability + workflow | Does a grant **at that facility** include the capability, and does the case state allow it now? | `@asc/authz` `can(principal, cap, { facilityId })` + `@asc/clinical-rules` | 403 / 409 |
 | 5 Data policy | May this membership read or write this resource and field? | **Medplum** `AccessPolicy` | 403 |
 
+**Implemented in P05g** (`apps/api`): gates 1–4 as one explicit `onRequest` pipeline (tenant, flood limit, identity, facility and capability), default-deny route declarations, `app.guards` for facilities that belong to a loaded resource, audited denials with the gate number, `GET /me`. The identity adapter is still a port: until P05i the API refuses to start in staging and production. Decisions: [P05 plan, P05g decisions](../plan/phases/P05-auth-roles.md).
+
 Gate 5 is the safety net: even if gates 3–4 had a bug, Medplum would still refuse. Gates 3–4 exist for clear errors, workflow rules and non-FHIR actions such as export and AI generation.
 
 **Authorization freshness (cache policy).** Gate 2 caches the `/auth/me` result to avoid a Medplum call per request. Rules:
