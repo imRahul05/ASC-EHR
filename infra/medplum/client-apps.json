@@ -1,0 +1,26 @@
+{
+  "clientApplications": [
+    {
+      "key": "web",
+      "name": "asc-ehr-web",
+      "description": "Browser sign-in for apps/web: authorization code with PKCE. A public client, so it has no secret.",
+      "redirectUri": "http://localhost:3000/signin/callback",
+      "secret": false,
+      "membership": false
+    },
+    {
+      "key": "api",
+      "name": "asc-ehr-api",
+      "description": "apps/api: calls Medplum on behalf of signed-in users.",
+      "secret": true,
+      "membership": true
+    },
+    {
+      "key": "worker",
+      "name": "asc-ehr-worker",
+      "description": "apps/worker: background jobs with the client credentials grant.",
+      "secret": true,
+      "membership": true
+    }
+  ]
+}
