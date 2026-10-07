@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
   apiEnvSchema,
+  resolveTenantRef,
   DEV_WEB_ORIGIN,
   EnvValidationError,
   parseEnv,
@@ -22,6 +23,9 @@ describe("parseEnv", () => {
       NODE_ENV: "development",
       PORT: 4000,
       HOST: "0.0.0.0",
+      RATE_LIMIT_IP_MAX: 1200,
+      RATE_LIMIT_USER_MAX: 300,
+      RATE_LIMIT_WINDOW_MS: 60_000,
       LOG_LEVEL: "info",
     });
   });
@@ -193,5 +197,44 @@ describe("assertPublicEnvForProductionBuild", () => {
     for (const value of ["/api", "api.example.com", "ftp://api.example.com"]) {
       expect(() => assertPublicEnvForProductionBuild({ NEXT_PUBLIC_API_URL: value })).toThrow("absolute http(s) URL");
     }
+  });
+});
+
+describe("resolveTenantRef", () => {
+  const tenant = { DEFAULT_TENANT_ID: "0b8f3c52-6f3e-4a77-9a55-3d6e1f0c2a10", MEDPLUM_PROJECT_ID: "project-1" };
+
+  it("returns the configured tenant and Medplum project", () => {
+    expect(resolveTenantRef(parseEnv(apiEnvSchema, tenant))).toEqual({
+      tenantId: tenant.DEFAULT_TENANT_ID,
+      medplumProjectId: "project-1",
+    });
+  });
+
+  it("names every missing variable, never a value", () => {
+    expect(() => resolveTenantRef(parseEnv(apiEnvSchema, {}))).toThrow(
+      "DEFAULT_TENANT_ID (missing), MEDPLUM_PROJECT_ID (missing)",
+    );
+    expect(() => resolveTenantRef(parseEnv(apiEnvSchema, { MEDPLUM_PROJECT_ID: "project-1" }))).toThrow(
+      "DEFAULT_TENANT_ID (missing)",
+    );
+    expect(() => resolveTenantRef(parseEnv(apiEnvSchema, { DEFAULT_TENANT_ID: tenant.DEFAULT_TENANT_ID }))).not.toThrow(
+      /0b8f3c52/,
+    );
+  });
+});
+
+describe("api build id and rate limits", () => {
+  it("accepts a short GIT_SHA and rejects free text without echoing it", () => {
+    expect(parseEnv(apiEnvSchema, { GIT_SHA: "3b350a5" }).GIT_SHA).toBe("3b350a5");
+    expect(() => parseEnv(apiEnvSchema, { GIT_SHA: "Jane Doe was here" })).toThrow("GIT_SHA (invalid)");
+    expect(() => parseEnv(apiEnvSchema, { GIT_SHA: "Jane Doe was here" })).not.toThrow(/Jane/);
+  });
+
+  it("coerces rate limit knobs and rejects non-positive values", () => {
+    expect(parseEnv(apiEnvSchema, { RATE_LIMIT_USER_MAX: "50", RATE_LIMIT_WINDOW_MS: "10000" })).toMatchObject({
+      RATE_LIMIT_USER_MAX: 50,
+      RATE_LIMIT_WINDOW_MS: 10_000,
+    });
+    expect(() => parseEnv(apiEnvSchema, { RATE_LIMIT_IP_MAX: "0" })).toThrow("RATE_LIMIT_IP_MAX (invalid)");
   });
 });

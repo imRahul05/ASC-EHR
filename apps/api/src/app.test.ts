@@ -1,17 +1,17 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { buildApp } from "./app.js";
+import { buildTestApp } from "./testing/test-app.js";
 
 const ALLOWED = "https://app.example.com";
 
-let app: ReturnType<typeof buildApp> | undefined;
+let app: Awaited<ReturnType<typeof buildTestApp>>["app"] | undefined;
 
 afterEach(async () => {
   await app?.close();
   app = undefined;
 });
 
-function preflight(origin: string, corsOrigins: readonly string[]) {
-  app = buildApp({ corsOrigins });
+async function preflight(origin: string, corsOrigins: readonly string[]) {
+  ({ app } = await buildTestApp({ corsOrigins }));
   return app.inject({
     method: "OPTIONS",
     url: "/health",
@@ -43,7 +43,7 @@ describe("CORS", () => {
   });
 
   it("adds the allow-origin header to simple requests", async () => {
-    app = buildApp({ corsOrigins: [ALLOWED] });
+    ({ app } = await buildTestApp({ corsOrigins: [ALLOWED] }));
     const response = await app.inject({ method: "GET", url: "/health", headers: { origin: ALLOWED } });
     expect(response.statusCode).toBe(200);
     expect(response.headers["access-control-allow-origin"]).toBe(ALLOWED);

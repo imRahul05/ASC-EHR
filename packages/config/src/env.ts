@@ -51,6 +51,15 @@ export const defaultTenantIdSchema = z.string().uuid().optional();
 /** Medplum Project of the configured tenant (token project must equal this, gate 1). */
 export const medplumProjectIdSchema = z.string().min(1).optional();
 
+/**
+ * Build identifier (git SHA) recorded in audit decisions so an auditor can tie a
+ * decision to the code that made it. Short identifier only: letters, digits, `.`, `_`, `-`.
+ */
+export const gitShaSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9._-]{1,64}$/, { message: "expected a short identifier such as a git SHA" })
+  .optional();
+
 /** Origin of `next dev` (apps/web). Allowed by CORS only in development/test. */
 export const DEV_WEB_ORIGIN = "http://localhost:3000";
 
@@ -92,6 +101,12 @@ export const apiEnvSchema = z.object({
   DATABASE_RUNTIME_URL: databaseRuntimeUrlSchema,
   DEFAULT_TENANT_ID: defaultTenantIdSchema,
   MEDPLUM_PROJECT_ID: medplumProjectIdSchema,
+  GIT_SHA: gitShaSchema,
+  // Requests per window. IP: coarse flood guard in front of authentication (a clinic shares
+  // one address, so it is high). User: per tenant and signed-in user.
+  RATE_LIMIT_IP_MAX: z.coerce.number().int().min(1).default(1200),
+  RATE_LIMIT_USER_MAX: z.coerce.number().int().min(1).default(300),
+  RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(60_000),
   LOG_LEVEL: logLevelSchema,
   OTEL_EXPORTER_OTLP_ENDPOINT: otelEndpointSchema,
 });
@@ -107,6 +122,22 @@ export function resolveCorsOrigins(env: Pick<ApiEnv, "NODE_ENV" | "CORS_ORIGINS"
   if (env.CORS_ORIGINS) return env.CORS_ORIGINS;
   const isLocal = env.NODE_ENV === "development" || env.NODE_ENV === "test";
   return isLocal ? [DEV_WEB_ORIGIN] : [];
+}
+
+/**
+ * The one configured tenant, required by the API from P05g on (the schemas keep
+ * the variables optional because the worker does not read them yet). Names the
+ * missing variables only, never values.
+ */
+export function resolveTenantRef(env: Pick<ApiEnv, "DEFAULT_TENANT_ID" | "MEDPLUM_PROJECT_ID">): {
+  readonly tenantId: string;
+  readonly medplumProjectId: string;
+} {
+  const missing = (["DEFAULT_TENANT_ID", "MEDPLUM_PROJECT_ID"] as const).filter((name) => env[name] === undefined);
+  if (env.DEFAULT_TENANT_ID === undefined || env.MEDPLUM_PROJECT_ID === undefined) {
+    throw new EnvValidationError(missing, missing.map((name) => `${name} (missing)`));
+  }
+  return { tenantId: env.DEFAULT_TENANT_ID, medplumProjectId: env.MEDPLUM_PROJECT_ID };
 }
 
 export const workerEnvSchema = z.object({

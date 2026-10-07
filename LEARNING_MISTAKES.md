@@ -47,6 +47,7 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 15. Finishing a phase PR: record the phase's decisions in its plan file (decisions block, not only the PR body), leave the plan checklist unticked (evidence goes in the PR), update every `.env*.example` and `docs/DEPLOYMENT_CONFIGURATION.md` for each new env var, write down rules a later migration must follow, and never let a CI run pass with skipped DB tests. (LM-015)
 16. Driver errors carry data: Drizzle's "Failed query" message lists every bound parameter and Postgres puts the failing row in `DETAIL`. Database access goes through `withTenant`, which turns them into `DatabaseError` (SQLSTATE and constraint only); never log or return a raw driver error. (LM-016)
 17. A guard must validate every field its spec names, and have a test per field: a typed union is not a runtime check at a boundary that takes untyped input. (LM-017)
+18. Security hooks have an order, and plugin hooks do not run where you registered them: `@fastify/rate-limit` adds its hook per route, after every global hook. Call the limiter explicitly in the chain and test the order (a bad token must be counted before the identity provider is asked). (LM-018)
 
 ---
 
@@ -172,3 +173,10 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **Rule:** When a guard exists to keep free text out of a PHI-free store, list the fields from the spec and validate each at runtime (allowed set for enums, token pattern for ids), then add a rejecting test and a production-drops test per field. Types protect typed callers only (LM-012 is about not adding fallbacks inside typed code, not about skipping validation where untyped data arrives).
 - **How to check:** `pnpm --filter @asc/audit test` (`decision.test.ts` has a case per field); compare the spec's field list with the validator.
 - **Guarded by:** `packages/audit/src/decision.test.ts` (one rejecting case per decision field).
+
+### LM-018 — Security hooks run in a specific order: test it, do not assume it
+- **Seen:** 1 · 2026-10-07 · P05g, found by an attack test (`tampering.test.ts`) before the PR
+- **What went wrong:** The API registered `@fastify/rate-limit` before the authentication hook and assumed the limit therefore ran first. The plugin attaches its limit to each route's own `onRequest` list, which Fastify runs after all global hooks. Authentication answered every bad token with 401 before the limit counted anything: five wrong tokens, five 401s, no 429, and the identity provider was asked every time. The health route (public, no authentication hook) hid it, because there the limit did run.
+- **Rule:** Build the request pipeline as explicit global hooks in one place (`app.ts`): tenant, flood limit, authentication, authorization. Use `app.createRateLimit(...)` inside your own hook rather than the plugin's automatic hook. Every ordering claim gets a test that fails if the order changes (here: failed authentications are counted and the provider is not asked after the limit).
+- **How to check:** `pnpm --filter api test` (`tampering.test.ts` > "counts failed authentications"); read the hook order in `apps/api/src/app.ts`.
+- **Guarded by:** `apps/api/src/auth/tampering.test.ts`.
