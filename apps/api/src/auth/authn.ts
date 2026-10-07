@@ -2,6 +2,7 @@ import type { IdentityFailure, IdentityPort } from "@asc/authz";
 import type { FastifyInstance } from "fastify";
 
 import "./augment.js";
+import { tooManyRequests } from "../plugins/security.js";
 import type { createDenier } from "./denied.js";
 import { isStepUp } from "./route-auth.js";
 
@@ -67,12 +68,7 @@ export function registerAuthentication(
 
     const limit = await checkUserLimit(request);
     // `isAllowed: true` means the key is allow-listed (not counted); otherwise check the budget.
-    if (!limit.isAllowed && limit.isExceeded) {
-      return reply
-        .code(429)
-        .header("retry-after", String(limit.ttlInSeconds))
-        .send({ code: "rate_limited", message: `Too many requests. Retry in ${limit.ttlInSeconds} seconds.` });
-    }
+    if (!limit.isAllowed && limit.isExceeded) return tooManyRequests(reply, limit.ttlInSeconds);
     return undefined;
   });
 }
