@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@asc/audit": "workspace:*",
+    "@asc/authz": "workspace:*",
     "@asc/config": "workspace:*",
     "@asc/logger": "workspace:*",
     "@asc/telemetry": "workspace:*",

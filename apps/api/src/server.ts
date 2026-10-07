@@ -1,4 +1,6 @@
-import { apiEnvSchema, parseEnv, resolveCorsOrigins } from "@asc/config";
+import { auditClient } from "@asc/audit";
+import { StaticTenantResolver } from "@asc/authz";
+import { apiEnvSchema, parseEnv, resolveCorsOrigins, resolveTenantRef } from "@asc/config";
 import { logger } from "@asc/logger";
 import { shutdownTelemetry } from "@asc/telemetry";
 import { buildApp } from "./app.js";
@@ -8,6 +10,10 @@ async function start(): Promise<void> {
   const app = await buildApp({
     corsOrigins: resolveCorsOrigins(env),
     rateLimit: { ipMax: env.RATE_LIMIT_IP_MAX, windowMs: env.RATE_LIMIT_WINDOW_MS },
+    // Phase 1: the one configured tenant (names missing variables, never values).
+    tenantResolver: new StaticTenantResolver(resolveTenantRef(env)),
+    audit: auditClient,
+    catalogVersion: env.GIT_SHA ?? "unknown",
   });
 
   let shuttingDown = false;

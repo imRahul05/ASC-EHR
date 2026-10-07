@@ -26,6 +26,9 @@ importers:
       '@asc/audit':
         specifier: workspace:*
         version: link:../../packages/audit
+      '@asc/authz':
+        specifier: workspace:*
+        version: link:../../packages/authz
       '@asc/config':
         specifier: workspace:*
         version: link:../../packages/config
