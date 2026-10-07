@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "node esbuild.config.mjs",
+    "medplum:prepare": "tsx scripts/prepare-medplum-local.ts",
     "seed": "tsx scripts/seed-local.ts",
     "lint": "eslint --max-warnings 0",
     "check-types": "tsc --noEmit",

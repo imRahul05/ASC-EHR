@@ -48,6 +48,7 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 16. Driver errors carry data: Drizzle's "Failed query" message lists every bound parameter and Postgres puts the failing row in `DETAIL`. Database access goes through `withTenant`, which turns them into `DatabaseError` (SQLSTATE and constraint only); never log or return a raw driver error. (LM-016)
 17. A guard must validate every field its spec names, and have a test per field: a typed union is not a runtime check at a boundary that takes untyped input. (LM-017)
 18. Security hooks have an order, and plugin hooks do not run where you registered them: `@fastify/rate-limit` adds its hook per route, after every global hook. Call the limiter explicitly in the chain and test the order (a bad token must be counted before the identity provider is asked). (LM-018)
+19. Never commit a password, not even a "dev-only" one: secret scanners (GitGuardian on every PR) flag it and every machine shares a known value. Generate local credentials per machine into a git-ignored folder, commit templates with placeholders, and add a test that fails on a literal password. A secret that reached a pushed commit stays flagged until history is rewritten or the incident is dismissed. (LM-019)
 
 ---
 
@@ -180,3 +181,10 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **Rule:** Build the request pipeline as explicit global hooks in one place (`app.ts`): tenant, flood limit, authentication, authorization. Use `app.createRateLimit(...)` inside your own hook rather than the plugin's automatic hook. Every ordering claim gets a test that fails if the order changes (here: failed authentications are counted and the provider is not asked after the limit).
 - **How to check:** `pnpm --filter api test` (`tampering.test.ts` > "counts failed authentications"); read the hook order in `apps/api/src/app.ts`.
 - **Guarded by:** `apps/api/src/auth/tampering.test.ts`.
+
+### LM-019 — No committed passwords, even dev-only ones: generate them per machine
+- **Seen:** 1 · 2026-10-07 · PR #42 (P02), GitGuardian check failed
+- **What went wrong:** The local Medplum stack shipped a "dev-only" password as a literal in `docker-compose.yml` (`POSTGRES_PASSWORD`), in `infra/medplum/medplum.config.local.json` (database, Redis and super admin) and as the default of `seedEnvSchema`. GitGuardian reported two findings (a generic password and a username/password pair) and failed the PR check. Besides the scanner, every developer's machine shared the same known super admin password, and the docs called it "harmless" because it only listens on localhost.
+- **Rule:** No password literal in the repo. A local stack gets random credentials generated per machine into a git-ignored folder (`infra/medplum/.local/`), a committed template holds placeholders, compose reads variables (`--env-file`), and nothing may default a password. Generate once and keep them if a volume already stores them, and refuse a damaged file instead of regenerating. A secret that already reached a pushed commit stays flagged by the scanner for that commit: removing it in a later commit is not enough (rewrite the history of an unmerged branch into a new PR, or dismiss the incident in the scanner's dashboard).
+- **How to check:** `grep -rniE "password\"?\s*[:=]\s*\"?[a-z0-9-]{6,}" --exclude-dir=node_modules . | grep -v placeholder`; `pnpm --filter bots test` (`local-credentials.test.ts` > "no committed credentials").
+- **Guarded by:** `apps/bots/scripts/lib/local-credentials.test.ts` (template placeholders only, no literal password in the Medplum part of the compose file); the GitGuardian PR check. Other apps and env examples are not covered by a test.

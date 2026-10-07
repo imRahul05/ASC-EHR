@@ -33,18 +33,22 @@ services:
 
   # --- Local Medplum (P02): FHIR server, its own Postgres and Redis, and the admin app. ---
   # Host ports are unusual on purpose so they do not collide with other local stacks
-  # (5432/6379/8103/3000 are common). All bound to localhost. Dev-only credentials.
-  #   pnpm medplum:up     start the stack (waits until healthy)
+  # (5432/6379/8103/3000 are common). All bound to localhost.
+  # No password is committed: `pnpm medplum:up` generates them per machine into the
+  # git-ignored infra/medplum/.local and passes them in with --env-file. The services are in
+  # the "medplum" profile, so `docker compose up` and `pnpm db:up` never start them.
+  #   pnpm medplum:up     generate credentials (once), start the stack, wait until healthy
   #   pnpm medplum:seed   create the project, facility, practitioners and client apps
-  #   pnpm medplum:down   stop (data persists; add -v to wipe)
+  #   pnpm medplum:down   stop (data persists in the named volumes)
   medplum-postgres:
     image: postgres:16-alpine
     container_name: asc-medplum-postgres
+    profiles: ["medplum"]
     restart: unless-stopped
     environment:
       POSTGRES_DB: medplum
       POSTGRES_USER: medplum
-      POSTGRES_PASSWORD: medplum-dev-only
+      POSTGRES_PASSWORD: ${MEDPLUM_DB_PASSWORD:-}
     ports:
       - "127.0.0.1:5443:5432"
     volumes:
@@ -58,12 +62,16 @@ services:
   medplum-redis:
     image: redis:7-alpine
     container_name: asc-medplum-redis
+    profiles: ["medplum"]
     restart: unless-stopped
-    command: ["redis-server", "--requirepass", "medplum-dev-only"]
+    command: ["redis-server", "--requirepass", "${MEDPLUM_REDIS_PASSWORD:-}"]
+    environment:
+      # redis-cli reads the password from here, so it is not on the healthcheck command line.
+      REDISCLI_AUTH: ${MEDPLUM_REDIS_PASSWORD:-}
     ports:
       - "127.0.0.1:6390:6379"
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a medplum-dev-only ping | grep PONG"]
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -71,6 +79,7 @@ services:
   medplum-server:
     image: medplum/medplum-server:5.1.42
     container_name: asc-medplum-server
+    profiles: ["medplum"]
     restart: unless-stopped
     depends_on:
       medplum-postgres:
@@ -80,9 +89,10 @@ services:
     ports:
       - "127.0.0.1:8203:8103"
     volumes:
-      # The server reads its config from the working directory; mounted read-only.
-      - ./infra/medplum/medplum.config.local.json:/usr/src/medplum/medplum.config.json:ro
-      - ./infra/medplum/medplum.config.local.json:/usr/src/medplum/packages/server/medplum.config.json:ro
+      # The server reads its config from the working directory; mounted read-only. Rendered by
+      # `pnpm medplum:up` from infra/medplum/medplum.config.template.json (credentials generated per machine).
+      - ./infra/medplum/.local/medplum.config.json:/usr/src/medplum/medplum.config.json:ro
+      - ./infra/medplum/.local/medplum.config.json:/usr/src/medplum/packages/server/medplum.config.json:ro
       - medplum-binary:/usr/src/medplum/binary
     healthcheck:
       # The image has no shell or curl: probe with node.
@@ -95,6 +105,7 @@ services:
   medplum-app:
     image: medplum/medplum-app:5.1.42
     container_name: asc-medplum-app
+    profiles: ["medplum"]
     restart: unless-stopped
     depends_on:
       medplum-server:
