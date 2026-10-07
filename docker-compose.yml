@@ -97,8 +97,20 @@ services:
     volumes:
       # The server reads its config from the working directory; mounted read-only. Rendered by
       # `pnpm medplum:up` from infra/medplum/medplum.config.template.json (credentials generated per machine).
-      - ./infra/medplum/.local/medplum.config.json:/usr/src/medplum/medplum.config.json:ro
-      - ./infra/medplum/.local/medplum.config.json:/usr/src/medplum/packages/server/medplum.config.json:ro
+      # Long syntax with create_host_path: false, because the short form makes Docker create a
+      # DIRECTORY at the host path when the file is missing, which then breaks the next render.
+      - type: bind
+        source: ./infra/medplum/.local/medplum.config.json
+        target: /usr/src/medplum/medplum.config.json
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./infra/medplum/.local/medplum.config.json
+        target: /usr/src/medplum/packages/server/medplum.config.json
+        read_only: true
+        bind:
+          create_host_path: false
       - medplum-binary:/usr/src/medplum/binary
     healthcheck:
       # The image has no shell or curl: probe with node.

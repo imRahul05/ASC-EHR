@@ -1,4 +1,4 @@
-import { copyFileSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -109,6 +109,16 @@ describe("prepareLocalMedplum", () => {
     expect(() => prepareLocalMedplum(infra)).toThrow("is damaged");
   });
 
+  it("explains a directory sitting where a generated file belongs, instead of crashing with EISDIR", () => {
+    const infra = tempInfra();
+    mkdirSync(new URL(".local/medplum.config.json/", infra), { recursive: true });
+    expect(() => prepareLocalMedplum(infra, sequence())).toThrow("infra/medplum/.local/medplum.config.json is a directory");
+    rmSync(new URL(".local/medplum.config.json/", infra), { recursive: true });
+    // The credentials were already written by the failed attempt and are kept; the config is now a file.
+    expect(prepareLocalMedplum(infra, sequence()).generated).toBe(false);
+    expect(statSync(new URL(".local/medplum.config.json", infra)).isFile()).toBe(true);
+  });
+
   it("returns undefined before anything was generated", () => {
     expect(loadCredentials(tempInfra())).toBeUndefined();
   });
@@ -129,5 +139,8 @@ describe("no committed credentials", () => {
     expect(medplumPart).toContain('test -n "$$REDIS_PASSWORD"');
     expect(medplumPart).toContain('exec redis-server --requirepass "$$REDIS_PASSWORD"');
     expect(medplumPart).not.toMatch(/redis-cli -a /);
+    // A missing config file must fail the start, not make Docker create a directory in its place.
+    expect(medplumPart.match(/^\s+create_host_path: false$/gm)).toHaveLength(2);
+    expect(medplumPart).not.toMatch(/- \.\/infra\/medplum\/\.local\/[^\n]*:ro/);
   });
 });

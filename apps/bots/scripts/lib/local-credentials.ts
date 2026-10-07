@@ -6,7 +6,7 @@
  */
 
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 
 export const PLACEHOLDERS = {
   databasePassword: "__MEDPLUM_DATABASE_PASSWORD__",
@@ -73,7 +73,14 @@ export function prepareLocalMedplum(infraDir: URL, random: () => string = random
   const credentials = existing ?? generateCredentials(random);
   const dir = new URL(LOCAL_DIR, infraDir);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const write = (name: string, content: string) => writeFileSync(new URL(name, dir), content, { mode: 0o600 });
+  const write = (name: string, content: string) => {
+    const target = new URL(name, dir);
+    // Docker creates a directory at a bind-mount path whose file is missing (older compose files did this).
+    if (existsSync(target) && statSync(target).isDirectory()) {
+      throw new Error(`infra/medplum/.local/${name} is a directory: remove it and run pnpm medplum:up again`);
+    }
+    writeFileSync(target, content, { mode: 0o600 });
+  };
   if (existing === undefined) write("credentials.json", `${JSON.stringify(credentials, null, 2)}\n`);
   write("medplum.config.json", renderConfig(readFileSync(new URL("medplum.config.template.json", infraDir), "utf8"), credentials));
   write("compose.env", renderComposeEnv(credentials));
