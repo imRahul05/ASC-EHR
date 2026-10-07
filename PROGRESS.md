@@ -20,7 +20,7 @@
 | Updated | 2026-10-07 |
 |---|---|
 | Current wave | 0 |
-| In progress | P05g in review (#40) |
+| In progress | none (P05a–P05g merged; P05h waits for P02, P05i for P05h and P04) |
 | Ready to start | P00b, P01, P02, P03, P09, P06 (needs Azure access) |
 | Blocked | P13 soft-blocked on Q-MS1 (fallback allowed) |
 | Go-live target | 2026-12-07 |
@@ -37,7 +37,7 @@
 | P02 | Local Medplum + bots skeleton | ready | — | | | | | |
 | P03 | `@asc/fhir` | ready | — | | | | | |
 | P04 | Medplum clients | pending | P02, P03 | | | | | |
-| P05 | Auth + roles (sub-phases P05a–P05j below) | in-progress (P05a–P05f done; P05g ready) | P05h: P02 · P05i–j: P04 | | | | | |
+| P05 | Auth + roles (sub-phases P05a–P05j below) | in-progress (P05a–P05g done; P05h waits for P02) | P05h: P02 · P05i–j: P04 | | | | | |
 | P06 | Azure infra (dev) | ready (external: subscription/BAA) | — | | | | | |
 | P07 | `@asc/clinical-rules` | pending | P03 | | | | | |
 | P08 | Terminology + profiles | pending | P02, P03 | | | | | |
@@ -70,7 +70,7 @@
 | P05d | Web on capabilities (P05d1, P05d2) | done | P05b | | `phase/P05d2-workspaces` | [#32](https://github.com/imRahul05/ASC-EHR/pull/32), [#35](https://github.com/imRahul05/ASC-EHR/pull/35) | 2026-10-06 | 2026-10-06 |
 | P05e | App-DB tenancy (RLS, `withTenant`) | done | P05a | Claude (bg job 640ebd7d) | `phase/P05e-db-tenancy` | [#36](https://github.com/imRahul05/ASC-EHR/pull/36) | 2026-10-06 | 2026-10-06 |
 | P05f | Durable audit | done | P05e | Claude (bg job 640ebd7d) | `phase/P05f-durable-audit` | [#38](https://github.com/imRahul05/ASC-EHR/pull/38) | 2026-10-06 | 2026-10-07 |
-| P05g | API security spine | review | P05a, P05e, P05f | Claude (bg job 640ebd7d) | `phase/P05g-api-security-spine` | [#40](https://github.com/imRahul05/ASC-EHR/pull/40) | 2026-10-07 | |
+| P05g | API security spine | done | P05a, P05e, P05f | Claude (bg job 640ebd7d) | `phase/P05g-api-security-spine` | [#40](https://github.com/imRahul05/ASC-EHR/pull/40) | 2026-10-07 | 2026-10-07 |
 | P05h | Medplum hardening, spikes, seed, policy test | pending | P05c, P02 | | | | | |
 | P05i | Medplum identity in API | pending | P05g, P05h, P04 | | | | | |
 | P05j | Web sign-in | pending | P05d, P05i, P04 | | | | | |
@@ -81,6 +81,7 @@ Work completed before this plan existed, grouped from git history (`origin/main`
 
 | Date | Area | What | Ref |
 |---|---|---|---|
+| 2026-10-07 | Auth | **P05g** API security spine (`apps/api`): helmet; explicit request pipeline tenant (gate 1, 404) → flood limit (tenant and address) → identity through `IdentityPort` (gate 2: 401, 503 when the provider is down; step-up capabilities bypass the cache; per tenant-and-user limit) → facility and capability (gates 3 and 4: route parameter, loaded resource via `app.guards`, or all-site only); default-deny (a route without `config.auth` stops the app starting; route inventory test lists the public routes); every denial audited with its gate and decision provenance; `GET /me`; durable append-only audit store required in staging and production; dev-only fake identity refused there (**a deployed API does not start until P05i**); `@asc/config`: `resolveTenantRef`, `GIT_SHA`, rate-limit knobs; found by an attack test: the rate limit did not count failed authentications (LM-018); api 81 tests; decisions in [P05 plan](docs/plan/phases/P05-auth-roles.md) | PR #40, branch `phase/P05g-api-security-spine` |
 | 2026-10-07 | Auth | **P05f** durable audit: `@asc/audit` events carry tenant, facility, membership, session, gate (1–5) and decision provenance (role versions, catalog version, cache state, validated); IAM vocabulary (`auth.*`, `membership.*`, `role.*`, `user.invited`) with a typed `iamEvent` builder and ID-only details; client IP stored as a /24 or /48 prefix; production requires a durable **and** append-only store; `audit_events` table (runtime role `SELECT, INSERT` only, RLS forced, triggers reject UPDATE/DELETE/TRUNCATE even for the owner); `createPostgresAuditStore` over `withTenant`; `withTenant` now rethrows driver failures as `DatabaseError` (SQLSTATE and constraint only, recognised by class) so bound values such as `agent_runs.output` never reach logs; `@asc/db` 74 and `@asc/audit` 36 tests; decisions in [P05 plan](docs/plan/phases/P05-auth-roles.md); LM-016, LM-017 | PR #38, branch `phase/P05f-durable-audit` |
 | 2026-10-06 | Auth | **P05e** app-DB tenancy: `agent_runs.tenant_id` (NOT NULL, backfilled from `app.default_tenant_id`) and `facility_id`; row-level security enabled and **forced**, fail closed without `app.tenant_id`; owner vs runtime roles (`asc_runtime`: no ALTER, DELETE, TRUNCATE or RLS bypass); `createTenantDb().withTenant` is the only client the package exports (owner client in `@asc/db/migrate`); run store takes a tenant/facility scope; config `DEFAULT_TENANT_ID`, `MEDPLUM_PROJECT_ID`, `DATABASE_RUNTIME_URL`; 49 DB tests (skipped without `TEST_DATABASE_URL`, CI guard fails if skipped); decisions in [P05 plan](docs/plan/phases/P05-auth-roles.md); LM-015 | PR #36, branch `phase/P05e-db-tenancy` |
 | 2026-10-06 | Auth | **P05d** web on capabilities (mock auth): Principal in session, `useCan`/`Can`/`RequireCapability`, `RouteGuard` driven by `ROUTE_ACCESS`, workspaces and facility switcher, role labels from `@asc/authz` templates, `ParticipantRole` split from authz roles, access request instead of self-signup, `UserRole` removed, role-name lint baseline empty, tech identity added with config only | PRs #32, #35 (+ #33, #34 docs/progress) |
@@ -127,14 +128,16 @@ Work completed before this plan existed, grouped from git history (`origin/main`
 | Q8 | CPT licence | P08, P22 | business | open |
 | Q15/Q-MS7 | STT vendor + BAA | P18 | eng | open |
 | Q-MS4/5 | faxagnet + Integuru hosting/BAA/outbound | P24 | MindScript team | open |
+| Q-API-1 | Deployed API is paused until P05i: it refuses to start in staging and production (no real identity adapter; the dev fake is refused), so the API Vercel project shows failed deployments. The demo is unaffected (in-browser mocks). Pause its deploys in Vercel (Ignored Build Step `exit 0`) or accept the failures until P05i ([deployment doc §B](docs/DEPLOYMENT_CONFIGURATION.md)) | none for the demo; any real API deployment | eng lead | open |
+| Q-AUDIT-1 | An *allowed* PHI read whose audit write fails: proposal 503 and no data. Denials are already never skipped ([P05g decision 6](docs/plan/phases/P05-auth-roles.md)) | first PHI route (P12/P14) | eng lead | open: decide before the first PHI route |
 | Q-IAM-C | Workspace overlap: roles whose capabilities are a subset of another's (tech ⊂ nurse/physician) appear as an extra workspace option in the switcher. Add `hiddenWhen` to workspace definitions? ([P05 §4 P05d decisions](docs/plan/phases/P05-auth-roles.md)) | none (UX only) | eng lead | open: accepted for now |
 
 Full lists: [implementation plan §6](docs/plan/implementation-plan.md#6-cross-phase-open-questions), each phase file, [05 §5.4](docs/product/05-delivery-plan.md), [06 §7](docs/product/06-mindscript-integration.md#7-open-questions-for-the-mindscript-team).
 
 ## 5. Next up
 
-1. **P05g** API security spine (needs P05a, P05e, P05f: all done; start from the [P05f decisions](docs/plan/phases/P05-auth-roles.md): set `tenantId`/`facilityId` on every audit event, decide the audit-write failure policy, never read `error.cause`). **P00b** library upgrades (zod 4, bullmq 6, ioredis 6) — must land before Wave 2. In parallel: **P01** CI (must run a Postgres service and set `TEST_DATABASE_URL`, see its acceptance list).
-2. In parallel: **P02** local Medplum, **P03** `@asc/fhir`.
+1. **P02** local Medplum is now the gate for the rest of auth: P05h (Medplum hardening, spikes, seed, policy test) needs P02 and P05c; P05i (the Medplum identity adapter that lets the API start when deployed) needs P05h and P04. **P00b** library upgrades (zod 4, bullmq 6, ioredis 6) must land before Wave 2. In parallel: **P01** CI (must run a Postgres service and set `TEST_DATABASE_URL`, see its acceptance list; the API tests need no database). P06 must set `trustProxy` and revisit the per-address flood limit behind Front Door ([P06 acceptance](docs/plan/phases/P06-azure-infra.md)).
+2. In parallel: **P03** `@asc/fhir` (needed for P04 with P02).
 3. Escalate week-1 questions: Q-MS1, Azure subscription/BAA (P06), Q8 CPT licence.
 4. Wire `pnpm --filter web build && pnpm --filter web test:bundles` and Lighthouse CI into **P01** CI; re-measure `/login` mobile LCP on an HTTP/2 deploy preview (see web perf done-log entry).
 
