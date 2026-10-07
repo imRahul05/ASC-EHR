@@ -109,6 +109,23 @@ describe("prepareLocalMedplum", () => {
     expect(() => prepareLocalMedplum(infra)).toThrow("is damaged");
   });
 
+  it("gives an empty, truncated or non-JSON credentials file the same instructions, not a raw SyntaxError", () => {
+    const infra = tempInfra();
+    prepareLocalMedplum(infra, sequence());
+    for (const content of ["", '{"databasePassword": "abc', "not json at all", "[]", "null"]) {
+      writeFileSync(new URL(".local/credentials.json", infra), content);
+      expect(() => loadCredentials(infra), JSON.stringify(content)).toThrow("is damaged: reset the local Medplum");
+      expect(() => prepareLocalMedplum(infra), JSON.stringify(content)).toThrow("is damaged: reset the local Medplum");
+    }
+  });
+
+  it("does not repeat the damaged file's content in the error", () => {
+    const infra = tempInfra();
+    prepareLocalMedplum(infra, sequence());
+    writeFileSync(new URL(".local/credentials.json", infra), '{"databasePassword": "CANARY-CONTENT');
+    expect(() => loadCredentials(infra)).not.toThrow(/CANARY/);
+  });
+
   it("explains a directory sitting where a generated file belongs, instead of crashing with EISDIR", () => {
     const infra = tempInfra();
     mkdirSync(new URL(".local/medplum.config.json/", infra), { recursive: true });

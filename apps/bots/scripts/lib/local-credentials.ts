@@ -55,11 +55,19 @@ const LOCAL_DIR = ".local/";
 export function loadCredentials(infraDir: URL): Credentials | undefined {
   const file = new URL(`${LOCAL_DIR}credentials.json`, infraDir);
   if (!existsSync(file)) return undefined;
-  const credentials = parseCredentials(JSON.parse(readFileSync(file, "utf8")));
-  // Regenerating would no longer match the passwords already stored in the Postgres volume.
-  if (credentials === undefined) {
-    throw new Error("infra/medplum/.local/credentials.json is damaged: reset the local Medplum (see the runbook) and run pnpm medplum:up again");
+  // Regenerating would no longer match the passwords already stored in the Postgres volume, so any
+  // unreadable file (empty, truncated, not JSON, a directory, wrong shape) gets the same instructions.
+  const damaged = new Error(
+    "infra/medplum/.local/credentials.json is damaged: reset the local Medplum (see the runbook) and run pnpm medplum:up again",
+  );
+  let credentials: Credentials | undefined;
+  try {
+    credentials = parseCredentials(JSON.parse(readFileSync(file, "utf8")));
+  } catch {
+    // The parser's own message can quote file content: do not keep it.
+    throw damaged;
   }
+  if (credentials === undefined) throw damaged;
   return credentials;
 }
 
