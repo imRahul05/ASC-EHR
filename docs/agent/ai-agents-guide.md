@@ -306,6 +306,8 @@ stateDiagram-v2
 | `AgentExecutionError` (`retryable: false`) | Model rejected the request or output failed the schema | Inspect `name`/metadata (not `cause` in logs); fix prompt/schema |
 | `AgentExecutionError` (`retryable: true`) | All models in the chain had transient failures | Provider outage/rate limit; retry later |
 | `AuditStoreNotConfiguredError` | Production without a durable audit store | Call `configureAuditStore()` at app startup |
+| `AuditStoreNotAppendOnlyError` | Production store is durable but not `appendOnly` | Use `createPostgresAuditStore` from `@asc/db` (`audit_events`), or a store that rejects update, delete and truncate |
+| `DatabaseError` (`@asc/db`) | A database call failed; message holds SQLSTATE and constraint only | Look the SQLSTATE up; never read `cause` (Drizzle's raw message lists bound values, LM-016) |
 | `ModelRefusalError` (`failureKind: 'refusal'`) | Model declined (content filter / refusal); never retried elsewhere | Show "draft manually"; review input minimisation/prompt |
 | `AgentExecutionError` (`failureKind: 'timeout'`, `deadlineExceeded`) | Attempt timeout or total deadline spent | Check provider health; adjust `latencyBudget` for the task |
 | `AgentRunInProgressError` (`run-state`) | Same `executionId` is running elsewhere | Retry later; stale runs are taken over after `staleRunAfterMs` |

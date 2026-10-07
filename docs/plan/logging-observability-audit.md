@@ -125,7 +125,7 @@ The implementation should proceed in phased, parallelizable steps to be executed
 - **OpenTelemetry**: Integrate `@azure/monitor-opentelemetry` conditionally, ensuring it strictly bypasses local development.
 
 ## Open Questions
-- **Audit Storage**: Should the durable audit trail reside in the primary application database, or a separate compliance database / data warehouse for long-term retention?
+- **Audit Storage**: ~~Should the durable audit trail reside in the primary application database, or a separate compliance database / data warehouse?~~ **Decided in P05f (2026-10-07):** append-only `audit_events` in the app Postgres (`@asc/db`), tenant RLS, no purge path; FHIR access audit stays in Medplum `AuditEvent`. Long-term retention or archiving to a separate store is still open.
 - **Retention Policies**: What are the strict data retention boundaries for Application Logs vs. Audit Logs in our specific compliance posture?
 - **LLM Tracing**: Will we require a specialized tracing tool (like Langfuse or Braintrust) for agent evaluation, and how will we secure it for PHI?
 

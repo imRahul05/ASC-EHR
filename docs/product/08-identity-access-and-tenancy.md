@@ -900,6 +900,7 @@ Wybit staff never use super-admin to read PHI.
 | `sessionId`, `ip` (hashed/truncated), `userAgent` | API |
 
 - Medplum `AuditEvent` covers FHIR access automatically. `@asc/audit` covers everything else and **fails closed**.
+- **Implemented in P05f** (`@asc/audit`, `audit_events` in `@asc/db`): `tenantId`, `facilityId`, `membershipId`, `actorType` (user · system · agent · worker · bot · service), `agentExecutionId`, `action`, `resourceType`/`resourceId`, `outcome` (`SUCCESS` / `FAILURE` / `DENIED`) with `gate` 1–5 on denials, `decision` (`roleVersions`, `catalogVersion`, `cache`), `sessionId`, `clientIpPrefix` (a /24 or /48 prefix, never the full address) and `userAgent` (200 characters). IAM events are `auth.login|logout|denied`, `membership.*`, `role.*`, `user.invited` with ID-only details. The store is append-only. Decisions: [P05 plan, P05f decisions](../plan/phases/P05-auth-roles.md).
 - Denied events include the gate number, which makes misconfigured roles easy to spot.
 
 ---

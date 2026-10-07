@@ -243,7 +243,7 @@ const { output, meta } = await runAgent(AGENTS['discharge-instructions'], input,
 
 - **Actor:** the agent (`actorType: 'agent'`, `actorId: <agent name>`). The triggering user or system is in `details.triggeredByType` / `details.triggeredById`, and `agentExecutionId` links the event to the model call.
 - **Details:** routing metadata only — agent, promptVersion, task, tier, hostingTarget, endpoint, modelName, modelId, attempts; on success the token counts (`inputTokens`, `outputTokens`, `cachedInputTokens`, `cacheWriteTokens`, `totalTokens` — numbers only, omitted when the provider reports none); on failure `errorName`, `failureKind` (`input` · `no-model` · `context` · `run-state` · `refusal` · `validation` · `timeout` · `aborted` · `provider` · `unknown`, derived from error types — never messages), `retryable` and `deadlineExceeded`; with context, `contextItems` + `contextManifestHash`; with a run store, `runClaim`. Never input values, context values, prompts, output or error messages.
-- **Sink:** defaults to `getAuditClient()`, resolved before any model is called, so production without a durable audit store fails closed. Tests inject `audit`. If the audit write fails, that error propagates — audit loss is never silent.
+- **Sink:** defaults to `getAuditClient()`, resolved before any model is called, so production without a durable, append-only audit store (`createPostgresAuditStore` from `@asc/db`) fails closed. Tests inject `audit`. If the audit write fails, that error propagates — audit loss is never silent.
 
 ### Context vs execution state
 
