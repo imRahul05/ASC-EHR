@@ -51,6 +51,7 @@ Audit logs track security and business actions.
 ### Rules for Agents and Developers:
 *   **Log Everything**: Every read and write operation involving PHI must generate an audit log entry via `auditClient`.
 *   **Do NOT Log the PHI Itself**: The audit log should contain metadata (`patientId`, `actorId`, `action`, `timestamp`, `outcome`, `agentExecutionId`) but MUST NOT contain the actual sensitive data (e.g., do not log "User viewed diagnosis: Cancer", log "User viewed diagnosis for Patient: 12345").
+*   **No PHI in URLs**: The API's request log records the full URL, query string included. Put only opaque ids in paths; send anything that can identify a patient (name, MRN, date of birth, free text) in a POST body, never in a query string.
 *   **Agent Workflows**: When an AI agent performs an action on behalf of a user or the system, the audit log must reflect both the triggering user and the AI agent involved by providing the `agentExecutionId`.
 
 ---

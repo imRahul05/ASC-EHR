@@ -34,9 +34,11 @@ export function capabilityRoute(capability: Capability, options: { facilityParam
 /**
  * The target facility is a property of a resource the handler loads (a case, a
  * patient). The handler MUST call `app.guards.requireCapabilityAt(request, reply,
- * capability, resource.facilityId)`; a successful response without that call is
- * replaced by a 500, so a forgotten check fails closed. A caller who holds the
- * capability nowhere is refused before the handler runs.
+ * capability, resource.facilityId)`. Load only what is needed to learn the facility (and
+ * tenant), check, and only then read or write the rest. A successful response without that
+ * call is replaced by a 500, so a forgotten check fails closed, but that happens after the
+ * handler ran: it cannot undo a write or a read. A caller who holds the capability nowhere
+ * is refused before the handler runs.
  */
 export function capabilityAtResource(capability: Capability) {
   return { auth: { mode: "capability" as const, capability, facility: { from: "resource" } as const } };
