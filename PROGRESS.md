@@ -20,7 +20,7 @@
 | Updated | 2026-10-07 |
 |---|---|
 | Current wave | 0 |
-| In progress | P02 (local Medplum) |
+| In progress | P02 in review (#42) |
 | Ready to start | P00b, P01, P02, P03, P09, P06 (needs Azure access) |
 | Blocked | P13 soft-blocked on Q-MS1 (fallback allowed) |
 | Go-live target | 2026-12-07 |
@@ -34,7 +34,7 @@
 | P00 | Repo hygiene, guardrails | done | — | Claude (session fe18af87) | `worktree-docs-mindscript-wiring`, `worktree-p00-close` | #9 (+ close-out PR) | 2026-09-27 | 2026-09-28 |
 | P00b | Library upgrades (zod 4, bullmq 6, ioredis 6) | ready | P00 | | | | | |
 | P01 | CI + eval gate | ready | P00 | | | | | |
-| P02 | Local Medplum + bots skeleton | in-progress | — | Claude (bg job 640ebd7d) | `phase/P02-local-medplum` | | 2026-10-07 | |
+| P02 | Local Medplum + bots skeleton | review | — | Claude (bg job 640ebd7d) | `phase/P02-local-medplum` | [#42](https://github.com/imRahul05/ASC-EHR/pull/42) | 2026-10-07 | |
 | P03 | `@asc/fhir` | ready | — | | | | | |
 | P04 | Medplum clients | pending | P02, P03 | | | | | |
 | P05 | Auth + roles (sub-phases P05a–P05j below) | in-progress (P05a–P05g done; P05h waits for P02) | P05h: P02 · P05i–j: P04 | | | | | |
