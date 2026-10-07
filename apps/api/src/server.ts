@@ -5,7 +5,10 @@ import { buildApp } from "./app.js";
 
 async function start(): Promise<void> {
   const env = parseEnv(apiEnvSchema);
-  const app = buildApp({ corsOrigins: resolveCorsOrigins(env) });
+  const app = await buildApp({
+    corsOrigins: resolveCorsOrigins(env),
+    rateLimit: { ipMax: env.RATE_LIMIT_IP_MAX, windowMs: env.RATE_LIMIT_WINDOW_MS },
+  });
 
   let shuttingDown = false;
   const shutdown = async (signal: NodeJS.Signals): Promise<void> => {

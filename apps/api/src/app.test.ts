@@ -3,15 +3,17 @@ import { buildApp } from "./app.js";
 
 const ALLOWED = "https://app.example.com";
 
-let app: ReturnType<typeof buildApp> | undefined;
+let app: Awaited<ReturnType<typeof buildApp>> | undefined;
 
 afterEach(async () => {
   await app?.close();
   app = undefined;
 });
 
-function preflight(origin: string, corsOrigins: readonly string[]) {
-  app = buildApp({ corsOrigins });
+const RATE_LIMIT = { ipMax: 1000, windowMs: 60_000 };
+
+async function preflight(origin: string, corsOrigins: readonly string[]) {
+  app = await buildApp({ corsOrigins, rateLimit: RATE_LIMIT });
   return app.inject({
     method: "OPTIONS",
     url: "/health",
@@ -43,7 +45,7 @@ describe("CORS", () => {
   });
 
   it("adds the allow-origin header to simple requests", async () => {
-    app = buildApp({ corsOrigins: [ALLOWED] });
+    app = await buildApp({ corsOrigins: [ALLOWED], rateLimit: RATE_LIMIT });
     const response = await app.inject({ method: "GET", url: "/health", headers: { origin: ALLOWED } });
     expect(response.statusCode).toBe(200);
     expect(response.headers["access-control-allow-origin"]).toBe(ALLOWED);
