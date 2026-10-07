@@ -6,6 +6,7 @@ import { loggerOptions } from "@asc/logger";
 import { registerAuthentication } from "./auth/authn.js";
 import { createDenier } from "./auth/denied.js";
 import { registerDefaultDeny } from "./auth/default-deny.js";
+import { createGuards, registerAuthorization } from "./auth/guards.js";
 import { registerTenantGate } from "./auth/tenant.js";
 import { resolveRequestId } from "./lib/request-id.js";
 import { registerRateLimit, registerSecurityHeaders } from "./plugins/security.js";
@@ -53,7 +54,7 @@ export async function buildApp({ corsOrigins, rateLimit, tenantResolver, identit
     done();
   });
 
-  // Hook order on every request: tenant (gate 1) -> flood limit (tenant and address) -> identity (gate 2).
+  // Hook order on every request: tenant (gate 1) -> flood limit (tenant and address) -> identity (gate 2) -> facility and capability (gates 3 and 4).
   registerTenantGate(app, tenantResolver, deny);
   await registerRateLimit(app, {
     max: rateLimit.ipMax,
@@ -65,6 +66,7 @@ export async function buildApp({ corsOrigins, rateLimit, tenantResolver, identit
     deny,
     userRateLimit: { max: rateLimit.userMax, windowMs: rateLimit.windowMs },
   });
+  registerAuthorization(app, createGuards(deny));
 
   registerRoutes(app);
 

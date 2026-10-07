@@ -17,9 +17,29 @@ export function authenticatedRoute() {
   return { auth: { mode: "authenticated" as const } };
 }
 
-/** Gate 3 and 4: a grant at the target facility must include `capability`. */
+/**
+ * Gates 3 and 4. A grant at the target facility must include `capability`.
+ * - `facilityParam`: the route parameter that holds the target facility id.
+ * - without it: no facility is named, so only an all-site grant passes (fail closed).
+ * For a facility that is only known after loading a resource use `capabilityAtResource`.
+ */
 export function capabilityRoute(capability: Capability, options: { facilityParam?: string } = {}) {
-  return { auth: { mode: "capability" as const, capability, ...options } };
+  const facility =
+    options.facilityParam === undefined
+      ? ({ from: "none" } as const)
+      : ({ from: "param", name: options.facilityParam } as const);
+  return { auth: { mode: "capability" as const, capability, facility } };
+}
+
+/**
+ * The target facility is a property of a resource the handler loads (a case, a
+ * patient). The handler MUST call `app.guards.requireCapabilityAt(request, reply,
+ * capability, resource.facilityId)`; a successful response without that call is
+ * replaced by a 500, so a forgotten check fails closed. A caller who holds the
+ * capability nowhere is refused before the handler runs.
+ */
+export function capabilityAtResource(capability: Capability) {
+  return { auth: { mode: "capability" as const, capability, facility: { from: "resource" } as const } };
 }
 
 /** High-risk capabilities re-validate with the identity provider on every call (no cache). */
