@@ -60,6 +60,43 @@ export const gitShaSchema = z
   .regex(/^[A-Za-z0-9._-]{1,64}$/, { message: "expected a short identifier such as a git SHA" })
   .optional();
 
+/**
+ * Medplum connection for server processes (api, worker). All optional until the
+ * Medplum clients are wired (P04). `MEDPLUM_CLIENT_SECRET` is a secret: never log it.
+ */
+const medplumServerEnvShape = {
+  MEDPLUM_BASE_URL: z.string().url().optional(),
+  MEDPLUM_CLIENT_ID: z.string().min(1).optional(),
+  MEDPLUM_CLIENT_SECRET: z.string().min(1).optional(),
+};
+
+/** True for a loopback host: the only place the local seed may run. */
+function isLoopbackUrl(value: string): boolean {
+  try {
+    const { hostname } = new URL(value);
+    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Environment of the local seed script (`pnpm medplum:seed`). Defaults match the
+ * local compose stack and its dev-only super admin. The base URL must be loopback so
+ * the seed can never write synthetic data into a shared or deployed Medplum.
+ */
+export const seedEnvSchema = z.object({
+  MEDPLUM_BASE_URL: z
+    .string()
+    .url()
+    .default("http://localhost:8203/")
+    .refine(isLoopbackUrl, { message: "the local seed only runs against localhost" }),
+  MEDPLUM_SUPER_ADMIN_EMAIL: z.string().email().default("admin@example.com"),
+  MEDPLUM_SUPER_ADMIN_PASSWORD: z.string().min(1).default("medplum-dev-only"),
+});
+
+export type SeedEnv = z.infer<typeof seedEnvSchema>;
+
 /** Origin of `next dev` (apps/web). Allowed by CORS only in development/test. */
 export const DEV_WEB_ORIGIN = "http://localhost:3000";
 
@@ -102,6 +139,7 @@ export const apiEnvSchema = z.object({
   DEFAULT_TENANT_ID: defaultTenantIdSchema,
   MEDPLUM_PROJECT_ID: medplumProjectIdSchema,
   GIT_SHA: gitShaSchema,
+  ...medplumServerEnvShape,
   // Requests per window. IP: coarse flood guard in front of authentication (a clinic shares
   // one address, so it is high). User: per tenant and signed-in user.
   RATE_LIMIT_IP_MAX: z.coerce.number().int().min(1).default(1200),
@@ -148,6 +186,7 @@ export const workerEnvSchema = z.object({
   DATABASE_RUNTIME_URL: databaseRuntimeUrlSchema,
   DEFAULT_TENANT_ID: defaultTenantIdSchema,
   MEDPLUM_PROJECT_ID: medplumProjectIdSchema,
+  ...medplumServerEnvShape,
   // Queue NAMES are code constants (apps/worker/src/queues.ts); only capacity
   // knobs live in env. Concurrency is per worker process; the rate limit is
   // enforced by BullMQ across ALL workers of a queue (jobs per duration).
