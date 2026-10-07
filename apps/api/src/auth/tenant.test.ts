@@ -2,6 +2,7 @@ import { FakeTenantResolver, TEST_TENANT } from "@asc/authz/testing";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { buildTestApp } from "../testing/test-app.js";
+import { publicRoute } from "./route-auth.js";
 
 type TestApp = Awaited<ReturnType<typeof buildTestApp>>["app"];
 let app: TestApp | undefined;
@@ -13,7 +14,7 @@ afterEach(async () => {
 
 /** A throw-away route that reports which tenant the request was bound to. */
 function addTenantEcho(target: TestApp): void {
-  target.post("/_test/tenant", (request) => ({ tenantId: request.tenant?.tenantId ?? null }));
+  target.post("/_test/tenant", { config: publicRoute() }, (request) => ({ tenantId: request.tenant?.tenantId ?? null }));
 }
 
 describe("gate 1: tenant", () => {
@@ -79,7 +80,7 @@ describe("gate 1: tenant", () => {
   it("keys the flood limit by tenant and address", async () => {
     const other = { tenantId: "tenant-2", medplumProjectId: "project-2" };
     ({ app } = await buildTestApp({
-      rateLimit: { ipMax: 1, windowMs: 60_000 },
+      rateLimit: { ipMax: 1, userMax: 1000, windowMs: 60_000 },
       tenantResolver: new FakeTenantResolver({ "a.example": TEST_TENANT, "b.example": other }),
     }));
     const ip = "203.0.113.9";

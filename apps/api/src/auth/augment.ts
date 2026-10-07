@@ -1,5 +1,5 @@
 import type { IdentityCacheState } from "@asc/authz";
-import type { Principal, TenantRef } from "@asc/types";
+import type { Capability, Principal, TenantRef } from "@asc/types";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -9,5 +9,18 @@ declare module "fastify" {
     principal?: Principal;
     /** Gate 2: whether the identity came from the adapter's cache (audit decision provenance). */
     identityCache?: IdentityCacheState;
+  }
+
+  interface FastifyContextConfig {
+    /**
+     * What a route requires. Declared per route (see `route-auth.ts`):
+     * `public` (no token), `authenticated` (any signed-in caller) or `capability`
+     * (gates 3 and 4). `facilityParam` names the route parameter that holds the
+     * target facility id.
+     */
+    auth?:
+      | { readonly mode: "public" }
+      | { readonly mode: "authenticated" }
+      | { readonly mode: "capability"; readonly capability: Capability; readonly facilityParam?: string };
   }
 }

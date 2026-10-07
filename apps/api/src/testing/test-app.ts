@@ -5,7 +5,7 @@
 
 import type { AuditEventInput } from "@asc/audit";
 import { StaticTenantResolver } from "@asc/authz";
-import { TEST_TENANT } from "@asc/authz/testing";
+import { FakeIdentityPort, TEST_TENANT } from "@asc/authz/testing";
 
 import { buildApp } from "../app.js";
 
@@ -22,13 +22,15 @@ export function memoryAudit() {
 
 export async function buildTestApp(overrides: Partial<Parameters<typeof buildApp>[0]> = {}) {
   const audit = memoryAudit();
+  const identity = new FakeIdentityPort();
   const app = await buildApp({
     corsOrigins: [],
-    rateLimit: { ipMax: 10_000, windowMs: 60_000 },
+    rateLimit: { ipMax: 10_000, userMax: 10_000, windowMs: 60_000 },
     tenantResolver: new StaticTenantResolver(TEST_TENANT),
+    identity,
     audit,
     catalogVersion: "test-sha",
     ...overrides,
   });
-  return { app, audit, tenant: TEST_TENANT };
+  return { app, audit, identity, tenant: TEST_TENANT };
 }

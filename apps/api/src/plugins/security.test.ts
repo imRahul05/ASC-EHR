@@ -22,7 +22,7 @@ describe("security headers", () => {
 
 describe("rate limiting", () => {
   it("answers 429 once the address exceeds its budget, with a generic body", async () => {
-    ({ app } = await buildTestApp({ rateLimit: { ipMax: 3, windowMs: 60_000 } }));
+    ({ app } = await buildTestApp({ rateLimit: { ipMax: 3, userMax: 1000, windowMs: 60_000 } }));
     const statuses: number[] = [];
     let last: { statusCode: number; json: () => unknown; headers: Record<string, unknown> } | undefined;
     for (let i = 0; i < 5; i += 1) {
@@ -36,7 +36,7 @@ describe("rate limiting", () => {
   });
 
   it("budgets each address separately", async () => {
-    ({ app } = await buildTestApp({ rateLimit: { ipMax: 1, windowMs: 60_000 } }));
+    ({ app } = await buildTestApp({ rateLimit: { ipMax: 1, userMax: 1000, windowMs: 60_000 } }));
     const first = await app.inject({ method: "GET", url: "/health", remoteAddress: "203.0.113.1" });
     const second = await app.inject({ method: "GET", url: "/health", remoteAddress: "203.0.113.2" });
     expect([first.statusCode, second.statusCode]).toEqual([200, 200]);
