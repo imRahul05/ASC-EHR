@@ -12,7 +12,11 @@
     "db:up": "docker compose up -d --wait postgres",
     "db:down": "docker compose down",
     "db:migrate": "pnpm --filter @asc/db db:migrate",
-    "db:generate": "pnpm --filter @asc/db db:generate"
+    "db:generate": "pnpm --filter @asc/db db:generate",
+    "medplum:prepare": "pnpm --filter bots medplum:prepare",
+    "medplum:up": "pnpm medplum:prepare && docker compose --env-file infra/medplum/.local/compose.env --profile medplum up -d --wait medplum-server medplum-app",
+    "medplum:down": "docker compose --env-file infra/medplum/.local/compose.env --profile medplum stop medplum-app medplum-server medplum-redis medplum-postgres",
+    "medplum:seed": "pnpm --filter bots seed"
   },
   "devDependencies": {
     "prettier": "3.9.6",
