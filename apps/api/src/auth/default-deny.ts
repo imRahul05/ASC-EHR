@@ -8,20 +8,27 @@ import "./augment.js";
  * makes registration throw, so the app fails to start instead of serving an
  * unprotected route. Register this before any route or plugin that adds routes.
  *
+ * Every accepted route is also recorded and exposed as `app.routeAuthInventory()`, so a
+ * test can state exactly which routes are public.
+ *
  * The single exception is the CORS preflight route `OPTIONS *` that `@fastify/cors`
  * adds itself: a preflight never carries credentials, so it is declared public here.
  */
 export function registerDefaultDeny(app: FastifyInstance): void {
+  const inventory: ReturnType<FastifyInstance["routeAuthInventory"]> = [];
+  app.decorate("routeAuthInventory", () => [...inventory]);
+
   app.addHook("onRoute", (route) => {
+    const methods = Array.isArray(route.method) ? route.method : [route.method];
     if (route.method === "OPTIONS" && route.url === "*") {
       route.config = { ...route.config, auth: { mode: "public" } };
-      return;
     }
-    if (route.config?.auth === undefined) {
-      const methods = Array.isArray(route.method) ? route.method.join(",") : route.method;
+    const auth = route.config?.auth;
+    if (auth === undefined) {
       throw new Error(
-        `Route ${methods} ${route.url} declares no auth. Add config: publicRoute(), authenticatedRoute() or capabilityRoute(...).`,
+        `Route ${methods.join(",")} ${route.url} declares no auth. Add config: publicRoute(), authenticatedRoute() or capabilityRoute(...).`,
       );
     }
+    for (const method of methods) inventory.push({ method, url: route.url, auth });
   });
 }

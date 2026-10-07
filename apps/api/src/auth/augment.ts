@@ -11,6 +11,11 @@ declare module "fastify" {
     identityCache?: IdentityCacheState;
   }
 
+  interface FastifyInstance {
+    /** Every registered route with its declared auth, in registration order (route inventory test). */
+    routeAuthInventory(): { method: string; url: string; auth: NonNullable<FastifyContextConfig["auth"]> }[];
+  }
+
   interface FastifyContextConfig {
     /**
      * What a route requires. Declared per route (see `route-auth.ts`):
