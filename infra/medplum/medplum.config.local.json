@@ -1,0 +1,27 @@
+{
+  "port": 8103,
+  "baseUrl": "http://localhost:8203/",
+  "appBaseUrl": "http://localhost:3003/",
+  "storageBaseUrl": "http://localhost:8203/storage/",
+  "binaryStorage": "file:./binary/",
+  "database": {
+    "host": "medplum-postgres",
+    "port": 5432,
+    "dbname": "medplum",
+    "username": "medplum",
+    "password": "medplum-dev-only"
+  },
+  "redis": {
+    "host": "medplum-redis",
+    "port": 6379,
+    "password": "medplum-dev-only"
+  },
+  "supportEmail": "support@example.com",
+  "logLevel": "INFO",
+  "registerEnabled": false,
+  "saveAuditEvents": true,
+  "storeBotInput": false,
+  "vmContextBotsEnabled": false,
+  "defaultSuperAdminEmail": "admin@example.com",
+  "defaultSuperAdminPassword": "medplum-dev-only"
+}
