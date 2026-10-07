@@ -32,6 +32,7 @@ flowchart LR
 | Variable | What it does | Rules |
 |---|---|---|
 | `NEXT_PUBLIC_API_URL` | Base URL every `@asc/api-client` request (and every MSW mock) uses. | **Required for production builds** — `next build` fails if it is unset or not an absolute `http(s)` URL (`packages/config/src/build-env.ts`). A path prefix is allowed (`https://app.example.com/api`). Development falls back to `http://localhost:4000`. |
+| `NEXT_PUBLIC_MEDPLUM_BASE_URL` / `NEXT_PUBLIC_MEDPLUM_CLIENT_ID` | Medplum server URL and the web client application id for browser sign-in. Used from P05j. | No localhost default: unset means unset. A deployed build must set both (LM-010). Local: `http://localhost:8203` and the id from `apps/bots/.seed-output.json`. |
 | `NEXT_PUBLIC_API_MOCKING` | Serves the MSW mock API in the browser instead of calling `apps/api`. | Development: **on** unless `disabled`. Production builds: **off** unless exactly `enabled` (`resolveApiMocking` in `packages/config/src/public-env.ts`). Only a hosted demo sets `enabled`. |
 
 ### API (`apps/api`) — runtime
@@ -46,6 +47,7 @@ Parsed once at startup by `apiEnvSchema` (`packages/config/src/env.ts`). An inva
 | `DATABASE_URL` | The **owner** URL. | Migrations only (`pnpm db:migrate`); keep it out of the running API's environment. |
 | `DEFAULT_TENANT_ID` | The one configured tenant (single hospital). | UUID. Read by `StaticTenantResolver`, never from a request. **Required**: the API refuses to start without it. |
 | `MEDPLUM_PROJECT_ID` | Medplum Project of that tenant (a token must be issued for it). | Non-empty string. **Required.** |
+| `MEDPLUM_BASE_URL` / `MEDPLUM_CLIENT_ID` / `MEDPLUM_CLIENT_SECRET` | Server-side Medplum connection (client credentials). Used from P04. | Optional until then. The secret never appears in logs or validation errors; deployed it comes from Key Vault. The worker reads the same three. |
 | `GIT_SHA` | Build id stamped on audit decisions. | Short identifier (letters, digits, `.`, `_`, `-`). Optional; recorded as `unknown` when unset. Set it from the deploy pipeline. |
 | `RATE_LIMIT_IP_MAX` / `RATE_LIMIT_USER_MAX` / `RATE_LIMIT_WINDOW_MS` | Flood limits per window: per tenant and address before authentication (default 1200), per tenant and signed-in user after it (default 300); window default 60000 ms. | Positive integers (window ≥ 1000). Behind a proxy the address seen is the proxy's until `trustProxy` is configured (P06). |
 
