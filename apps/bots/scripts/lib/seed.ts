@@ -132,6 +132,10 @@ export const newSecret = () => randomBytes(24).toString("hex");
  * application created through the API, so the seed sets one (once; an existing
  * secret is kept). A membership ties a confidential client to the project so its
  * client credentials work. No access policy yet: P05h and P04 narrow these.
+ *
+ * TODO(P05h): give `asc-ehr-api` and `asc-ehr-worker` least-privilege AccessPolicies (no full-project
+ * access) and prove it with a policy test. These full-access clients are for local development only:
+ * never use them in another environment; staging and production clients get narrow policies from day one.
  */
 export async function seedClientApplications(
   medplum: Medplum,
