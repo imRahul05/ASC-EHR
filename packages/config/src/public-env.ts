@@ -28,8 +28,31 @@ export function isApiMockingEnabled(): boolean {
   return resolveApiMocking(process.env.NODE_ENV, process.env.NEXT_PUBLIC_API_MOCKING);
 }
 
+function nonEmpty(value: string | undefined): string | undefined {
+  return value !== undefined && value.length > 0 ? value : undefined;
+}
+
+/**
+ * Medplum base URL and client id for browser sign-in (P05j). No localhost fallback:
+ * a deployed build must fail rather than ship a dev default (LM-010), so callers get
+ * `undefined` when unset and decide.
+ */
+export function getPublicMedplumBaseUrl(): string | undefined {
+  return nonEmpty(typeof process === "undefined" ? undefined : process.env.NEXT_PUBLIC_MEDPLUM_BASE_URL);
+}
+
+export function getPublicMedplumClientId(): string | undefined {
+  return nonEmpty(typeof process === "undefined" ? undefined : process.env.NEXT_PUBLIC_MEDPLUM_CLIENT_ID);
+}
+
 export const publicEnv = {
   get NEXT_PUBLIC_API_URL(): string {
     return getPublicApiUrl();
+  },
+  get NEXT_PUBLIC_MEDPLUM_BASE_URL(): string | undefined {
+    return getPublicMedplumBaseUrl();
+  },
+  get NEXT_PUBLIC_MEDPLUM_CLIENT_ID(): string | undefined {
+    return getPublicMedplumClientId();
   },
 } as const;
