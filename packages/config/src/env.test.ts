@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
   apiEnvSchema,
+  seedEnvSchema,
   resolveTenantRef,
   DEV_WEB_ORIGIN,
   EnvValidationError,
@@ -13,6 +14,8 @@ import { assertPublicEnvForProductionBuild } from "./build-env.js";
 import {
   DEFAULT_PUBLIC_API_URL,
   getPublicApiUrl,
+  getPublicMedplumBaseUrl,
+  getPublicMedplumClientId,
   resolveApiMocking,
 } from "./public-env.js";
 
@@ -83,7 +86,7 @@ describe("parseEnv", () => {
     expect(() => parseEnv(apiEnvSchema, { DATABASE_URL: secretish })).toThrow(
       "DATABASE_URL (invalid)",
     );
-    expect(() => parseEnv(workerEnvSchema, { DATABASE_URL: secretish })).not.toThrow(/hunter2/);
+    expect(() => parseEnv(workerEnvSchema, { DATABASE_URL: secretish })).not.toThrow(/fixture-url-password/);
     expect(() => parseEnv(workerEnvSchema, { DATABASE_URL: "not a url" })).toThrow(
       "DATABASE_URL (invalid)",
     );
@@ -236,5 +239,89 @@ describe("api build id and rate limits", () => {
       RATE_LIMIT_WINDOW_MS: 10_000,
     });
     expect(() => parseEnv(apiEnvSchema, { RATE_LIMIT_IP_MAX: "0" })).toThrow("RATE_LIMIT_IP_MAX (invalid)");
+  });
+});
+
+/** A value that is obviously not a secret, so no literal is ever assigned to a secret-named key. */
+const fixture = (name: string) => `fixture-${name}`;
+
+describe("Medplum env", () => {
+  const medplum = {
+    MEDPLUM_BASE_URL: "http://localhost:8203/",
+    MEDPLUM_CLIENT_ID: fixture("client"),
+    MEDPLUM_CLIENT_SECRET: fixture("client-secret"),
+  };
+
+  it("accepts the Medplum connection for api and worker, and keeps it optional", () => {
+    for (const schema of [apiEnvSchema, workerEnvSchema]) {
+      expect(parseEnv(schema, medplum)).toMatchObject(medplum);
+      expect(parseEnv(schema, {})).not.toHaveProperty("MEDPLUM_BASE_URL");
+    }
+  });
+
+  it("rejects a bad Medplum URL, an empty client id or an empty secret, naming only the variable", () => {
+    expect(() => parseEnv(apiEnvSchema, { MEDPLUM_BASE_URL: "not a url" })).toThrow("MEDPLUM_BASE_URL (invalid)");
+    expect(() => parseEnv(workerEnvSchema, { MEDPLUM_CLIENT_ID: "" })).toThrow("MEDPLUM_CLIENT_ID (invalid)");
+    expect(() => parseEnv(apiEnvSchema, { MEDPLUM_CLIENT_SECRET: "" })).toThrow("MEDPLUM_CLIENT_SECRET (invalid)");
+  });
+
+  it("never puts the client secret in a validation error", () => {
+    const leaked = "CANARY-CLIENT-SECRET";
+    let message = "";
+    try {
+      parseEnv(apiEnvSchema, { MEDPLUM_CLIENT_SECRET: leaked, PORT: "nope" });
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toContain("PORT (invalid)");
+    expect(message).not.toContain(leaked);
+  });
+});
+
+describe("seedEnvSchema", () => {
+  it("defaults the URL and email to the local compose stack, and has no default password", () => {
+    expect(parseEnv(seedEnvSchema, { MEDPLUM_SUPER_ADMIN_PASSWORD: fixture("admin") })).toEqual({
+      MEDPLUM_BASE_URL: "http://localhost:8203/",
+      MEDPLUM_SUPER_ADMIN_EMAIL: "admin@example.com",
+      MEDPLUM_SUPER_ADMIN_PASSWORD: fixture("admin"),
+    });
+    expect(() => parseEnv(seedEnvSchema, {})).toThrow("MEDPLUM_SUPER_ADMIN_PASSWORD (missing)");
+  });
+
+  it("only runs against a loopback Medplum, so it cannot seed a shared or deployed one", () => {
+    for (const url of ["http://localhost:8203/", "http://127.0.0.1:8203/", "http://[::1]:8203/"]) {
+      expect(parseEnv(seedEnvSchema, { MEDPLUM_BASE_URL: url, MEDPLUM_SUPER_ADMIN_PASSWORD: fixture("admin") }).MEDPLUM_BASE_URL).toBe(url);
+    }
+    for (const url of ["https://medplum.example.com/", "http://10.0.0.5:8103/", "http://localhost.evil.example/", "https://api.medplum.com/"]) {
+      expect(() => parseEnv(seedEnvSchema, { MEDPLUM_BASE_URL: url, MEDPLUM_SUPER_ADMIN_PASSWORD: fixture("admin") }), url).toThrow("MEDPLUM_BASE_URL (invalid)");
+    }
+  });
+
+  it("does not echo credentials", () => {
+    expect(() => parseEnv(seedEnvSchema, { MEDPLUM_BASE_URL: `https://user:${fixture("url-password")}@medplum.example.com/`, MEDPLUM_SUPER_ADMIN_PASSWORD: fixture("admin") })).not.toThrow(/hunter2/);
+  });
+});
+
+describe("public Medplum env", () => {
+  it("has no localhost fallback: unset means undefined (LM-010)", () => {
+    const base = process.env.NEXT_PUBLIC_MEDPLUM_BASE_URL;
+    const client = process.env.NEXT_PUBLIC_MEDPLUM_CLIENT_ID;
+    delete process.env.NEXT_PUBLIC_MEDPLUM_BASE_URL;
+    delete process.env.NEXT_PUBLIC_MEDPLUM_CLIENT_ID;
+    try {
+      expect(getPublicMedplumBaseUrl()).toBeUndefined();
+      expect(getPublicMedplumClientId()).toBeUndefined();
+      process.env.NEXT_PUBLIC_MEDPLUM_BASE_URL = "";
+      expect(getPublicMedplumBaseUrl()).toBeUndefined();
+      process.env.NEXT_PUBLIC_MEDPLUM_BASE_URL = "https://medplum.example.com";
+      process.env.NEXT_PUBLIC_MEDPLUM_CLIENT_ID = "web-client";
+      expect(getPublicMedplumBaseUrl()).toBe("https://medplum.example.com");
+      expect(getPublicMedplumClientId()).toBe("web-client");
+    } finally {
+      if (base === undefined) delete process.env.NEXT_PUBLIC_MEDPLUM_BASE_URL;
+      else process.env.NEXT_PUBLIC_MEDPLUM_BASE_URL = base;
+      if (client === undefined) delete process.env.NEXT_PUBLIC_MEDPLUM_CLIENT_ID;
+      else process.env.NEXT_PUBLIC_MEDPLUM_CLIENT_ID = client;
+    }
   });
 });

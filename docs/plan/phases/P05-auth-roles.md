@@ -288,6 +288,7 @@ Workspaces: `infra/medplum`, `apps/bots`, `docs/decisions`.
 - [ ] Every spike passes or has a fallback recorded in the ADR **before** P05i starts
 - [ ] S6 measures how long a disabled membership or changed policy keeps working at gate 5 (Medplum) and with our cache (gates 1–4)
 - [ ] Seed is idempotent (second run = no changes); synthetic data only
+- [ ] Seeded `asc-ehr-api` and `asc-ehr-worker` clients get least-privilege `AccessPolicy` (no full-project access), and a policy test proves the limits: the worker only what its jobs need, the API only on behalf of the signed-in user. **Rule: the full-access clients P02 seeds are for local development only and must never be used in any other environment. Staging and production clients get narrow policies from day one (P06 provisions them with the policy, never "fix it later").**
 - [ ] The same hardening settings are carried into the Azure config in [P06](P06-azure-infra.md)
 
 ### P05i — Medplum identity in the API · S · needs P05g, P05h, P04
