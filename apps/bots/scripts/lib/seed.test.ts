@@ -1,8 +1,11 @@
+import { readFileSync } from "node:fs";
 import { ROLE_TEMPLATES } from "@asc/authz";
 import { describe, expect, it } from "vitest";
 
 import {
   ensureProject,
+  parseClientAppDefinitions,
+  seedClientApplications,
   seedFacility,
   seedPractitioners,
   staffRoleKeys,
@@ -127,6 +130,79 @@ describe("seedPractitioners", () => {
       expect(name?.given).toEqual(["Synthetic"]);
       expect(name?.family).toMatch(/^Demo-/);
     }
+  });
+});
+
+describe("client application definitions", () => {
+  const real = JSON.parse(readFileSync(new URL("../../../../infra/medplum/client-apps.json", import.meta.url), "utf8")) as unknown;
+
+  it("accepts the shipped infra/medplum/client-apps.json: a PKCE web app and two confidential apps", () => {
+    const definitions = parseClientAppDefinitions(real);
+    expect(definitions.map((definition) => definition.key)).toEqual(["web", "api", "worker"]);
+    const web = definitions.find((definition) => definition.key === "web");
+    expect(web).toMatchObject({ redirectUri: "http://localhost:3000/signin/callback", secret: false, membership: false });
+    for (const key of ["api", "worker"]) {
+      expect(definitions.find((definition) => definition.key === key)).toMatchObject({ secret: true, membership: true });
+    }
+  });
+
+  it("rejects a malformed definition file", () => {
+    expect(() => parseClientAppDefinitions({})).toThrow("non-empty clientApplications");
+    expect(() => parseClientAppDefinitions({ clientApplications: [] })).toThrow("non-empty clientApplications");
+    expect(() => parseClientAppDefinitions({ clientApplications: [{ key: "a", description: "d", secret: true, membership: true }] })).toThrow('"name"');
+    expect(() =>
+      parseClientAppDefinitions({ clientApplications: [{ key: "a", name: "n", description: "d", secret: "yes", membership: true }] }),
+    ).toThrow('"secret" boolean');
+  });
+});
+
+describe("seedClientApplications", () => {
+  const definitions = parseClientAppDefinitions(
+    JSON.parse(readFileSync(new URL("../../../../infra/medplum/client-apps.json", import.meta.url), "utf8")),
+  );
+  const counter = () => {
+    let n = 0;
+    const secrets: string[] = [];
+    return { secretFor: () => (secrets[secrets.length] = `secret-${++n}`), secrets };
+  };
+
+  it("gives confidential clients a secret and a membership, and the public web client neither", async () => {
+    const { medplum, store } = fakeMedplum();
+    const { secretFor } = counter();
+    const apps = await seedClientApplications(medplum, "project-1", definitions, secretFor);
+    expect(apps.web).toEqual({ id: expect.any(String) });
+    expect(apps.api?.secret).toBe("secret-1");
+    expect(apps.worker?.secret).toBe("secret-2");
+    const memberships = store.filter((resource) => resource.resourceType === "ProjectMembership");
+    expect(memberships.map((m) => (m.user as { reference: string }).reference).sort()).toEqual(
+      [`ClientApplication/${apps.api?.id}`, `ClientApplication/${apps.worker?.id}`].sort(),
+    );
+    expect(memberships.every((m) => (m.project as { reference: string }).reference === "Project/project-1")).toBe(true);
+    expect(store.find((r) => r.name === "asc-ehr-web")).toMatchObject({ pkceOptional: false });
+  });
+
+  it("changes nothing on a second run: same ids, same secrets, no new memberships", async () => {
+    const { medplum, store } = fakeMedplum();
+    const { secretFor, secrets } = counter();
+    const first = await seedClientApplications(medplum, "project-1", definitions, secretFor);
+    const sizeAfterFirst = store.length;
+    const second = await seedClientApplications(medplum, "project-1", definitions, secretFor);
+    expect(second).toEqual(first);
+    expect(store).toHaveLength(sizeAfterFirst);
+    expect(secrets).toHaveLength(2); // generated once per confidential client, never rotated
+  });
+
+  it("gives an existing client that has no secret one, and corrects a drifted redirect without touching secrets", async () => {
+    const { medplum, store } = fakeMedplum([
+      { resourceType: "ClientApplication", id: "app-api", name: "asc-ehr-api", description: "old" },
+      { resourceType: "ClientApplication", id: "app-web", name: "asc-ehr-web", redirectUri: "http://localhost:9999/old", pkceOptional: false, description: "old" },
+    ]);
+    const { secretFor } = counter();
+    const apps = await seedClientApplications(medplum, "project-1", definitions, secretFor);
+    expect(apps.api).toEqual({ id: "app-api", secret: "secret-1" });
+    expect(apps.web?.id).toBe("app-web");
+    expect(store.find((r) => r.id === "app-web")).toMatchObject({ redirectUri: "http://localhost:3000/signin/callback" });
+    expect(countOf(store, "ClientApplication")).toBe(3);
   });
 });
 
