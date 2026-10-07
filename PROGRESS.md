@@ -20,8 +20,8 @@
 | Updated | 2026-10-07 |
 |---|---|
 | Current wave | 0 |
-| In progress | P02 in review (#43) |
-| Ready to start | P00b, P01, P02, P03, P09, P06 (needs Azure access) |
+| In progress | none (P05a–P05g and P02 merged; P05h is next) |
+| Ready to start | P00b, P01, P03, P09, P05h, P06 (needs Azure access) |
 | Blocked | P13 soft-blocked on Q-MS1 (fallback allowed) |
 | Go-live target | 2026-12-07 |
 
@@ -34,10 +34,10 @@
 | P00 | Repo hygiene, guardrails | done | — | Claude (session fe18af87) | `worktree-docs-mindscript-wiring`, `worktree-p00-close` | #9 (+ close-out PR) | 2026-09-27 | 2026-09-28 |
 | P00b | Library upgrades (zod 4, bullmq 6, ioredis 6) | ready | P00 | | | | | |
 | P01 | CI + eval gate | ready | P00 | | | | | |
-| P02 | Local Medplum + bots skeleton | review | — | Claude (bg job 640ebd7d) | `phase/P02-local-medplum-clean` | [#43](https://github.com/imRahul05/ASC-EHR/pull/43) (replaces #42) | 2026-10-07 | |
+| P02 | Local Medplum + bots skeleton | done | — | Claude (bg job 640ebd7d) | `phase/P02-local-medplum-clean` | [#43](https://github.com/imRahul05/ASC-EHR/pull/43), [#44](https://github.com/imRahul05/ASC-EHR/pull/44) (#42 closed, replaced by #43) | 2026-10-07 | 2026-10-07 |
 | P03 | `@asc/fhir` | ready | — | | | | | |
 | P04 | Medplum clients | pending | P02, P03 | | | | | |
-| P05 | Auth + roles (sub-phases P05a–P05j below) | in-progress (P05a–P05g done; P05h waits for P02) | P05h: P02 · P05i–j: P04 | | | | | |
+| P05 | Auth + roles (sub-phases P05a–P05j below) | in-progress (P05a–P05g done; P05h ready) | P05h: P02 · P05i–j: P04 | | | | | |
 | P06 | Azure infra (dev) | ready (external: subscription/BAA) | — | | | | | |
 | P07 | `@asc/clinical-rules` | pending | P03 | | | | | |
 | P08 | Terminology + profiles | pending | P02, P03 | | | | | |
@@ -71,7 +71,7 @@
 | P05e | App-DB tenancy (RLS, `withTenant`) | done | P05a | Claude (bg job 640ebd7d) | `phase/P05e-db-tenancy` | [#36](https://github.com/imRahul05/ASC-EHR/pull/36) | 2026-10-06 | 2026-10-06 |
 | P05f | Durable audit | done | P05e | Claude (bg job 640ebd7d) | `phase/P05f-durable-audit` | [#38](https://github.com/imRahul05/ASC-EHR/pull/38) | 2026-10-06 | 2026-10-07 |
 | P05g | API security spine | done | P05a, P05e, P05f | Claude (bg job 640ebd7d) | `phase/P05g-api-security-spine` | [#40](https://github.com/imRahul05/ASC-EHR/pull/40) | 2026-10-07 | 2026-10-07 |
-| P05h | Medplum hardening, spikes, seed, policy test | pending | P05c, P02 | | | | | |
+| P05h | Medplum hardening, spikes, seed, policy test | ready | P05c, P02 | | | | | |
 | P05i | Medplum identity in API | pending | P05g, P05h, P04 | | | | | |
 | P05j | Web sign-in | pending | P05d, P05i, P04 | | | | | |
 
@@ -81,6 +81,7 @@ Work completed before this plan existed, grouped from git history (`origin/main`
 
 | Date | Area | What | Ref |
 |---|---|---|---|
+| 2026-10-07 | Platform | **P02** local Medplum: `pnpm medplum:up` starts Medplum server and admin app 5.1.42 with their own Postgres and Redis (compose profile `medplum`, host ports 8203/3003/5443/6390, localhost only); `pnpm medplum:seed` creates the project (`Project/$init`), a facility, one synthetic practitioner per staff role and the web (PKCE), api and worker client applications, idempotently (byte-identical second run); `apps/bots` skeleton (esbuild, lint, tests); `MEDPLUM_*` and `NEXT_PUBLIC_MEDPLUM_*` env validated in `@asc/config`; the seed refuses anything but localhost. **No committed passwords**: credentials are generated per machine into git-ignored `infra/medplum/.local` (GitGuardian flagged the first version, #42, closed and replaced by #43; LM-019). Review hardening in #44: Redis refuses to start without a password, a missing config fails the start instead of becoming a directory, damaged credentials give one friendly error, `medplum:down` needs no credentials, esbuild paths independent of cwd (LM-020). Seeded api/worker clients have full project access: local-only, least-privilege policies tracked in P05h | PRs #43, #44 (#42 closed) |
 | 2026-10-07 | Auth | **P05g** API security spine (`apps/api`): helmet; explicit request pipeline tenant (gate 1, 404) → flood limit (tenant and address) → identity through `IdentityPort` (gate 2: 401, 503 when the provider is down; step-up capabilities bypass the cache; per tenant-and-user limit) → facility and capability (gates 3 and 4: route parameter, loaded resource via `app.guards`, or all-site only); default-deny (a route without `config.auth` stops the app starting; route inventory test lists the public routes); every denial audited with its gate and decision provenance; `GET /me`; durable append-only audit store required in staging and production; dev-only fake identity refused there (**a deployed API does not start until P05i**); `@asc/config`: `resolveTenantRef`, `GIT_SHA`, rate-limit knobs; found by an attack test: the rate limit did not count failed authentications (LM-018); api 81 tests; decisions in [P05 plan](docs/plan/phases/P05-auth-roles.md) | PR #40, branch `phase/P05g-api-security-spine` |
 | 2026-10-07 | Auth | **P05f** durable audit: `@asc/audit` events carry tenant, facility, membership, session, gate (1–5) and decision provenance (role versions, catalog version, cache state, validated); IAM vocabulary (`auth.*`, `membership.*`, `role.*`, `user.invited`) with a typed `iamEvent` builder and ID-only details; client IP stored as a /24 or /48 prefix; production requires a durable **and** append-only store; `audit_events` table (runtime role `SELECT, INSERT` only, RLS forced, triggers reject UPDATE/DELETE/TRUNCATE even for the owner); `createPostgresAuditStore` over `withTenant`; `withTenant` now rethrows driver failures as `DatabaseError` (SQLSTATE and constraint only, recognised by class) so bound values such as `agent_runs.output` never reach logs; `@asc/db` 74 and `@asc/audit` 36 tests; decisions in [P05 plan](docs/plan/phases/P05-auth-roles.md); LM-016, LM-017 | PR #38, branch `phase/P05f-durable-audit` |
 | 2026-10-06 | Auth | **P05e** app-DB tenancy: `agent_runs.tenant_id` (NOT NULL, backfilled from `app.default_tenant_id`) and `facility_id`; row-level security enabled and **forced**, fail closed without `app.tenant_id`; owner vs runtime roles (`asc_runtime`: no ALTER, DELETE, TRUNCATE or RLS bypass); `createTenantDb().withTenant` is the only client the package exports (owner client in `@asc/db/migrate`); run store takes a tenant/facility scope; config `DEFAULT_TENANT_ID`, `MEDPLUM_PROJECT_ID`, `DATABASE_RUNTIME_URL`; 49 DB tests (skipped without `TEST_DATABASE_URL`, CI guard fails if skipped); decisions in [P05 plan](docs/plan/phases/P05-auth-roles.md); LM-015 | PR #36, branch `phase/P05e-db-tenancy` |
@@ -136,8 +137,8 @@ Full lists: [implementation plan §6](docs/plan/implementation-plan.md#6-cross-p
 
 ## 5. Next up
 
-1. **P02** local Medplum is now the gate for the rest of auth: P05h (Medplum hardening, spikes, seed, policy test) needs P02 and P05c; P05i (the Medplum identity adapter that lets the API start when deployed) needs P05h and P04. **P00b** library upgrades (zod 4, bullmq 6, ioredis 6) must land before Wave 2. In parallel: **P01** CI (must run a Postgres service and set `TEST_DATABASE_URL`, see its acceptance list; the API tests need no database). P06 must set `trustProxy` and revisit the per-address flood limit behind Front Door ([P06 acceptance](docs/plan/phases/P06-azure-infra.md)).
-2. In parallel: **P03** `@asc/fhir` (needed for P04 with P02).
+1. **P05h** Medplum hardening, spikes, seed and the policy test (needs P02 and P05c, both done; P05i needs P05h and P04): run it against the local stack from `pnpm medplum:up`. It also owns narrowing the seeded `asc-ehr-api` and `asc-ehr-worker` clients (checklist item in the P05 plan). **P00b** library upgrades (zod 4, bullmq 6, ioredis 6) must land before Wave 2. In parallel: **P01** CI (must run a Postgres service and set `TEST_DATABASE_URL`; the GitGuardian check runs on every PR to `main`). P06 must set `trustProxy` and revisit the per-address flood limit behind Front Door.
+2. In parallel: **P03** `@asc/fhir` (the last gate for P04 and P08; P02 is done).
 3. Escalate week-1 questions: Q-MS1, Azure subscription/BAA (P06), Q8 CPT licence.
 4. Wire `pnpm --filter web build && pnpm --filter web test:bundles` and Lighthouse CI into **P01** CI; re-measure `/login` mobile LCP on an HTTP/2 deploy preview (see web perf done-log entry).
 
@@ -145,6 +146,7 @@ Full lists: [implementation plan §6](docs/plan/implementation-plan.md#6-cross-p
 
 | Date | Decision | Where recorded |
 |---|---|---|
+| 2026-10-07 | No password literal in the repo, not even a dev-only one: local stack credentials are generated per machine into a git-ignored folder, committed templates hold placeholders, and a test fails on a literal | [P02 decisions](docs/plan/phases/P02-local-medplum.md), LM-019 |
 | 2026-10-03 | Medplum is self-hosted from the open-source code (upstream images, Azure); the Medplum-hosted service is not used, not even as a fallback (D1) | [05 §5.2](docs/product/05-delivery-plan.md), [identity ADR](docs/decisions/2026-10-03-medplum-as-identity-and-access-platform.md) |
 | 2026-09-30 | API URL, CORS origins and demo mocking are env-only; exact-origin CORS allowlist, no credentials (Bearer); Azure: `app.`/`api.` subdomains or `/api` reverse proxy | [ADR](docs/decisions/2026-09-30-env-driven-api-url-and-cors-allowlist.md), [guide](docs/DEPLOYMENT_CONFIGURATION.md) |
 | 2026-09-28 | Upgrade zod 4 + bullmq 6 + ioredis 6 before Wave 2 (P00b); defer OpenTelemetry 0.222 and React 19.3 | [P00b](docs/plan/phases/P00b-library-upgrades.md) |
