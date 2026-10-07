@@ -276,25 +276,26 @@ describe("Medplum env", () => {
 });
 
 describe("seedEnvSchema", () => {
-  it("defaults to the local compose stack and its dev-only super admin", () => {
-    expect(parseEnv(seedEnvSchema, {})).toEqual({
+  it("defaults the URL and email to the local compose stack, and has no default password", () => {
+    expect(parseEnv(seedEnvSchema, { MEDPLUM_SUPER_ADMIN_PASSWORD: "pw-test" })).toEqual({
       MEDPLUM_BASE_URL: "http://localhost:8203/",
       MEDPLUM_SUPER_ADMIN_EMAIL: "admin@example.com",
-      MEDPLUM_SUPER_ADMIN_PASSWORD: "medplum-dev-only",
+      MEDPLUM_SUPER_ADMIN_PASSWORD: "pw-test",
     });
+    expect(() => parseEnv(seedEnvSchema, {})).toThrow("MEDPLUM_SUPER_ADMIN_PASSWORD (missing)");
   });
 
   it("only runs against a loopback Medplum, so it cannot seed a shared or deployed one", () => {
     for (const url of ["http://localhost:8203/", "http://127.0.0.1:8203/", "http://[::1]:8203/"]) {
-      expect(parseEnv(seedEnvSchema, { MEDPLUM_BASE_URL: url }).MEDPLUM_BASE_URL).toBe(url);
+      expect(parseEnv(seedEnvSchema, { MEDPLUM_BASE_URL: url, MEDPLUM_SUPER_ADMIN_PASSWORD: "pw-test" }).MEDPLUM_BASE_URL).toBe(url);
     }
     for (const url of ["https://medplum.example.com/", "http://10.0.0.5:8103/", "http://localhost.evil.example/", "https://api.medplum.com/"]) {
-      expect(() => parseEnv(seedEnvSchema, { MEDPLUM_BASE_URL: url }), url).toThrow("MEDPLUM_BASE_URL (invalid)");
+      expect(() => parseEnv(seedEnvSchema, { MEDPLUM_BASE_URL: url, MEDPLUM_SUPER_ADMIN_PASSWORD: "pw-test" }), url).toThrow("MEDPLUM_BASE_URL (invalid)");
     }
   });
 
   it("does not echo credentials", () => {
-    expect(() => parseEnv(seedEnvSchema, { MEDPLUM_BASE_URL: "https://user:hunter2@medplum.example.com/" })).not.toThrow(/hunter2/);
+    expect(() => parseEnv(seedEnvSchema, { MEDPLUM_BASE_URL: "https://user:hunter2@medplum.example.com/", MEDPLUM_SUPER_ADMIN_PASSWORD: "pw-test" })).not.toThrow(/hunter2/);
   });
 });
 

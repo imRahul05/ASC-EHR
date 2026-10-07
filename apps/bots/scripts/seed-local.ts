@@ -1,9 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { ROLE_TEMPLATES } from "@asc/authz";
-import { parseEnv, seedEnvSchema } from "@asc/config";
+import { EnvValidationError, getProcessEnv, parseEnv, seedEnvSchema } from "@asc/config";
 import { ClientStorage, MedplumClient, MemoryStorage } from "@medplum/core";
 
+import { loadCredentials } from "./lib/local-credentials.js";
 import {
   ensureProject,
   PROJECT_NAME,
@@ -24,7 +25,21 @@ import {
  * Medplum throttles logins (5 per window), so the script logs in once, plus once more
  * on the very first run after it has created the project.
  */
-const env = parseEnv(seedEnvSchema);
+// The super admin password is generated per machine by `pnpm medplum:up`; the environment wins.
+const generated = loadCredentials(new URL("../../../infra/medplum/", import.meta.url));
+const env = (() => {
+  try {
+    return parseEnv(seedEnvSchema, {
+      ...(generated === undefined ? {} : { MEDPLUM_SUPER_ADMIN_PASSWORD: generated.superAdminPassword }),
+      ...getProcessEnv(),
+    });
+  } catch (error) {
+    if (error instanceof EnvValidationError && error.variables.includes("MEDPLUM_SUPER_ADMIN_PASSWORD")) {
+      process.stderr.write("seed: no super admin password. Run `pnpm medplum:up` first (it generates the local credentials).\n");
+    }
+    throw error;
+  }
+})();
 const say = (line: string) => process.stdout.write(`${line}\n`);
 
 // An in-memory store: Node's experimental global localStorage has no usable API without a flag.

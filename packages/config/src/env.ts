@@ -81,9 +81,11 @@ function isLoopbackUrl(value: string): boolean {
 }
 
 /**
- * Environment of the local seed script (`pnpm medplum:seed`). Defaults match the
- * local compose stack and its dev-only super admin. The base URL must be loopback so
- * the seed can never write synthetic data into a shared or deployed Medplum.
+ * Environment of the local seed script (`pnpm medplum:seed`). The URL and email default to
+ * the local compose stack. The super admin password has NO default: `pnpm medplum:up`
+ * generates it per machine (git-ignored) and the seed reads it from there, or from the
+ * environment. The base URL must be loopback so the seed can never write synthetic data
+ * into a shared or deployed Medplum.
  */
 export const seedEnvSchema = z.object({
   MEDPLUM_BASE_URL: z
@@ -92,7 +94,7 @@ export const seedEnvSchema = z.object({
     .default("http://localhost:8203/")
     .refine(isLoopbackUrl, { message: "the local seed only runs against localhost" }),
   MEDPLUM_SUPER_ADMIN_EMAIL: z.string().email().default("admin@example.com"),
-  MEDPLUM_SUPER_ADMIN_PASSWORD: z.string().min(1).default("medplum-dev-only"),
+  MEDPLUM_SUPER_ADMIN_PASSWORD: z.string().min(1),
 });
 
 export type SeedEnv = z.infer<typeof seedEnvSchema>;
