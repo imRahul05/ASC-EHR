@@ -82,6 +82,8 @@ NEXT_PUBLIC_API_URL=http://localhost:4000
 
 The demo runs entirely on the mock API; `apps/api` is deployed separately and only needs CORS for real endpoints (today: `/health`).
 
+> **The API deployment is paused until P05i (real Medplum login).** From P05g the API refuses to start in a deployed environment (`NODE_ENV=production`) because no real identity adapter exists yet and the dev-only fake is never accepted there. **The demo is unaffected**: the web app serves everything from its in-browser mocks (`NEXT_PUBLIC_API_MOCKING=enabled`) and does not call this API. The API Vercel project will show failed deployments until P05i; that is expected, not a regression.
+
 | Vercel project | Variable | Value |
 |---|---|---|
 | web | `NEXT_PUBLIC_API_URL` | `https://<api-project>.vercel.app` |
