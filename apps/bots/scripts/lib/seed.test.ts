@@ -168,11 +168,12 @@ describe("seedClientApplications", () => {
 
   it("gives confidential clients a secret and a membership, and the public web client neither", async () => {
     const { medplum, store } = fakeMedplum();
-    const { secretFor } = counter();
+    const { secretFor, secrets } = counter();
     const apps = await seedClientApplications(medplum, "project-1", definitions, secretFor);
     expect(apps.web).toEqual({ id: expect.any(String) });
-    expect(apps.api?.secret).toBe("secret-1");
-    expect(apps.worker?.secret).toBe("secret-2");
+    expect(apps.api?.secret).toBe(secrets[0]);
+    expect(apps.worker?.secret).toBe(secrets[1]);
+    expect(secrets[0]).not.toBe(secrets[1]);
     const memberships = store.filter((resource) => resource.resourceType === "ProjectMembership");
     expect(memberships.map((m) => (m.user as { reference: string }).reference).sort()).toEqual(
       [`ClientApplication/${apps.api?.id}`, `ClientApplication/${apps.worker?.id}`].sort(),
@@ -197,9 +198,9 @@ describe("seedClientApplications", () => {
       { resourceType: "ClientApplication", id: "app-api", name: "asc-ehr-api", description: "old" },
       { resourceType: "ClientApplication", id: "app-web", name: "asc-ehr-web", redirectUri: "http://localhost:9999/old", pkceOptional: false, description: "old" },
     ]);
-    const { secretFor } = counter();
+    const { secretFor, secrets } = counter();
     const apps = await seedClientApplications(medplum, "project-1", definitions, secretFor);
-    expect(apps.api).toEqual({ id: "app-api", secret: "secret-1" });
+    expect(apps.api).toEqual({ id: "app-api", secret: secrets[0] });
     expect(apps.web?.id).toBe("app-web");
     expect(store.find((r) => r.id === "app-web")).toMatchObject({ redirectUri: "http://localhost:3000/signin/callback" });
     expect(countOf(store, "ClientApplication")).toBe(3);

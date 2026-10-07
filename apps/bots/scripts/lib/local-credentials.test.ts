@@ -24,8 +24,11 @@ function tempInfra(): URL {
   return pathToFileURL(`${dir}/`);
 }
 
-let n = 0;
-const counting = () => `pw-${++n}`;
+/** Distinct values that are obviously not secrets, so no literal is ever assigned to a password field. */
+function sequence() {
+  let n = 0;
+  return () => `fixture-value-${++n}`;
+}
 
 describe("credentials", () => {
   it("generates three different passwords and never a fixed value", () => {
@@ -41,14 +44,14 @@ describe("credentials", () => {
     const credentials = generateCredentials();
     expect(parseCredentials(credentials)).toEqual(credentials);
     expect(parseCredentials({ ...credentials, redisPassword: "" })).toBeUndefined();
-    expect(parseCredentials({ databasePassword: "x" })).toBeUndefined();
+    expect(parseCredentials({ databasePassword: credentials.databasePassword })).toBeUndefined();
     expect(parseCredentials(null)).toBeUndefined();
     expect(parseCredentials("text")).toBeUndefined();
   });
 });
 
 describe("renderConfig", () => {
-  const credentials = { databasePassword: "db-pw", redisPassword: "redis-pw", superAdminPassword: "admin-pw" };
+  const credentials = generateCredentials(sequence());
 
   it("fills every placeholder of the committed template and leaves none behind", () => {
     const rendered = JSON.parse(renderConfig(read(TEMPLATE), credentials)) as {
@@ -56,9 +59,10 @@ describe("renderConfig", () => {
       redis: { password: string };
       defaultSuperAdminPassword: string;
     };
-    expect(rendered.database.password).toBe("db-pw");
-    expect(rendered.redis.password).toBe("redis-pw");
-    expect(rendered.defaultSuperAdminPassword).toBe("admin-pw");
+    expect(rendered.database.password).toBe(credentials.databasePassword);
+    expect(rendered.redis.password).toBe(credentials.redisPassword);
+    expect(rendered.defaultSuperAdminPassword).toBe(credentials.superAdminPassword);
+    expect(new Set([rendered.database.password, rendered.redis.password, rendered.defaultSuperAdminPassword]).size).toBe(3);
     expect(JSON.stringify(rendered)).not.toMatch(/__MEDPLUM_/);
   });
 
@@ -69,16 +73,18 @@ describe("renderConfig", () => {
   });
 
   it("renders the compose env file for the database and redis only", () => {
-    expect(renderComposeEnv(credentials)).toBe("MEDPLUM_DB_PASSWORD=db-pw\nMEDPLUM_REDIS_PASSWORD=redis-pw\n");
+    expect(renderComposeEnv(credentials)).toBe(
+      `MEDPLUM_DB_PASSWORD=${credentials.databasePassword}\nMEDPLUM_REDIS_PASSWORD=${credentials.redisPassword}\n`,
+    );
   });
 });
 
 describe("prepareLocalMedplum", () => {
   it("generates credentials once, renders the config, and keeps them on the next run", () => {
     const infra = tempInfra();
-    const first = prepareLocalMedplum(infra, counting);
+    const first = prepareLocalMedplum(infra, sequence());
     const stored = read(new URL(".local/credentials.json", infra));
-    const second = prepareLocalMedplum(infra, counting);
+    const second = prepareLocalMedplum(infra, sequence());
     expect(first.generated).toBe(true);
     expect(second.generated).toBe(false);
     expect(read(new URL(".local/credentials.json", infra))).toBe(stored);
@@ -98,7 +104,7 @@ describe("prepareLocalMedplum", () => {
   it("refuses a damaged credentials file instead of regenerating passwords the database no longer matches", () => {
     const infra = tempInfra();
     prepareLocalMedplum(infra);
-    writeFileSync(new URL(".local/credentials.json", infra), '{"databasePassword":"only-one"}');
+    writeFileSync(new URL(".local/credentials.json", infra), JSON.stringify({ databasePassword: sequence()() }));
     expect(() => loadCredentials(infra)).toThrow("is damaged");
     expect(() => prepareLocalMedplum(infra)).toThrow("is damaged");
   });
