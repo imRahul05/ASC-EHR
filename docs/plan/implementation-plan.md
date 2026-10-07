@@ -242,7 +242,7 @@ ASC_EHR/
 │   └── evals.yml                          NEW  P01  agent evals on mock + nightly live (BAA, synthetic)
 ├── infra/
 │   ├── medplum/
-│   │   ├── medplum.config.local.json      NEW  P02
+│   │   ├── medplum.config.template.json   NEW  P02 (rendered per machine into .local/)
 │   │   ├── medplum.config.*.json          EDIT P05h hardening: registerEnabled false, saveAuditEvents true, storeBotInput false (AccessPolicies are compiled by @asc/authz, P05c)
 │   │   └── client-apps.json               NEW  P02  web (PKCE), api (on-behalf), worker (client-credentials)
 │   └── terraform/                         NEW  P06  modules/{aks,postgres,redis,storage,keyvault,appgw} · envs/{dev,staging,prod}
