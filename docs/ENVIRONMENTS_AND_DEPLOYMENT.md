@@ -262,7 +262,7 @@ Never load real PHI locally. `agent_runs.output` holds model output (PHI) in sta
 The FHIR server, its admin app and the seed run locally from `docker-compose.yml` (project `asc-ehr`), next to the Postgres above. Medplum has its **own** Postgres and Redis containers, so it never touches the `@asc/db` database.
 
 ```bash
-pnpm medplum:up       # medplum-server + medplum-app (and their Postgres and Redis), waits until healthy
+pnpm medplum:up       # generates local credentials (once), starts medplum-server + medplum-app (and their Postgres and Redis), waits until healthy
 pnpm medplum:seed     # project, facility, one synthetic practitioner per staff role, client applications
 pnpm medplum:down     # stop (data persists in named volumes)
 ```
@@ -270,9 +270,10 @@ pnpm medplum:down     # stop (data persists in named volumes)
 | What | Where |
 |---|---|
 | Medplum API | `http://localhost:8203/` (health: `/healthcheck`) |
-| Admin app | `http://localhost:3003/`, sign in as `admin@example.com` / `medplum-dev-only` and pick the project **ASC EHR (local)** |
-| Medplum Postgres, Redis | `127.0.0.1:5443`, `127.0.0.1:6390` (dev-only password `medplum-dev-only`) |
-| Config | `infra/medplum/medplum.config.local.json` |
+| Admin app | `http://localhost:3003/`, sign in as `admin@example.com` with the `superAdminPassword` in `infra/medplum/.local/credentials.json`, and pick the project **ASC EHR (local)** |
+| Medplum Postgres, Redis | `127.0.0.1:5443`, `127.0.0.1:6390` (generated passwords, same file) |
+| Config template (committed) | `infra/medplum/medplum.config.template.json` (passwords are placeholders) |
+| Generated, per machine | `infra/medplum/.local/` (`credentials.json`, rendered `medplum.config.json`, `compose.env`): git-ignored, owner-readable only |
 | Client application definitions | `infra/medplum/client-apps.json` |
 | Seed output (ids and generated secrets) | `apps/bots/.seed-output.json` (git-ignored) |
 
@@ -280,10 +281,12 @@ The host ports are deliberately unusual so the stack does not collide with other
 
 **What the seed creates** (all synthetic, tagged `urn:asc-ehr:seed|synthetic`): the project **ASC EHR (local)** (via `Project/$init`, owned by the dev super admin), the facility Organization *Demo Surgery Center (synthetic)*, one Practitioner per staff role named *Synthetic Demo-<role>* (the roles come from the `@asc/authz` templates, so a new role is seeded without editing the script), and the client applications `asc-ehr-web` (PKCE, callback `http://localhost:3000/signin/callback`, public: no secret), `asc-ehr-api` and `asc-ehr-worker` (confidential: a secret is generated once and kept). Every create is conditional, so running the seed again changes nothing.
 
+**No password is committed.** `pnpm medplum:up` generates three random passwords (database, Redis, super admin) the first time and keeps them: the database volume already holds them, so they are never regenerated while the volume exists. The committed template holds placeholders only, and a test fails if a literal password appears in the template or the Medplum part of the compose file. The Medplum services are in the compose profile `medplum`, so `docker compose up` and `pnpm db:up` never start them (and `pnpm db:down` does not stop them: use `pnpm medplum:down`).
+
 Things to know:
 - **The seed only runs against localhost.** `MEDPLUM_BASE_URL` must be loopback; anything else is refused before any request is made, so it cannot seed a shared or deployed Medplum.
 - **Medplum throttles logins** (5 per window). The seed logs in once (twice on the very first run). If you see *Too Many Requests*, wait about 15 seconds.
-- **Hardening flags are already on locally** (`registerEnabled: false`, `saveAuditEvents: true`, `storeBotInput: false`); P05h adds a test that every environment keeps them. The dev super admin comes from `defaultSuperAdminEmail`/`Password` in the local config: dev-only, never reuse it, and deployed environments take theirs from secrets.
+- **Hardening flags are already on locally** (`registerEnabled: false`, `saveAuditEvents: true`, `storeBotInput: false`); P05h adds a test that every environment keeps them. The local super admin comes from `defaultSuperAdminEmail`/`Password` in the rendered config (its password is the generated one); deployed environments take theirs from secrets.
 - **Medplum adds a few things of its own** when it creates the project: a practitioner *Admin* for the owner and a client application *ASC EHR (local) Default Client*. They are not duplicates of the seed's (which creates exactly 8 practitioners and 3 client applications).
 - **No access policies yet** (P05h): the seeded client applications can read and write the whole project.
 - Medplum logs "Generating temporary signing key" locally: storage URLs are invalid after a server restart. Harmless for development.
@@ -293,5 +296,7 @@ Things to know:
 ```bash
 docker compose rm -sfv medplum-app medplum-server medplum-redis medplum-postgres
 docker volume rm asc-ehr_medplum-postgres-data asc-ehr_medplum-binary
-rm -f apps/bots/.seed-output.json
+rm -rf apps/bots/.seed-output.json infra/medplum/.local
 ```
+
+Remove `infra/medplum/.local` together with the volumes (never one without the other): the next `pnpm medplum:up` generates fresh credentials for the fresh database.
