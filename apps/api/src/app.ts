@@ -5,6 +5,7 @@ import type { IdentityPort, TenantResolver } from "@asc/authz";
 import { loggerOptions } from "@asc/logger";
 import { registerAuthentication } from "./auth/authn.js";
 import { createDenier } from "./auth/denied.js";
+import { registerDefaultDeny } from "./auth/default-deny.js";
 import { registerTenantGate } from "./auth/tenant.js";
 import { resolveRequestId } from "./lib/request-id.js";
 import { registerRateLimit, registerSecurityHeaders } from "./plugins/security.js";
@@ -34,6 +35,7 @@ export async function buildApp({ corsOrigins, rateLimit, tenantResolver, identit
     // Client-supplied IDs are accepted only if well-formed (see resolveRequestId).
     genReqId: (req) => resolveRequestId(req.headers),
   });
+  registerDefaultDeny(app); // before any route or plugin that registers routes
   const deny = createDenier({ audit, catalogVersion });
 
   await registerSecurityHeaders(app);
