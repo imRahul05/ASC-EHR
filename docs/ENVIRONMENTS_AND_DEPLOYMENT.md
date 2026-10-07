@@ -288,7 +288,8 @@ Things to know:
 - **Medplum throttles logins** (5 per window). The seed logs in once (twice on the very first run). If you see *Too Many Requests*, wait about 15 seconds.
 - **Hardening flags are already on locally** (`registerEnabled: false`, `saveAuditEvents: true`, `storeBotInput: false`); P05h adds a test that every environment keeps them. The local super admin comes from `defaultSuperAdminEmail`/`Password` in the rendered config (its password is the generated one); deployed environments take theirs from secrets.
 - **Medplum adds a few things of its own** when it creates the project: a practitioner *Admin* for the owner and a client application *ASC EHR (local) Default Client*. They are not duplicates of the seed's (which creates exactly 8 practitioners and 3 client applications).
-- **No access policies yet** (P05h): the seeded client applications can read and write the whole project.
+- **Start and stop with the scripts.** `pnpm medplum:up` is the only supported way to start the stack. Started any other way, it fails fast instead of weakening itself: Postgres and Redis refuse to start without their passwords (an empty Redis password would mean no authentication) and the Medplum server refuses to start without its rendered config (a missing file is never replaced by a directory). `pnpm medplum:down` needs no credentials and works even after `infra/medplum/.local` was removed.
+- **No access policies yet** (P05h tracks it): the seeded client applications can read and write the whole project.
 - Medplum logs "Generating temporary signing key" locally: storage URLs are invalid after a server restart. Harmless for development.
 
 **Reset to a clean state** (removes only Medplum's containers and volumes, not the `@asc/db` database):
