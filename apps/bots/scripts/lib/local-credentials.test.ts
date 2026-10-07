@@ -141,6 +141,19 @@ describe("prepareLocalMedplum", () => {
   });
 });
 
+describe("root scripts", () => {
+  const scripts = (JSON.parse(read(new URL("../../../../package.json", import.meta.url))) as { scripts: Record<string, string> }).scripts;
+
+  it("medplum:down needs no credentials, so it works after the local folder was reset", () => {
+    expect(scripts["medplum:down"]).toContain("--profile medplum stop");
+    expect(scripts["medplum:down"]).not.toContain("--env-file");
+  });
+
+  it("medplum:up prepares the credentials first and passes them to compose", () => {
+    expect(scripts["medplum:up"]).toMatch(/^pnpm medplum:prepare && docker compose --env-file infra\/medplum\/\.local\/compose\.env --profile medplum up/);
+  });
+});
+
 describe("no committed credentials", () => {
   it("keeps every password in the committed template, compose file and seed defaults a placeholder or a variable", () => {
     const template = JSON.parse(read(TEMPLATE)) as { database: { password: string }; redis: { password: string }; defaultSuperAdminPassword: string };

@@ -15,7 +15,7 @@
     "db:generate": "pnpm --filter @asc/db db:generate",
     "medplum:prepare": "pnpm --filter bots medplum:prepare",
     "medplum:up": "pnpm medplum:prepare && docker compose --env-file infra/medplum/.local/compose.env --profile medplum up -d --wait medplum-server medplum-app",
-    "medplum:down": "docker compose --env-file infra/medplum/.local/compose.env --profile medplum stop medplum-app medplum-server medplum-redis medplum-postgres",
+    "medplum:down": "docker compose --profile medplum stop medplum-app medplum-server medplum-redis medplum-postgres",
     "medplum:seed": "pnpm --filter bots seed"
   },
   "devDependencies": {
