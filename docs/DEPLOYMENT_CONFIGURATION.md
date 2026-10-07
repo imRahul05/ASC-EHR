@@ -42,12 +42,16 @@ Parsed once at startup by `apiEnvSchema` (`packages/config/src/env.ts`). An inva
 |---|---|---|
 | `CORS_ORIGINS` | Browser origins allowed to call the API cross-origin. | Comma-separated **exact origins**: `https://app.example.com,https://staging.example.com`. No `*`, no path, no trailing slash — anything else fails startup. |
 | *(unset)* | — | Development/test: `http://localhost:3000` (`next dev`). Deployed (`NODE_ENV=production`/`staging`): **no origin allowed** (deny by default). |
-| `DATABASE_RUNTIME_URL` | App-owned Postgres as the **runtime role** (member of `asc_runtime`). | `postgres://` URL, TLS (`?sslmode=require`) when deployed. Never the table owner: it cannot alter tables or bypass row-level security. Optional until P05g. |
-| `DATABASE_URL` | The **owner** URL. | Migrations only (`pnpm db:migrate`); keep it out of the running app's environment once P05g reads `DATABASE_RUNTIME_URL`. |
-| `DEFAULT_TENANT_ID` | The one configured tenant (single hospital). | UUID. Read by `StaticTenantResolver`, never from a request. |
-| `MEDPLUM_PROJECT_ID` | Medplum Project of that tenant. | Non-empty string. |
+| `DATABASE_RUNTIME_URL` | App-owned Postgres as the **runtime role** (member of `asc_runtime`). Backs the durable, append-only audit store. | `postgres://` URL, TLS (`?sslmode=require`) when deployed. Never the table owner: it cannot alter tables or bypass row-level security. **Required in staging and production** (the API refuses to start without a durable, append-only audit store); locally it falls back to the log channel. |
+| `DATABASE_URL` | The **owner** URL. | Migrations only (`pnpm db:migrate`); keep it out of the running API's environment. |
+| `DEFAULT_TENANT_ID` | The one configured tenant (single hospital). | UUID. Read by `StaticTenantResolver`, never from a request. **Required**: the API refuses to start without it. |
+| `MEDPLUM_PROJECT_ID` | Medplum Project of that tenant (a token must be issued for it). | Non-empty string. **Required.** |
+| `GIT_SHA` | Build id stamped on audit decisions. | Short identifier (letters, digits, `.`, `_`, `-`). Optional; recorded as `unknown` when unset. Set it from the deploy pipeline. |
+| `RATE_LIMIT_IP_MAX` / `RATE_LIMIT_USER_MAX` / `RATE_LIMIT_WINDOW_MS` | Flood limits per window: per tenant and address before authentication (default 1200), per tenant and signed-in user after it (default 300); window default 60000 ms. | Positive integers (window ≥ 1000). Behind a proxy the address seen is the proxy's until `trustProxy` is configured (P06). |
 
-The worker reads the same four database and tenant variables (`workerEnvSchema`). Both are optional until P05g makes them required for the API; the database role split and RLS are described in [`packages/db/README.md`](../packages/db/README.md).
+The worker reads the database and tenant variables too (`workerEnvSchema`) but does not require them yet. The database role split and RLS are described in [`packages/db/README.md`](../packages/db/README.md).
+
+**API request gates (P05g).** Every request passes tenant (404), a flood limit, identity (401, or 503 while the identity provider is down) and, for capability routes, facility and capability (403). Every route must declare its auth (`publicRoute`, `authenticatedRoute`, `capabilityRoute`, `capabilityAtResource` in `apps/api/src/auth/route-auth.ts`); a route without one stops the API from starting. Only `GET /health` (and the CORS preflight) is public. **Until the Medplum identity adapter exists (P05i) the API cannot start in staging or production**: the dev-only identity fake is refused there. See [P05 decisions](plan/phases/P05-auth-roles.md).
 
 CORS policy (`apps/api/src/app.ts`): methods `GET POST PUT PATCH DELETE`; headers `Accept Authorization Content-Type X-Correlation-Id X-Request-Id`; preflight cached 10 minutes; **no credentials** — auth is an in-memory Bearer token, never a cookie (LM-004).
 
