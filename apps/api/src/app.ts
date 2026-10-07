@@ -8,6 +8,7 @@ import { createDenier } from "./auth/denied.js";
 import { registerDefaultDeny } from "./auth/default-deny.js";
 import { createGuards, registerAuthorization } from "./auth/guards.js";
 import { registerTenantGate } from "./auth/tenant.js";
+import { assertIdentityAllowed } from "./identity/select.js";
 import { resolveRequestId } from "./lib/request-id.js";
 import { registerRateLimit, registerSecurityHeaders } from "./plugins/security.js";
 import { registerRoutes } from "./routes/index.js";
@@ -28,9 +29,20 @@ interface AppOptions {
   readonly audit: Pick<AuditClient, "logEvent">;
   /** Build id (`GIT_SHA`) stamped on audit decisions. */
   readonly catalogVersion: string;
+  /** True in production and staging (`isProductionEnv()`): a fake identity adapter is refused. */
+  readonly production: boolean;
 }
 
-export async function buildApp({ corsOrigins, rateLimit, tenantResolver, identity, audit, catalogVersion }: AppOptions) {
+export async function buildApp({
+  corsOrigins,
+  rateLimit,
+  tenantResolver,
+  identity,
+  audit,
+  catalogVersion,
+  production,
+}: AppOptions) {
+  assertIdentityAllowed(identity, production);
   const app = Fastify({
     logger: loggerOptions,
     // Client-supplied IDs are accepted only if well-formed (see resolveRequestId).

@@ -30,6 +30,7 @@ export async function buildTestApp(overrides: Partial<Parameters<typeof buildApp
     identity,
     audit,
     catalogVersion: "test-sha",
+    production: false,
     ...overrides,
   });
   return { app, audit, identity, tenant: TEST_TENANT };
