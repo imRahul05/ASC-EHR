@@ -1,0 +1,31 @@
+{
+  "name": "bots",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "medplum:prepare": "tsx scripts/prepare-medplum-local.ts",
+    "seed": "tsx scripts/seed-local.ts",
+    "lint": "eslint --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@asc/authz": "workspace:*",
+    "@asc/config": "workspace:*",
+    "@medplum/core": "5.1.42"
+  },
+  "devDependencies": {
+    "@asc/eslint-config": "workspace:*",
+    "@asc/typescript-config": "workspace:*",
+    "@medplum/cli": "5.1.42",
+    "@medplum/fhirtypes": "5.1.42",
+    "@types/node": "^20",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.9.1",
+    "tsx": "^4.19.4",
+    "typescript": "^7.0.0",
+    "vitest": "^5.0.2"
+  }
+}
