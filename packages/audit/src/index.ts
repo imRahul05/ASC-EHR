@@ -2,18 +2,50 @@ import { isProductionEnv } from "@asc/config/runtime";
 import { isSensitiveKey, logger as baseLogger } from "@asc/logger";
 import type { Logger } from "@asc/logger";
 
-export type ActorType = "user" | "system" | "agent";
+import { truncateClientIp } from "./client-ip.js";
+import { isIamAction, sanitizeIamDetails } from "./iam-events.js";
+
+export { truncateClientIp } from "./client-ip.js";
+export * from "./iam-events.js";
+
+export type ActorType = "user" | "system" | "agent" | "worker" | "bot" | "service";
 export type Outcome = "SUCCESS" | "FAILURE" | "DENIED";
+
+/** Authorization gate that denied the request (P05 §3): 1 tenant, 2 identity, 3 facility, 4 capability, 5 Medplum policy. */
+export type AuditGate = 1 | 2 | 3 | 4 | 5;
 
 /** Audit `details` values are flat primitives only: no nested objects/arrays. */
 export type AuditDetailValue = string | number | boolean | null;
 export type AuditDetails = Record<string, AuditDetailValue>;
+/** What callers pass: `undefined` entries (optional fields) are skipped, never stored. */
+export type AuditInputDetails = Record<string, AuditDetailValue | undefined>;
+
+export const AUDIT_CACHE_STATES = ["hit", "miss", "bypass"] as const;
+export type AuditCacheState = (typeof AUDIT_CACHE_STATES)[number];
+
+/**
+ * Why an allow/deny decision was made (08 §12.3), so an auditor can reconstruct
+ * it later: role template versions (`rn-v3`), the `@asc/authz` catalog version
+ * (git SHA) and whether the identity came from the cache.
+ */
+export interface AuditDecision {
+  readonly roleVersions: readonly string[];
+  readonly catalogVersion: string;
+  readonly cache: AuditCacheState;
+}
 
 export interface AuditEvent {
   action: string;
   actorType: ActorType;
   actorId: string;
+  /** Legacy owner scope; `tenantId` and `facilityId` are the source of truth (Q-IAM-A). */
   organizationId?: string;
+  /** Principal or job context, IDs only (08 §12.3). Never taken from a request body. */
+  tenantId?: string;
+  facilityId?: string;
+  /** Medplum ProjectMembership id of the acting user (not a name or email). */
+  membershipId?: string;
+  sessionId?: string;
   patientId?: string;
   surgicalCaseId?: string;
   resourceType?: string;
@@ -22,14 +54,28 @@ export interface AuditEvent {
   requestId?: string;
   correlationId?: string;
   outcome: Outcome;
+  /** Allow and deny events carry the provenance of the decision. */
+  decision?: AuditDecision;
+  /** Set on denials: which gate refused (makes misconfigured roles easy to spot). */
+  gate?: AuditGate;
   timestamp: string; // ISO 8601
   /** Safe metadata only, NO PHI. Keys matching @asc/logger SENSITIVE_KEYS are rejected. */
   details?: AuditDetails;
   /** Set when disallowed `details` entries were dropped (production only). */
   detailsRedacted?: boolean;
+  /** Network prefix of the client (`203.0.113.0/24`), never the full address. Set by the client from `clientIp`. */
+  clientIpPrefix?: string;
+  /** Browser/client string, cut to {@link MAX_USER_AGENT_LENGTH}. */
+  userAgent?: string;
 }
 
-export type AuditEventInput = Omit<AuditEvent, "timestamp" | "detailsRedacted">;
+/** The raw `clientIp` is reduced to `clientIpPrefix` before any store sees the event. */
+export type AuditEventInput = Omit<AuditEvent, "timestamp" | "detailsRedacted" | "clientIpPrefix" | "details"> & {
+  details?: AuditInputDetails;
+  clientIp?: string;
+};
+
+export const MAX_USER_AGENT_LENGTH = 200;
 
 /**
  * Storage seam for audit events. The planned durable store is Medplum
@@ -43,6 +89,13 @@ export interface AuditStore {
    * Non-durable stores are refused in production.
    */
   readonly durable?: boolean;
+  /**
+   * True only for stores that cannot update, delete or truncate saved events
+   * (enforced by the store itself, e.g. no UPDATE/DELETE grant plus a trigger).
+   * An audit trail that can be edited is not an audit trail: production
+   * requires `durable` and `appendOnly`.
+   */
+  readonly appendOnly?: boolean;
 }
 
 /**
@@ -71,6 +124,26 @@ export class AuditDetailsError extends Error {
         "(PHI/secret key names or non-primitive values). Audit details must be flat, PHI-free metadata.",
     );
     this.name = "AuditDetailsError";
+  }
+}
+
+export class AuditDecisionError extends Error {
+  constructor() {
+    super(
+      "Audit decision rejected: role versions and catalog version must be short identifiers " +
+        "(letters, digits, '.', '_', '-') and cache must be hit, miss or bypass, never free text.",
+    );
+    this.name = "AuditDecisionError";
+  }
+}
+
+export class AuditStoreNotAppendOnlyError extends Error {
+  constructor() {
+    super(
+      "The configured AuditStore is durable but not append-only: refusing it in production. " +
+        "The store must reject UPDATE, DELETE and TRUNCATE of saved events and declare appendOnly = true.",
+    );
+    this.name = "AuditStoreNotAppendOnlyError";
   }
 }
 
@@ -120,6 +193,23 @@ export function sanitizeDetails(
   return { details: clean, detailsRedacted: true };
 }
 
+const DECISION_TOKEN = /^[A-Za-z0-9._-]{1,64}$/;
+
+/** Same policy as `sanitizeDetails`: throw outside production, drop (and mark) in production. */
+export function sanitizeDecision(
+  decision: AuditDecision | undefined,
+  production: boolean,
+): { decision?: AuditDecision; detailsRedacted?: boolean } {
+  if (decision === undefined) return {};
+  const valid =
+    (AUDIT_CACHE_STATES as readonly string[]).includes(decision.cache) &&
+    DECISION_TOKEN.test(decision.catalogVersion) &&
+    decision.roleVersions.every((v) => DECISION_TOKEN.test(v));
+  if (valid) return { decision: { ...decision, roleVersions: [...decision.roleVersions] } };
+  if (!production) throw new AuditDecisionError();
+  return { detailsRedacted: true };
+}
+
 export interface AuditClientOptions {
   /** Defaults to `isProductionEnv()` from @asc/config at construction. */
   production?: boolean;
@@ -140,10 +230,22 @@ export class AuditClient {
    * rejects, the rejection propagates so audit loss is visible to the caller.
    */
   async logEvent(event: AuditEventInput): Promise<void> {
-    const { details, ...rest } = event;
+    const { details, decision, clientIp, userAgent, ...rest } = event;
+    const sanitizedDecision = sanitizeDecision(decision, this.production);
+    const sanitizedDetails = sanitizeDetails(details, this.production);
+    const iam = isIamAction(rest.action)
+      ? sanitizeIamDetails(sanitizedDetails.details, this.production)
+      : sanitizedDetails;
+    const clientIpPrefix = clientIp === undefined ? undefined : truncateClientIp(clientIp);
     const fullEvent: AuditEvent = {
       ...rest,
-      ...sanitizeDetails(details, this.production),
+      ...iam,
+      ...sanitizedDecision,
+      ...(sanitizedDetails.detailsRedacted || iam.detailsRedacted || sanitizedDecision.detailsRedacted
+        ? { detailsRedacted: true }
+        : {}),
+      ...(clientIpPrefix === undefined ? {} : { clientIpPrefix }),
+      ...(userAgent === undefined ? {} : { userAgent: userAgent.slice(0, MAX_USER_AGENT_LENGTH) }),
       timestamp: new Date().toISOString(),
     };
     await this.store.save(fullEvent);
@@ -153,13 +255,17 @@ export class AuditClient {
 /**
  * Creates an AuditClient. Without a store, falls back to LoggerAuditStore,
  * except in production where it fails closed (throws AuditStoreNotConfiguredError).
- * A non-durable store passed explicitly in production is also refused.
+ * A non-durable store, or a durable one that is not append-only, passed
+ * explicitly in production is also refused.
  */
 export function createAuditClient(store?: AuditStore, options: AuditClientOptions = {}): AuditClient {
   const production = options.production ?? isProductionEnv();
-  const resolved = store ?? new LoggerAuditStore();
+  const resolved: AuditStore = store ?? new LoggerAuditStore();
   if (production && resolved.durable !== true) {
     throw new AuditStoreNotConfiguredError();
+  }
+  if (production && resolved.appendOnly !== true) {
+    throw new AuditStoreNotAppendOnlyError();
   }
   return new AuditClient(resolved, { production });
 }

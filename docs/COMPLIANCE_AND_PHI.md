@@ -42,7 +42,7 @@ SOC 2 is an auditing procedure that ensures service providers securely manage da
 *   **Action**: Use `@asc/audit` to record all security and business events.
 *   **Why**: We must track *who* (user, system, agent) did *what*, *when*, and *why* in a durable, queryable format without storing raw PHI.
 *   **How**: `import { auditClient } from "@asc/audit";`
-*   **Durability**: In development the default store writes a dedicated `channel: "audit"` log stream. In **production the client fails closed**: it throws unless a durable store is injected at startup with `configureAuditStore(store)` (planned: Medplum `AuditEvent`, see the Medplum ADR). `details` accepts primitive values only and rejects PHI-like keys.
+*   **Durability**: In development the default store writes a dedicated `channel: "audit"` log stream. In **production the client fails closed**: it throws unless a durable store is injected at startup with `configureAuditStore(store)` that is also **append-only** (`appendOnly`): `createPostgresAuditStore` from `@asc/db` (`audit_events`: no UPDATE, DELETE or TRUNCATE for the runtime role, trigger for the owner). Medplum `AuditEvent` covers FHIR access (see the Medplum ADR); `@asc/audit` covers everything else. `details` accepts primitive values only and rejects PHI-like keys; IAM events (`iamEvent`) accept identifier-shaped strings only (no names or emails); the client IP is stored as a /24 or /48 prefix (`clientIpPrefix`), never in full.
 
 ## 4. PHI Audit Logging Requirements
 

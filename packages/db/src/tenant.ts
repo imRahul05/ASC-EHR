@@ -4,6 +4,9 @@
  * that sets `app.tenant_id` (transaction-local, so it cannot leak across pooled
  * connections); row-level security does the filtering.
  *
+ * Database failures surface as `DatabaseError` (SQLSTATE and constraint only), never
+ * with query parameters or row values.
+ *
  * The URL must be the RUNTIME role (`DATABASE_RUNTIME_URL`): not the table owner,
  * cannot alter tables or bypass RLS. The tenant id comes from the principal or
  * job context, never from a request body or query string.
@@ -13,6 +16,7 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import { sql } from 'drizzle-orm';
 import postgres from 'postgres';
 
+import { toSafeDbError } from './db-error.js';
 import * as schema from './schema/index.js';
 
 type Database = ReturnType<typeof drizzle<typeof schema>>;
@@ -40,10 +44,15 @@ export function wrapTenantDb(db: Database): TenantDb {
     async withTenant(tenantId, fn) {
       // Never echo the value: a bad id may be attacker-controlled or sensitive.
       if (!UUID.test(tenantId)) throw new Error('tenantId must be a UUID');
-      return db.transaction(async (tx) => {
-        await tx.execute(sql`SELECT set_config('app.tenant_id', ${tenantId}, true)`);
-        return fn(tx);
-      });
+      try {
+        return await db.transaction(async (tx) => {
+          await tx.execute(sql`SELECT set_config('app.tenant_id', ${tenantId}, true)`);
+          return await fn(tx);
+        });
+      } catch (error) {
+        // Driver errors carry bound values (PHI in agent_runs.output): hand callers a DatabaseError.
+        throw toSafeDbError(error);
+      }
     },
   };
 }

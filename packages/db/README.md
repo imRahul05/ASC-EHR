@@ -33,7 +33,7 @@ Single hospital, tenant-ready ([08 §4.4](../../docs/product/08-identity-access-
 
 - `agent_runs.tenant_id uuid NOT NULL` and `facility_id text` (null = tenant-wide) are the source of truth (Q-IAM-A). `org_id` stays until `@asc/agents` migrates.
 - Row-level security is **enabled and forced**. Policy `tenant_isolation` compares `tenant_id` with `app.tenant_id`. If that setting is unset or empty, reads return no rows and inserts/updates are rejected (fail closed).
-- `withTenant` opens a transaction and sets `app.tenant_id` with `set_config(…, true)` (transaction-local, so it never leaks across pooled connections). The tenant id comes from the principal or job context, never from a request body or query string; a non-UUID is rejected before it touches the database.
+- `withTenant` opens a transaction and sets `app.tenant_id` with `set_config(…, true)` (transaction-local, so it never leaks across pooled connections). The tenant id comes from the principal or job context, never from a request body or query string; a non-UUID is rejected before it touches the database. Driver failures are rethrown as `DatabaseError` (SQLSTATE and constraint name only): Drizzle's own error message lists every bound parameter (`agent_runs.output` is PHI), so a raw driver error must never be logged or returned (LM-016).
 - Two roles: the **owner** runs migrations (`DATABASE_URL`); the app connects as a member of `asc_runtime` (`DATABASE_RUNTIME_URL`; `asc_app` locally). `asc_runtime` is `NOLOGIN NOSUPERUSER NOBYPASSRLS`, owns nothing and has `SELECT, INSERT, UPDATE` on `agent_runs` only: no `DELETE`, `TRUNCATE`, `ALTER`, or `CREATE`. Each new table's migration grants explicitly.
 - Local login: `docker/postgres/init/01-runtime-role.sql` (new volumes run it automatically; for an old volume see [Environments](../../docs/ENVIRONMENTS_AND_DEPLOYMENT.md#local-postgres-development)).
 - Backfill: migration `0002` gives rows written before tenancy the configured tenant, read from the session setting `app.default_tenant_id`, and stops if any row would stay without one. Pass it as a URL parameter: `DATABASE_URL='postgres://…/asc_ehr?app.default_tenant_id=<DEFAULT_TENANT_ID>' pnpm db:migrate`, or `createMigrationDb({ url, defaultTenantId })`. An empty table needs nothing.
@@ -47,6 +47,15 @@ Single hospital, tenant-ready ([08 §4.4](../../docs/product/08-identity-access-
 - `begin` is a single atomic `INSERT … ON CONFLICT (execution_id) DO UPDATE … WHERE … RETURNING`: it claims a new run, a `failed` run, or a stale `running` run — **only for the same agent, org, patient and case** (`IS NOT DISTINCT FROM`), mirroring `isSameRunOwner` in `@asc/agents`. Otherwise the existing row is returned unclaimed (replay / in progress / conflict).
 - `claim` is a fencing token; `succeed` / `fail` apply only to `status = 'running' AND claim = $claim`.
 - All timestamps use the database clock (`now()`).
+
+## Audit trail (P05f)
+
+`audit_events` is the durable, append-only audit store behind `@asc/audit`. `createPostgresAuditStore(tenantDb, { defaultTenantId? })` implements `AuditStore` (`durable` and `appendOnly`); inject it at startup with `configureAuditStore`.
+
+- **Append-only, three layers:** the runtime role has `SELECT, INSERT` only; there is no UPDATE or DELETE policy; triggers reject UPDATE, DELETE and TRUNCATE for everyone, including the owner. A superuser can still disable triggers (`session_replication_role = replica`) and an owner can drop one on purpose: both are deliberate acts, not mistakes. There is no purge path.
+- **Tenant:** same pattern as `agent_runs` (`tenant_id NOT NULL`, RLS enabled and forced). Every save runs in `withTenant(event.tenantId ?? defaultTenantId)`; with neither, it throws `AuditTenantMissingError`.
+- **No PHI:** IDs, keys and flat primitives only. `client_ip_prefix` is a /24 or /48 prefix; the raw address never reaches the store.
+- **Tests:** the table cannot be truncated, so tests use one tenant id per test instead of `TRUNCATE`.
 
 ## ⚠️ PHI
 

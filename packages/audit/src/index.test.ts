@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AuditClient,
   AuditDetailsError,
+  AuditStoreNotAppendOnlyError,
   AuditStoreNotConfiguredError,
   createAuditClient,
   LoggerAuditStore,
@@ -13,6 +14,7 @@ import type { AuditEvent, AuditEventInput, AuditStore } from "./index.js";
 
 class MemoryStore implements AuditStore {
   readonly durable = true;
+  readonly appendOnly = true;
   events: AuditEvent[] = [];
   save(event: AuditEvent): Promise<void> {
     this.events.push(event);
@@ -46,6 +48,22 @@ describe("AuditClient", () => {
     expect(event).toMatchObject({ ...base, details: { count: 2 } });
     expect(new Date(event?.timestamp ?? "").toISOString()).toBe(event?.timestamp);
     expect(event?.detailsRedacted).toBeUndefined();
+  });
+
+  it("carries tenant, facility, membership, session and gate fields unchanged", async () => {
+    const store = new MemoryStore();
+    const input: AuditEventInput = {
+      ...base,
+      actorType: "worker",
+      outcome: "DENIED",
+      gate: 3,
+      tenantId: "0b8f3c52-6f3e-4a77-9a55-3d6e1f0c2a10",
+      facilityId: "facility-1",
+      membershipId: "membership-1",
+      sessionId: "session-1",
+    };
+    await new AuditClient(store, { production: false }).logEvent(input);
+    expect(store.events[0]).toMatchObject(input);
   });
 
   it("rejects PHI keys in details outside production", async () => {
@@ -99,6 +117,18 @@ describe("createAuditClient", () => {
     expect(() => createAuditClient(new LoggerAuditStore(), { production: true })).toThrow(
       AuditStoreNotConfiguredError,
     );
+  });
+
+  it("refuses a durable store that is not append-only in production", () => {
+    const editable: AuditStore = { durable: true, save: () => Promise.resolve() };
+    expect(() => createAuditClient(editable, { production: true })).toThrow(AuditStoreNotAppendOnlyError);
+    expect(() => createAuditClient({ ...editable, appendOnly: false }, { production: true })).toThrow(
+      AuditStoreNotAppendOnlyError,
+    );
+  });
+
+  it("allows a durable store that is not append-only outside production", () => {
+    expect(() => createAuditClient({ durable: true, save: () => Promise.resolve() }, { production: false })).not.toThrow();
   });
 
   it("accepts a durable store in production", async () => {
