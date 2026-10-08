@@ -19,6 +19,7 @@ Login UI and access policies (P05), SSE (P10).
 ```text
 packages/api-client/src/medplum/browser.ts     NEW  createBrowserMedplumClient(publicEnv)
 packages/api-client/src/server.ts              NEW  subpath "@asc/api-client/server": createOnBehalfClient(token), createSystemClient(creds)
+packages/api-client/src/medplum/facility.ts    NEW  forFacility(client, facilityId): stamps meta.accounts on create, update, patch
 packages/api-client/src/react/provider.tsx     NEW  AscMedplumProvider (wraps MedplumProvider + QueryClient)
 packages/api-client/package.json               EDIT exports: ".", "./server", "./react"; peerDeps react
 apps/web/src/app/providers.tsx                 EDIT use AscMedplumProvider
@@ -33,6 +34,7 @@ apps/worker/src/medplum.ts                     NEW  system client from parseEnv(
 | T2 | Web provider wiring | `apps/web` | app renders with provider |
 | T3 | API Fastify plugin (`request.medplum`) | `apps/api` | plugin + test with MockClient |
 | T4 | Worker system client | `apps/worker` | client module + test |
+| T5 | Facility-scoped writes: `forFacility(id)` + lint rule | `@asc/api-client`, `@asc/eslint-config` | wrapper + tests + lint rule |
 
 ## Task dependency matrix
 | Task | Depends on | Blocks | Parallel with |
@@ -41,6 +43,7 @@ apps/worker/src/medplum.ts                     NEW  system client from parseEnv(
 | T2 | T1 | P05 | T3, T4 |
 | T3 | T1 | P05, P10 | T2, T4 |
 | T4 | T1 | P10 | T2, T3 |
+| T5 | T1 | every facility-scoped write (P12+) | T2, T3, T4 |
 
 ## Packages to add
 | Package | Version | Workspace |
@@ -54,6 +57,9 @@ apps/worker/src/medplum.ts                     NEW  system client from parseEnv(
 - [ ] Lint blocks `@asc/api-client/server` import from `apps/web` (P00 rule)
 - [ ] Client secret never reaches the browser bundle (check `next build` output grep)
 - [ ] Tests use `MockClient`, no live server
+- [ ] `forFacility(client, facilityId)` sets `meta.accounts` to the facility `Organization` on every create, update and patch, including a read-modify-write of a resource read without it (spike results ADR decision 1 and review amendments). A body that names a different facility is refused before the call
+- [ ] Lint rule: apps may not call `createResource`, `updateResource`, `patchResource` or `executeBatch` on a raw client for facility-scoped types; they go through `forFacility` (directory types listed as exempt in one place)
+- [ ] A test per write path proves the account is present (decision 1)
 - [ ] PROGRESS.md updated
 
 ## Open questions
