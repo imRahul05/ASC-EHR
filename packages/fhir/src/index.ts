@@ -8,3 +8,6 @@ export * from "./extensions.js";
 export * from "./builders/common.js";
 export * from "./builders/encounter.js";
 export * from "./builders/patient.js";
+export * from "./builders/appointment.js";
+export * from "./builders/provenance.js";
+export * from "./builders/task.js";

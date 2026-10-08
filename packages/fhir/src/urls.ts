@@ -13,7 +13,7 @@ export const FHIR_CANONICAL_BASE = "https://fhir.wybit.io/asc/";
 /** The pieces of a canonical URL: lower-case words joined by hyphens. */
 const NAME = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 
-function assertName(name: string): string {
+export function assertCanonicalName(name: string): string {
   if (!NAME.test(name)) throw new Error(`invalid canonical name "${name}": use lower-case words joined by hyphens`);
   return name;
 }
@@ -41,11 +41,11 @@ export function createFhirUrls(base: string = FHIR_CANONICAL_BASE) {
   return {
     base: root,
     /** A profile or an extension definition. */
-    structureDefinition: (name: string) => `${root}StructureDefinition/${assertName(name)}`,
-    codeSystem: (name: string) => `${root}CodeSystem/${assertName(name)}`,
-    valueSet: (name: string) => `${root}ValueSet/${assertName(name)}`,
+    structureDefinition: (name: string) => `${root}StructureDefinition/${assertCanonicalName(name)}`,
+    codeSystem: (name: string) => `${root}CodeSystem/${assertCanonicalName(name)}`,
+    valueSet: (name: string) => `${root}ValueSet/${assertCanonicalName(name)}`,
     /** The `system` of an identifier we issue (MRN, case number). */
-    identifierSystem: (name: string) => `${root}identifier/${assertName(name)}`,
+    identifierSystem: (name: string) => `${root}identifier/${assertCanonicalName(name)}`,
   } as const;
 }
 
