@@ -66,7 +66,7 @@ export const gitShaSchema = z
  */
 /**
  * Optional override of the canonical URL base of our FHIR profiles and identifier systems
- * (default in `@asc/fhir`: https://fhir.wybit.io/asc/, issue #54). Same rule as `assertCanonicalBase`
+ * (the default lives in `@asc/fhir`, issue #54). Same rule as `assertCanonicalBase`
  * in `@asc/fhir`: https, ends in "/", no query or fragment. The value is stored inside every
  * resource, so it must be identical wherever data is shared; leave it unset unless a migration says
  * otherwise. Applies to api and worker; the web app builds with the default.
