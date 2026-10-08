@@ -738,7 +738,7 @@ flowchart TB
 | Caller | Identity | Medplum access | Notes |
 |---|---|---|---|
 | `apps/api` for a user | The **user's** token (forwarded) | User's policy | Default for every command (P04 Q1) |
-| `apps/worker` | **One `ClientApplication` per tenant** (`worker@acme`) using client credentials; secret in Key Vault `tenant-{id}-worker` | `system-worker` policy: only the resource types its jobs touch | Never a server-wide super-admin token |
+| `apps/worker` | **One `ClientApplication` per tenant** (`worker@acme`) using client credentials; secret in Key Vault `tenant-{id}-worker` | `system-worker` policy: only the resource types its jobs touch | Never a server-wide super-admin token. Per-facility worker clients (`worker@<tenant>/<facility>`, so Medplum enforces facility for background jobs and AI agent runs) are recommended in [#60](https://github.com/imRahul05/ASC-EHR/issues/60), pending lead sign-off |
 | Bots | Run inside the tenant Project as their own `Bot` identity | Bot's own AccessPolicy | Tenant-scoped by construction |
 | AI agents | Their own principal kind `agent`, never the raw user or worker credential | Capabilities = caller's capabilities ∩ the agent's allow-list; data scoped to the run's tenant, patient and case | `Provenance` and audit record `agentExecutionId` and `onBehalfOf`; `@asc/agents` context-scope assertions reject items outside the run scope; model-supplied IDs are never trusted |
 | Provisioner (CI/ops) | Super-admin, ops-only pipeline | Platform | Never present in app runtime config |
