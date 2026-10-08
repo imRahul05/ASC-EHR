@@ -59,5 +59,5 @@ docs/agent/architecture.md            EDIT add @asc/fhir to package map
 ## Open questions
 | ID | Question | Blocks | Default |
 |---|---|---|---|
-| Q1 | Canonical URL base for our profiles/extensions | T2 | `https://fhir.wybit.io/asc/` (change before go-live costs a migration — decide now). **Open: [#54](https://github.com/imRahul05/ASC-EHR/issues/54), blocks T2** |
+| Q1 | Canonical URL base for our profiles/extensions | T2 | **Decided 2026-10-08 ([#54](https://github.com/imRahul05/ASC-EHR/issues/54)): `https://fhir.wybit.io/asc/`.** One constant plus a URL factory in `@asc/fhir`; optional `FHIR_CANONICAL_BASE` override validated in `@asc/config` and passed in (LM-006); never a literal elsewhere (test) |
 | Q2 | Case number format | T2 | `<facility>-<yyyymmdd>-<seq>` (confirm: [#55](https://github.com/imRahul05/ASC-EHR/issues/55)) |
