@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { type AccessPolicy as CompiledPolicy, compilePolicy, ROLE_TEMPLATES } from "@asc/authz";
 import { ClientStorage, MedplumClient, MemoryStorage } from "@medplum/core";
 import type { AccessPolicy, ClientApplication, ProjectMembership } from "@medplum/fhirtypes";
@@ -41,6 +42,9 @@ export async function clientCredentialsToken(baseUrl: string, clientId: string, 
   return body.access_token;
 }
 
+export const THROTTLED =
+  "Medplum throttled the login (5 per window; a full live run signs in 4 times, and the seed once). Wait about a minute and run again.";
+
 /**
  * Password login for a spike user: the authorization-code flow with a plain PKCE challenge, over raw HTTP.
  * Medplum throttles logins (5 per window), so a live test file logs in at most once.
@@ -53,6 +57,7 @@ export async function userLogin(baseUrl: string, credentials: { email: string; p
     body: JSON.stringify({ ...credentials, scope: "openid", codeChallenge: verifier, codeChallengeMethod: "plain", ...(clientId === undefined ? {} : { clientId }) }),
   });
   const { code } = (await login.json()) as { code?: string };
+  if (login.status === 429) throw new Error(THROTTLED);
   if (code === undefined) throw new Error(`login returned no code (${login.status})`);
   const response = await fetch(`${baseUrl}oauth2/token`, {
     method: "POST",
@@ -69,6 +74,19 @@ export const jwtClaims = (jwt: string) => JSON.parse(Buffer.from(jwt.split(".")[
 
 /** A compiled policy as a Medplum resource (the compiler's readonly arrays do not match the generated types). */
 export const asMedplumPolicy = (policy: CompiledPolicy, name: string) => ({ ...(JSON.parse(JSON.stringify(policy)) as AccessPolicy), name });
+
+/** What `pnpm medplum:seed` wrote (ids only are used here). The file is git-ignored; a missing one means the seed has not run. */
+export function seedOutput() {
+  try {
+    return JSON.parse(readFileSync(new URL("../.seed-output.json", import.meta.url), "utf8")) as {
+      facilityId: string;
+      secondFacilityId: string;
+      practitioners: Record<string, string>;
+    };
+  } catch {
+    throw new Error("apps/bots/.seed-output.json is missing or unreadable. Run `pnpm medplum:seed` first.");
+  }
+}
 
 export type LiveContext = ReturnType<typeof liveContext>;
 
