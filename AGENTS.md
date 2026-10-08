@@ -13,6 +13,7 @@ To keep this file intentionally minimal and extensible, all detailed guidance, r
 4. **Commit small:** one concern per commit, ≤ 400 changed lines, green after every commit — see [incremental commits §4](docs/agent/incremental-commits.md#4-size-limits-and-commit-shape).
 5. **On finish:** update `PROGRESS.md` (status, PR, next up) in the same branch.
 6. **When corrected** by the user, a reviewer, lint or tests: fix it **and** add or update an entry in `LEARNING_MISTAKES.md` in the same commit.
+7. **Open decisions go to GitHub issues.** When work is blocked on, or a spike/review produces, a decision that belongs to a person (architecture, policy, external access), open one issue per decision (label `question`: context, options, your recommendation, what it blocks, links to the ADR/plan and PR) and link it from the `PROGRESS.md` §4 row, so the decision-maker can be tagged and track it in one place. The ADR/plan keeps the detail; the issue is how a human finds and answers it.
 
 ## 📚 Agent Guidance Directory
 
