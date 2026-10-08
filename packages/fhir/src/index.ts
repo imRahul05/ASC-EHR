@@ -2,3 +2,4 @@
 // No I/O and no environment reads: every workspace, including the browser, can import it.
 export type * from "@medplum/fhirtypes";
 export * from "./urls.js";
+export * from "./identifiers.js";
