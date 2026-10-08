@@ -45,7 +45,7 @@ T3 and T4 usually run in parallel (different workspaces, both only need T1/T2).
 | 1 | P02 | Local Medplum stack + `apps/bots` skeleton + seed | Platform | M | MP | [P02](phases/P02-local-medplum.md) |
 | 1 | P03 | `@asc/fhir` package (types, identifiers, builders) | Domain | S | MP+NEW | [P03](phases/P03-fhir-package.md) |
 | 1 | P04 | Medplum client wiring (web, api, worker) | Platform | S | MP | [P04](phases/P04-medplum-clients.md) |
-| 1 | P05 | Auth + roles: modular core, sub-phases P05a–P05j (P05a–P05g and P02 done, P05h next; see [`PROGRESS.md`](../../PROGRESS.md)) | Platform | M ×10 (S/M each) | MP+NEW | [P05](phases/P05-auth-roles.md) |
+| 1 | P05 | Auth + roles: modular core, sub-phases P05a–P05j (P05a–P05h and P02 done, P05i–P05j wait for P03/P04; see [`PROGRESS.md`](../../PROGRESS.md)) | Platform | M ×10 (S/M each) | MP+NEW | [P05](phases/P05-auth-roles.md) |
 | 1 | P06 | Azure infra (Terraform) — dev env | Infra | M | MP | [P06](phases/P06-azure-infra.md) |
 | 2 | P07 | `@asc/clinical-rules` + case state machine | Domain | M | NEW (+MS) | [P07](phases/P07-clinical-rules.md) |
 | 2 | P08 | Terminology + FSH profiles | Domain | M | MP+NEW | [P08](phases/P08-terminology-profiles.md) |
