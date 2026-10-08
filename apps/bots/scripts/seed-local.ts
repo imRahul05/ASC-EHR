@@ -2,7 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { ROLE_TEMPLATES } from "@asc/authz";
 
 import { loadSeedEnv, signInToProject } from "./lib/medplum-session.js";
-import { mergeDemoUsers, seedDemoUsers, seedRolePolicies } from "./lib/seed-access.js";
+import { mergeDemoUsers, parseServicePolicies, seedDemoUsers, seedRolePolicies, seedServicePolicies } from "./lib/seed-access.js";
 import {
   PROJECT_NAME,
   parseClientAppDefinitions,
@@ -47,7 +47,10 @@ say(`demo users: ${Object.keys(users).length} (${Object.values(newUsers).filter(
 const definitions = parseClientAppDefinitions(
   JSON.parse(readFileSync(new URL("../../../infra/medplum/client-apps.json", import.meta.url), "utf8")),
 );
-const clientApplications = await seedClientApplications(client, projectId, definitions);
+const servicePolicies = parseServicePolicies(JSON.parse(readFileSync(new URL("../../../infra/medplum/service-policies.json", import.meta.url), "utf8")));
+const servicePolicyIds = await seedServicePolicies(client, servicePolicies);
+say(`service policies: ${Object.keys(servicePolicyIds).join(", ")}`);
+const clientApplications = await seedClientApplications(client, projectId, definitions, servicePolicyIds);
 for (const [key, app] of Object.entries(clientApplications)) say(`client application ${key}: ${app.id}`);
 
 // Ids and the generated secrets and demo passwords for local use. Git-ignored; never printed.

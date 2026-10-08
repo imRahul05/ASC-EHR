@@ -26,18 +26,52 @@ export async function seedRolePolicies(medplum: Medplum, templates: readonly Rol
   const byRole: Record<string, string> = {};
   for (const template of templates) {
     // The compiler's readonly arrays are plain JSON; Medplum's generated types are mutable.
-    const compiled = JSON.parse(JSON.stringify(compilePolicy(template))) as AccessPolicy;
-    const [existing] = await medplum.searchResources("AccessPolicy", { "name:exact": compiled.name ?? "" });
-    let policy = existing;
-    if (policy === undefined) {
-      policy = await medplum.createResource(compiled);
-    } else if (!isDeepStrictEqual(policy.resource, compiled.resource)) {
-      policy = await medplum.updateResource({ ...policy, ...compiled });
-    }
-    if (policy.id === undefined) throw new Error("Medplum did not return an access policy id");
-    byRole[template.key] = policy.id;
+    byRole[template.key] = await upsertPolicy(medplum, JSON.parse(JSON.stringify(compilePolicy(template))) as AccessPolicy);
   }
   return byRole;
+}
+
+/** Creates the policy, rewrites it when its rules differ, leaves it alone otherwise. Returns its id. */
+async function upsertPolicy(medplum: Medplum, wanted: AccessPolicy): Promise<string> {
+  const [existing] = await medplum.searchResources("AccessPolicy", { "name:exact": wanted.name ?? "" });
+  let policy = existing;
+  if (policy === undefined) {
+    policy = await medplum.createResource(wanted);
+  } else if (!isDeepStrictEqual(policy.resource, wanted.resource)) {
+    policy = await medplum.updateResource({ ...policy, ...wanted });
+  }
+  if (policy.id === undefined) throw new Error("Medplum did not return an access policy id");
+  return policy.id;
+}
+
+type ServicePolicy = { readonly name: string; readonly description: string; readonly resource: NonNullable<AccessPolicy["resource"]> };
+
+/** Reads and checks `infra/medplum/service-policies.json`: named, non-empty, and never a wildcard resource type. */
+export function parseServicePolicies(json: unknown): ServicePolicy[] {
+  const list = (json as { policies?: unknown } | null)?.policies;
+  if (!Array.isArray(list) || list.length === 0) throw new Error("service-policies.json needs a non-empty policies list");
+  return list.map((entry: unknown, index) => {
+    const item = entry as Record<string, unknown>;
+    const { name, description, resource } = item;
+    if (typeof name !== "string" || name.length === 0) throw new Error(`service policy #${index} needs a "name" string`);
+    if (typeof description !== "string" || description.length === 0) throw new Error(`service policy ${name} needs a "description" string`);
+    if (!Array.isArray(resource) || resource.length === 0) throw new Error(`service policy ${name} needs a non-empty "resource" list`);
+    for (const rule of resource as { resourceType?: unknown }[]) {
+      if (typeof rule.resourceType !== "string" || rule.resourceType.length === 0 || rule.resourceType === "*") {
+        throw new Error(`service policy ${name}: a rule needs a named resource type, never a wildcard`);
+      }
+    }
+    return { name, description, resource: resource as ServicePolicy["resource"] };
+  });
+}
+
+/** Service policies (API, worker) by name. The same file is what staging and production provision (P06). */
+export async function seedServicePolicies(medplum: Medplum, policies: readonly ServicePolicy[]): Promise<Record<string, string>> {
+  const byName: Record<string, string> = {};
+  for (const policy of policies) {
+    byName[policy.name] = await upsertPolicy(medplum, { resourceType: "AccessPolicy", name: policy.name, resource: [...policy.resource] });
+  }
+  return byName;
 }
 
 /** A reserved example domain: nothing can be delivered to it. */

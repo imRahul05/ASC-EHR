@@ -5,6 +5,7 @@
  */
 
 import { randomBytes } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import type { MedplumClient } from "@medplum/core";
 
 export const SEED_SYSTEM = "urn:asc-ehr:seed";
@@ -27,6 +28,8 @@ type ClientAppDefinition = {
   readonly redirectUri?: string;
   readonly secret: boolean;
   readonly membership: boolean;
+  /** Name of the service policy (`infra/medplum/service-policies.json`) the membership holds. Required with a membership. */
+  readonly policy?: string;
 };
 
 export const SYNTHETIC_TAG = [{ system: SEED_SYSTEM, code: "synthetic", display: "Synthetic seed data" }];
@@ -110,6 +113,7 @@ export function parseClientAppDefinitions(json: unknown): ClientAppDefinition[] 
       if (typeof value !== "string" || value.length === 0) throw new Error(`client application #${index} needs a "${name}" string`);
       return value;
     };
+    const policy = typeof item.policy === "string" && item.policy.length > 0 ? item.policy : undefined;
     const flag = (name: string) => {
       const value = item[name];
       if (typeof value !== "boolean") throw new Error(`client application #${index} needs a "${name}" boolean`);
@@ -123,6 +127,7 @@ export function parseClientAppDefinitions(json: unknown): ClientAppDefinition[] 
       ...(redirectUri === undefined ? {} : { redirectUri }),
       secret: flag("secret"),
       membership: flag("membership"),
+      ...(policy === undefined ? {} : { policy }),
     };
   });
 }
@@ -133,16 +138,15 @@ export const newSecret = () => randomBytes(24).toString("hex");
  * Creates the client applications. Medplum does not generate a secret for an
  * application created through the API, so the seed sets one (once; an existing
  * secret is kept). A membership ties a confidential client to the project so its
- * client credentials work. No access policy yet: P05h and P04 narrow these.
- *
- * TODO(P05h): give `asc-ehr-api` and `asc-ehr-worker` least-privilege AccessPolicies (no full-project
- * access) and prove it with a policy test. These full-access clients are for local development only:
- * never use them in another environment; staging and production clients get narrow policies from day one.
+ * client credentials work, and it always holds a narrow service policy: a client
+ * with a membership and no policy would have full project access, so the seed
+ * refuses to create one. An existing membership is corrected to the wanted policy.
  */
 export async function seedClientApplications(
   medplum: Medplum,
   projectId: string,
   definitions: readonly ClientAppDefinition[],
+  policyIds: Readonly<Record<string, string>>,
   secretFor: () => string = newSecret,
 ) {
   const result: Record<string, { id: string; secret?: string }> = {};
@@ -164,14 +168,23 @@ export async function seedClientApplications(
       app = await medplum.updateResource({ ...app, secret: secretFor() });
     }
     if (definition.membership) {
-      const memberships = await medplum.searchResources("ProjectMembership", { user: `ClientApplication/${app.id}` });
-      if (memberships.length === 0) {
+      if (definition.policy === undefined) {
+        throw new Error(`client application ${definition.key} has a membership but no policy: refusing to create a full-access client`);
+      }
+      const policyId = policyIds[definition.policy];
+      if (policyId === undefined) throw new Error(`policy ${definition.policy} of client application ${definition.key} was not seeded`);
+      const access = [{ policy: { reference: `AccessPolicy/${policyId}` } }];
+      const [membership] = await medplum.searchResources("ProjectMembership", { user: `ClientApplication/${app.id}` });
+      if (membership === undefined) {
         await medplum.createResource({
           resourceType: "ProjectMembership",
           project: { reference: `Project/${projectId}` },
           user: { reference: `ClientApplication/${app.id}` },
           profile: { reference: `ClientApplication/${app.id}` },
+          access,
         });
+      } else if (!isDeepStrictEqual(membership.access, access)) {
+        await medplum.updateResource({ ...membership, access });
       }
     }
     result[definition.key] = { id: app.id, ...(definition.secret && app.secret !== undefined ? { secret: app.secret } : {}) };

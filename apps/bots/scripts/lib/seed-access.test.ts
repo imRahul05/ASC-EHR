@@ -2,7 +2,9 @@ import { compilePolicy, ROLE_TEMPLATES } from "@asc/authz";
 import { describe, expect, it } from "vitest";
 
 import { fakeMedplum, type Resource } from "./fake-medplum.js";
-import { demoEmail, mergeDemoUsers, seedDemoUsers, seedRolePolicies } from "./seed-access.js";
+import { readFileSync } from "node:fs";
+
+import { demoEmail, mergeDemoUsers, parseServicePolicies, seedDemoUsers, seedRolePolicies, seedServicePolicies } from "./seed-access.js";
 import { SECOND_FACILITY_KEY, seedFacility, seedPractitioners, staffRoleKeys } from "./seed.js";
 
 const staff = ROLE_TEMPLATES.filter((template) => staffRoleKeys(ROLE_TEMPLATES).includes(template.key));
@@ -186,5 +188,41 @@ describe("mergeDemoUsers", () => {
     for (const previous of [undefined, null, "text", {}, { users: "text" }, { users: { rn: 3 } }]) {
       expect(mergeDemoUsers(previous, created).rn).toEqual({ email: "demo-rn@example.com" });
     }
+  });
+});
+
+describe("service policies (apps/api and apps/worker)", () => {
+  const shipped = parseServicePolicies(JSON.parse(readFileSync(new URL("../../../../infra/medplum/service-policies.json", import.meta.url), "utf8")));
+  const clients = JSON.parse(readFileSync(new URL("../../../../infra/medplum/client-apps.json", import.meta.url), "utf8")) as { clientApplications: { membership: boolean; policy?: string }[] };
+
+  it("is named by every client that has a membership, and by no one else", () => {
+    const named = clients.clientApplications.filter((client) => client.membership).map((client) => client.policy).sort();
+    expect(named).toEqual(shipped.map((policy) => policy.name).sort());
+  });
+
+  it("gives the API a read-only directory and no patient data, and the worker only Task", () => {
+    const api = shipped.find((policy) => policy.name.startsWith("api-service"));
+    expect(api?.resource.map((rule) => rule.resourceType).sort()).toEqual(["AccessPolicy", "Organization", "PractitionerRole"]);
+    expect(api?.resource.every((rule) => rule.readonly === true)).toBe(true);
+    expect(shipped.find((policy) => policy.name.startsWith("system-worker"))?.resource.map((rule) => rule.resourceType)).toEqual(["Task"]);
+  });
+
+  it("rejects wildcards and malformed files", () => {
+    expect(() => parseServicePolicies({})).toThrow("non-empty policies");
+    expect(() => parseServicePolicies({ policies: [{ name: "x", description: "d", resource: [{ resourceType: "*" }] }] })).toThrow("never a wildcard");
+    expect(() => parseServicePolicies({ policies: [{ name: "x", description: "d", resource: [] }] })).toThrow("non-empty");
+    expect(() => parseServicePolicies({ policies: [{ description: "d", resource: [{ resourceType: "Task" }] }] })).toThrow('"name"');
+  });
+
+  it("is created once and restored if edited by hand", async () => {
+    const { medplum, store } = counted();
+    const first = await seedServicePolicies(medplum, shipped);
+    expect(await seedServicePolicies(medplum, shipped)).toEqual(first);
+    expect(policiesIn(store)).toHaveLength(shipped.length);
+    const worker = store.find((resource) => resource.id === first["system-worker-v1"]);
+    if (worker === undefined) throw new Error("worker policy missing");
+    worker.resource = [{ resourceType: "*" }];
+    await seedServicePolicies(medplum, shipped);
+    expect(store.find((resource) => resource.id === first["system-worker-v1"])?.resource).toEqual([{ resourceType: "Task" }]);
   });
 });

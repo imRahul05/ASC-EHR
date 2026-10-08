@@ -11,16 +11,18 @@
     {
       "key": "api",
       "name": "asc-ehr-api",
-      "description": "apps/api: calls Medplum on behalf of signed-in users.",
+      "description": "apps/api's own identity: reads the role directory. User commands use the signed-in user's token.",
       "secret": true,
-      "membership": true
+      "membership": true,
+      "policy": "api-service-v1"
     },
     {
       "key": "worker",
       "name": "asc-ehr-worker",
       "description": "apps/worker: background jobs with the client credentials grant.",
       "secret": true,
-      "membership": true
+      "membership": true,
+      "policy": "system-worker-v1"
     }
   ]
 }
