@@ -72,7 +72,7 @@
 | P05f | Durable audit | done | P05e | Claude (bg job 640ebd7d) | `phase/P05f-durable-audit` | [#38](https://github.com/imRahul05/ASC-EHR/pull/38) | 2026-10-06 | 2026-10-07 |
 | P05g | API security spine | done | P05a, P05e, P05f | Claude (bg job 640ebd7d) | `phase/P05g-api-security-spine` | [#40](https://github.com/imRahul05/ASC-EHR/pull/40) | 2026-10-07 | 2026-10-07 |
 | P05h | Medplum hardening, spikes, seed, policy test | done | P05c, P02 | Claude (bg job 7f0d4791) | `phase/P05h-medplum-hardening` | [#47](https://github.com/imRahul05/ASC-EHR/pull/47) | 2026-10-08 2026-10-08 |
-| P05i | Medplum identity in API | pending | P05g, P05h, P04 | | | | | |
+| P05i | Medplum identity in API | blocked ([#57](https://github.com/imRahul05/ASC-EHR/issues/57) picks the commit list; also needs P04) | P05g, P05h, P04 | | | | | |
 | P05j | Web sign-in | pending | P05d, P05i, P04 | | | | | |
 
 ## 3. Done log (newest first)

@@ -53,6 +53,7 @@ None (Terraform providers: `azurerm` latest 4.x; pin in `versions.tf`).
 - [ ] Medplum config in every environment carries the P05h hardening: `registerEnabled: false`, `saveAuditEvents: true`, `storeBotInput: false`, super-admin credentials from Key Vault (Medplum defaults are unsafe — see [P05h](P05-auth-roles.md#p05h--medplum-hardening-spikes-seed-policy-test--m--needs-p05c-p02))
 - [ ] Service clients (`asc-ehr-api`, `asc-ehr-worker`) are provisioned from `infra/medplum/service-policies.json`, never with full project access, and every Medplum config passes the hardening test (`apps/bots/scripts/lib/hardening.test.ts`); P05h decisions 2 and 8
 - [ ] API behind Front Door or Application Gateway: set `trustProxy` to the proxy range and revisit `RATE_LIMIT_IP_MAX` (1200). Until then the per-address flood limit sees the proxy's address and is coarse ([P05g decisions](P05-auth-roles.md), item 9)
+- [ ] Staff roles in staging and production are assigned only through the role-assignment reconciler (or, until it exists, an ops script run with ops credentials that writes the membership and the `PractitionerRole` together). No staff role, `admin` included, can write `PractitionerRole` (PR #61), and editing a membership in the Medplum App by hand creates drift ([P05 follow-ups](P05-auth-roles.md), reconciler row)
 - [ ] PROGRESS.md updated
 
 ## Open questions
