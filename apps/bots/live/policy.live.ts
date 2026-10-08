@@ -1,5 +1,5 @@
-import { ROLE_TEMPLATES } from "@asc/authz";
-import type { Bundle, Composition, Location, Patient } from "@medplum/fhirtypes";
+import { ROLE_TEMPLATE_TAG_SYSTEM, ROLE_TEMPLATES } from "@asc/authz";
+import type { Bundle, Composition, Location, Patient, PractitionerRole } from "@medplum/fhirtypes";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { type Caller, liveContext, seedOutput, spikeCondition, spikeIdentifier } from "./harness.js";
@@ -87,6 +87,43 @@ describe.each(staff)("policy: $key", (template) => {
     };
     expect(await edit(ids.draft1 ?? "")).toBe(composition.readonly === true ? 403 : 200);
     expect(await edit(ids.final1 ?? "")).toBe(composition.readonly === true || composition.lockWhenFinal === true ? 403 : 200);
+  });
+});
+
+// Role grants are what the API builds capabilities from (ADR 2026-10-08, decision 4), so no staff role may
+// write one, not even admin: a writable grant would let a user give itself any role at any facility.
+describe.each(staff)("policy: role grants for $key", (template) => {
+  const profile = () => `Practitioner/${seeded.practitioners[template.key] ?? ""}`;
+  const ownGrants = async () =>
+    (((await get(template.key, `fhir/R4/PractitionerRole?practitioner=${encodeURIComponent(profile())}&active=true`)).body as Bundle<PractitionerRole>).entry ?? [])
+      .map((entry) => entry.resource as PractitionerRole)
+      .filter((role) => role.code?.some((code) => code.coding?.some((coding) => coding.system === ROLE_TEMPLATE_TAG_SYSTEM)));
+
+  it("reads its own active grant", async () => {
+    const codes = (await ownGrants()).flatMap((role) => role.code?.flatMap((code) => code.coding?.map((coding) => coding.code)) ?? []);
+    expect(codes).toEqual([template.key]);
+  });
+
+  it("gets 403 creating a grant for itself at the other facility", async () => {
+    const grant: PractitionerRole = {
+      resourceType: "PractitionerRole",
+      active: true,
+      practitioner: { reference: profile() },
+      organization: { reference: `Organization/${seeded.secondFacilityId}` },
+      code: [{ coding: [{ system: ROLE_TEMPLATE_TAG_SYSTEM, code: "gi-physician" }] }],
+    };
+    const created = await who(template.key).request("POST", "fhir/R4/PractitionerRole", grant);
+    if (created.status === 201) await ctx.admin.deleteResource("PractitionerRole", (created.body as PractitionerRole).id ?? "");
+    expect(created.status).toBe(403);
+  });
+
+  it("gets 403 editing its own grant", async () => {
+    const [own] = await ownGrants();
+    expect(own).toBeDefined();
+    const moved = { ...own, organization: { reference: `Organization/${seeded.secondFacilityId}` } };
+    const updated = await who(template.key).request("PUT", `fhir/R4/PractitionerRole/${own?.id ?? ""}`, moved);
+    if (updated.status === 200) await ctx.admin.updateResource(own as PractitionerRole);
+    expect(updated.status).toBe(403);
   });
 });
 
