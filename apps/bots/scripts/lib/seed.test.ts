@@ -11,58 +11,7 @@ import {
   staffRoleKeys,
   stringField,
 } from "./seed.js";
-
-type Resource = { resourceType: string; id?: string; [key: string]: unknown };
-
-/** An in-memory stand-in for the Medplum client: just the calls the seed makes. */
-function fakeMedplum(initial: Resource[] = []) {
-  const store: Resource[] = [...initial];
-  let counter = 0;
-  const posts: string[] = [];
-  const withId = (resource: Resource): Resource => ({ ...resource, id: resource.id ?? `id-${++counter}` });
-
-  const medplum = {
-    createResourceIfNoneExist: (resource: Resource, query: string) => {
-      const value = query.split("|")[1];
-      const found = store.find(
-        (candidate) =>
-          candidate.resourceType === resource.resourceType &&
-          (candidate.identifier as { value: string }[] | undefined)?.some((identifier) => identifier.value === value),
-      );
-      if (found) return Promise.resolve(found);
-      const created = withId(resource);
-      store.push(created);
-      return Promise.resolve(created);
-    },
-    createResource: (resource: Resource) => {
-      const created = withId(resource);
-      store.push(created);
-      return Promise.resolve(created);
-    },
-    updateResource: (resource: Resource) => {
-      const index = store.findIndex((candidate) => candidate.id === resource.id);
-      store[index] = resource;
-      return Promise.resolve(resource);
-    },
-    searchResources: (type: string, query: Record<string, string>) =>
-      Promise.resolve(
-        store.filter((candidate) => {
-          if (candidate.resourceType !== type) return false;
-          if (query["name:exact"] !== undefined) return candidate.name === query["name:exact"];
-          if (query.user !== undefined) return (candidate.user as { reference: string } | undefined)?.reference === query.user;
-          return true;
-        }),
-      ),
-    fhirUrl: (...parts: string[]) => new URL(parts.join("/"), "http://fake.test/fhir/R4/"),
-    post: (url: URL | string, body: unknown) => {
-      posts.push(String(url));
-      const created = withId({ resourceType: "Project", name: (body as { parameter: { valueString: string }[] }).parameter[0]?.valueString });
-      store.push(created);
-      return Promise.resolve(created);
-    },
-  };
-  return { medplum: medplum as never, store, posts };
-}
+import { fakeMedplum, type Resource } from "./fake-medplum.js";
 
 const countOf = (store: Resource[], type: string) => store.filter((resource) => resource.resourceType === type).length;
 
@@ -144,6 +93,8 @@ describe("client application definitions", () => {
     for (const key of ["api", "worker"]) {
       expect(definitions.find((definition) => definition.key === key)).toMatchObject({ secret: true, membership: true });
     }
+    // Any client with a membership must name a policy, or it would have full project access.
+    expect(definitions.filter((definition) => definition.membership).every((definition) => definition.policy !== undefined)).toBe(true);
   });
 
   it("rejects a malformed definition file", () => {
@@ -157,6 +108,7 @@ describe("client application definitions", () => {
 });
 
 describe("seedClientApplications", () => {
+  const policyIds = { "api-service-v1": "policy-api", "system-worker-v1": "policy-worker" };
   const definitions = parseClientAppDefinitions(
     JSON.parse(readFileSync(new URL("../../../../infra/medplum/client-apps.json", import.meta.url), "utf8")),
   );
@@ -169,7 +121,7 @@ describe("seedClientApplications", () => {
   it("gives confidential clients a secret and a membership, and the public web client neither", async () => {
     const { medplum, store } = fakeMedplum();
     const { secretFor, secrets } = counter();
-    const apps = await seedClientApplications(medplum, "project-1", definitions, secretFor);
+    const apps = await seedClientApplications(medplum, "project-1", definitions, policyIds, secretFor);
     expect(apps.web).toEqual({ id: expect.any(String) });
     expect(apps.api?.secret).toBe(secrets[0]);
     expect(apps.worker?.secret).toBe(secrets[1]);
@@ -182,12 +134,38 @@ describe("seedClientApplications", () => {
     expect(store.find((r) => r.name === "asc-ehr-web")).toMatchObject({ pkceOptional: false });
   });
 
+  it("gives each membership its narrow service policy, never a full-access client", async () => {
+    const { medplum, store } = fakeMedplum();
+    const apps = await seedClientApplications(medplum, "project-1", definitions, policyIds);
+    const accessOf = (clientId: string | undefined) =>
+      store.find((r) => r.resourceType === "ProjectMembership" && (r.user as { reference: string }).reference === `ClientApplication/${clientId}`)?.access;
+    expect(accessOf(apps.api?.id)).toEqual([{ policy: { reference: "AccessPolicy/policy-api" } }]);
+    expect(accessOf(apps.worker?.id)).toEqual([{ policy: { reference: "AccessPolicy/policy-worker" } }]);
+  });
+
+  it("refuses a client with a membership and no policy, or a policy that was not seeded", async () => {
+    const { medplum } = fakeMedplum();
+    const withoutPolicy = definitions.map(({ policy: _policy, ...rest }) => rest);
+    await expect(seedClientApplications(medplum, "project-1", withoutPolicy, policyIds)).rejects.toThrow("refusing to create a full-access client");
+    await expect(seedClientApplications(medplum, "project-1", definitions, {})).rejects.toThrow("was not seeded");
+  });
+
+  it("narrows a membership that was created before and has no access list (full project access)", async () => {
+    const { medplum, store } = fakeMedplum([
+      { resourceType: "ClientApplication", id: "app-api", name: "asc-ehr-api", description: "old", secret: "kept" },
+      { resourceType: "ProjectMembership", id: "m-api", user: { reference: "ClientApplication/app-api" } },
+    ]);
+    await seedClientApplications(medplum, "project-1", definitions, policyIds);
+    expect(store.find((r) => r.id === "m-api")?.access).toEqual([{ policy: { reference: "AccessPolicy/policy-api" } }]);
+    expect(store.filter((r) => r.resourceType === "ProjectMembership" && (r.user as { reference: string }).reference === "ClientApplication/app-api")).toHaveLength(1);
+  });
+
   it("changes nothing on a second run: same ids, same secrets, no new memberships", async () => {
     const { medplum, store } = fakeMedplum();
     const { secretFor, secrets } = counter();
-    const first = await seedClientApplications(medplum, "project-1", definitions, secretFor);
+    const first = await seedClientApplications(medplum, "project-1", definitions, policyIds, secretFor);
     const sizeAfterFirst = store.length;
-    const second = await seedClientApplications(medplum, "project-1", definitions, secretFor);
+    const second = await seedClientApplications(medplum, "project-1", definitions, policyIds, secretFor);
     expect(second).toEqual(first);
     expect(store).toHaveLength(sizeAfterFirst);
     expect(secrets).toHaveLength(2); // generated once per confidential client, never rotated
@@ -199,7 +177,7 @@ describe("seedClientApplications", () => {
       { resourceType: "ClientApplication", id: "app-web", name: "asc-ehr-web", redirectUri: "http://localhost:9999/old", pkceOptional: false, description: "old" },
     ]);
     const { secretFor, secrets } = counter();
-    const apps = await seedClientApplications(medplum, "project-1", definitions, secretFor);
+    const apps = await seedClientApplications(medplum, "project-1", definitions, policyIds, secretFor);
     expect(apps.api).toEqual({ id: "app-api", secret: secrets[0] });
     expect(apps.web?.id).toBe("app-web");
     expect(store.find((r) => r.id === "app-web")).toMatchObject({ redirectUri: "http://localhost:3000/signin/callback" });

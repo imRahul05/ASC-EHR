@@ -1,0 +1,18 @@
+{
+  "policies": [
+    {
+      "name": "api-service-v1",
+      "description": "apps/api's own identity. Every user command forwards the signed-in user's token, so this client only reads the directory the identity adapter builds grants from (PractitionerRole, AccessPolicy) and facility names (Organization). It reads no patient data and writes nothing.",
+      "resource": [
+        { "resourceType": "AccessPolicy", "readonly": true },
+        { "resourceType": "Organization", "readonly": true },
+        { "resourceType": "PractitionerRole", "readonly": true }
+      ]
+    },
+    {
+      "name": "system-worker-v1",
+      "description": "apps/worker. Only the resource types its jobs touch: worklist Tasks (P12) to start with. No job reads Medplum today; a job that needs another type adds it here in the same PR, with a policy test.",
+      "resource": [{ "resourceType": "Task" }]
+    }
+  ]
+}

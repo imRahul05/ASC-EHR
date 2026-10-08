@@ -28,3 +28,4 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 - [Prompt caching for agent prompt prefixes](2026-09-27-prompt-caching-for-agent-prefixes.md) (proposed, 2026-09-27)
 - [Env-driven API URL and CORS allowlist](2026-09-30-env-driven-api-url-and-cors-allowlist.md) (accepted, 2026-09-30)
 - [Medplum as identity and access platform; tenant = Medplum Project](2026-10-03-medplum-as-identity-and-access-platform.md) (proposed, 2026-10-03)
+- [Medplum 5.1.42 spike results (S1, S1b, S6, S7) and the fallbacks we adopt](2026-10-08-medplum-spike-results-and-fallbacks.md) (proposed, 2026-10-08)
