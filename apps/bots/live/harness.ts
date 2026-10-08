@@ -59,9 +59,9 @@ export async function userLogin(baseUrl: string, credentials: { email: string; p
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ grant_type: "authorization_code", code, code_verifier: verifier, ...(clientId === undefined ? {} : { client_id: clientId }) }),
   });
-  const body = (await response.json()) as { access_token?: string; id_token?: string; expires_in?: number };
+  const body = (await response.json()) as { access_token?: string; id_token?: string; refresh_token?: string; expires_in?: number };
   if (body.access_token === undefined) throw new Error(`token exchange failed (${response.status})`);
-  return { accessToken: body.access_token, idToken: body.id_token, expiresIn: body.expires_in };
+  return { accessToken: body.access_token, idToken: body.id_token, refreshToken: body.refresh_token, expiresIn: body.expires_in };
 }
 
 /** The decoded payload of a JWT (no verification: only for reading claims in tests). */
@@ -130,5 +130,33 @@ export function liveContext() {
     return { caller: caller(baseUrl, await clientCredentialsToken(baseUrl, app.id, app.secret)), membership, app };
   }
 
-  return { baseUrl, projectId, admin, facility, policy, rolePolicy, access, persona };
+  /**
+   * Invites a synthetic practitioner with a generated password (`sendEmail: false`, so they can sign in at once).
+   * The email is new on every run; call `remove` afterwards so the project does not collect spike users.
+   */
+  async function inviteUser(label: string, entries: NonNullable<ProjectMembership["access"]>) {
+    const email = `spike-${label}-${randomBytes(4).toString("hex")}@example.com`;
+    const password = randomBytes(18).toString("base64url");
+    const membership: ProjectMembership = await admin.post(`admin/projects/${projectId}/invite`, {
+      resourceType: "Practitioner",
+      firstName: "Spike",
+      lastName: label,
+      email,
+      password,
+      sendEmail: false,
+      membership: { access: entries },
+    });
+    const profileId = membership.profile?.reference?.split("/")[1];
+    return {
+      email,
+      password,
+      membership,
+      async remove() {
+        if (membership.id !== undefined) await admin.deleteResource("ProjectMembership", membership.id);
+        if (profileId !== undefined) await admin.deleteResource("Practitioner", profileId);
+      },
+    };
+  }
+
+  return { baseUrl, projectId, admin, facility, policy, rolePolicy, access, persona, inviteUser };
 }
