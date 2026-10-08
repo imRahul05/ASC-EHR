@@ -87,6 +87,8 @@ type DemoUserInput = {
   /** Practitioner id by role key (from `seedPractitioners`). */
   readonly practitioners: Readonly<Record<string, string>>;
   readonly newPassword?: () => string;
+  /** Start date (`YYYY-MM-DD`) for a grant written for the first time; defaults to today. */
+  readonly today?: () => string;
 };
 
 /** The membership's access entry for a role: facility-scoped roles carry the `facility` parameter, all-site roles do not. */
@@ -143,10 +145,16 @@ export async function seedDemoUsers(
       users[template.key] = { email };
     }
 
+    // The grant is `active` with a start date: the identity adapter reads only active grants
+    // (`PractitionerRole?practitioner=<profile>&active=true`), so a grant without it would give no capabilities.
+    // An existing grant that is not active, or has no start, is repaired; its start date is kept when present.
     const scope = template.facilityScoped ? input.facilityId : "all";
-    await medplum.createResourceIfNoneExist(
+    const start = (input.today ?? (() => new Date().toISOString().slice(0, 10)))();
+    const grant = await medplum.createResourceIfNoneExist(
       {
         resourceType: "PractitionerRole",
+        active: true,
+        period: { start },
         practitioner: { reference: profile },
         ...(template.facilityScoped ? { organization: { reference: `Organization/${input.facilityId}` } } : {}),
         code: [{ coding: [{ system: ROLE_TEMPLATE_TAG_SYSTEM, code: template.key }] }],
@@ -155,6 +163,9 @@ export async function seedDemoUsers(
       },
       conditionOf(`role-${template.key}-${scope}`),
     );
+    if (grant.active !== true || grant.period?.start === undefined) {
+      await medplum.updateResource({ ...grant, active: true, period: { ...grant.period, start: grant.period?.start ?? start } });
+    }
   }
   return users;
 }
