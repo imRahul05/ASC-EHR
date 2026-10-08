@@ -204,3 +204,10 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **Rule:** When inputs form a pair (start/end, from/to), validate the relation as well as each value, in every builder that takes the pair, and use one rule (a FHIR Period may not end before it starts; equal is allowed). When a check has an exemption, keep the weaker form of the check for the exempt case (no tag needed, but a tag that is present must match). Before changing code for a review claim, reproduce it; one claim on this PR (a trailing `-` in the id character class) was checked and was not a defect.
 - **How to check:** `pnpm --filter @asc/fhir test` ("refuses a period that ends before it starts", "refuses one tagged for another").
 - **Guarded by:** those tests, and the 100 % coverage gate of `@asc/fhir` (a new branch without a test fails `pnpm test`).
+
+### LM-022 — Check the pinned library's types for deprecations before building on a field
+- **Seen:** 1 · 2026-10-08 · PR #56 (P03), found in an architecture review
+- **What went wrong:** `facilityMeta()` stamped the singular `meta.account`, copied from the P05h spikes. `@medplum/fhirtypes` 5.1.42 (the pinned version) marks it `@deprecated Use Meta.accounts instead`, and the plural field is what lets a resource (a Patient seen at two facilities) belong to more than one facility. Every builder, and every stored resource, would have needed a migration later.
+- **Rule:** Before a field is written into every stored resource, read its definition in the pinned type package and prefer the non-deprecated form. Prove the replacement enforces the same way against the live server before switching.
+- **How to check:** `pnpm --filter @asc/fhir test` ("never writes the deprecated singular meta.account", "refuses the deprecated meta.account ..."); `pnpm --filter bots test:medplum` (`s1-accounts.live.ts`).
+- **Guarded by:** the `@asc/fhir` source test and the live spike.
