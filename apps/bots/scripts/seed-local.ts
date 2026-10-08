@@ -1,10 +1,12 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { ROLE_TEMPLATES } from "@asc/authz";
 
 import { loadSeedEnv, signInToProject } from "./lib/medplum-session.js";
+import { mergeDemoUsers, seedDemoUsers, seedRolePolicies } from "./lib/seed-access.js";
 import {
   PROJECT_NAME,
   parseClientAppDefinitions,
+  SECOND_FACILITY_KEY,
   seedClientApplications,
   seedFacility,
   seedPractitioners,
@@ -26,10 +28,21 @@ const { client, projectId, created } = await signInToProject(loadSeedEnv());
 say(`project ${PROJECT_NAME}: ${projectId} (${created ? "created" : "already there"})`);
 
 const facilityId = await seedFacility(client);
-say(`facility: ${facilityId}`);
+const secondFacilityId = await seedFacility(client, SECOND_FACILITY_KEY, "Demo Surgery Center 2 (synthetic)");
+say(`facilities: ${facilityId}, ${secondFacilityId}`);
 
 const practitioners = await seedPractitioners(client, staffRoleKeys(ROLE_TEMPLATES));
 say(`practitioners: ${Object.keys(practitioners).length} (one per staff role)`);
+
+const staffTemplates = ROLE_TEMPLATES.filter((template) => staffRoleKeys(ROLE_TEMPLATES).includes(template.key));
+const policies = await seedRolePolicies(client, staffTemplates);
+say(`access policies: ${Object.keys(policies).length} (one per staff role template)`);
+
+const outputPath = new URL("../.seed-output.json", import.meta.url);
+const previousOutput: unknown = existsSync(outputPath) ? JSON.parse(readFileSync(outputPath, "utf8")) : undefined;
+const newUsers = await seedDemoUsers(client, staffTemplates, { projectId, facilityId, policies, practitioners });
+const users = mergeDemoUsers(previousOutput, newUsers);
+say(`demo users: ${Object.keys(users).length} (${Object.values(newUsers).filter((user) => user.password !== undefined).length} new)`);
 
 const definitions = parseClientAppDefinitions(
   JSON.parse(readFileSync(new URL("../../../infra/medplum/client-apps.json", import.meta.url), "utf8")),
@@ -37,7 +50,10 @@ const definitions = parseClientAppDefinitions(
 const clientApplications = await seedClientApplications(client, projectId, definitions);
 for (const [key, app] of Object.entries(clientApplications)) say(`client application ${key}: ${app.id}`);
 
-// Ids and the generated secrets for local use. Git-ignored; never printed.
-const outputPath = new URL("../.seed-output.json", import.meta.url);
-writeFileSync(outputPath, `${JSON.stringify({ projectId, facilityId, practitioners, clientApplications }, null, 2)}\n`, { mode: 0o600 });
+// Ids and the generated secrets and demo passwords for local use. Git-ignored; never printed.
+writeFileSync(
+  outputPath,
+  `${JSON.stringify({ projectId, facilityId, secondFacilityId, practitioners, policies, users, clientApplications }, null, 2)}\n`,
+  { mode: 0o600 },
+);
 say("wrote apps/bots/.seed-output.json (client ids and secrets, git-ignored)");

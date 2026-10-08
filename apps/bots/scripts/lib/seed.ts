@@ -29,9 +29,9 @@ type ClientAppDefinition = {
   readonly membership: boolean;
 };
 
-const SYNTHETIC_TAG = [{ system: SEED_SYSTEM, code: "synthetic", display: "Synthetic seed data" }];
-const identifierOf = (value: string) => [{ system: SEED_SYSTEM, value }];
-const conditionOf = (value: string) => `identifier=${SEED_SYSTEM}|${value}`;
+export const SYNTHETIC_TAG = [{ system: SEED_SYSTEM, code: "synthetic", display: "Synthetic seed data" }];
+export const identifierOf = (value: string) => [{ system: SEED_SYSTEM, value }];
+export const conditionOf = (value: string) => `identifier=${SEED_SYSTEM}|${value}`;
 
 /** A string property of a response body whose shape Medplum does not type (`post` returns any). */
 export function stringField(body: unknown, field: string): string | undefined {
