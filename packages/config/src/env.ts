@@ -64,7 +64,23 @@ export const gitShaSchema = z
  * Medplum connection for server processes (api, worker). All optional until the
  * Medplum clients are wired (P04). `MEDPLUM_CLIENT_SECRET` is a secret: never log it.
  */
+/**
+ * Optional override of the canonical URL base of our FHIR profiles and identifier systems
+ * (the default lives in `@asc/fhir`, issue #54). Same rule as `assertCanonicalBase`
+ * in `@asc/fhir`: https, ends in "/", no query or fragment. The value is stored inside every
+ * resource, so it must be identical wherever data is shared; leave it unset unless a migration says
+ * otherwise. Applies to api and worker; the web app builds with the default.
+ */
+export const fhirCanonicalBaseSchema = z
+  .string()
+  .url()
+  .refine((value) => value.startsWith("https://") && value.endsWith("/") && !value.includes("?") && !value.includes("#"), {
+    message: "expected an https URL ending in / with no query or fragment",
+  })
+  .optional();
+
 const medplumServerEnvShape = {
+  FHIR_CANONICAL_BASE: fhirCanonicalBaseSchema,
   MEDPLUM_BASE_URL: z.string().url().optional(),
   MEDPLUM_CLIENT_ID: z.string().min(1).optional(),
   MEDPLUM_CLIENT_SECRET: z.string().min(1).optional(),

@@ -43,7 +43,7 @@ apps/web/src/features/<domain>/       FEATURE    compose @asc/ui + data hooks; r
 
 ```tsx
 // packages/ui/src/components/clinical/status-chip.tsx
-import type { CasePhase } from "@asc/fhir";
+import type { CasePhase } from "@asc/types";
 import { cn } from "../../lib/utils";
 
 export interface StatusChipProps {

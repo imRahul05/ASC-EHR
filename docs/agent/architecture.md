@@ -14,7 +14,7 @@ Read this before writing any code. The sole purpose of this monorepo is **centra
 9. **CLEAN FRONTEND CODE:** Keep components small and declarative: group related state (one object / `useReducer` / react-hook-form), derive values instead of syncing them with effects, and render repeated fields or items from a config array with `.map()`. Budget per component: `useState` ≤ 2, `useEffect` ≤ 1, `useRef` ≤ 2 (lint rule `asc/max-hooks-per-component`). Browser code imports leaf subpaths (`@asc/validation/auth`). See [`ui-guidelines.md` §3a](ui-guidelines.md#3a-hooks-state-and-config-driven-ui-clean-components).
 10. **RULES ARE LINT-ENFORCED:** `@asc/eslint-config` blocks the boundary violations above (banned imports and exported types/Zod in `apps/*`, `process.env` outside `@asc/config`). Fix the code; never disable the rule. If a correction was needed, log it in [`LEARNING_MISTAKES.md`](../../LEARNING_MISTAKES.md).
 
-*See `docs/ARCHITECTURE.md` for the architectural diagram and breakdown. UI rules: [`ui-guidelines.md`](ui-guidelines.md). Planned packages (`@asc/fhir`, `@asc/clinical-rules`, `apps/bots`) and the full target tree: [implementation plan §4](../plan/implementation-plan.md#4-target-repository-structure-end-of-phase-1). Before coding, read [`LEARNING_MISTAKES.md`](../../LEARNING_MISTAKES.md).*
+*See `docs/ARCHITECTURE.md` for the architectural diagram and breakdown. UI rules: [`ui-guidelines.md`](ui-guidelines.md). The full target tree: [implementation plan §4](../plan/implementation-plan.md#4-target-repository-structure-end-of-phase-1). Before coding, read [`LEARNING_MISTAKES.md`](../../LEARNING_MISTAKES.md).*
 
 ---
 
@@ -24,7 +24,8 @@ Read this before writing any code. The sole purpose of this monorepo is **centra
 - Managed with `pnpm` workspaces and Turborepo (`turbo.json`).
 - Root commands: `pnpm dev`, `pnpm build`, `pnpm lint`, `pnpm typecheck`.
 - **Apps**: Live in `/apps` (`web`, `api`, `worker`).
-- **Packages**: Live in `/packages` (`ui`, `types`, `validation`, `api-client`, `config`, `agents`, `db`, `audit`, `logger`, `telemetry`).
+- **Packages**: Live in `/packages` (`ui`, `types`, `validation`, `api-client`, `config`, `agents`, `db`, `audit`, `logger`, `telemetry`, `authz`, `clinical-rules`, `fhir`).
+- **FHIR (`packages/fhir`, `@asc/fhir`)**: the FHIR types, our identifier systems, extension URLs, CodeSystems and the typed builders. Pure and browser-safe: no I/O, no `process.env`, Medplum and `@asc/types` imported as types only, siblings imported by leaf name (`@asc/fhir/urls`, LM-005). Rules: the canonical URL base (`https://fhir.wybit.io/asc/`) is defined once in `urls.ts` and never typed anywhere else (a test enforces it; an override comes from `@asc/config` and is passed in); every facility-scoped builder stamps `meta.accounts` because a write without it is refused by Medplum (P05h decision 3); `CasePhase` stays defined in `@asc/types`, `@asc/fhir` only maps it to stored codes; the package is held to 100 % test coverage.
 
 ### 2. Frontend (`apps/web`)
 - **Next.js**: Latest version, App Router, TypeScript (v7).
