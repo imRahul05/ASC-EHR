@@ -18,17 +18,17 @@ describe("@asc/fhir purity", () => {
     }
   });
 
-  it("imports @medplum packages as types only, so no Medplum code reaches a bundle", () => {
+  it("imports @medplum and @asc/types as types only, so no library code reaches a bundle", () => {
     for (const file of sourceFiles()) {
       const text = readFileSync(join(srcDir, file), "utf8");
-      for (const match of text.matchAll(/^(import|export)\s+(type\s+)?[^;]*?from\s+"(@medplum\/[^"]+)"/gms)) {
+      for (const match of text.matchAll(/^(import|export)\s+(type\s+)?[^;]*?from\s+"(@medplum\/[^"]+|@asc\/types)"/gms)) {
         expect(match[2], `${file}: ${match[3]} must be a type-only import`).toBeDefined();
       }
     }
   });
 
-  it("depends only on the FHIR types", () => {
+  it("depends only on the FHIR and domain types", () => {
     const pkg = JSON.parse(readFileSync(join(srcDir, "..", "package.json"), "utf8")) as { dependencies: Record<string, string> };
-    expect(Object.keys(pkg.dependencies)).toEqual(["@medplum/fhirtypes"]);
+    expect(Object.keys(pkg.dependencies).sort()).toEqual(["@asc/types", "@medplum/fhirtypes"]);
   });
 });

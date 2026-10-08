@@ -7,7 +7,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./urls": "./src/urls.ts",
-    "./identifiers": "./src/identifiers.ts"
+    "./identifiers": "./src/identifiers.ts",
+    "./case-phase": "./src/case-phase.ts",
+    "./extensions": "./src/extensions.ts"
   },
   "scripts": {
     "lint": "eslint --max-warnings 0",
@@ -15,6 +17,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@asc/types": "workspace:*",
     "@medplum/fhirtypes": "5.1.42"
   },
   "devDependencies": {
