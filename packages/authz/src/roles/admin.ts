@@ -4,7 +4,8 @@ import { REFERENCE_WRITE, ro, rw } from "@asc/authz/roles/rules";
 // All-site role. No clinical-note access: administration is not care.
 export const admin: RoleTemplate = {
   key: "admin",
-  version: 1,
+  // v2: PractitionerRole (role grants) became read-only.
+  version: 2,
   label: "Administrator",
   status: "active",
   capabilities: [

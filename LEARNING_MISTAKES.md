@@ -211,3 +211,10 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **Rule:** Before a field is written into every stored resource, read its definition in the pinned type package and prefer the non-deprecated form. Prove the replacement enforces the same way against the live server before switching.
 - **How to check:** `pnpm --filter @asc/fhir test` ("never writes the deprecated singular meta.account", "refuses the deprecated meta.account ..."); `pnpm --filter bots test:medplum` (`s1-accounts.live.ts`).
 - **Guarded by:** the `@asc/fhir` source test and the live spike.
+
+### LM-023 — A record that grants access is not directory data: no role may write it
+- **Seen:** 1 · 2026-10-08 · architecture review of PRs #53/#56, reproduced live on local Medplum
+- **What went wrong:** `REFERENCE_WRITE` gave the admin template read-write on all directory types, including `PractitionerRole`. Since the P05h fallback (spike ADR decision 4), `PractitionerRole` records with the role-template code system are the **role grants** the API builds capabilities from. Live, the admin user's own token created a `gi-physician` grant for itself at the second facility (201) and edited its own grant (200). Medplum would still refuse those data calls (the membership was unchanged), but gates 3–4 would trust the grant for everything Medplum does not see: AI runs, exports, app-Postgres data, SSE. The seeded grants also had no `active`, so the adapter's `active=true` search returned none.
+- **Rule:** Before treating a resource type as "shared directory data", ask whether any code derives permissions from it. If so it is a grant: read-only for every staff role (admin included), written only by the seed/provisioner with ops credentials, and covered by a live 403 test per role. A grant carries `active: true` and `period.start`.
+- **How to check:** `pnpm --filter @asc/authz test` (`templates.test.ts`: no role writes `PractitionerRole`); `pnpm --filter bots test` (`seed-access.test.ts`: grants active, drift repaired); `pnpm --filter bots test:medplum` (`policy.live.ts`: "role grants for <role>").
+- **Guarded by:** those tests; admin template v2.

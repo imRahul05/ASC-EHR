@@ -123,6 +123,23 @@ describe("seedDemoUsers", () => {
     }
   });
 
+  it("writes every grant active with a start date, and repairs one that is not", async () => {
+    const { run, store } = await setup();
+    await run();
+    for (const role of ofType(store, "PractitionerRole")) {
+      expect(role.active).toBe(true);
+      expect((role.period as { start?: string } | undefined)?.start).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+    const [drifted] = ofType(store, "PractitionerRole");
+    if (drifted === undefined) throw new Error("no grant");
+    const start = (drifted.period as { start: string }).start;
+    delete drifted.active;
+    await run();
+    const repaired = ofType(store, "PractitionerRole").find((role) => role.id === drifted.id);
+    expect(repaired?.active).toBe(true);
+    expect((repaired?.period as { start?: string } | undefined)?.start).toBe(start);
+  });
+
   it("returns a distinct generated password per new user, and keeps it out of Medplum", async () => {
     const { run, store } = await setup();
     const users = await run();
