@@ -58,6 +58,36 @@ Every spike passes or has a fallback below. Two plan assumptions did not hold (S
 - The P05h decisions block in the P05 plan repeats decisions 1 to 5 as rules for P03, P04, P05i and P05j.
 - Ratified by the engineering lead (name and date in the front matter).
 
+## Review amendments (2026-10-08)
+
+An architecture review of PR #53 and PR #56 kept the direction (per-facility `access[]` entries and facility-tagged resources are Medplum's own multi-tenant pattern; Medplum stays gate 5) and changed or questioned the points below. Items marked **pending** reverse or extend something the engineering lead confirmed in #49 and stay proposals until the linked issue is answered. Items without that mark tighten a rule and apply now.
+
+**Decision 1 (`meta.account`).**
+- In Medplum 5.1.42 `meta.account` is deprecated in favour of `meta.accounts` (a list). Facility-scoped writes carry the facility in `meta.accounts`; `@asc/fhir` moves to it in PR #56. Spike S1 is re-run with `meta.accounts` before P04 depends on it.
+- Stamping is enforced in the P04 client layer (`forFacility(id)` stamps every create, update and patch), not only in the P03 builders, because a resource that did not come from a builder (a read-modify-write, a patch) would otherwise lose it. A lint rule bans raw create and update calls in apps ([P04 plan](../plan/phases/P04-medplum-clients.md)).
+- A patient seen at a second facility needs `$set-accounts`, with or without `propagate`. Whether a second facility may see the patient's history is a product and compliance decision: **pending [#59](https://github.com/imRahul05/ASC-EHR/issues/59)** (Q-FHIR-ACCT).
+
+**Decision 2 (step-up).** The option C contract stays. A fresh login is not an electronic signature: it shows session freshness, but does not capture signature components at signing (21 CFR 11.200) or bind the signature to the record (11.70), and a stolen token pair can approve any step-up action inside the window. Proposed: a nonce-bound signing ceremony (one-time nonce bound to resource ids, versions and a content hash; re-authentication with that nonce; the API writes the `final` Composition and a `Provenance.signature`; batch signing to stay under the login throttle), plus confirmation from compliance of which regulations apply (Part 11, CMS 42 CFR 416.47, state law) and whether controlled-substance e-prescribing goes through a certified EPCS vendor. Needs a check that Medplum puts the OIDC `nonce` into the `id_token`. **Pending [#58](https://github.com/imRahul05/ASC-EHR/issues/58)** (Q-IAM-F).
+
+**Decision 3 (`writeConstraint` order).** Report it to Medplum with the live spike as the reproduction. The report is drafted below; filing it is a human action (it publishes to an external tracker). The existing rules (one entry per constrained type per facility, the registry test, the gate-4 lock on `final` notes) stay.
+
+> **Title:** `writeConstraint` is skipped when another access entry for the same resource type comes first
+> **Version:** Medplum server 5.1.42 (self-hosted, Docker).
+> **Setup:** one `ProjectMembership` with two `access[]` entries for the same user, both parameterized with the same `%facility`. Policy P1 grants `Composition` with `writeConstraint` `%before.status != 'final'`; policy P2 grants `Composition` (read and write) without a `writeConstraint`.
+> **Steps:** create a `Composition` with `status: final`; update it with that user's token. Repeat with the order of the two entries swapped.
+> **Expected:** the update is refused (403) in both orders, as for a membership with P1 alone.
+> **Actual:** refused when P1 is the first entry; accepted (200) when P2 is first.
+> **Note:** `hiddenFields` (any entry hides) and `readonly` (any entry allows) are independent of order in the same setup.
+
+**Decision 4 (grants from `PractitionerRole`).**
+- (a) **"Drift fails safe" holds only for actions that end in a FHIR call made with the user's token.** App Postgres data (RLS on the principal's `facility_id`), AI agent runs, SSE channels, exports and worker jobs that run as `system-worker-v1` rely on gates 3 and 4 alone. So writing a role-grant `PractitionerRole` is as sensitive as writing a membership. Rules: no staff `AccessPolicy` may write a `PractitionerRole` carrying the role-template code system (`https://asc-ehr.app/role-template`), pinned by a policy test; grant `PractitionerRole`s carry a distinct `meta.tag` so they are never confused with directory entries (scheduling, specialty); worker jobs re-check the starting principal's grant when they run.
+- (b) **The provisioner becomes a reconciler.** `PractitionerRole` is the desired state; `ProjectMembership.access[]` is compiled from it. The reconciler is idempotent, runs on every admin write and on a periodic sweep, writes an `AuditEvent`, and alerts when it corrects drift (for example a membership edited by hand in the Medplum App). It is the only holder of project-admin credentials and does not run in `apps/api`. Drift is then corrected, not only detected.
+- (c) Reading the user's `PractitionerRole`s with the **user's** token (directory data is staff-readable, S1), which also proves the token is live, instead of `api-service-v1`: **pending [#57](https://github.com/imRahul05/ASC-EHR/issues/57)** (Q-IAM-E).
+
+**Decision 5 (revocation and cache).** Removing the grant cache, so that our revocation delay matches Medplum's (immediate), is **pending [#57](https://github.com/imRahul05/ASC-EHR/issues/57)**. If a cache is kept, it must be shared (Redis), never per-instance memory: with more than one API replica, an admin action would otherwise clear the entry on one replica only.
+
+**Scale (new).** A user with access at many facilities has one `access[]` entry per facility, and Medplum adds one criterion per entry to every search. Load-test a membership with about 40 entries before the first multi-site customer. Mitigation if needed: region or group `Organization`s added to `meta.accounts`, so float staff need one entry per region.
+
 ## More Information
 
 - Access policies: https://www.medplum.com/docs/access/access-policies
