@@ -20,7 +20,7 @@
 | Updated | 2026-10-08 |
 |---|---|
 | Current wave | 0 |
-| In progress | none (P05a–P05h and P02 merged) |
+| In progress | P03 (P05a–P05h and P02 merged) |
 | Ready to start | P00b, P01, P03, P09, P06 (needs Azure access) |
 | Blocked | P13 soft-blocked on Q-MS1 (fallback allowed) |
 | Go-live target | 2026-12-07 |
@@ -35,7 +35,7 @@
 | P00b | Library upgrades (zod 4, bullmq 6, ioredis 6) | ready | P00 | | | | | |
 | P01 | CI + eval gate | ready | P00 | | | | | |
 | P02 | Local Medplum + bots skeleton | done | — | Claude (bg job 640ebd7d) | `phase/P02-local-medplum-clean` | [#43](https://github.com/imRahul05/ASC-EHR/pull/43), [#44](https://github.com/imRahul05/ASC-EHR/pull/44) (#42 closed, replaced by #43) | 2026-10-07 | 2026-10-07 |
-| P03 | `@asc/fhir` | ready | — | | | | | |
+| P03 | `@asc/fhir` | in-progress | — | Claude (bg job 7f0d4791) | `phase/P03-fhir-package` | | 2026-10-08 | |
 | P04 | Medplum clients | pending | P02, P03 | | | | | |
 | P05 | Auth + roles (sub-phases P05a–P05j below) | in-progress (P05a–P05h done; P05i–j pending P03/P04) | P05i–j: P04 | | | | | |
 | P06 | Azure infra (dev) | ready (external: subscription/BAA) | — | | | | | |
