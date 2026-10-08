@@ -324,6 +324,12 @@ Workspaces: `@asc/api-client`, `@asc/authz`, `apps/api`.
 - [ ] Medplum unreachable → 503, never allow; cache never stores the raw token; expired entries are never used as fallback
 - [ ] High-risk (`stepUp`) capabilities always re-validate with Medplum (test)
 - [ ] Our admin tools clear the affected cache entries in the same operation (test); the 60 s TTL bounds the rest. The Medplum `Subscription` webhook is dropped until it is shown to work (P05h decision 5, #49)
+- [ ] The identity cache is shared (Redis), never per-instance memory: an invalidation reaches every API replica (test with two app instances on one Redis)
+- [ ] Policy test: no staff template can create or update a `PractitionerRole` carrying the role-template code system (`https://asc-ehr.app/role-template`); grant `PractitionerRole`s carry their own `meta.tag`, distinct from directory entries ([spike results ADR](../../decisions/2026-10-08-medplum-spike-results-and-fallbacks.md), review amendments, decision 4)
+- [ ] Policy test: every staff template can search `PractitionerRole` by `practitioner` (needed by both the current design and the #57 alternative)
+- [ ] Worker jobs started by a user carry the principal's ids and re-check its grant at the job's facility when the job runs, not only when it is queued
+
+**Alternative commit list if [#57](https://github.com/imRahul05/ASC-EHR/issues/57) (Q-IAM-E) is adopted** (proposed amendment; the list above stands until it is answered): 1 unchanged; 2 `feat(authz): map the user's PractitionerRoles (read with the user's token) to per-facility grants`; 3 `feat(api): Medplum identity adapter, /auth/me cached per token hash for the token lifetime, grants read per request`; 4 unchanged; 5 and 6 dropped (no grant cache, so no bypass and no invalidation); 7 unchanged, plus a load test of the per-request grant search (a Redis cache of at most 5 s only if it fails). `api-service-v1` loses its `PractitionerRole` and `AccessPolicy` reads.
 
 ### P05j — Web sign-in · M · needs P05d, P05i, P04
 Workspaces: `apps/web`, `@asc/api-client`, `@asc/config`.
@@ -380,7 +386,9 @@ flowchart LR
 
 | Follow-up | Gate | Design ref |
 |---|---|---|
-| Step-up middleware: verify the forwarded `X-ID-Token` (signature, same `login_id`, `auth_time` ≤ 5 min) for `stepUp` capabilities; 403 `step_up_required` contract | Before the first sign/attest route ships (P19 note sign, P21 discharge, P22 coding attest); run the three checks in the ADR first | 08 §5.2, #49 |
+| Step-up middleware: verify the forwarded `X-ID-Token` (signature, same `login_id`, `auth_time` ≤ 5 min) for `stepUp` capabilities; 403 `step_up_required` contract | Before the first sign/attest route ships (P19 note sign, P21 discharge, P22 coding attest); run the three checks in the ADR first | 08 §5.2, #49; signing as a nonce-bound ceremony and the applicable regulations pending [#58](https://github.com/imRahul05/ASC-EHR/issues/58) |
+| Role-assignment reconciler: `PractitionerRole` is the desired state, `ProjectMembership.access[]` is compiled from it; idempotent, runs on every admin write and on a periodic sweep, writes an `AuditEvent`, alerts when it corrects drift (a membership edited in the Medplum App); sole holder of project-admin credentials, never in `apps/api`. Replaces the dual write and the drift test | Before the first role is assigned outside the seed (staging, P06) | [spike results ADR](../../decisions/2026-10-08-medplum-spike-results-and-fallbacks.md), review amendments, decision 4 |
+| Load test: a membership with about 40 `access[]` entries (search latency); region `Organization`s in `meta.accounts` if it fails | Before the first multi-site customer | spike results ADR, review amendments (scale) |
 | Worker identity + job tenant context (per-tenant `ClientApplication`, IDs-only job data) | Before the first worker job that reads or writes PHI (P12 / P19) | 08 §9 |
 | SSE stream auth (header auth or one-time ticket, re-validation) | Before P10 streams carry PHI | 08 §10 |
 | Signed service-to-service calls and webhooks | Before P24 | 08 §11 |
