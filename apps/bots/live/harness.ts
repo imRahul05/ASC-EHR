@@ -113,7 +113,7 @@ export function liveContext() {
    * A client application with a membership that has exactly `entries`: an identity without a password,
    * so no login throttle. Returns a caller with a fresh token and the membership (to disable it).
    */
-  async function persona(name: string, entries: NonNullable<ProjectMembership["access"]>) {
+  async function persona(name: string, entries: NonNullable<ProjectMembership["access"]>, options: { admin?: boolean } = {}) {
     const [found] = await admin.searchResources("ClientApplication", { "name:exact": name });
     const app: ClientApplication = found ?? (await admin.createResource({ resourceType: "ClientApplication", name, secret: randomBytes(24).toString("hex") }));
     if (app.id === undefined || app.secret === undefined) throw new Error("client application without id or secret");
@@ -124,6 +124,7 @@ export function liveContext() {
       user: { reference: `ClientApplication/${app.id}` },
       profile: { reference: `ClientApplication/${app.id}` },
       access: entries,
+      ...(options.admin === undefined ? {} : { admin: options.admin }),
     };
     const [existing] = await admin.searchResources("ProjectMembership", { user: `ClientApplication/${app.id}` });
     const membership = existing === undefined ? await admin.createResource(wanted) : await admin.updateResource({ ...existing, ...wanted });
