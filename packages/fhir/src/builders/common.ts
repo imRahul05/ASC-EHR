@@ -18,11 +18,13 @@ export function reference<R extends Resource = Resource>(type: R["resourceType"]
 }
 
 /**
- * The facility a resource belongs to. Medplum's access policy limits a facility user by `meta.account`, and a
- * write without it is refused (P05h decision 3, ADR 2026-10-08), so every facility-scoped builder sets it.
+ * The facility a resource belongs to. Medplum's access policy limits a facility user by `meta.accounts`, and a
+ * write without it is refused (P05h decision 3, ADR 2026-10-08), so every facility-scoped builder sets it. The
+ * singular `meta.account` is deprecated in Medplum 5 and never written (LM-022). A builder names one facility; a
+ * Patient seen at several facilities gets the others through Medplum's `$set-accounts`, a policy still to decide.
  */
 export function facilityMeta(facilityId: string): Meta {
-  return { account: reference("Organization", facilityId, "facility id") };
+  return { accounts: [reference("Organization", facilityId, "facility id")] };
 }
 
 const DATE = /^(\d{4})-(\d{2})-(\d{2})$/;

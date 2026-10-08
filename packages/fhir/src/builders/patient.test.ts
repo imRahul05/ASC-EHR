@@ -9,7 +9,7 @@ describe("buildPatient", () => {
   it("builds a minimal patient of one facility", () => {
     expect(buildPatient(base)).toEqual({
       resourceType: "Patient",
-      meta: { account: { reference: "Organization/fac-1" } },
+      meta: { accounts: [{ reference: "Organization/fac-1" }] },
       name: [{ family: "Canary-Name", given: ["Test"] }],
     });
   });

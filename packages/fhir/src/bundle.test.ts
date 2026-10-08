@@ -1,4 +1,4 @@
-import type { Encounter, Practitioner } from "@medplum/fhirtypes";
+import type { Encounter, Patient, Practitioner } from "@medplum/fhirtypes";
 import { describe, expect, it } from "vitest";
 
 import { buildAppointment } from "./builders/appointment.js";
@@ -56,8 +56,16 @@ describe("createTransaction", () => {
 
   it("accepts a directory resource tagged with the transaction's facility and refuses one tagged for another", () => {
     const tx = createTransaction({ facilityId, newId: counter() });
-    expect(() => tx.add("here", { resourceType: "Location", meta: { account: { reference: "Organization/fac-1" } } })).not.toThrow();
-    expect(() => tx.add("there", { resourceType: "Location", meta: { account: { reference: "Organization/fac-2" } } })).toThrow("Location is not tagged with the transaction's facility");
+    expect(() => tx.add("here", { resourceType: "Location", meta: { accounts: [{ reference: "Organization/fac-1" }] } })).not.toThrow();
+    expect(() => tx.add("there", { resourceType: "Location", meta: { accounts: [{ reference: "Organization/fac-2" }] } })).toThrow("Location is not tagged with the transaction's facility");
+  });
+
+  it("refuses the deprecated meta.account and an entry tagged with more than this facility", () => {
+    const tx = createTransaction({ facilityId, newId: counter() });
+    const legacy: Patient = { resourceType: "Patient", meta: { account: { reference: "Organization/fac-1" } } };
+    expect(() => tx.add("legacy", legacy)).toThrow("Patient is not tagged with the transaction's facility");
+    const both: Patient = { resourceType: "Patient", meta: { accounts: [{ reference: "Organization/fac-1" }, { reference: "Organization/fac-2" }] } };
+    expect(() => tx.add("both", both)).toThrow("Patient is not tagged with the transaction's facility");
   });
 
   it("refuses an entry that belongs to another facility", () => {

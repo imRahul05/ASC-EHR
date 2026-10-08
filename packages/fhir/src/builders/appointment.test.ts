@@ -8,7 +8,7 @@ describe("buildAppointment", () => {
   it("books the patient into a slot of one facility", () => {
     expect(buildAppointment(base)).toEqual({
       resourceType: "Appointment",
-      meta: { account: { reference: "Organization/fac-1" } },
+      meta: { accounts: [{ reference: "Organization/fac-1" }] },
       status: "booked",
       start: "2026-10-08T09:00:00Z",
       end: "2026-10-08T10:00:00Z",

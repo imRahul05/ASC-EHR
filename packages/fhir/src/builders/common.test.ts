@@ -28,7 +28,7 @@ describe("fhirId and reference", () => {
 
 describe("facilityMeta", () => {
   it("is the facility account that Medplum's access policy checks", () => {
-    expect(facilityMeta("f-1")).toEqual({ account: { reference: "Organization/f-1" } });
+    expect(facilityMeta("f-1")).toEqual({ accounts: [{ reference: "Organization/f-1" }] });
     expect(() => facilityMeta("")).toThrow("invalid facility id");
   });
 });

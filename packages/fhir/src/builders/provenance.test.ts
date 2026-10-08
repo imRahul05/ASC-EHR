@@ -16,7 +16,7 @@ describe("buildProvenance", () => {
   it("records who acted on which resource and when", () => {
     expect(buildProvenance(base)).toEqual({
       resourceType: "Provenance",
-      meta: { account: { reference: "Organization/fac-1" } },
+      meta: { accounts: [{ reference: "Organization/fac-1" }] },
       target: [{ reference: "Composition/note-1" }],
       recorded: "2026-10-08T11:00:00Z",
       agent: [{ type: { coding: [{ system: "http://terminology.hl7.org/CodeSystem/provenance-participant-type", code: "attester" }] }, who: { reference: "Practitioner/doc-1" } }],

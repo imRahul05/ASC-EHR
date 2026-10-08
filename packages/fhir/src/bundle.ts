@@ -1,10 +1,10 @@
-import type { Bundle, BundleEntry, Reference, Resource } from "@medplum/fhirtypes";
+import type { Bundle, BundleEntry, Meta, Reference, Resource } from "@medplum/fhirtypes";
 import { facilityMeta } from "@asc/fhir/builders/common";
 
 /**
  * Tenant-wide directory data carries no facility tag (P05b follow-up, ADR 2026-10-08): the access policy does not
- * filter it, so it is the only thing a transaction may contain without `meta.account`. If one does carry a tag it
- * must be the transaction's facility.
+ * filter it, so it is the only thing a transaction may contain without `meta.accounts`. If one does carry a tag it
+ * must be the transaction's facility. The deprecated singular `meta.account` is refused everywhere (LM-022).
  */
 const SHARED_DIRECTORY: ReadonlySet<string> = new Set(["Practitioner", "PractitionerRole", "Organization", "Location"]);
 
@@ -28,7 +28,7 @@ export interface Transaction {
 
 /** A FHIR transaction: all entries are written, or none. Facility rule checked per entry (P05h decision 3). */
 export function createTransaction({ facilityId, newId = () => globalThis.crypto.randomUUID() }: TransactionOptions): Transaction {
-  const account = facilityMeta(facilityId).account?.reference; // also checks the id
+  const account = facilityMeta(facilityId).accounts?.[0]?.reference; // also checks the id
   const urls = new Map<string, string>();
   const entries = new Map<string, BundleEntry>();
 
@@ -46,10 +46,12 @@ export function createTransaction({ facilityId, newId = () => globalThis.crypto.
     ref: <R extends Resource>(key: string): Reference<R> => ({ reference: fullUrl(key) }),
     add<R extends Resource>(key: string, resource: R, options: { readonly ifNoneExist?: string } = {}): Reference<R> {
       if (entries.has(key)) throw new Error("duplicate transaction key");
-      const tagged = (resource as { meta?: { account?: Reference } }).meta?.account?.reference;
-      // Directory data needs no tag, but one that names another facility is refused: it would quietly attach a
-      // tenant-wide resource to a facility it does not belong to.
-      const allowed = SHARED_DIRECTORY.has(resource.resourceType) ? tagged === undefined || tagged === account : tagged === account;
+      const meta = (resource as { meta?: Meta }).meta;
+      const tagged = (meta?.accounts ?? []).map((entry) => entry.reference);
+      // An entry belongs to exactly this facility. Directory data needs no tag, but one that names another facility
+      // is refused: it would quietly attach a tenant-wide resource to a facility it does not belong to.
+      const ours = tagged.length === 1 && tagged[0] === account;
+      const allowed = meta?.account === undefined && (SHARED_DIRECTORY.has(resource.resourceType) ? tagged.length === 0 || ours : ours);
       if (!allowed) throw new Error(`${resource.resourceType} is not tagged with the transaction's facility`);
       const url = fullUrl(key);
       entries.set(key, {

@@ -27,6 +27,12 @@ describe("@asc/fhir purity", () => {
     }
   });
 
+  it("never writes the deprecated singular meta.account: builders tag facilities with meta.accounts (LM-022)", () => {
+    for (const file of sourceFiles()) {
+      expect(readFileSync(join(srcDir, file), "utf8"), file).not.toMatch(/\baccount\s*:/);
+    }
+  });
+
   it("depends only on the FHIR and domain types", () => {
     const pkg = JSON.parse(readFileSync(join(srcDir, "..", "package.json"), "utf8")) as { dependencies: Record<string, string> };
     expect(Object.keys(pkg.dependencies).sort()).toEqual(["@asc/types", "@medplum/fhirtypes"]);

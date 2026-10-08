@@ -11,7 +11,7 @@ describe("buildCaseEncounter", () => {
     const encounter = buildCaseEncounter(base);
     expect(encounter).toMatchObject({
       resourceType: "Encounter",
-      meta: { account: { reference: "Organization/fac-1" } },
+      meta: { accounts: [{ reference: "Organization/fac-1" }] },
       status: "planned",
       class: { code: "AMB" },
       subject: { reference: "Patient/pat-1" },

@@ -9,7 +9,7 @@ describe("buildTask", () => {
   it("is an open worklist item of one facility", () => {
     expect(buildTask(base)).toEqual({
       resourceType: "Task",
-      meta: { account: { reference: "Organization/fac-1" } },
+      meta: { accounts: [{ reference: "Organization/fac-1" }] },
       status: "requested",
       intent: "order",
       code: { coding: [{ system: "https://fhir.wybit.io/asc/CodeSystem/task-type", code: "sign-note" }] },
