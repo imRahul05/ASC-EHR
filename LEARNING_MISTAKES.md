@@ -50,6 +50,7 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 18. Security hooks have an order, and plugin hooks do not run where you registered them: `@fastify/rate-limit` adds its hook per route, after every global hook. Call the limiter explicitly in the chain and test the order (a bad token must be counted before the identity provider is asked). (LM-018)
 19. Never commit a password, not even a "dev-only" one: secret scanners (GitGuardian on every PR) flag it and every machine shares a known value. Generate local credentials per machine into a git-ignored folder, commit templates with placeholders, and add a test that fails on a literal password. A secret that reached a pushed commit stays flagged until history is rewritten or the incident is dismissed. (LM-019)
 20. Compose defaults must not weaken security silently: an empty Redis `--requirepass` means no authentication, the short bind-mount syntax creates a directory where a missing file should be, and `${VAR:?}` fails unrelated commands because compose resolves every service. Keep parse-safe empty defaults and make the container itself refuse to start; use the long bind syntax with `create_host_path: false`; verify each with a real `docker compose` run, not by reading. (LM-020)
+21. A builder validates relations between inputs, and an exemption keeps the rest of its rule: when two inputs form a range (start/end), check their order, not only each value; when a type is exempt from a check (shared directory data needs no facility tag), a value it does carry must still be valid. Reproduce a review claim with a throwaway test first: two of three claims on PR #56 were real, one (a trailing `-` in a regex class) was not. (LM-021)
 
 ---
 
@@ -196,6 +197,20 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **Rule:** Keep empty, parse-safe defaults for variables that only some services need, and have the *container* refuse to start without them (a `test -n` guard in its command; Postgres already refuses). Mount generated files with the long syntax and `create_host_path: false`. Commands that only stop things must not need credentials. Turn every file read of generated state into one friendly error. Check each of these by running compose, in an isolated copy (own project name, no fixed container names or ports) so a running stack is not touched.
 - **How to check:** `pnpm --filter bots test` (`local-credentials.test.ts`: compose guards, root scripts, damaged files; `esbuild-config.test.ts`).
 - **Guarded by:** those tests pin the compose text and root scripts; the runtime behaviour was verified by hand with compose.
+
+### LM-021 — Validate input relations and keep the rest of a rule for exempt cases
+- **Seen:** 1 · 2026-10-08 · PR #56 (P03), found in review and reproduced
+- **What went wrong:** `buildCaseEncounter` checked `start` and `end` one at a time, so `end` before `start` produced an invalid FHIR Period without an error, while `buildAppointment` already checked the order. `createTransaction` exempted tenant-wide directory types (Location, Practitioner, ...) from the facility check entirely, so a `Location` tagged with another facility's `meta.account` was accepted in this facility's transaction.
+- **Rule:** When inputs form a pair (start/end, from/to), validate the relation as well as each value, in every builder that takes the pair, and use one rule (a FHIR Period may not end before it starts; equal is allowed). When a check has an exemption, keep the weaker form of the check for the exempt case (no tag needed, but a tag that is present must match). Before changing code for a review claim, reproduce it; one claim on this PR (a trailing `-` in the id character class) was checked and was not a defect.
+- **How to check:** `pnpm --filter @asc/fhir test` ("refuses a period that ends before it starts", "refuses one tagged for another").
+- **Guarded by:** those tests, and the 100 % coverage gate of `@asc/fhir` (a new branch without a test fails `pnpm test`).
+
+### LM-022 — Check the pinned library's types for deprecations before building on a field
+- **Seen:** 1 · 2026-10-08 · PR #56 (P03), found in an architecture review
+- **What went wrong:** `facilityMeta()` stamped the singular `meta.account`, copied from the P05h spikes. `@medplum/fhirtypes` 5.1.42 (the pinned version) marks it `@deprecated Use Meta.accounts instead`, and the plural field is what lets a resource (a Patient seen at two facilities) belong to more than one facility. Every builder, and every stored resource, would have needed a migration later.
+- **Rule:** Before a field is written into every stored resource, read its definition in the pinned type package and prefer the non-deprecated form. Prove the replacement enforces the same way against the live server before switching.
+- **How to check:** `pnpm --filter @asc/fhir test` ("never writes the deprecated singular meta.account", "refuses the deprecated meta.account ..."); `pnpm --filter bots test:medplum` (`s1-accounts.live.ts`).
+- **Guarded by:** the `@asc/fhir` source test and the live spike.
 
 ### LM-023 — A record that grants access is not directory data: no role may write it
 - **Seen:** 1 · 2026-10-08 · architecture review of PRs #53/#56, reproduced live on local Medplum

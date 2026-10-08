@@ -325,3 +325,21 @@ describe("public Medplum env", () => {
     }
   });
 });
+
+describe("FHIR_CANONICAL_BASE", () => {
+  const base = {};
+
+  it("is optional for the api and the worker, and kept as given", () => {
+    expect(parseEnv(apiEnvSchema, base).FHIR_CANONICAL_BASE).toBeUndefined();
+    expect(parseEnv(workerEnvSchema, base).FHIR_CANONICAL_BASE).toBeUndefined();
+    expect(parseEnv(apiEnvSchema, { ...base, FHIR_CANONICAL_BASE: "https://fhir.example.test/x/" }).FHIR_CANONICAL_BASE).toBe("https://fhir.example.test/x/");
+  });
+
+  it.each(["http://fhir.example.test/x/", "https://fhir.example.test/x", "https://fhir.example.test/x/?a=1", "https://fhir.example.test/x/#t", "not a url"])(
+    "rejects %j and names the variable",
+    (value) => {
+      expect(() => parseEnv(apiEnvSchema, { ...base, FHIR_CANONICAL_BASE: value })).toThrow("FHIR_CANONICAL_BASE");
+      expect(() => parseEnv(workerEnvSchema, { ...base, FHIR_CANONICAL_BASE: value })).toThrow("FHIR_CANONICAL_BASE");
+    },
+  );
+});

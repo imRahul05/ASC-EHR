@@ -8,7 +8,7 @@
 ## 1. Executive Summary & Evolution Philosophy
 
 Our platform uses a **tenant-ready core**:
-1. **Zero hardcoding:** Every database table includes `tenant_id uuid NOT NULL`, every FHIR resource attaches `meta.account` referencing an `Organization` (facility), and the `@asc/authz` authorization library enforces facility-scoped capability grants.
+1. **Zero hardcoding:** Every database table includes `tenant_id uuid NOT NULL`, every FHIR resource lists its facility `Organization` in `meta.accounts` (the singular `meta.account` is deprecated in Medplum 5.1.42), and the `@asc/authz` authorization library enforces facility-scoped capability grants.
 2. **Phase 1 (Single Hospital):** Deploys with a single active tenant context (configured via environment variables / config). Subdomain dynamic parsing, tenant registries, and multi-project CLI provisioners are bypassed to accelerate clinical go-live.
 3. **Phase 2 (Multi-Tenant SaaS):** Enables host-based tenant resolution (`{slug}.asc-ehr.app`), multi-project Medplum provisioning, and cross-tenant attack verification **without changing clinical schemas, authorization code or business rules**. It does add new pieces: a tenant registry migration, a host-based `TenantResolver` adapter (replacing the static one from P05a), web host middleware, the provisioner and DNS/TLS (§9).
 
@@ -185,7 +185,7 @@ sequenceDiagram
     TH-->>W: Set-Cookie: refresh_token (httpOnly, Secure, SameSite=Strict, path=/auth)
     TH-->>W: JSON body: { accessToken } (stored in JS memory only)
     W->>A: GET /me (Bearer accessToken)
-    A->>M: /auth/me (cached ≤ 60s)
+    A->>M: /auth/me (cached ≤ 60s; grant cache removal recommended in #57)
     A->>A: Verify token project.id === tenant.medplumProjectId
     A-->>W: Principal { tenantId, facilities, grants, capabilities }
 ```
@@ -254,7 +254,7 @@ At multi-tenant scale, changing roles must not break active users:
 | **Deprecate Role** | Set template `status: "deprecated"` | New user assignments blocked; existing users continue uninterrupted. |
 | **Retire Role** | Set template `status: "retired"` | Provisioner rejects retirement until 0 memberships reference the template. |
 | **Split Role** | Run `role split --from front-desk --to [reception, registration] --map mapping.csv` | Assigns new roles first, verifies coverage, then removes deprecated role. |
-| **Disable User** | Set Medplum `ProjectMembership.active = false` | Access ends within the `/auth/me` cache TTL (≤ 60 s). A revocation channel that clears the cache instantly is optional, added only if 60 s is not acceptable. |
+| **Disable User** | Set Medplum `ProjectMembership.active = false` | Access ends within the `/auth/me` cache TTL (≤ 60 s). Recommended in [#57](https://github.com/imRahul05/ASC-EHR/issues/57) (pending lead sign-off): no cross-request grant cache, so access ends on the next request, as it already does at Medplum. |
 
 ---
 
