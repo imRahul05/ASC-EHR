@@ -54,6 +54,12 @@ describe("createTransaction", () => {
     expect(() => tx.add("untagged", { resourceType: "Patient" })).toThrow("Patient is not tagged with the transaction's facility");
   });
 
+  it("accepts a directory resource tagged with the transaction's facility and refuses one tagged for another", () => {
+    const tx = createTransaction({ facilityId, newId: counter() });
+    expect(() => tx.add("here", { resourceType: "Location", meta: { account: { reference: "Organization/fac-1" } } })).not.toThrow();
+    expect(() => tx.add("there", { resourceType: "Location", meta: { account: { reference: "Organization/fac-2" } } })).toThrow("Location is not tagged with the transaction's facility");
+  });
+
   it("refuses an entry that belongs to another facility", () => {
     const other = buildPatient({ facilityId: "fac-2", name: { family: "Canary-Name", given: ["Test"] } });
     expect(() => createTransaction({ facilityId }).add("patient", other)).toThrow("is not tagged with the transaction's facility");

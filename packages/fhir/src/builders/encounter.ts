@@ -44,6 +44,10 @@ export interface CaseEncounterInput {
 
 /** The Encounter that IS the case (docs/product/03 §3): status, the case-phase extension and the facility. */
 export function buildCaseEncounter(input: CaseEncounterInput, urls: FhirUrls = fhirUrls): Encounter {
+  const start = input.start === undefined ? undefined : instant(input.start, "case start");
+  const end = input.end === undefined ? undefined : instant(input.end, "case end");
+  // A FHIR Period may not end before it starts (invariant per-1); equal is allowed.
+  if (start !== undefined && end !== undefined && Date.parse(end) < Date.parse(start)) throw new Error("invalid case period range");
   return {
     resourceType: "Encounter",
     meta: facilityMeta(input.facilityId),
@@ -55,8 +59,6 @@ export function buildCaseEncounter(input: CaseEncounterInput, urls: FhirUrls = f
     ...(input.caseNumber === undefined ? {} : { identifier: [caseNumberIdentifier(input.caseNumber, urls)] }),
     ...(input.appointmentId === undefined ? {} : { appointment: [reference("Appointment", input.appointmentId, "appointment id")] }),
     ...(input.locationId === undefined ? {} : { location: [{ location: reference("Location", input.locationId, "location id"), status: "active" }] }),
-    ...(input.start === undefined && input.end === undefined
-      ? {}
-      : { period: { ...(input.start === undefined ? {} : { start: instant(input.start, "case start") }), ...(input.end === undefined ? {} : { end: instant(input.end, "case end") }) } }),
+    ...(start === undefined && end === undefined ? {} : { period: { ...(start === undefined ? {} : { start }), ...(end === undefined ? {} : { end }) } }),
   };
 }

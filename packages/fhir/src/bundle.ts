@@ -3,7 +3,8 @@ import { facilityMeta } from "@asc/fhir/builders/common";
 
 /**
  * Tenant-wide directory data carries no facility tag (P05b follow-up, ADR 2026-10-08): the access policy does not
- * filter it, so it is the only thing a transaction may contain without `meta.account`.
+ * filter it, so it is the only thing a transaction may contain without `meta.account`. If one does carry a tag it
+ * must be the transaction's facility.
  */
 const SHARED_DIRECTORY: ReadonlySet<string> = new Set(["Practitioner", "PractitionerRole", "Organization", "Location"]);
 
@@ -45,9 +46,11 @@ export function createTransaction({ facilityId, newId = () => globalThis.crypto.
     ref: <R extends Resource>(key: string): Reference<R> => ({ reference: fullUrl(key) }),
     add<R extends Resource>(key: string, resource: R, options: { readonly ifNoneExist?: string } = {}): Reference<R> {
       if (entries.has(key)) throw new Error("duplicate transaction key");
-      if (!SHARED_DIRECTORY.has(resource.resourceType) && (resource as { meta?: { account?: Reference } }).meta?.account?.reference !== account) {
-        throw new Error(`${resource.resourceType} is not tagged with the transaction's facility`);
-      }
+      const tagged = (resource as { meta?: { account?: Reference } }).meta?.account?.reference;
+      // Directory data needs no tag, but one that names another facility is refused: it would quietly attach a
+      // tenant-wide resource to a facility it does not belong to.
+      const allowed = SHARED_DIRECTORY.has(resource.resourceType) ? tagged === undefined || tagged === account : tagged === account;
+      if (!allowed) throw new Error(`${resource.resourceType} is not tagged with the transaction's facility`);
       const url = fullUrl(key);
       entries.set(key, {
         fullUrl: url,

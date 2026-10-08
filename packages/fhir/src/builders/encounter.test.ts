@@ -41,6 +41,11 @@ describe("buildCaseEncounter", () => {
     expect(encounter.period).toEqual({ start: "2026-10-08T09:00:00Z", end: "2026-10-08T10:00:00Z" });
   });
 
+  it("refuses a period that ends before it starts, and allows an instant", () => {
+    expect(() => buildCaseEncounter({ ...base, start: "2026-10-08T10:00:00Z", end: "2026-10-08T09:00:00Z" })).toThrow("invalid case period range");
+    expect(buildCaseEncounter({ ...base, start: "2026-10-08T10:00:00Z", end: "2026-10-08T10:00:00Z" }).period).toEqual({ start: "2026-10-08T10:00:00Z", end: "2026-10-08T10:00:00Z" });
+  });
+
   it("accepts a start without an end and an end without a start", () => {
     expect(buildCaseEncounter({ ...base, start: "2026-10-08T09:00:00Z" }).period).toEqual({ start: "2026-10-08T09:00:00Z" });
     expect(buildCaseEncounter({ ...base, end: "2026-10-08T10:00:00Z" }).period).toEqual({ end: "2026-10-08T10:00:00Z" });
