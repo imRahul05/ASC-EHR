@@ -3,6 +3,7 @@
 export type * from "@medplum/fhirtypes";
 export * from "./urls.js";
 export * from "./identifiers.js";
+export * from "./bundle.js";
 export * from "./case-phase.js";
 export * from "./extensions.js";
 export * from "./builders/common.js";

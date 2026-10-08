@@ -8,6 +8,7 @@
     ".": "./src/index.ts",
     "./urls": "./src/urls.ts",
     "./identifiers": "./src/identifiers.ts",
+    "./bundle": "./src/bundle.ts",
     "./case-phase": "./src/case-phase.ts",
     "./extensions": "./src/extensions.ts",
     "./builders/*": "./src/builders/*.ts"
