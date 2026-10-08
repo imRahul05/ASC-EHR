@@ -115,6 +115,13 @@ describe("S1 Composition rules", () => {
     expect((await physicianAtA.request("PUT", `fhir/R4/Composition/${ids["note-A-draft"]}`, inFacility(read.body))).status).toBe(200);
   });
 
+  it("refuses to create or move a note into another facility", async () => {
+    const draft = (await physicianAtA.request("GET", `fhir/R4/Composition/${ids["note-A-draft"]}`)).body as Composition;
+    const toB = { ...draft, meta: { account: { reference: `Organization/${facilityB}` } } };
+    expect((await physicianAtA.request("POST", "fhir/R4/Composition", { ...toB, id: undefined, identifier: undefined })).status).toBe(403);
+    expect((await physicianAtA.request("PUT", `fhir/R4/Composition/${ids["note-A-draft"]}`, toB)).status).toBe(403);
+  });
+
   it("does not stop a physician creating a note as final or flipping a draft to final: signing is gated by the API capability", async () => {
     const draft = (await physicianAtA.request("GET", `fhir/R4/Composition/${ids["note-A-draft"]}`)).body as Composition;
     const create = await physicianAtA.request("POST", "fhir/R4/Composition", inFacility({ ...draft, id: undefined, identifier: undefined, meta: undefined, status: "final" }));
