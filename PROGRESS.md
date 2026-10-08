@@ -20,7 +20,7 @@
 | Updated | 2026-10-08 |
 |---|---|
 | Current wave | 0 |
-| In progress | none (P05h in review, PR #47; P05a–P05g and P02 merged) |
+| In progress | none (P05a–P05h and P02 merged) |
 | Ready to start | P00b, P01, P03, P09, P06 (needs Azure access) |
 | Blocked | P13 soft-blocked on Q-MS1 (fallback allowed) |
 | Go-live target | 2026-12-07 |
@@ -37,7 +37,7 @@
 | P02 | Local Medplum + bots skeleton | done | — | Claude (bg job 640ebd7d) | `phase/P02-local-medplum-clean` | [#43](https://github.com/imRahul05/ASC-EHR/pull/43), [#44](https://github.com/imRahul05/ASC-EHR/pull/44) (#42 closed, replaced by #43) | 2026-10-07 | 2026-10-07 |
 | P03 | `@asc/fhir` | ready | — | | | | | |
 | P04 | Medplum clients | pending | P02, P03 | | | | | |
-| P05 | Auth + roles (sub-phases P05a–P05j below) | in-progress (P05a–P05g done; P05h in review) | P05h: P02 · P05i–j: P04 | | | | | |
+| P05 | Auth + roles (sub-phases P05a–P05j below) | in-progress (P05a–P05h done; P05i–j pending P03/P04) | P05i–j: P04 | | | | | |
 | P06 | Azure infra (dev) | ready (external: subscription/BAA) | — | | | | | |
 | P07 | `@asc/clinical-rules` | pending | P03 | | | | | |
 | P08 | Terminology + profiles | pending | P02, P03 | | | | | |
@@ -71,7 +71,7 @@
 | P05e | App-DB tenancy (RLS, `withTenant`) | done | P05a | Claude (bg job 640ebd7d) | `phase/P05e-db-tenancy` | [#36](https://github.com/imRahul05/ASC-EHR/pull/36) | 2026-10-06 | 2026-10-06 |
 | P05f | Durable audit | done | P05e | Claude (bg job 640ebd7d) | `phase/P05f-durable-audit` | [#38](https://github.com/imRahul05/ASC-EHR/pull/38) | 2026-10-06 | 2026-10-07 |
 | P05g | API security spine | done | P05a, P05e, P05f | Claude (bg job 640ebd7d) | `phase/P05g-api-security-spine` | [#40](https://github.com/imRahul05/ASC-EHR/pull/40) | 2026-10-07 | 2026-10-07 |
-| P05h | Medplum hardening, spikes, seed, policy test | review | P05c, P02 | Claude (bg job 7f0d4791) | `phase/P05h-medplum-hardening` | [#47](https://github.com/imRahul05/ASC-EHR/pull/47) | 2026-10-08 | |
+| P05h | Medplum hardening, spikes, seed, policy test | done | P05c, P02 | Claude (bg job 7f0d4791) | `phase/P05h-medplum-hardening` | [#47](https://github.com/imRahul05/ASC-EHR/pull/47) | 2026-10-08 2026-10-08 |
 | P05i | Medplum identity in API | pending | P05g, P05h, P04 | | | | | |
 | P05j | Web sign-in | pending | P05d, P05i, P04 | | | | | |
 
@@ -81,6 +81,7 @@ Work completed before this plan existed, grouped from git history (`origin/main`
 
 | Date | Area | What | Ref |
 |---|---|---|---|
+| 2026-10-08 | Auth | **P05h** Medplum hardening, spikes, seed, policy test: hardening settings tested over every `infra/medplum/medplum.config*.json`; live suite (`pnpm --filter bots test:medplum`, 86 tests, not in `pnpm test`) runs spikes S1, S1b, S6, S7, a role × resource policy test of the seeded model and a service-client test; seed adds a second facility, one compiled policy per staff role, one demo user per role (membership + `PractitionerRole` copy) and narrow `api-service-v1` / `system-worker-v1` policies for the API and worker clients (data in `infra/medplum/service-policies.json`; a client with a membership and no policy is refused). **Findings:** `/auth/me` has no `access[]` and `ProjectMembership` is admin-only, so grants come from `PractitionerRole`; facility writes must carry `meta.account`; `writeConstraint` is order-dependent across entries; revocation at Medplum is immediate (1 to 4 ms); the membership webhook was not shown to work. Spike ADR is `proposed` (ratification pending); Q-IAM-D (auth time for step-up) is open | PR #47, branch `phase/P05h-medplum-hardening` |
 | 2026-10-07 | Platform | **P02** local Medplum: `pnpm medplum:up` starts Medplum server and admin app 5.1.42 with their own Postgres and Redis (compose profile `medplum`, host ports 8203/3003/5443/6390, localhost only); `pnpm medplum:seed` creates the project (`Project/$init`), a facility, one synthetic practitioner per staff role and the web (PKCE), api and worker client applications, idempotently (byte-identical second run); `apps/bots` skeleton (esbuild, lint, tests); `MEDPLUM_*` and `NEXT_PUBLIC_MEDPLUM_*` env validated in `@asc/config`; the seed refuses anything but localhost. **No committed passwords**: credentials are generated per machine into git-ignored `infra/medplum/.local` (GitGuardian flagged the first version, #42, closed and replaced by #43; LM-019). Review hardening in #44: Redis refuses to start without a password, a missing config fails the start instead of becoming a directory, damaged credentials give one friendly error, `medplum:down` needs no credentials, esbuild paths independent of cwd (LM-020). Seeded api/worker clients have full project access: local-only, least-privilege policies tracked in P05h | PRs #43, #44 (#42 closed) |
 | 2026-10-07 | Auth | **P05g** API security spine (`apps/api`): helmet; explicit request pipeline tenant (gate 1, 404) → flood limit (tenant and address) → identity through `IdentityPort` (gate 2: 401, 503 when the provider is down; step-up capabilities bypass the cache; per tenant-and-user limit) → facility and capability (gates 3 and 4: route parameter, loaded resource via `app.guards`, or all-site only); default-deny (a route without `config.auth` stops the app starting; route inventory test lists the public routes); every denial audited with its gate and decision provenance; `GET /me`; durable append-only audit store required in staging and production; dev-only fake identity refused there (**a deployed API does not start until P05i**); `@asc/config`: `resolveTenantRef`, `GIT_SHA`, rate-limit knobs; found by an attack test: the rate limit did not count failed authentications (LM-018); api 81 tests; decisions in [P05 plan](docs/plan/phases/P05-auth-roles.md) | PR #40, branch `phase/P05g-api-security-spine` |
 | 2026-10-07 | Auth | **P05f** durable audit: `@asc/audit` events carry tenant, facility, membership, session, gate (1–5) and decision provenance (role versions, catalog version, cache state, validated); IAM vocabulary (`auth.*`, `membership.*`, `role.*`, `user.invited`) with a typed `iamEvent` builder and ID-only details; client IP stored as a /24 or /48 prefix; production requires a durable **and** append-only store; `audit_events` table (runtime role `SELECT, INSERT` only, RLS forced, triggers reject UPDATE/DELETE/TRUNCATE even for the owner); `createPostgresAuditStore` over `withTenant`; `withTenant` now rethrows driver failures as `DatabaseError` (SQLSTATE and constraint only, recognised by class) so bound values such as `agent_runs.output` never reach logs; `@asc/db` 74 and `@asc/audit` 36 tests; decisions in [P05 plan](docs/plan/phases/P05-auth-roles.md); LM-016, LM-017 | PR #38, branch `phase/P05f-durable-audit` |
@@ -138,7 +139,7 @@ Full lists: [implementation plan §6](docs/plan/implementation-plan.md#6-cross-p
 
 ## 5. Next up
 
-1. **P05h** is in review (PR #47); merge it, then ratify or change the spike ADR and answer Q-IAM-D. **P03** `@asc/fhir` (stamps `meta.account` on facility-scoped resources, P05h decision 3) and **P04** Medplum clients (never write without `meta.account`) are next on the auth path; P05i needs both. **P00b** library upgrades (zod 4, bullmq 6, ioredis 6) must land before Wave 2. In parallel: **P01** CI (must run a Postgres service and set `TEST_DATABASE_URL`, and should run the live Medplum suite against a disposable Medplum; the GitGuardian check runs on every PR to `main`). P06 must set `trustProxy`, revisit the per-address flood limit behind Front Door, and provision `infra/medplum/service-policies.json`.
+1. Decide **Q-IAM-D** and ratify or change the spike ADR ([ADR](docs/decisions/2026-10-08-medplum-spike-results-and-fallbacks.md)). **P03** `@asc/fhir` (stamps `meta.account` on facility-scoped resources, P05h decision 3) and then **P04** Medplum clients (never write without `meta.account`) are the auth path; P05i needs both and P05j needs P05i. **P00b** library upgrades (zod 4, bullmq 6, ioredis 6) must land before Wave 2. In parallel: **P01** CI (must run a Postgres service and set `TEST_DATABASE_URL`, and should run the live Medplum suite against a disposable Medplum; the GitGuardian check runs on every PR to `main`). P06 must set `trustProxy`, revisit the per-address flood limit behind Front Door, and provision `infra/medplum/service-policies.json`.
 2. In parallel: **P03** `@asc/fhir` (the last gate for P04 and P08; P02 is done).
 3. Escalate week-1 questions: Q-MS1, Azure subscription/BAA (P06), Q8 CPT licence.
 4. Wire `pnpm --filter web build && pnpm --filter web test:bundles` and Lighthouse CI into **P01** CI; re-measure `/login` mobile LCP on an HTTP/2 deploy preview (see web perf done-log entry).
