@@ -24,7 +24,7 @@ flowchart LR
     W -->|"PKCE + TOTP"| MA["Medplum Auth<br/>hardened config"]
     W -->|"Bearer (memory only)"| API
     subgraph API ["apps/api — default deny"]
-        G1["1 tenant<br/>StaticTenantResolver"] --> G2["2 identity<br/>IdentityPort, cached ≤60 s"] --> G3["3 facility grant"] --> G4["4 capability<br/>can(p, cap, facility)"]
+        G1["1 tenant<br/>StaticTenantResolver"] --> G2["2 identity<br/>IdentityPort, cached ≤60 s<br/>(change recommended in #57)"] --> G3["3 facility grant"] --> G4["4 capability<br/>can(p, cap, facility)"]
     end
     G4 -->|"user token"| G5["5 Medplum AccessPolicy<br/>compiled from role templates"]
     G5 --> FHIR[("FHIR store<br/>one Project now")]

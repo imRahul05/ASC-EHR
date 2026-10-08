@@ -454,18 +454,19 @@ flowchart LR
 
 **Implemented in P05g** (`apps/api`): gates 1–4 as one explicit `onRequest` pipeline (tenant, flood limit, identity, facility and capability), default-deny route declarations, `app.guards` for facilities that belong to a loaded resource, audited denials with the gate number, `GET /me`. The identity adapter is still a port: until P05i the API refuses to start in staging and production. Decisions: [P05 plan, P05g decisions](../plan/phases/P05-auth-roles.md).
 
-Gate 5 is the safety net: even if gates 3–4 had a bug, Medplum would still refuse. Gates 3–4 exist for clear errors, workflow rules and non-FHIR actions such as export and AI generation.
+Gate 5 is the safety net: even if gates 3–4 had a bug, Medplum would still refuse. Gates 3–4 exist for clear errors, workflow rules and non-FHIR actions such as export and AI generation. The safety net covers only actions that end in a FHIR call made with the user's token: app Postgres data, AI runs, SSE channels, exports and worker jobs rely on gates 3–4 alone. Their input (grant `PractitionerRole`s) is therefore protected like a membership: no staff policy may write one ([spike results ADR](../decisions/2026-10-08-medplum-spike-results-and-fallbacks.md), review amendments, decision 4).
 
 **Authorization freshness (cache policy).** Gate 2 caches the `/auth/me` result to avoid a Medplum call per request. Rules:
 
 | Rule | Detail |
 |---|---|
-| Cache key and TTL | SHA-256 of the token; TTL ≤ 60 s; never stores the raw token; bounded size |
+| Cache key and TTL | SHA-256 of the token; TTL ≤ 60 s; never stores the raw token; bounded size. **Shared (Redis), never per-instance memory**: with more than one API replica an invalidation must reach every replica |
 | High-risk capabilities bypass the cache | Any capability flagged `stepUp` (sign, attest, discharge, `admin.*`, break-glass) re-validates against Medplum on every call |
 | Our admin actions invalidate | Every role, facility or membership change made through our tools clears that user's cache entries in the same operation |
-| Out-of-band changes invalidate | A Medplum `Subscription` on `ProjectMembership` (and `AccessPolicy`) calls a signed API webhook that clears affected entries, so edits made in the Medplum App are not missed |
+| Out-of-band changes invalidate | **Dropped for now** (spike S6, [spike results ADR](../decisions/2026-10-08-medplum-spike-results-and-fallbacks.md) decision 5, #49): a `Subscription` on `ProjectMembership` failed Medplum's access-policy check. Edits made in the Medplum App are bounded by the TTL and corrected by the provisioner's reconciler sweep |
 | Fail closed | Medplum unreachable → 503; an expired entry is never used as a fallback |
-| Worst case documented | Without a delivered invalidation, a revoked user keeps API access (gates 1–4) for at most the TTL; gate 5 behaviour is measured by spike S6 |
+| Worst case documented | Without a delivered invalidation, a revoked user keeps API access (gates 1–4) for at most the TTL. Spike S6 measured gate 5 as immediate (1 to 4 ms), so the TTL is the only delay |
+| Proposed amendment | **Pending [#57](https://github.com/imRahul05/ASC-EHR/issues/57) (Q-IAM-E):** read the user's `PractitionerRole`s per request with the user's token (proves the token is live and yields the grants in one call); cache only per-token facts that never change (`/auth/me` project, membership, profile) for the token lifetime; no grant cache, so no invalidation or bypass rules |
 
 ### 6.1 API request lifecycle
 
@@ -737,7 +738,7 @@ flowchart TB
 | Caller | Identity | Medplum access | Notes |
 |---|---|---|---|
 | `apps/api` for a user | The **user's** token (forwarded) | User's policy | Default for every command (P04 Q1) |
-| `apps/worker` | **One `ClientApplication` per tenant** (`worker@acme`) using client credentials; secret in Key Vault `tenant-{id}-worker` | `system-worker` policy: only the resource types its jobs touch | Never a server-wide super-admin token |
+| `apps/worker` | **One `ClientApplication` per tenant** (`worker@acme`) using client credentials; secret in Key Vault `tenant-{id}-worker` | `system-worker` policy: only the resource types its jobs touch | Never a server-wide super-admin token. Per-facility worker clients (`worker@<tenant>/<facility>`, so Medplum enforces facility for background jobs and AI agent runs) are recommended in [#60](https://github.com/imRahul05/ASC-EHR/issues/60), pending lead sign-off |
 | Bots | Run inside the tenant Project as their own `Bot` identity | Bot's own AccessPolicy | Tenant-scoped by construction |
 | AI agents | Their own principal kind `agent`, never the raw user or worker credential | Capabilities = caller's capabilities ∩ the agent's allow-list; data scoped to the run's tenant, patient and case | `Provenance` and audit record `agentExecutionId` and `onBehalfOf`; `@asc/agents` context-scope assertions reject items outside the run scope; model-supplied IDs are never trusted |
 | Provisioner (CI/ops) | Super-admin, ops-only pipeline | Platform | Never present in app runtime config |

@@ -38,7 +38,7 @@ This is **not** "complete auth". Anything not needed for the first hospital's go
 ```mermaid
 flowchart LR
     R["Request + Bearer"] --> G1["1 Tenant<br/>TenantResolver;<br/>token project = tenant project"]
-    G1 --> G2["2 Identity<br/>IdentityPort, cached ≤ 60 s,<br/>membership active"]
+    G1 --> G2["2 Identity<br/>IdentityPort, cached ≤ 60 s<br/>(change recommended in #57),<br/>membership active"]
     G2 --> G3["3 Facility<br/>grant at target facility"]
     G3 --> G4["4 Capability + workflow<br/>can() + clinical-rules"]
     G4 --> G5["5 Medplum AccessPolicy<br/>on every FHIR call"]
@@ -297,12 +297,12 @@ Recorded here so P03, P04, P05i, P05j and P06 find them. Evidence (commands, tes
 
 1. **Live tests.** `pnpm --filter bots test:medplum` runs the spikes and the policy tests against the local stack (`apps/bots/live/*.live.ts`, own vitest config, not part of `pnpm test` or turbo). They sign in four times per run and Medplum throttles logins to 5 per window: wait about a minute between runs. They join CI when P01 can provide a disposable Medplum.
 2. **Hardening is tested.** `findHardeningViolations` (`apps/bots/scripts/lib/hardening.ts`) is run over every `infra/medplum/medplum.config*.json`, so P06's Azure config is covered as soon as it is added. P06 carries the three settings and the service policies below.
-3. **Every facility-scoped write names its facility.** A plain read does not return `meta.account`, and Medplum checks the criteria against the new version, so a body sent back as read is refused (403). **P03 builders stamp `meta.account`; P04 clients never write without it.** It also stops a facility user creating or moving a resource into another facility.
+3. **Every facility-scoped write names its facility.** A plain read does not return the facility tag (`meta.accounts`; the singular `meta.account` is deprecated in Medplum 5.1.42, PR #56), and Medplum checks the criteria against the new version, so a body sent back as read is refused (403). **P03 builders stamp `meta.accounts`; P04 clients never write without it.** It also stops a facility user creating or moving a resource into another facility.
 4. **Several entries on one membership.** `hiddenFields` apply if any entry has them; `readonly` is lifted by any writable entry; **`writeConstraint` is order-dependent** (skipped when an entry without it comes first). The provisioner never gives one user two entries on the same constrained type at the same facility, a registry test must enforce it, and routes that edit notes also refuse a `final` note at gate 4. Each entry keeps its own `%facility`.
-5. **Grants come from `PractitionerRole`, not `/auth/me`.** `/auth/me` has no `access[]` and merges the policies; `ProjectMembership` is admin-only. The seed writes a `PractitionerRole` (code system `https://asc-ehr.app/role-template`, code = role key, `organization` = facility, none for an all-site role) next to each membership. **P05i changes (for the engineering lead to confirm):** commit 1 still fetches `/auth/me` (identity, project, membership id); commit 2 maps `PractitionerRole` read by the narrow `api-service-v1` client, not `membership.access`; the policy tag gives the role version. The "signed webhook clears the cache" checklist item cannot be met as written: a Subscription on `ProjectMembership` failed Medplum's access-policy check and a control was not delivered locally. Until it is shown to work, the cache is cleared by our admin tools and bounded by the 60 s TTL.
+5. **Grants come from `PractitionerRole`, not `/auth/me`.** `/auth/me` has no `access[]` and merges the policies; `ProjectMembership` is admin-only. The seed writes a `PractitionerRole` (code system `https://asc-ehr.app/role-template`, code = role key, `organization` = facility, none for an all-site role) next to each membership. **P05i changes (confirmed by the engineering lead, #49, 2026-10-08):** commit 1 still fetches `/auth/me` (identity, project, membership id); commit 2 maps `PractitionerRole` read by the narrow `api-service-v1` client, not `membership.access`; the policy tag gives the role version. The "signed webhook clears the cache" checklist item cannot be met as written: a Subscription on `ProjectMembership` failed Medplum's access-policy check and a control was not delivered locally. Until it is shown to work, the cache is cleared by our admin tools and bounded by the 60 s TTL. **Recommended to change in [#57](https://github.com/imRahul05/ASC-EHR/issues/57)** (pending lead sign-off): read grants with the user's token per request and retire `api-service-v1` from `apps/api`; see the alternative commit list under P05i.
 6. **Revocation at Medplum is immediate** (1 to 4 ms measured for a disabled membership, an edited policy and a changed access list). A disabled client can still be issued a token; it is refused when used.
-7. **Auth time for step-up is an open choice (Q-IAM-D).** `auth_time` is only in the `id_token`; the access token has `iat` and `login_id`. Either no refresh tokens (`iat` is sign-in time), or the token handler passes `auth_time` bound to `login_id`. **P05j must not be built until this is decided**; the proposal is the second. `accessTokenLifetime: "15m"` is honoured per `ClientApplication`.
-8. **Service clients are least-privilege and the policies are data.** `infra/medplum/service-policies.json`: `api-service-v1` reads `PractitionerRole`, `AccessPolicy`, `Organization` and writes nothing (user commands carry the user's token); `system-worker-v1` reaches `Task` only. A job that needs another type adds it there in its own PR with a policy test. The seed refuses a client with a membership and no named policy, and narrows older memberships. **Staging and production provision this same file from day one (P06).**
+7. **Step-up: the signed `id_token` is forwarded (decided 2026-10-08, #49, option C).** The web app keeps the `id_token` in memory and sends it as `X-ID-Token` only on step-up requests; the API verifies Medplum's signature (JWKS), the same `login_id` and `sub` as the access token, and `auth_time` within `STEP_UP_MAX_AGE_SECONDS` (default 300); any failure is HTTP 403 `{ code: "step_up_required" }` (generic body, the audit event says which check failed). The refresh cookie flow is unchanged. The 403 contract is also what the later signing challenge (option E, P16/P19 and e-prescribing) will use. Three checks come before the middleware is built (see the ADR, decision 2). `accessTokenLifetime: "15m"` is honoured per `ClientApplication`.
+8. **Service clients are least-privilege and the policies are data.** `infra/medplum/service-policies.json`: `api-service-v1` reads `PractitionerRole`, `AccessPolicy`, `Organization` and writes nothing (recommended to retire from `apps/api` in [#57](https://github.com/imRahul05/ASC-EHR/issues/57)) (user commands carry the user's token); `system-worker-v1` reaches `Task` only. A job that needs another type adds it there in its own PR with a policy test. The seed refuses a client with a membership and no named policy, and narrows older memberships. **Staging and production provision this same file from day one (P06).**
 9. **Seed additions.** A second facility, one policy per staff template (`<key>-v<version>`), one demo user per staff role (`demo-<role>@example.com`, generated password in the git-ignored output file, carried forward on later runs), their `PractitionerRole` copies. Idempotent, drift is repaired, second run byte-identical.
 10. **Medplum facts.** Invite with `password` and `sendEmail: false` gives a user who can sign in at once; invite reuses the Practitioner with the same email and a second invite fails ("User is already a member"); `Binary` has no search (400); `AccessPolicy` has no `description` in 5.1.42; an unchanged PUT returns 200 without being checked against `writeConstraint`.
 11. **Not done here.** The CI job (P01); the membership webhook (decision 5); a live check comparing memberships with `PractitionerRole`s on a running server (with the provisioner); `hiddenFields`/`readonlyFields` through real role templates (no template uses them yet; S1b used custom policies).
@@ -313,17 +313,23 @@ Workspaces: `@asc/api-client`, `@asc/authz`, `apps/api`.
 | # | Commit |
 |---|---|
 | 1 | `feat(api-client): server helper to fetch auth me` |
-| 2 | `feat(authz): map membership access to per-facility grants` |
-| 3 | `feat(api): Medplum identity adapter with 60 s token-hash cache` |
+| 2 | `feat(authz): map PractitionerRole (role key + facility) to per-facility grants` |
+| 3 | `feat(api): Medplum identity adapter with 60 s token-hash cache` (recommended to change in #57) |
 | 4 | `feat(api): reject wrong project or inactive membership` |
 | 5 | `feat(api): bypass identity cache for step-up capabilities` |
-| 6 | `feat(api): invalidate identity cache from admin actions and membership webhook` |
+| 6 | `feat(api): invalidate identity cache from admin actions` |
 | 7 | `test(api): integration against local Medplum` |
 
 - [ ] Unknown or retired policy in a membership → no capabilities (fail closed)
 - [ ] Medplum unreachable → 503, never allow; cache never stores the raw token; expired entries are never used as fallback
 - [ ] High-risk (`stepUp`) capabilities always re-validate with Medplum (test)
-- [ ] Signed webhook from a Medplum `Subscription` on `ProjectMembership`/`AccessPolicy` clears affected cache entries; our admin tools clear them in the same operation (tests)
+- [ ] Our admin tools clear the affected cache entries in the same operation (test); the 60 s TTL bounds the rest (recommended to change in [#57](https://github.com/imRahul05/ASC-EHR/issues/57): no grant cache, nothing to clear). The Medplum `Subscription` webhook is dropped until it is shown to work (P05h decision 5, #49)
+- [ ] The identity cache is shared (Redis), never per-instance memory: an invalidation reaches every API replica (test with two app instances on one Redis)
+- [ ] Policy test: no staff template can create or update a `PractitionerRole` carrying the role-template code system (`https://asc-ehr.app/role-template`); grant `PractitionerRole`s carry their own `meta.tag`, distinct from directory entries ([spike results ADR](../../decisions/2026-10-08-medplum-spike-results-and-fallbacks.md), review amendments, decision 4)
+- [ ] Policy test: every staff template can search `PractitionerRole` by `practitioner` (needed by both the current design and the #57 alternative)
+- [ ] Worker jobs started by a user carry the principal's ids and re-check its grant at the job's facility when the job runs, not only when it is queued
+
+**Alternative commit list if [#57](https://github.com/imRahul05/ASC-EHR/issues/57) (Q-IAM-E) is adopted** (proposed amendment). **Do not start P05i until #57 is answered**: neither list is the default, and building the cache from the list above before then is wasted work: 1 unchanged; 2 `feat(authz): map the user's PractitionerRoles (read with the user's token) to per-facility grants`; 3 `feat(api): Medplum identity adapter, /auth/me cached per token hash for the token lifetime, grants read per request`; 4 unchanged; 5 and 6 dropped (no grant cache, so no bypass and no invalidation); 7 unchanged, plus a load test of the per-request grant search (a Redis cache of at most 5 s only if it fails). `api-service-v1` loses its `PractitionerRole` and `AccessPolicy` reads.
 
 ### P05j — Web sign-in · M · needs P05d, P05i, P04
 Workspaces: `apps/web`, `@asc/api-client`, `@asc/config`.
@@ -340,7 +346,7 @@ Workspaces: `apps/web`, `@asc/api-client`, `@asc/config`.
 | 8 | `test(web): build fails if mock auth ships without demo flag` |
 
 - [ ] Refresh cookie `httpOnly`, `Secure`, `SameSite=Strict`, path `/auth`; token route checks `Origin` / `Sec-Fetch-Site`
-- [ ] No token or profile in browser storage or URLs (LM-004)
+- [ ] No token or profile in browser storage or URLs (LM-004); the `id_token` is kept in memory only and sent as `X-ID-Token` solely on step-up requests (P05h decision 7)
 - [ ] TOTP required for every staff account (M12-3)
 - [ ] Access token lifetime ≤ 15 min; strict CSP (no inline scripts, host allowlist) on authenticated pages to limit XSS token theft
 
@@ -380,7 +386,9 @@ flowchart LR
 
 | Follow-up | Gate | Design ref |
 |---|---|---|
-| Step-up re-auth (fresh login ≤ 5 min for `stepUp` capabilities) | Before the first sign/attest route ships (P19 note sign, P21 discharge, P22 coding attest) | 08 §5.2 |
+| Step-up middleware: verify the forwarded `X-ID-Token` (signature, same `login_id`, `auth_time` ≤ 5 min) for `stepUp` capabilities; 403 `step_up_required` contract | Before the first sign/attest route ships (P19 note sign, P21 discharge, P22 coding attest); run the three checks in the ADR first | 08 §5.2, #49; signing as a nonce-bound ceremony and the applicable regulations pending [#58](https://github.com/imRahul05/ASC-EHR/issues/58) |
+| Role-assignment reconciler: `PractitionerRole` is the desired state, `ProjectMembership.access[]` is compiled from it; idempotent, runs on every admin write and on a periodic sweep, writes an `AuditEvent`, alerts when it corrects drift (a membership edited in the Medplum App); sole holder of project-admin credentials, never in `apps/api`. Replaces the dual write and the drift test | Before the first role is assigned outside the seed (staging, P06) | [spike results ADR](../../decisions/2026-10-08-medplum-spike-results-and-fallbacks.md), review amendments, decision 4 |
+| Load test: a membership with about 40 `access[]` entries (search latency); region `Organization`s in `meta.accounts` if it fails | Before the first multi-site customer | spike results ADR, review amendments (scale) |
 | Worker identity + job tenant context (per-tenant `ClientApplication`, IDs-only job data) | Before the first worker job that reads or writes PHI (P12 / P19) | 08 §9 |
 | SSE stream auth (header auth or one-time ticket, re-validation) | Before P10 streams carry PHI | 08 §10 |
 | Signed service-to-service calls and webhooks | Before P24 | 08 §11 |
@@ -388,7 +396,7 @@ flowchart LR
 | Hospital SSO (`DomainConfiguration`) | First customer that requires SSO | 08 §5.3 |
 | Patient portal identity | Portal phase (P2) | 08 §5.4 |
 | Role lifecycle tooling (deprecate, retire, split) | First role change after go-live; until then template version bump + Medplum App | [future §8](../../product/future-multi-tenancy-architecture.md) |
-| Full backend-for-frontend (proxy all FHIR reads) | Only if a security review or customer requires it; hybrid token handling is the default (ADR item 6) | ADR |
+| Full backend-for-frontend (proxy all FHIR reads) | Only if a security review or customer requires it; hybrid token handling is the default (ADR item 6; #49 kept it) | ADR |
 | P05h policy test in CI (disposable Medplum, role × resource matrix) | When P01 CI exists; required before go-live | ADR Confirmation |
 | IAM hardening review (cross-facility attack tests, pen test, `phi-review` of the auth surface, sign-off) | Part of P26 go-live hardening | 08 §6, §12 |
 | Multi-tenancy (registry, host resolver, provisioner, cross-tenant suite) | Customer #2 signed | [future §9](../../product/future-multi-tenancy-architecture.md) |
