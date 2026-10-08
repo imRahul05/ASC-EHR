@@ -10,6 +10,8 @@ import type { MedplumClient } from "@medplum/core";
 export const SEED_SYSTEM = "urn:asc-ehr:seed";
 export const PROJECT_NAME = "ASC EHR (local)";
 export const FACILITY_KEY = "facility-demo-1";
+/** A second facility, so tests can prove that a user at the first cannot reach the second. */
+export const SECOND_FACILITY_KEY = "facility-demo-2";
 
 /** The narrow slice of the Medplum client the seed uses (so tests can fake it). */
 type Medplum = Pick<
@@ -51,13 +53,13 @@ export async function ensureProject(admin: ProjectAdmin, name: string = PROJECT_
   return { id, created: true };
 }
 
-/** The facility (an Organization): P05h seeds the real facilities and policies. */
-export async function seedFacility(medplum: Medplum) {
+/** A facility (an Organization), by key; the first one by default. */
+export async function seedFacility(medplum: Medplum, key: string = FACILITY_KEY, name: string = "Demo Surgery Center (synthetic)") {
   const facility = await medplum.createResourceIfNoneExist(
     {
       resourceType: "Organization",
-      name: "Demo Surgery Center (synthetic)",
-      identifier: identifierOf(FACILITY_KEY),
+      name,
+      identifier: identifierOf(key),
       type: [
         {
           coding: [{ system: "http://terminology.hl7.org/CodeSystem/organization-type", code: "prov", display: "Healthcare Provider" }],
@@ -66,7 +68,7 @@ export async function seedFacility(medplum: Medplum) {
       active: true,
       meta: { tag: SYNTHETIC_TAG },
     },
-    conditionOf(FACILITY_KEY),
+    conditionOf(key),
   );
   if (facility.id === undefined) throw new Error("Medplum did not return the facility id");
   return facility.id;
