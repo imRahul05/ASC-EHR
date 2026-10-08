@@ -59,4 +59,4 @@ apps/worker/src/medplum.ts                     NEW  system client from parseEnv(
 ## Open questions
 | ID | Question | Blocks | Default |
 |---|---|---|---|
-| Q1 | On-behalf: forward user token vs token exchange | T3 | Forward user access token (AccessPolicy + AuditEvent apply to the user) |
+| Q1 | On-behalf: forward user token vs token exchange | T3 | Forward user access token (AccessPolicy + AuditEvent apply to the user) (confirm: [#55](https://github.com/imRahul05/ASC-EHR/issues/55)) |
