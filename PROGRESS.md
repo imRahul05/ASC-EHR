@@ -17,10 +17,10 @@
 
 ## 1. Snapshot (update on every phase change)
 
-| Updated | 2026-10-07 |
+| Updated | 2026-10-08 |
 |---|---|
 | Current wave | 0 |
-| In progress | none (P05a–P05g and P02 merged; P05h is next) |
+| In progress | P05h (P05a–P05g and P02 merged) |
 | Ready to start | P00b, P01, P03, P09, P05h, P06 (needs Azure access) |
 | Blocked | P13 soft-blocked on Q-MS1 (fallback allowed) |
 | Go-live target | 2026-12-07 |
@@ -37,7 +37,7 @@
 | P02 | Local Medplum + bots skeleton | done | — | Claude (bg job 640ebd7d) | `phase/P02-local-medplum-clean` | [#43](https://github.com/imRahul05/ASC-EHR/pull/43), [#44](https://github.com/imRahul05/ASC-EHR/pull/44) (#42 closed, replaced by #43) | 2026-10-07 | 2026-10-07 |
 | P03 | `@asc/fhir` | ready | — | | | | | |
 | P04 | Medplum clients | pending | P02, P03 | | | | | |
-| P05 | Auth + roles (sub-phases P05a–P05j below) | in-progress (P05a–P05g done; P05h ready) | P05h: P02 · P05i–j: P04 | | | | | |
+| P05 | Auth + roles (sub-phases P05a–P05j below) | in-progress (P05a–P05g done; P05h in progress) | P05h: P02 · P05i–j: P04 | | | | | |
 | P06 | Azure infra (dev) | ready (external: subscription/BAA) | — | | | | | |
 | P07 | `@asc/clinical-rules` | pending | P03 | | | | | |
 | P08 | Terminology + profiles | pending | P02, P03 | | | | | |
@@ -71,7 +71,7 @@
 | P05e | App-DB tenancy (RLS, `withTenant`) | done | P05a | Claude (bg job 640ebd7d) | `phase/P05e-db-tenancy` | [#36](https://github.com/imRahul05/ASC-EHR/pull/36) | 2026-10-06 | 2026-10-06 |
 | P05f | Durable audit | done | P05e | Claude (bg job 640ebd7d) | `phase/P05f-durable-audit` | [#38](https://github.com/imRahul05/ASC-EHR/pull/38) | 2026-10-06 | 2026-10-07 |
 | P05g | API security spine | done | P05a, P05e, P05f | Claude (bg job 640ebd7d) | `phase/P05g-api-security-spine` | [#40](https://github.com/imRahul05/ASC-EHR/pull/40) | 2026-10-07 | 2026-10-07 |
-| P05h | Medplum hardening, spikes, seed, policy test | ready | P05c, P02 | | | | | |
+| P05h | Medplum hardening, spikes, seed, policy test | in-progress | P05c, P02 | Claude (bg job 7f0d4791) | `phase/P05h-medplum-hardening` | | 2026-10-08 | |
 | P05i | Medplum identity in API | pending | P05g, P05h, P04 | | | | | |
 | P05j | Web sign-in | pending | P05d, P05i, P04 | | | | | |
 
