@@ -56,6 +56,19 @@ docs/agent/architecture.md            EDIT add @asc/fhir to package map
 - [ ] 100 % test coverage on builders
 - [ ] PROGRESS.md updated
 
+## P03 decisions (2026-10-08)
+
+Recorded here so P04, P07, P08, P11 and P14 find them. Evidence (commands, test names) lives in the P03 PR; the acceptance list above stays unticked, as for the P05 sub-phases.
+
+1. **The canonical base is defined once** (`src/urls.ts`): `FHIR_CANONICAL_BASE` plus `createFhirUrls(base)`, which builds structure definition, code system, value set and identifier system URLs and validates the base and every name. A test fails if the host appears as a literal in any other source file (shown to fail with a planted leak). An override is the optional `FHIR_CANONICAL_BASE` variable, validated in `@asc/config` for api and worker and **passed in** by the app: the package reads no environment (LM-006). The web app always uses the default. The value is stored inside every resource, so it must be identical wherever data is shared.
+2. **Every builder stamps `meta.account`** for its facility (`facilityMeta`), because Medplum refuses a facility user's write without it (P05h decision 3). `createTransaction` refuses an entry that lacks the transaction's facility, except tenant-wide directory types (Practitioner, PractitionerRole, Organization, Location). **P04 rule:** an update must send the stored `meta.account` back (the Medplum client does when it reads in extended mode; plain HTTP reads do not return it).
+3. **`CasePhase` is not redefined.** It stays in `@asc/types` (used by the web and `@asc/clinical-rules`); `@asc/fhir/case-phase` maps it to stored codes (`Record<CasePhase, ...>`, so a new phase without a code fails the type check) and builds the CodeSystem JSON that **P08** loads (`buildCasePhaseCodeSystem`, `buildProcedureIntentCodeSystem`). `CasePhase` and `ProcedureIntent` are re-exported as types. The UI guidelines now import `CasePhase` from `@asc/types`.
+4. **Choices of this phase not taken from the product docs** (change them here, not in callers): the `Encounter.status` that goes with each phase (`ENCOUNTER_STATUS_BY_PHASE`: planned, arrived, in-progress, finished, cancelled), the identifier system paths `identifier/mrn` and `identifier/case-number`, the extension names `case-phase`, `procedure-intent`, `agent-execution-id`, the Provenance roles (`author`, `verifier`, `attester`), and Task types as free lower-case names (P12 defines the list and the `task-type` CodeSystem).
+5. **Not confirmed yet:** the case number format `<facility>-<yyyymmdd>-<seq>` is the default and awaits [#55](https://github.com/imRahul05/ASC-EHR/issues/55) (it carries a date, so it is treated as sensitive); the eCW practice id format is unconfirmed (06 §7), so the check accepts letters, digits, `_` and `-`.
+6. **PHI.** Builder inputs and identifiers can be PHI (names, birth date, MRN, eCW id, case number). Errors name the field and never echo the value (tested); nothing logs. The agent execution id is an opaque id and the check rejects free text.
+7. **Packages.** `@medplum/core` was **not** added (planned for `createReference`): the helper is a few lines and keeping it out keeps Medplum code out of browser bundles. `@asc/types` (types only) was added as a dependency. `@vitest/coverage-v8` is a dev dependency of this package only, and `pnpm test` fails below 100 % for the whole package (129/129 statements, 137/137 branches).
+8. **Module format (LM-005).** Files a browser can reach import siblings through their leaf name (`@asc/fhir/urls`), never by relative path; only `index.ts` (for Node code) uses relative paths. A test enforces it. Browser code imports the leaves (`@asc/fhir/urls`, `/identifiers`, `/case-phase`, `/extensions`, `/bundle`, `/builders/*`), not the root.
+
 ## Open questions
 | ID | Question | Blocks | Default |
 |---|---|---|---|

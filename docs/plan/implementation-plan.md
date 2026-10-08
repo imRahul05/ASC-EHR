@@ -278,8 +278,8 @@ ASC_EHR/
 │       └── esbuild.config.mjs
 └── packages/
     ├── fhir/                              NEW  P03 (P08, P11)  @asc/fhir — isomorphic, no network
-    │   ├── src/{identifiers,extensions,case-phase,bundle,index}.ts
-    │   ├── src/builders/<resource>.ts
+    │   ├── src/{urls,identifiers,extensions,case-phase,bundle,index}.ts
+    │   ├── src/builders/{common,patient,encounter,appointment,provenance,task}.ts   (P03; more per phase)
     │   ├── src/terminology/{codesystems,valuesets}/                 P08
     │   ├── src/questionnaires/<form>.ts                             P11  forms as data
     │   └── fsh/{sushi-config.yaml,input/fsh/*.fsh}                  P08  profiles
