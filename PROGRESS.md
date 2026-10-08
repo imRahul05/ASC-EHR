@@ -20,8 +20,8 @@
 | Updated | 2026-10-08 |
 |---|---|
 | Current wave | 0 |
-| In progress | P05h (P05a–P05g and P02 merged) |
-| Ready to start | P00b, P01, P03, P09, P05h, P06 (needs Azure access) |
+| In progress | none (P05h in review, PR #47; P05a–P05g and P02 merged) |
+| Ready to start | P00b, P01, P03, P09, P06 (needs Azure access) |
 | Blocked | P13 soft-blocked on Q-MS1 (fallback allowed) |
 | Go-live target | 2026-12-07 |
 
@@ -37,7 +37,7 @@
 | P02 | Local Medplum + bots skeleton | done | — | Claude (bg job 640ebd7d) | `phase/P02-local-medplum-clean` | [#43](https://github.com/imRahul05/ASC-EHR/pull/43), [#44](https://github.com/imRahul05/ASC-EHR/pull/44) (#42 closed, replaced by #43) | 2026-10-07 | 2026-10-07 |
 | P03 | `@asc/fhir` | ready | — | | | | | |
 | P04 | Medplum clients | pending | P02, P03 | | | | | |
-| P05 | Auth + roles (sub-phases P05a–P05j below) | in-progress (P05a–P05g done; P05h in progress) | P05h: P02 · P05i–j: P04 | | | | | |
+| P05 | Auth + roles (sub-phases P05a–P05j below) | in-progress (P05a–P05g done; P05h in review) | P05h: P02 · P05i–j: P04 | | | | | |
 | P06 | Azure infra (dev) | ready (external: subscription/BAA) | — | | | | | |
 | P07 | `@asc/clinical-rules` | pending | P03 | | | | | |
 | P08 | Terminology + profiles | pending | P02, P03 | | | | | |
@@ -71,7 +71,7 @@
 | P05e | App-DB tenancy (RLS, `withTenant`) | done | P05a | Claude (bg job 640ebd7d) | `phase/P05e-db-tenancy` | [#36](https://github.com/imRahul05/ASC-EHR/pull/36) | 2026-10-06 | 2026-10-06 |
 | P05f | Durable audit | done | P05e | Claude (bg job 640ebd7d) | `phase/P05f-durable-audit` | [#38](https://github.com/imRahul05/ASC-EHR/pull/38) | 2026-10-06 | 2026-10-07 |
 | P05g | API security spine | done | P05a, P05e, P05f | Claude (bg job 640ebd7d) | `phase/P05g-api-security-spine` | [#40](https://github.com/imRahul05/ASC-EHR/pull/40) | 2026-10-07 | 2026-10-07 |
-| P05h | Medplum hardening, spikes, seed, policy test | in-progress | P05c, P02 | Claude (bg job 7f0d4791) | `phase/P05h-medplum-hardening` | | 2026-10-08 | |
+| P05h | Medplum hardening, spikes, seed, policy test | review | P05c, P02 | Claude (bg job 7f0d4791) | `phase/P05h-medplum-hardening` | [#47](https://github.com/imRahul05/ASC-EHR/pull/47) | 2026-10-08 | |
 | P05i | Medplum identity in API | pending | P05g, P05h, P04 | | | | | |
 | P05j | Web sign-in | pending | P05d, P05i, P04 | | | | | |
 
@@ -131,13 +131,14 @@ Work completed before this plan existed, grouped from git history (`origin/main`
 | Q-MS4/5 | faxagnet + Integuru hosting/BAA/outbound | P24 | MindScript team | open |
 | Q-API-1 | Deployed API is paused until P05i: it refuses to start in staging and production (no real identity adapter; the dev fake is refused), so the API Vercel project shows failed deployments. The demo is unaffected (in-browser mocks). Pause its deploys in Vercel (Ignored Build Step `exit 0`) or accept the failures until P05i ([deployment doc §B](docs/DEPLOYMENT_CONFIGURATION.md)) | none for the demo; any real API deployment | eng lead | open |
 | Q-AUDIT-1 | An *allowed* PHI read whose audit write fails: proposal 503 and no data. Denials are already never skipped ([P05g decision 6](docs/plan/phases/P05-auth-roles.md)) | first PHI route (P12/P14) | eng lead | open: decide before the first PHI route |
+| Q-IAM-D | Where step-up gets auth time: `auth_time` is only in the `id_token`. A: no refresh tokens (`iat` = sign-in time; conflicts with P05j's refresh cookie). B (proposed): the token handler passes `auth_time` bound to `login_id`. Also confirm the P05i outline changes (grants from `PractitionerRole`; membership webhook dropped until proven) ([ADR](docs/decisions/2026-10-08-medplum-spike-results-and-fallbacks.md), [P05h decisions](docs/plan/phases/P05-auth-roles.md)) | P05j; P05i commits 2 and 6 | eng lead | open: decide before P05i/P05j |
 | Q-IAM-C | Workspace overlap: roles whose capabilities are a subset of another's (tech ⊂ nurse/physician) appear as an extra workspace option in the switcher. Add `hiddenWhen` to workspace definitions? ([P05 §4 P05d decisions](docs/plan/phases/P05-auth-roles.md)) | none (UX only) | eng lead | open: accepted for now |
 
 Full lists: [implementation plan §6](docs/plan/implementation-plan.md#6-cross-phase-open-questions), each phase file, [05 §5.4](docs/product/05-delivery-plan.md), [06 §7](docs/product/06-mindscript-integration.md#7-open-questions-for-the-mindscript-team).
 
 ## 5. Next up
 
-1. **P05h** Medplum hardening, spikes, seed and the policy test (needs P02 and P05c, both done; P05i needs P05h and P04): run it against the local stack from `pnpm medplum:up`. It also owns narrowing the seeded `asc-ehr-api` and `asc-ehr-worker` clients (checklist item in the P05 plan). **P00b** library upgrades (zod 4, bullmq 6, ioredis 6) must land before Wave 2. In parallel: **P01** CI (must run a Postgres service and set `TEST_DATABASE_URL`; the GitGuardian check runs on every PR to `main`). P06 must set `trustProxy` and revisit the per-address flood limit behind Front Door.
+1. **P05h** is in review (PR #47); merge it, then ratify or change the spike ADR and answer Q-IAM-D. **P03** `@asc/fhir` (stamps `meta.account` on facility-scoped resources, P05h decision 3) and **P04** Medplum clients (never write without `meta.account`) are next on the auth path; P05i needs both. **P00b** library upgrades (zod 4, bullmq 6, ioredis 6) must land before Wave 2. In parallel: **P01** CI (must run a Postgres service and set `TEST_DATABASE_URL`, and should run the live Medplum suite against a disposable Medplum; the GitGuardian check runs on every PR to `main`). P06 must set `trustProxy`, revisit the per-address flood limit behind Front Door, and provision `infra/medplum/service-policies.json`.
 2. In parallel: **P03** `@asc/fhir` (the last gate for P04 and P08; P02 is done).
 3. Escalate week-1 questions: Q-MS1, Azure subscription/BAA (P06), Q8 CPT licence.
 4. Wire `pnpm --filter web build && pnpm --filter web test:bundles` and Lighthouse CI into **P01** CI; re-measure `/login` mobile LCP on an HTTP/2 deploy preview (see web perf done-log entry).
