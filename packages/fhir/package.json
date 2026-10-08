@@ -5,7 +5,8 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./urls": "./src/urls.ts"
   },
   "scripts": {
     "lint": "eslint --max-warnings 0",
