@@ -7,11 +7,11 @@ exports[`compiled policies > admin compiles to a stable AccessPolicy 1`] = `
       {
         "code": "admin",
         "system": "https://asc-ehr.app/role-template",
-        "version": "1",
+        "version": "2",
       },
     ],
   },
-  "name": "admin-v1",
+  "name": "admin-v2",
   "resource": [
     {
       "resourceType": "Appointment",
@@ -40,6 +40,7 @@ exports[`compiled policies > admin compiles to a stable AccessPolicy 1`] = `
       "resourceType": "Practitioner",
     },
     {
+      "readonly": true,
       "resourceType": "PractitionerRole",
     },
   ],

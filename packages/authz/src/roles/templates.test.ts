@@ -57,10 +57,18 @@ describe("role templates", () => {
 
   it("lets every staff role read the directory and only admin write it", () => {
     for (const template of roleRegistry.all().filter((t) => t.key !== "patient")) {
-      for (const type of ["Practitioner", "PractitionerRole", "Organization", "Location"]) {
+      for (const type of ["Practitioner", "Organization", "Location"]) {
         const rule = template.data.find((r) => r.resourceType === type);
         expect(rule, `${template.key} ${type}`).toBeDefined();
         expect(rule?.readonly === true, `${template.key} ${type}`).toBe(template.key !== "admin");
+      }
+    }
+  });
+
+  it("never lets a role write PractitionerRole, the role grants capabilities are built from", () => {
+    for (const template of roleRegistry.all()) {
+      for (const rule of template.data.filter((r) => r.resourceType === "PractitionerRole")) {
+        expect(rule.readonly, template.key).toBe(true);
       }
     }
   });

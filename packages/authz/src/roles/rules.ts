@@ -13,5 +13,12 @@ const REFERENCE_TYPES = ["Practitioner", "PractitionerRole", "Organization", "Lo
 
 export const REFERENCE_READ: readonly ResourceRule[] = REFERENCE_TYPES.map((type) => ({ ...ro(type), shared: true }));
 
-// Administrators maintain the directory (admin.users, admin.facility).
-export const REFERENCE_WRITE: readonly ResourceRule[] = REFERENCE_TYPES.map((type) => ({ ...rw(type), shared: true }));
+// Administrators maintain the directory (admin.users, admin.facility), except `PractitionerRole`: those records
+// are role grants (code system `ROLE_TEMPLATE_TAG_SYSTEM`) that the API builds a user's capabilities from, so
+// a role that could write them could grant itself any role at any facility. Grants are written only by the
+// seed and the provisioner, with ops credentials (ADR 2026-10-08, review amendments).
+// TODO(P06 provisioner): renaming or repurposing a facility `Organization` moves every resource tagged with it
+// (`meta.accounts`); make it an audited admin action with a reason, not a plain directory edit.
+export const REFERENCE_WRITE: readonly ResourceRule[] = REFERENCE_TYPES.map((type) =>
+  type === "PractitionerRole" ? { ...ro(type), shared: true } : { ...rw(type), shared: true },
+);
