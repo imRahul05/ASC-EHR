@@ -1,4 +1,4 @@
-import type { Bundle, Composition } from "@medplum/fhirtypes";
+import type { Bundle, Composition, Patient } from "@medplum/fhirtypes";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { type Caller, liveContext, spikeCondition, spikeIdentifier } from "./harness.js";
@@ -10,7 +10,6 @@ import { type Caller, liveContext, spikeCondition, spikeIdentifier } from "./har
  * Characterization: each assertion pins what the live server does today.
  */
 const ctx = liveContext();
-const entries = (body: unknown) => (body as Bundle).entry?.length ?? 0;
 
 let facilityA = "";
 let facilityB = "";
@@ -73,7 +72,8 @@ describe("S1 facility compartment (_compartment=%facility with meta.account)", (
   it("filters a search to the facility instead of failing", async () => {
     const found = await rnAtA.request("GET", `fhir/R4/Patient?identifier=${encodeURIComponent("urn:asc-ehr:spike|")}`);
     expect(found.status).toBe(200);
-    expect(entries(found.body)).toBe(1);
+    const names = ((found.body as Bundle<Patient>).entry ?? []).map((entry) => entry.resource?.name?.[0]?.family ?? "");
+    expect(names.filter((family) => family.startsWith("Spike-patient-"))).toEqual(["Spike-patient-A"]);
   });
 
   it("hides B's note from a nurse at A", async () => {
