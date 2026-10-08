@@ -9,7 +9,8 @@
     "./urls": "./src/urls.ts",
     "./identifiers": "./src/identifiers.ts",
     "./case-phase": "./src/case-phase.ts",
-    "./extensions": "./src/extensions.ts"
+    "./extensions": "./src/extensions.ts",
+    "./builders/*": "./src/builders/*.ts"
   },
   "scripts": {
     "lint": "eslint --max-warnings 0",

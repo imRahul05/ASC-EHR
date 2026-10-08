@@ -18,8 +18,12 @@ function runtimeImports(file: string): string[] {
 
 describe("@asc/fhir module format", () => {
   it("exposes every non-index source file as a leaf export", () => {
-    const leaves = new Set(Object.values(pkg.exports).map((target) => target.replace("./src/", "")));
-    for (const file of files) expect(leaves, `${file} needs a leaf export`).toContain(file);
+    // "./builders/*": "./src/builders/*.ts" covers every file in src/builders.
+    const exact = new Set(Object.values(pkg.exports).filter((target) => !target.includes("*")).map((target) => target.replace("./src/", "")));
+    const wildcard = Object.values(pkg.exports).filter((target) => target.includes("*")).map((target) => target.replace("./src/", "").split("*")[0] ?? "");
+    for (const file of files) {
+      expect(exact.has(file) || wildcard.some((prefix) => file.startsWith(prefix)), `${file} needs a leaf export`).toBe(true);
+    }
   });
 
   it("keeps relative runtime imports out of every leaf file", () => {
@@ -30,7 +34,9 @@ describe("@asc/fhir module format", () => {
   it("only imports sibling leaves that are exported", () => {
     for (const file of files) {
       for (const specifier of runtimeImports(file).filter((s) => s.startsWith(`${pkg.name}/`))) {
-        expect(pkg.exports, `${file} imports ${specifier}`).toHaveProperty([`./${specifier.slice(pkg.name.length + 1)}`]);
+        const leaf = `./${specifier.slice(pkg.name.length + 1)}`;
+        const covered = Object.hasOwn(pkg.exports, leaf) || Object.hasOwn(pkg.exports, `${leaf.split("/").slice(0, -1).join("/")}/*`);
+        expect(covered, `${file} imports ${specifier}`).toBe(true);
       }
     }
   });
