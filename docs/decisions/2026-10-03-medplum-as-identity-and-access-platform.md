@@ -56,7 +56,7 @@ Chosen option: **1**, running **self-hosted open-source Medplum** (upstream `med
 
 ### Confirmation
 
-- P05g spikes S1 (facility compartment + `writeConstraint` + auth-time claim), S1b (union of access entries) and S7 (`/auth/me` payload) pass on Medplum 5.1.42, or a fallback is recorded here.
+- P05g spikes S1 (facility compartment + `writeConstraint` + auth-time claim), S1b (union of access entries) and S7 (`/auth/me` payload) pass on Medplum 5.1.42, or a fallback is recorded here. Results and fallbacks (run in P05h): [spike results ADR](2026-10-08-medplum-spike-results-and-fallbacks.md). S7 did not pass: grants come from `PractitionerRole`, not `/auth/me`.
 - P05g policy test passes against local Medplum: front-desk cannot read `Composition`; an `rn` at facility A cannot read facility B resources.
 - P05g config test passes: the four hardening settings above are present in every environment's Medplum config.
 - Ratified by the engineering lead (name and date in the front matter).
