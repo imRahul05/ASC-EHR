@@ -13,6 +13,7 @@
     "test:medplum": "vitest run --config vitest.live.config.ts"
   },
   "dependencies": {
+    "@asc/api-client": "workspace:*",
     "@asc/authz": "workspace:*",
     "@asc/config": "workspace:*",
     "@medplum/core": "5.1.42"
