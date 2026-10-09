@@ -327,14 +327,14 @@ Commit list as decided in [#57](https://github.com/imRahul05/ASC-EHR/issues/57) 
 | 5 | `chore(api): drop the IdentityPort cache fields` (`api-service-v1`, its config and env examples are already gone: PRs #65, #66) |
 | 6 | `test(api): integration against local Medplum, plus a load test of the per-request grant search` |
 
-- [ ] Unknown or retired policy in a membership → no capabilities (fail closed)
-- [ ] Medplum unreachable → 503, never allow; the `/auth/me` cache never stores the raw token and never outlives the token
-- [ ] Grants are read with the user's token on every request and memoized within that request only; a revoked membership or a removed grant is refused on the next request (test)
-- [ ] No cross-request grant cache, so no invalidation hooks, no step-up cache bypass and no membership webhook. Fallback only if the load test fails: a cache of at most 5 s, in Redis, keyed by membership, never per-instance memory
-- [ ] `apps/api` holds no Medplum client secret: `api-service-v1` is removed from its runtime, `@asc/config` and `.env*.example` (done early in PRs #65, #66); `IdentityPort` loses the `stepUp` and `cache` fields (or keeps `cache: "miss"` for audit)
-- [ ] Policy test: no staff template can create or update a `PractitionerRole` carrying the role-template code system (`https://asc-ehr.app/role-template`); grant `PractitionerRole`s carry their own `meta.tag`, distinct from directory entries ([spike results ADR](../../decisions/2026-10-08-medplum-spike-results-and-fallbacks.md), review amendments, decision 4)
-- [ ] Policy test: every staff template can search its own `PractitionerRole`s by `practitioner` with `active=true` (live-checked for all 8 roles; the seed writes `active: true` since PR #61)
-- [ ] Worker jobs started by a user carry the principal's ids and re-check its grant at the job's facility before each step that reads or writes PHI, not only when queued; in-process memo of at most 5 s per job ([#57](https://github.com/imRahul05/ASC-EHR/issues/57))
+- [x] Unknown or retired policy in a membership → no capabilities (fail closed)
+- [x] Medplum unreachable → 503, never allow; the `/auth/me` cache never stores the raw token and never outlives the token
+- [x] Grants are read with the user's token on every request and memoized within that request only; a revoked membership or a removed grant is refused on the next request (test)
+- [x] No cross-request grant cache, so no invalidation hooks, no step-up cache bypass and no membership webhook. Fallback only if the load test fails: a cache of at most 5 s, in Redis, keyed by membership, never per-instance memory
+- [x] `apps/api` holds no Medplum client secret: `api-service-v1` is removed from its runtime, `@asc/config` and `.env*.example` (done early in PRs #65, #66); `IdentityPort` loses the `stepUp` and `cache` fields (or keeps `cache: "miss"` for audit)
+- [x] Policy test: no staff template can create or update a `PractitionerRole` carrying the role-template code system (`https://asc-ehr.app/role-template`); grant `PractitionerRole`s carry their own `meta.tag`, distinct from directory entries ([spike results ADR](../../decisions/2026-10-08-medplum-spike-results-and-fallbacks.md), review amendments, decision 4)
+- [x] Policy test: every staff template can search its own `PractitionerRole`s by `practitioner` with `active=true` (live-checked for all 8 roles; the seed writes `active: true` since PR #61)
+- [x] Worker jobs started by a user carry the principal's ids and re-check its grant at the job's facility before each step that reads or writes PHI, not only when queued; in-process memo of at most 5 s per job ([#57](https://github.com/imRahul05/ASC-EHR/issues/57))
 
 ### P05j — Web sign-in · M · needs P05d, P05i, P04
 Workspaces: `apps/web`, `@asc/api-client`, `@asc/config`.
