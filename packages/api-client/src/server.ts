@@ -53,6 +53,7 @@ export interface MedplumAuthMe {
     readonly profile?: { readonly reference?: string; readonly display?: string };
     readonly user?: { readonly reference?: string };
     readonly admin?: boolean;
+    readonly active?: boolean;
   };
   readonly profile?: { readonly id?: string; readonly resourceType?: string; readonly [key: string]: unknown };
   readonly accessPolicy?: { readonly id?: string; readonly resourceType?: string; readonly basedOn?: readonly { readonly reference?: string }[] };
