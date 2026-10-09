@@ -118,7 +118,7 @@ export function TopBar() {
               <RotateCcw className="size-3.5" />
               Reset demo data
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={logout} variant="destructive" data-testid="logout">
+            <DropdownMenuItem onClick={() => void logout()} variant="destructive" data-testid="logout">
               <LogOut className="size-3.5" />
               Sign out
             </DropdownMenuItem>
