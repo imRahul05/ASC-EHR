@@ -61,10 +61,6 @@ export const gitShaSchema = z
   .optional();
 
 /**
- * Medplum connection for server processes (api, worker). All optional until the
- * Medplum clients are wired (P04). `MEDPLUM_CLIENT_SECRET` is a secret: never log it.
- */
-/**
  * Optional override of the canonical URL base of our FHIR profiles and identifier systems
  * (the default lives in `@asc/fhir`, issue #54). Same rule as `assertCanonicalBase`
  * in `@asc/fhir`: https, ends in "/", no query or fragment. The value is stored inside every
@@ -79,12 +75,44 @@ export const fhirCanonicalBaseSchema = z
   })
   .optional();
 
+/** Medplum connection shared by the server processes (api, worker). */
 const medplumServerEnvShape = {
   FHIR_CANONICAL_BASE: fhirCanonicalBaseSchema,
   MEDPLUM_BASE_URL: z.string().url().optional(),
-  MEDPLUM_CLIENT_ID: z.string().min(1).optional(),
-  MEDPLUM_CLIENT_SECRET: z.string().min(1).optional(),
 };
+
+const workerClientsRecordSchema = z.record(
+  z.string().regex(/^[A-Za-z0-9.-]{1,64}$/),
+  z.object({ clientId: z.string().min(1), clientSecret: z.string().min(1) }).strict(),
+);
+
+/**
+ * The worker's Medplum credentials, ONE client per facility (#60): a JSON object keyed by facility
+ * (`Organization` id), `{"<facilityId>":{"clientId":"…","clientSecret":"…"}}`. The worker picks the client from
+ * a job's validated `facilityId`, so Medplum confines the job to that facility. There is no tenant-wide worker
+ * client. The secrets come from Key Vault in deployed environments; never log this value. The API has no
+ * Medplum credentials at all: it forwards the signed-in user's token (#57).
+ */
+export const medplumWorkerClientsSchema = z
+  .string()
+  .transform((value, context) => {
+    // One issue at the variable itself, never nested paths: a misplaced secret could otherwise show up as a key.
+    let json: unknown;
+    try {
+      json = JSON.parse(value);
+    } catch {
+      json = undefined;
+    }
+    const parsed = workerClientsRecordSchema.safeParse(json);
+    if (!parsed.success) {
+      context.addIssue({ code: "custom", message: "expected {facilityId: {clientId, clientSecret}}" });
+      return z.NEVER;
+    }
+    return parsed.data;
+  })
+  .optional();
+
+export type MedplumWorkerClients = NonNullable<z.infer<typeof medplumWorkerClientsSchema>>;
 
 /** True for a loopback host: the only place the local seed may run. */
 function isLoopbackUrl(value: string): boolean {
@@ -205,6 +233,7 @@ export const workerEnvSchema = z.object({
   DEFAULT_TENANT_ID: defaultTenantIdSchema,
   MEDPLUM_PROJECT_ID: medplumProjectIdSchema,
   ...medplumServerEnvShape,
+  MEDPLUM_WORKER_CLIENTS: medplumWorkerClientsSchema,
   // Queue NAMES are code constants (apps/worker/src/queues.ts); only capacity
   // knobs live in env. Concurrency is per worker process; the rate limit is
   // enforced by BullMQ across ALL workers of a queue (jobs per duration).

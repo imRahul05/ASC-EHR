@@ -8,15 +8,18 @@
     "build": "tsup",
     "start": "node --enable-source-maps --import ./dist/instrumentation.js dist/index.js",
     "lint": "eslint --max-warnings 0",
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@asc/api-client": "workspace:*",
     "@asc/audit": "workspace:*",
     "@asc/config": "workspace:*",
     "@asc/logger": "workspace:*",
     "@asc/telemetry": "workspace:*",
     "@asc/types": "workspace:*",
     "@asc/validation": "workspace:*",
+    "@medplum/core": "5.1.42",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/core": "^1.30.1",
     "@opentelemetry/exporter-trace-otlp-http": "^0.57.2",
@@ -30,7 +33,6 @@
   "devDependencies": {
     "@asc/eslint-config": "workspace:*",
     "@asc/typescript-config": "workspace:*",
-    "@medplum/mock": "5.1.42",
     "@types/node": "^20",
     "eslint": "^10.9.1",
     "tsup": "^8.5.1",
