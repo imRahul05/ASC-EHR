@@ -102,4 +102,18 @@ describe("web auth token helpers", () => {
       }),
     );
   });
+
+  it("generates a PKCE code_verifier and S256 code_challenge", async () => {
+    const { generatePkceChallenge } = await import("./auth");
+    const pkce = await generatePkceChallenge();
+    expect(pkce.codeChallengeMethod).toBe("S256");
+    expect(typeof pkce.codeVerifier).toBe("string");
+    expect(pkce.codeVerifier.length).toBeGreaterThan(30);
+    expect(typeof pkce.codeChallenge).toBe("string");
+    expect(pkce.codeChallenge.length).toBeGreaterThan(30);
+    // Base64url safe chars only
+    expect(pkce.codeVerifier).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(pkce.codeChallenge).toMatch(/^[A-Za-z0-9_-]+$/);
+  });
 });
+

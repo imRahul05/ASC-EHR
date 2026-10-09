@@ -5,3 +5,4 @@ export { ApiError, authHeaders, buildUrl, getAccessToken, http, setAccessToken, 
 export * from "./auth";
 export * from "./clinical";
 export * from "./health";
+export { createBrowserMedplumClient, getBrowserMedplumClient, resetBrowserMedplumClient } from "./medplum/browser";

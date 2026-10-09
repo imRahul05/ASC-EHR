@@ -22,6 +22,35 @@ export interface TokenExchangeResult {
   readonly expiresIn?: number;
 }
 
+function toBase64Url(bytes: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    const byte = bytes[i];
+    if (byte !== undefined) {
+      binary += String.fromCharCode(byte);
+    }
+  }
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+export interface PkceChallenge {
+  readonly codeVerifier: string;
+  readonly codeChallenge: string;
+  readonly codeChallengeMethod: "S256";
+}
+
+/**
+ * Generates a PKCE code_verifier and S256 code_challenge using standard Web Crypto.
+ */
+export async function generatePkceChallenge(): Promise<PkceChallenge> {
+  const array = new Uint8Array(32);
+  globalThis.crypto.getRandomValues(array);
+  const codeVerifier = toBase64Url(array);
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(codeVerifier));
+  const codeChallenge = toBase64Url(new Uint8Array(digest));
+  return { codeVerifier, codeChallenge, codeChallengeMethod: "S256" };
+}
+
 function webAuthUrl(path: string): string {
   if (typeof window !== "undefined") return path;
   return `http://localhost:3000${path}`;
