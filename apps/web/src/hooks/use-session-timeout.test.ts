@@ -127,4 +127,49 @@ describe("createSessionActivityTracker", () => {
     tracker.check();
     expect(onTimeout).not.toHaveBeenCalled();
   });
+
+  it("supports external activity getters and setters to preserve state across re-renders", () => {
+    let fakeNow = 1_000_000;
+    let storedActivity = fakeNow;
+    const onTimeout = vi.fn();
+
+    const tracker = createSessionActivityTracker({
+      idleTimeoutMs: 10_000,
+      absoluteTimeoutMs: 30_000,
+      sessionStartedAt: fakeNow,
+      getLastActivityAt: () => storedActivity,
+      setLastActivityAt: (time: number) => {
+        storedActivity = time;
+      },
+      onTimeout,
+      now: () => fakeNow,
+    });
+
+    fakeNow += 4_000;
+    tracker.recordActivity();
+    expect(storedActivity).toBe(1_004_000);
+
+    // Recreate tracker as would happen in a component effect with preserved ref
+    const recreatedTracker = createSessionActivityTracker({
+      idleTimeoutMs: 10_000,
+      absoluteTimeoutMs: 30_000,
+      sessionStartedAt: 1_000_000,
+      getLastActivityAt: () => storedActivity,
+      setLastActivityAt: (time: number) => {
+        storedActivity = time;
+      },
+      onTimeout,
+      now: () => fakeNow,
+    });
+
+    // 8 seconds after activity recorded (total 12 seconds from initial start)
+    fakeNow += 8_000;
+    recreatedTracker.check();
+    expect(onTimeout).not.toHaveBeenCalled();
+
+    // 11 seconds after activity recorded
+    fakeNow += 3_000;
+    recreatedTracker.check();
+    expect(onTimeout).toHaveBeenCalledWith("idle");
+  });
 });

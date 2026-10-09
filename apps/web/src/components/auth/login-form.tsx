@@ -69,8 +69,12 @@ export function LoginForm() {
           error: null,
         });
       }
-    } catch {
-      setError("root", { message: "Invalid credentials. Please verify your email and password." });
+    } catch (err) {
+      const message =
+        err instanceof Error && err.message.length > 0
+          ? err.message
+          : "Invalid credentials. Please verify your email and password.";
+      setError("root", { message });
     }
   };
 
@@ -91,10 +95,14 @@ export function LoginForm() {
         codeVerifier: mfa.challenge.codeVerifier,
         email: mfa.challenge.email,
       });
-    } catch {
+    } catch (err) {
+      const message =
+        err instanceof Error && err.message.length > 0
+          ? err.message
+          : "Invalid authentication code. Please check your authenticator app and try again.";
       setMfa((prev) => ({
         ...prev,
-        error: "Invalid authentication code. Please check your authenticator app and try again.",
+        error: message,
       }));
     }
   };

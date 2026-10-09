@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import {
@@ -19,7 +19,9 @@ import { queryKeys } from "@asc/api-client/react";
 import { getPublicMedplumClientId, isApiMockingEnabled } from "@asc/config/public-env";
 import type { AuthSession, DemoPersonaId, LoginResult } from "@asc/types";
 import type { LoginFormData } from "@asc/validation/auth";
-import { clearPendingCodeVerifier } from "../lib/auth/pkce";
+import type { MeResponse } from "@asc/validation/authz";
+import { buildUserProfileFromSession } from "../lib/auth/claims";
+import { clearPendingCodeVerifier, setPendingCodeVerifier } from "../lib/auth/pkce";
 import { useAuthStore } from "../lib/stores/auth.store";
 import { workspacesFor } from "../lib/workspaces";
 
@@ -58,153 +60,178 @@ export function useAuth() {
 
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  const startSession = async (next: AuthSession) => {
-    // Token stays in memory (module variable in @asc/api-client), never in browser storage.
-    setAccessToken(next.token);
-    try {
-      // Sign-in only completes once the server has returned the principal (fail closed).
-      setSession(next, await getMe());
-    } catch (error) {
-      setAccessToken(null);
-      throw error;
-    }
-    // Clinical data is role-scoped: drop anything cached for the previous persona.
-    queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== queryKeys.auth.all[0] });
-    const { principal: signedIn, facilityId: facility } = useAuthStore.getState();
-    router.push(workspacesFor(signedIn, facility)[0]?.home ?? "/dashboard");
-  };
+  const startSession = useCallback(
+    async (
+      next: AuthSession,
+      meResponse?: MeResponse,
+      sessionStartedAt?: number,
+    ) => {
+      // Token stays in memory (module variable in @asc/api-client), never in browser storage.
+      setAccessToken(next.token);
+      try {
+        // Sign-in only completes once the server has returned the principal (fail closed).
+        const me = meResponse ?? (await getMe());
+        setSession(next, me, sessionStartedAt);
+      } catch (error) {
+        setAccessToken(null);
+        throw error;
+      }
+      // Clinical data is role-scoped: drop anything cached for the previous persona.
+      queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== queryKeys.auth.all[0] });
+      const { principal: signedIn, facilityId: facility } = useAuthStore.getState();
+      router.push(workspacesFor(signedIn, facility)[0]?.home ?? "/dashboard");
+    },
+    [queryClient, router, setSession],
+  );
 
-  const login = async (credentials: LoginFormData): Promise<LoginResult> => {
-    setIsLoggingIn(true);
-    try {
-      const medplum = getBrowserMedplumClient();
-      if (medplum !== undefined) {
-        const { codeVerifier, codeChallenge, codeChallengeMethod } = await generatePkceChallenge();
-        const clientId = getPublicMedplumClientId();
-        const loginRes = await medplum.startLogin({
-          email: credentials.email,
-          password: credentials.password,
-          codeChallenge,
-          codeChallengeMethod,
-          ...(clientId !== undefined ? { clientId } : {}),
-        });
+  const login = useCallback(
+    async (credentials: LoginFormData): Promise<LoginResult> => {
+      setIsLoggingIn(true);
+      try {
+        const medplum = getBrowserMedplumClient();
+        if (medplum !== undefined) {
+          const { codeVerifier, codeChallenge, codeChallengeMethod } = await generatePkceChallenge();
+          setPendingCodeVerifier(codeVerifier);
+          const clientId = getPublicMedplumClientId();
+          const loginRes = await medplum.startLogin({
+            email: credentials.email,
+            password: credentials.password,
+            codeChallenge,
+            codeChallengeMethod,
+            ...(clientId !== undefined ? { clientId } : {}),
+          });
 
-        if (loginRes.mfaRequired) {
-          return {
-            status: "mfa_required",
-            challenge: {
-              loginId: loginRes.login,
-              codeVerifier,
-              email: credentials.email,
+          if (loginRes.mfaRequired) {
+            return {
+              status: "mfa_required",
+              challenge: {
+                loginId: loginRes.login,
+                codeVerifier,
+                email: credentials.email,
+              },
+            };
+          }
+
+          let authCode = loginRes.code;
+          if (authCode === undefined && loginRes.memberships && loginRes.memberships.length > 0) {
+            const firstMembership = loginRes.memberships[0];
+            const chosen = await medplum.post<MedplumProfileResponse>("auth/profile", {
+              login: loginRes.login,
+              profile: firstMembership?.id,
+            });
+            authCode = chosen.code;
+          }
+
+          if (authCode === undefined) {
+            throw new Error("Medplum returned no authorization code");
+          }
+
+          const tokenResult = await exchangeWebAuthCode(authCode, codeVerifier);
+          clearPendingCodeVerifier();
+          medplum.setAccessToken(tokenResult.accessToken);
+          if (tokenResult.idToken !== undefined) {
+            setIdToken(tokenResult.idToken);
+          }
+          setAccessToken(tokenResult.accessToken);
+          const me = await getMe();
+          const user = buildUserProfileFromSession({
+            me,
+            idToken: tokenResult.idToken,
+            emailFallback: credentials.email,
+          });
+          await startSession(
+            {
+              user,
+              token: tokenResult.accessToken,
+              expiresAt: new Date(Date.now() + (tokenResult.expiresIn ?? 900) * 1000).toISOString(),
             },
-          };
+            me,
+            tokenResult.sessionStartedAt,
+          );
+          return { status: "complete" };
         }
 
-        let authCode = loginRes.code;
-        if (authCode === undefined && loginRes.memberships && loginRes.memberships.length > 0) {
-          const firstMembership = loginRes.memberships[0];
+        const sessionData = await loginWithCredentials(credentials);
+        await startSession(sessionData);
+        return { status: "complete" };
+      } finally {
+        setIsLoggingIn(false);
+      }
+    },
+    [setIdToken, startSession],
+  );
+
+  const verifyTotp = useCallback(
+    async (params: {
+      readonly loginId: string;
+      readonly code: string;
+      readonly codeVerifier: string;
+      readonly email: string;
+    }): Promise<void> => {
+      setIsLoggingIn(true);
+      try {
+        const medplum = getBrowserMedplumClient();
+        if (medplum === undefined) {
+          throw new Error("Medplum client is not configured");
+        }
+
+        let verifyRes: MedplumMfaVerifyResponse;
+        try {
+          verifyRes = await medplum.post<MedplumMfaVerifyResponse>("auth/mfa/verify", {
+            login: params.loginId,
+            token: params.code,
+          });
+        } catch {
+          verifyRes = await medplum.post<MedplumMfaVerifyResponse>("auth/login", {
+            login: params.loginId,
+            code: params.code,
+          });
+        }
+
+        let authCode = verifyRes.code;
+        if (authCode === undefined && verifyRes.memberships && verifyRes.memberships.length > 0) {
+          const firstMembership = verifyRes.memberships[0];
           const chosen = await medplum.post<MedplumProfileResponse>("auth/profile", {
-            login: loginRes.login,
+            login: verifyRes.login ?? params.loginId,
             profile: firstMembership?.id,
           });
           authCode = chosen.code;
         }
 
         if (authCode === undefined) {
-          throw new Error("Medplum returned no authorization code");
+          throw new Error("Medplum returned no authorization code after MFA verification");
         }
 
-        const tokenResult = await exchangeWebAuthCode(authCode, codeVerifier);
+        const tokenResult = await exchangeWebAuthCode(authCode, params.codeVerifier);
+        clearPendingCodeVerifier();
         medplum.setAccessToken(tokenResult.accessToken);
         if (tokenResult.idToken !== undefined) {
           setIdToken(tokenResult.idToken);
         }
-        await startSession({
-          user: {
-            id: credentials.email,
-            email: credentials.email,
-            fullName: credentials.email.split("@")[0] ?? "Staff User",
-            roleTitle: "Staff",
-            initials: (credentials.email.split("@")[0] ?? "SU").slice(0, 2).toUpperCase(),
-            facilityName: "Main Center",
+        setAccessToken(tokenResult.accessToken);
+        const me = await getMe();
+        const user = buildUserProfileFromSession({
+          me,
+          idToken: tokenResult.idToken,
+          emailFallback: params.email,
+        });
+        await startSession(
+          {
+            user,
+            token: tokenResult.accessToken,
+            expiresAt: new Date(Date.now() + (tokenResult.expiresIn ?? 900) * 1000).toISOString(),
           },
-          token: tokenResult.accessToken,
-          expiresAt: new Date(Date.now() + (tokenResult.expiresIn ?? 900) * 1000).toISOString(),
-        });
-        return { status: "complete" };
+          me,
+          tokenResult.sessionStartedAt,
+        );
+      } finally {
+        setIsLoggingIn(false);
       }
+    },
+    [setIdToken, startSession],
+  );
 
-      const sessionData = await loginWithCredentials(credentials);
-      await startSession(sessionData);
-      return { status: "complete" };
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
-  const verifyTotp = async (params: {
-    readonly loginId: string;
-    readonly code: string;
-    readonly codeVerifier: string;
-    readonly email: string;
-  }): Promise<void> => {
-    setIsLoggingIn(true);
-    try {
-      const medplum = getBrowserMedplumClient();
-      if (medplum === undefined) {
-        throw new Error("Medplum client is not configured");
-      }
-
-      let verifyRes: MedplumMfaVerifyResponse;
-      try {
-        verifyRes = await medplum.post<MedplumMfaVerifyResponse>("auth/mfa/verify", {
-          login: params.loginId,
-          token: params.code,
-        });
-      } catch {
-        verifyRes = await medplum.post<MedplumMfaVerifyResponse>("auth/login", {
-          login: params.loginId,
-          code: params.code,
-        });
-      }
-
-      let authCode = verifyRes.code;
-      if (authCode === undefined && verifyRes.memberships && verifyRes.memberships.length > 0) {
-        const firstMembership = verifyRes.memberships[0];
-        const chosen = await medplum.post<MedplumProfileResponse>("auth/profile", {
-          login: verifyRes.login ?? params.loginId,
-          profile: firstMembership?.id,
-        });
-        authCode = chosen.code;
-      }
-
-      if (authCode === undefined) {
-        throw new Error("Medplum returned no authorization code after MFA verification");
-      }
-
-      const tokenResult = await exchangeWebAuthCode(authCode, params.codeVerifier);
-      medplum.setAccessToken(tokenResult.accessToken);
-      if (tokenResult.idToken !== undefined) {
-        setIdToken(tokenResult.idToken);
-      }
-      await startSession({
-        user: {
-          id: params.email,
-          email: params.email,
-          fullName: params.email.split("@")[0] ?? "Staff User",
-          roleTitle: "Staff",
-          initials: (params.email.split("@")[0] ?? "SU").slice(0, 2).toUpperCase(),
-          facilityName: "Main Center",
-        },
-        token: tokenResult.accessToken,
-        expiresAt: new Date(Date.now() + (tokenResult.expiresIn ?? 900) * 1000).toISOString(),
-      });
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
-  const restoreSession = async (): Promise<boolean> => {
+  const restoreSession = useCallback(async (): Promise<boolean> => {
     try {
       const tokens = await refreshWebAuthToken();
       if (!tokens.accessToken) return false;
@@ -217,27 +244,24 @@ export function useAuth() {
         setIdToken(tokens.idToken);
       }
       const me = await getMe();
-      const primaryRole = me.principal.grants[0]?.roleKeys[0] ?? "Staff";
+      const user = buildUserProfileFromSession({
+        me,
+        idToken: tokens.idToken,
+      });
       setSession(
         {
-          user: {
-            id: me.principal.id,
-            email: "staff@center.org",
-            fullName: "Staff Member",
-            roleTitle: primaryRole,
-            initials: me.principal.id.slice(0, 2).toUpperCase(),
-            facilityName: me.facilities[0]?.name ?? "Main Center",
-          },
+          user,
           token: tokens.accessToken,
           expiresAt: new Date(Date.now() + (tokens.expiresIn ?? 900) * 1000).toISOString(),
         },
         me,
+        tokens.sessionStartedAt,
       );
       return true;
     } catch {
       return false;
     }
-  };
+  }, [setIdToken, setSession]);
 
   const demoLogin = useMutation({
     mutationFn: (presetId: DemoPersonaId) => {
@@ -246,13 +270,18 @@ export function useAuth() {
       }
       return loginWithDemoPreset(presetId);
     },
-    onSuccess: startSession,
+    onSuccess: (sessionData) => {
+      void startSession(sessionData);
+    },
   });
 
   /** Demo persona switch = demo login as that preset. */
-  const switchPersona = (personaId: DemoPersonaId) => demoLogin.mutateAsync(personaId);
+  const switchPersona = useCallback(
+    (personaId: DemoPersonaId) => demoLogin.mutateAsync(personaId),
+    [demoLogin],
+  );
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     const medplum = getBrowserMedplumClient();
     if (medplum !== undefined) {
       try {
@@ -272,7 +301,7 @@ export function useAuth() {
     clearSession();
     queryClient.clear();
     router.push("/login");
-  };
+  }, [clearSession, queryClient, router, setIdToken]);
 
   return {
     user: session?.user ?? null,

@@ -103,6 +103,7 @@ describe("useAuth with Medplum PKCE and TOTP", () => {
       expect(result.challenge.loginId).toBe("login-session-abc");
       expect(result.challenge.codeVerifier).toBe("test-verifier-123");
       expect(result.challenge.email).toBe("nurse@center.org");
+      expect(getPendingCodeVerifier()).toBe("test-verifier-123");
     }
     expect(useAuthStore.getState().session).toBeNull();
   });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { toast } from "@asc/ui/components/ui/sonner";
 import { useAuthStore } from "../lib/stores/auth.store";
 import { useAuth } from "./use-auth";
@@ -17,6 +17,8 @@ interface SessionActivityTrackerOptions {
   readonly sessionStartedAt: number | null;
   readonly onTimeout: (reason: SessionTimeoutReason) => void;
   readonly now?: () => number;
+  readonly getLastActivityAt?: () => number;
+  readonly setLastActivityAt?: (time: number) => void;
 }
 
 interface SessionActivityTracker {
@@ -30,7 +32,14 @@ export function createSessionActivityTracker(
 ): SessionActivityTracker {
   let timedOut = false;
   const getNow = options.now ?? (() => Date.now());
-  let lastActivityAt = getNow();
+  let internalLastActivityAt = getNow();
+  const readLastActivity = options.getLastActivityAt ?? (() => internalLastActivityAt);
+  const writeLastActivity =
+    options.setLastActivityAt ??
+    ((time: number) => {
+      internalLastActivityAt = time;
+    });
+
   const idleTimeoutMs = options.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
   const absoluteTimeoutMs = options.absoluteTimeoutMs ?? DEFAULT_ABSOLUTE_TIMEOUT_MS;
   const sessionStartedAt = options.sessionStartedAt;
@@ -39,12 +48,12 @@ export function createSessionActivityTracker(
   return {
     recordActivity: () => {
       if (timedOut) return;
-      lastActivityAt = getNow();
+      writeLastActivity(getNow());
     },
     check: () => {
       if (timedOut) return;
       const currentTime = getNow();
-      const idleElapsed = currentTime - lastActivityAt;
+      const idleElapsed = currentTime - readLastActivity();
       if (idleElapsed >= idleTimeoutMs) {
         timedOut = true;
         onTimeout("idle");
@@ -87,25 +96,52 @@ export function useSessionTimeout(options: SessionTimeoutOptions = {}) {
   const { isAuthenticated, logout } = useAuth();
   const sessionStartedAt = useAuthStore((state) => state.sessionStartedAt);
 
+  const optionsRef = useRef({
+    idleTimeoutMs,
+    absoluteTimeoutMs,
+    checkIntervalMs,
+    onTimeout,
+    logout,
+  });
+
+  const lastActivityRef = useRef<number | null>(null);
+
   useEffect(() => {
+    optionsRef.current = {
+      idleTimeoutMs,
+      absoluteTimeoutMs,
+      checkIntervalMs,
+      onTimeout,
+      logout,
+    };
+
     if (!isAuthenticated || typeof window === "undefined") {
       return;
     }
 
+    if (lastActivityRef.current === null) {
+      lastActivityRef.current = Date.now();
+    }
+
     const tracker = createSessionActivityTracker({
-      idleTimeoutMs,
-      absoluteTimeoutMs,
+      idleTimeoutMs: optionsRef.current.idleTimeoutMs,
+      absoluteTimeoutMs: optionsRef.current.absoluteTimeoutMs,
       sessionStartedAt,
+      getLastActivityAt: () => lastActivityRef.current ?? Date.now(),
+      setLastActivityAt: (time: number) => {
+        lastActivityRef.current = time;
+      },
       onTimeout: (reason) => {
-        if (onTimeout !== undefined) {
-          onTimeout(reason);
+        const currentOptions = optionsRef.current;
+        if (currentOptions.onTimeout !== undefined) {
+          currentOptions.onTimeout(reason);
         } else {
           const description =
             reason === "idle"
               ? "Your session expired after 15 minutes of inactivity."
               : "Maximum session duration (12 hours) reached. Please sign in again.";
           toast.error("Session expired", { description });
-          void logout();
+          void currentOptions.logout();
         }
       },
     });
@@ -120,7 +156,7 @@ export function useSessionTimeout(options: SessionTimeoutOptions = {}) {
 
     const intervalId = window.setInterval(() => {
       tracker.check();
-    }, checkIntervalMs);
+    }, optionsRef.current.checkIntervalMs);
 
     return () => {
       for (const eventName of ACTIVITY_EVENTS) {

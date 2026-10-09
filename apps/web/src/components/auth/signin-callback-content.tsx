@@ -11,6 +11,7 @@ import {
 import { Button } from "@asc/ui/components/ui/button";
 import { Loader2 } from "@asc/ui/icons";
 import { clearPendingCodeVerifier, getPendingCodeVerifier } from "../../lib/auth/pkce";
+import { buildUserProfileFromSession } from "../../lib/auth/claims";
 import { useAuthStore } from "../../lib/stores/auth.store";
 import { workspacesFor } from "../../lib/workspaces";
 
@@ -58,21 +59,18 @@ export function SignInCallbackContent() {
         }
 
         const me = await getMe();
-        const primaryRole = me.principal.grants[0]?.roleKeys[0] ?? "Staff";
+        const user = buildUserProfileFromSession({
+          me,
+          idToken: tokenResult.idToken,
+        });
         useAuthStore.getState().setSession(
           {
-            user: {
-              id: me.principal.id,
-              email: "staff@center.org",
-              fullName: "Staff Member",
-              roleTitle: primaryRole,
-              initials: me.principal.id.slice(0, 2).toUpperCase(),
-              facilityName: me.facilities[0]?.name ?? "Main Center",
-            },
+            user,
             token: tokenResult.accessToken,
             expiresAt: new Date(Date.now() + (tokenResult.expiresIn ?? 900) * 1000).toISOString(),
           },
           me,
+          tokenResult.sessionStartedAt,
         );
 
         if (!isMounted) return;
