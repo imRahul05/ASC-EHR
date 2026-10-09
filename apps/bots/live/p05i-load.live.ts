@@ -72,6 +72,29 @@ describe("P05i per-request grant query performance and instant update", () => {
     expect(p95).toBeLessThan(100);
   });
 
+  it("concurrent batch load: 5 batches of 10 concurrent requests all succeed quickly", async () => {
+    const userCaller = caller(ctx.baseUrl, token);
+    const path = `fhir/R4/PractitionerRole?practitioner=${profileRef}&active=true`;
+
+    for (let batch = 0; batch < 5; batch++) {
+      const promises = Array.from({ length: 10 }, async () => {
+        const start = performance.now();
+        const res = await userCaller.request("GET", path);
+        const elapsed = performance.now() - start;
+        return { res, elapsed };
+      });
+
+      const results = await Promise.all(promises);
+      for (const { res, elapsed } of results) {
+        expect(res.status).toBe(200);
+        const bundle = res.body as Bundle<PractitionerRole>;
+        expect(bundle.entry).toBeDefined();
+        expect(bundle.entry?.length).toBeGreaterThanOrEqual(1);
+        expect(elapsed).toBeLessThan(200);
+      }
+    }
+  });
+
   it("instant update: grant changes are visible immediately without a cross-request cache", async () => {
     const userCaller = caller(ctx.baseUrl, token);
     const path = `fhir/R4/PractitionerRole?practitioner=${profileRef}&active=true`;
