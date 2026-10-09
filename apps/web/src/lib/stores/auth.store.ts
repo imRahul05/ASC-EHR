@@ -18,7 +18,7 @@ interface AuthState {
   readonly workspaceKey: string | null;
   /** Timestamp (ms) when this session was established, used for absolute 12h timeout checks. */
   readonly sessionStartedAt: number | null;
-  readonly setSession: (session: AuthSession, me: MeResponse) => void;
+  readonly setSession: (session: AuthSession, me: MeResponse, sessionStartedAt?: number) => void;
   readonly setIdToken: (idToken: string | null) => void;
   /** Ignored unless the principal holds a grant at that facility. Resets the picked workspace. */
   readonly selectFacility: (facilityId: string) => void;
@@ -38,10 +38,10 @@ const SIGNED_OUT: Pick<AuthState, "session" | "idToken" | "principal" | "facilit
 
 export const useAuthStore = create<AuthState>()((set, get) => ({
   ...SIGNED_OUT,
-  setSession: (session, me) =>
+  setSession: (session, me, sessionStartedAt) =>
     set({
       session,
-      sessionStartedAt: Date.now(),
+      sessionStartedAt: sessionStartedAt ?? get().sessionStartedAt ?? Date.now(),
       principal: me.principal,
       facilities: me.facilities,
       facilityId: grantedFacilityIds(me.principal)[0] ?? null,
