@@ -318,4 +318,174 @@ describe("MedplumIdentityPort", () => {
     const result = await port.authenticate("token", TEST_TENANT);
     expect(result).toEqual({ ok: false, reason: "unavailable" });
   });
+
+  it("bypasses cache when stepUp option is true", async () => {
+    let meCalls = 0;
+    const authMe: MedplumAuthMe = {
+      project: { id: "proj-123" },
+      membership: { id: "mem-1", profile: { reference: "Practitioner/p1" } },
+    };
+
+    const port = new MedplumIdentityPort({
+      baseUrl: "http://localhost:8203/",
+      createClient: ({ baseUrl, accessToken }): MedplumClient => {
+        const client = createOnBehalfClient({ baseUrl, accessToken });
+        vi.spyOn(client, "get").mockImplementation((() => {
+          meCalls += 1;
+          return Promise.resolve(authMe);
+        }) as never);
+        vi.spyOn(client, "searchResources").mockResolvedValue([] as never);
+        return client;
+      },
+    });
+
+    const token = createJwt(Math.floor(Date.now() / 1000) + 900);
+    const first = await port.authenticate(token, TEST_TENANT);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    expect(first.cache).toBe("miss");
+    expect(meCalls).toBe(1);
+
+    // Regular request hits cache
+    const second = await port.authenticate(token, TEST_TENANT);
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.cache).toBe("hit");
+    expect(meCalls).toBe(1);
+
+    // stepUp request bypasses cache
+    const stepUpResult = await port.authenticate(token, TEST_TENANT, { stepUp: true });
+    expect(stepUpResult.ok).toBe(true);
+    if (!stepUpResult.ok) return;
+    expect(stepUpResult.cache).toBe("bypass");
+    expect(meCalls).toBe(2);
+  });
+
+  it("fails closed when project ID is undefined or missing in MedplumAuthMe", async () => {
+    const port = new MedplumIdentityPort({
+      baseUrl: "http://localhost:8203/",
+      createClient: ({ baseUrl, accessToken }): MedplumClient => {
+        const client = createOnBehalfClient({ baseUrl, accessToken });
+        vi.spyOn(client, "get").mockResolvedValue({
+          membership: { id: "mem-1", profile: { reference: "Practitioner/p1" } },
+        });
+        return client;
+      },
+    });
+
+    const result = await port.authenticate("token", TEST_TENANT);
+    expect(result).toEqual({ ok: false, reason: "wrong-project" });
+  });
+
+  it("fails closed when actor ID or membership ID is missing", async () => {
+    const port = new MedplumIdentityPort({
+      baseUrl: "http://localhost:8203/",
+      createClient: ({ baseUrl, accessToken }): MedplumClient => {
+        const client = createOnBehalfClient({ baseUrl, accessToken });
+        vi.spyOn(client, "get").mockResolvedValue({
+          project: { id: "proj-123" },
+          membership: { id: "" }, // empty membership ID
+        });
+        return client;
+      },
+    });
+
+    const result = await port.authenticate("token", TEST_TENANT);
+    expect(result).toEqual({ ok: false, reason: "invalid-token" });
+  });
+
+  it("handles HTTP 403 Forbidden as invalid-token", async () => {
+    const port = new MedplumIdentityPort({
+      baseUrl: "http://localhost:8203/",
+      createClient: ({ baseUrl, accessToken }): MedplumClient => {
+        const client = createOnBehalfClient({ baseUrl, accessToken });
+        vi.spyOn(client, "get").mockRejectedValue({
+          status: 403,
+          message: "Forbidden",
+        });
+        return client;
+      },
+    });
+
+    const result = await port.authenticate("forbidden-token", TEST_TENANT);
+    expect(result).toEqual({ ok: false, reason: "invalid-token" });
+  });
+
+  it("evicts cached token when searchResources encounters 401 Unauthorized", async () => {
+    let meCalls = 0;
+    let searchShouldFail = false;
+
+    const authMe: MedplumAuthMe = {
+      project: { id: "proj-123" },
+      membership: { id: "mem-1", profile: { reference: "Practitioner/p1" } },
+    };
+
+    const port = new MedplumIdentityPort({
+      baseUrl: "http://localhost:8203/",
+      createClient: ({ baseUrl, accessToken }): MedplumClient => {
+        const client = createOnBehalfClient({ baseUrl, accessToken });
+        vi.spyOn(client, "get").mockImplementation((() => {
+          meCalls += 1;
+          return Promise.resolve(authMe);
+        }) as never);
+        vi.spyOn(client, "searchResources").mockImplementation((() => {
+          if (searchShouldFail) {
+            return Promise.reject(Object.assign(new Error("Unauthorized"), { status: 401 }));
+          }
+          return Promise.resolve([]);
+        }) as never);
+        return client;
+      },
+    });
+
+    const token = createJwt(Math.floor(Date.now() / 1000) + 900);
+
+    // Initial successful call
+    const first = await port.authenticate(token, TEST_TENANT);
+    expect(first.ok).toBe(true);
+    expect(meCalls).toBe(1);
+
+    // Next call fails during search (revocation mid-flight)
+    searchShouldFail = true;
+    const second = await port.authenticate(token, TEST_TENANT);
+    expect(second).toEqual({ ok: false, reason: "invalid-token" });
+
+    // Next call should have had its cache evicted, so get() must be called again
+    searchShouldFail = false;
+    const third = await port.authenticate(token, TEST_TENANT);
+    expect(third.ok).toBe(true);
+    expect(meCalls).toBe(2); // /auth/me was re-fetched because cache was evicted
+  });
+
+  it("does not cache already-expired JWTs", async () => {
+    let meCalls = 0;
+    const authMe: MedplumAuthMe = {
+      project: { id: "proj-123" },
+      membership: { id: "mem-1", profile: { reference: "Practitioner/p1" } },
+    };
+
+    const port = new MedplumIdentityPort({
+      baseUrl: "http://localhost:8203/",
+      createClient: ({ baseUrl, accessToken }): MedplumClient => {
+        const client = createOnBehalfClient({ baseUrl, accessToken });
+        vi.spyOn(client, "get").mockImplementation((() => {
+          meCalls += 1;
+          return Promise.resolve(authMe);
+        }) as never);
+        vi.spyOn(client, "searchResources").mockResolvedValue([] as never);
+        return client;
+      },
+    });
+
+    // Token expired 10 seconds ago
+    const expiredToken = createJwt(Math.floor(Date.now() / 1000) - 10);
+    const first = await port.authenticate(expiredToken, TEST_TENANT);
+    expect(first.ok).toBe(true);
+    expect(meCalls).toBe(1);
+
+    // Second call with the same expired token should not hit cache
+    const second = await port.authenticate(expiredToken, TEST_TENANT);
+    expect(second.ok).toBe(true);
+    expect(meCalls).toBe(2);
+  });
 });

@@ -4,6 +4,9 @@ import { grantsFromPractitionerRoles, roleRegistry, type IdentityCacheState, typ
 import type { StaffPrincipal, TenantRef } from "@asc/types";
 import type { PractitionerRole } from "@medplum/fhirtypes";
 
+const MAX_CACHE_ENTRIES = 2000;
+const MAX_TTL_MS = 15 * 60 * 1000;
+
 interface MedplumIdentityPortOptions {
   readonly baseUrl: string;
   readonly createClient?: (args: { baseUrl: string; accessToken: string }) => MedplumClient;
@@ -40,20 +43,35 @@ function tokenExpirationMs(token: string, now: number): number {
       const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString()) as JwtPayload;
       if (typeof payload.exp === "number") {
         const expMs = payload.exp * 1000;
-        if (expMs > now) return expMs;
+        if (expMs <= now) return now;
+        return Math.min(expMs, now + MAX_TTL_MS);
       }
     }
   } catch {
     // If not a parseable JWT, use default TTL
   }
-  return now + 15 * 60 * 1000;
+  return now + MAX_TTL_MS;
 }
 
 function isUnauthorized(err: MedplumErrorLike): boolean {
-  if (err.status === 401 || err.message === "Unauthorized" || err.outcome?.id === "unauthorized") {
+  if (
+    err.status === 401 ||
+    err.status === 403 ||
+    err.message === "Unauthorized" ||
+    err.message === "Forbidden" ||
+    err.outcome?.id === "unauthorized" ||
+    err.outcome?.id === "forbidden"
+  ) {
     return true;
   }
-  return err.outcome?.issue?.some((issue) => issue.code === "login" || issue.code === "security") ?? false;
+  return (
+    err.outcome?.issue?.some(
+      (issue) =>
+        issue.code === "login" ||
+        issue.code === "security" ||
+        issue.code === "forbidden",
+    ) ?? false
+  );
 }
 
 /**
@@ -75,9 +93,34 @@ export class MedplumIdentityPort implements IdentityPort {
     this.now = options.now ?? Date.now;
   }
 
-  async authenticate(token: string, tenant: TenantRef): Promise<IdentityResult> {
+  private setCache(key: string, entry: CacheEntry, nowTime: number): void {
+    if (entry.expiresAt <= nowTime) {
+      return;
+    }
+    if (this.cache.size >= MAX_CACHE_ENTRIES) {
+      for (const [k, v] of this.cache) {
+        if (v.expiresAt <= nowTime) {
+          this.cache.delete(k);
+        }
+      }
+      if (this.cache.size >= MAX_CACHE_ENTRIES) {
+        const oldestKey = this.cache.keys().next().value;
+        if (oldestKey !== undefined) {
+          this.cache.delete(oldestKey);
+        }
+      }
+    }
+    this.cache.set(key, entry);
+  }
+
+  async authenticate(
+    token: string,
+    tenant: TenantRef,
+    options?: { readonly stepUp?: boolean },
+  ): Promise<IdentityResult> {
     const currentTime = this.now();
     const tokenHash = sha256(token);
+    const isStepUp = options?.stepUp === true;
 
     // Evict expired cache entry if present
     const cached = this.cache.get(tokenHash);
@@ -85,7 +128,7 @@ export class MedplumIdentityPort implements IdentityPort {
       this.cache.delete(tokenHash);
     }
 
-    const activeCached = this.cache.get(tokenHash);
+    const activeCached = !isStepUp ? this.cache.get(tokenHash) : undefined;
     let me: MedplumAuthMe;
     let cacheState: IdentityCacheState;
 
@@ -98,6 +141,7 @@ export class MedplumIdentityPort implements IdentityPort {
       try {
         me = await fetchAuthMe(client);
       } catch (err) {
+        this.cache.delete(tokenHash);
         if (isUnauthorized(err as MedplumErrorLike)) {
           return { ok: false, reason: "invalid-token" };
         }
@@ -105,12 +149,12 @@ export class MedplumIdentityPort implements IdentityPort {
       }
 
       const expiresAt = tokenExpirationMs(token, currentTime);
-      this.cache.set(tokenHash, { me, expiresAt });
-      cacheState = "miss";
+      this.setCache(tokenHash, { me, expiresAt }, currentTime);
+      cacheState = isStepUp ? "bypass" : "miss";
     }
 
-    // Gate 2 check 1: wrong project
-    if (me.project?.id !== undefined && me.project.id !== tenant.medplumProjectId) {
+    // Gate 2 check 1: wrong project (fail closed if missing or mismatched)
+    if (me.project?.id !== tenant.medplumProjectId) {
       return { ok: false, reason: "wrong-project" };
     }
 
@@ -124,29 +168,41 @@ export class MedplumIdentityPort implements IdentityPort {
       return { ok: false, reason: "inactive-membership" };
     }
 
+    // Fail closed on incomplete identity: actor ID and membership ID must exist
+    const membershipProfileId = membership.profile?.reference
+      ? membership.profile.reference.includes("/")
+        ? membership.profile.reference.split("/")[1]
+        : membership.profile.reference
+      : undefined;
+    const actorId = me.profile?.id ?? me.user?.id ?? membershipProfileId;
+    const membershipId = membership.id;
+    if (typeof actorId !== "string" || actorId.length === 0 || typeof membershipId !== "string" || membershipId.length === 0) {
+      return { ok: false, reason: "invalid-token" };
+    }
+
     // Grants read with user's token on every request (never cached across requests, #57)
-    const profileRef = membership.profile?.reference ?? (me.profile?.id ? `Practitioner/${me.profile.id}` : undefined);
-    let roles: PractitionerRole[] = [];
-    if (profileRef !== undefined) {
-      try {
-        roles = await client.searchResources("PractitionerRole", {
-          practitioner: profileRef,
-          active: "true",
-        });
-      } catch (err) {
-        if (isUnauthorized(err as MedplumErrorLike)) {
-          return { ok: false, reason: "invalid-token" };
-        }
-        return { ok: false, reason: "unavailable" };
+    const profileRef = membership.profile?.reference ?? `Practitioner/${actorId}`;
+    let roles: PractitionerRole[];
+    try {
+      roles = await client.searchResources("PractitionerRole", {
+        practitioner: profileRef,
+        active: "true",
+        _count: "100",
+      });
+    } catch (err) {
+      if (isUnauthorized(err as MedplumErrorLike)) {
+        this.cache.delete(tokenHash);
+        return { ok: false, reason: "invalid-token" };
       }
+      return { ok: false, reason: "unavailable" };
     }
 
     const grants = grantsFromPractitionerRoles(roles, roleRegistry);
 
     const principal: StaffPrincipal = {
       kind: "staff",
-      id: me.profile?.id ?? me.user?.id ?? "unknown",
-      membershipId: membership.id ?? "unknown",
+      id: actorId,
+      membershipId,
       tenant: {
         tenantId: tenant.tenantId,
         medplumProjectId: tenant.medplumProjectId,
