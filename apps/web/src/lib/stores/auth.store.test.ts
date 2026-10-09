@@ -71,7 +71,10 @@ describe("auth store", () => {
 
   it("clears everything on sign-out", () => {
     useAuthStore.getState().setSession(session, me);
+    useAuthStore.getState().setIdToken("mock-id-token");
+    expect(useAuthStore.getState().idToken).toBe("mock-id-token");
     useAuthStore.getState().clearSession();
-    expect(useAuthStore.getState()).toMatchObject({ session: null, principal: null, facilityId: null });
+    expect(useAuthStore.getState()).toMatchObject({ session: null, idToken: null, principal: null, facilityId: null });
   });
 });
+
