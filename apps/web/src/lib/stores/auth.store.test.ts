@@ -73,8 +73,15 @@ describe("auth store", () => {
     useAuthStore.getState().setSession(session, me);
     useAuthStore.getState().setIdToken("mock-id-token");
     expect(useAuthStore.getState().idToken).toBe("mock-id-token");
+    expect(useAuthStore.getState().sessionStartedAt).toBeTypeOf("number");
     useAuthStore.getState().clearSession();
-    expect(useAuthStore.getState()).toMatchObject({ session: null, idToken: null, principal: null, facilityId: null });
+    expect(useAuthStore.getState()).toMatchObject({
+      session: null,
+      idToken: null,
+      principal: null,
+      facilityId: null,
+      sessionStartedAt: null,
+    });
   });
 });
 
