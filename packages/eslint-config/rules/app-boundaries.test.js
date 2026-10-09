@@ -74,6 +74,26 @@ describe("app boundary rules", () => {
     assert.deepEqual(await lint(code, { browser: false }), []);
   });
 
+  it("keeps the server-only Medplum entry out of browser code (P04)", async () => {
+    const code = 'import { createOnBehalfClient } from "@asc/api-client/server";';
+    assert.deepEqual(await lint(code, { browser: true }), ["no-restricted-imports:1"]);
+    assert.deepEqual(await lint(code, { browser: false }), []);
+  });
+
+  it("sends Medplum writes through forFacility and never constructs a client in an app (P04 T5)", async () => {
+    const code = [
+      "await medplum.createResource(task);",
+      "await request.medplum.updateResource(task);",
+      'await client.patchResource("Task", id, ops);',
+      "await client.executeBatch(bundle);",
+      "await client.upsertResource(task, query);",
+      "const client = new MedplumClient({ baseUrl });",
+    ].join("\n");
+    assert.deepEqual(await lint(code), [1, 2, 3, 4, 5, 6].map((line) => `no-restricted-syntax:${line}`));
+    const sanctioned = ["const writer = forFacility(request.medplum, facilityId);", "await writer.create(task);", "await writer.update(task);"].join("\n");
+    assert.deepEqual(await lint(sanctioned), []);
+  });
+
   it("allows the sanctioned alternatives", async () => {
     const code = [
       'import { http } from "@asc/api-client";',

@@ -46,6 +46,33 @@ const APP_RESTRICTED_PATHS = [
   { name: "drizzle-orm", message: "Database access lives in @asc/db." },
 ];
 
+/** Server-only entry: it is where a client secret can exist, so the browser bundle never imports it. */
+const BROWSER_ONLY_RESTRICTED_PATHS = [
+  {
+    name: "@asc/api-client/server",
+    message: "Server-only (apps/api, apps/worker). In the browser use @asc/api-client/react.",
+  },
+];
+
+/**
+ * Medplum writes from apps go through `forFacility(client, facilityId)` (`@asc/api-client/server`), which stamps
+ * `meta.accounts` on every create, update, patch and transaction entry (spike results ADR, decision 1). Its
+ * methods are named `create`/`update`/`patch`/`transaction` on purpose, so any raw write method in an app is
+ * flagged. Directory types are exempt in one place: `DIRECTORY_RESOURCE_TYPES` in @asc/api-client.
+ */
+export const MEDPLUM_WRITE_RULES = [
+  {
+    selector:
+      "CallExpression[callee.property.name=/^(createResource|createResourceIfNoneExist|updateResource|upsertResource|patchResource|executeBatch)$/]",
+    message:
+      "Facility-scoped Medplum writes go through forFacility(client, facilityId) from @asc/api-client/server (meta.accounts on every write).",
+  },
+  {
+    selector: "NewExpression[callee.name='MedplumClient']",
+    message: "Apps never construct MedplumClient: use the factories in @asc/api-client (/server or /react).",
+  },
+];
+
 const ROUTE_RESTRICTED_PATHS = [
   {
     name: "@asc/ui",
@@ -65,7 +92,7 @@ const ROUTE_RESTRICTED_PATHS = [
  */
 export function appBoundaryConfig({ browser = false } = {}) {
   const baseRestricted = browser
-    ? [...APP_RESTRICTED_PATHS, ...BROWSER_ENTRY_POINT_PATHS]
+    ? [...APP_RESTRICTED_PATHS, ...BROWSER_ENTRY_POINT_PATHS, ...BROWSER_ONLY_RESTRICTED_PATHS]
     : APP_RESTRICTED_PATHS;
 
   const patterns = [
@@ -106,6 +133,7 @@ export function appBoundaryConfig({ browser = false } = {}) {
             selector: "CallExpression[callee.object.name='z']",
             message: "Zod schemas belong in @asc/validation (LM-001).",
           },
+          ...MEDPLUM_WRITE_RULES,
         ],
       },
     },

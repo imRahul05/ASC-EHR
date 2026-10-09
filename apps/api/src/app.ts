@@ -10,6 +10,7 @@ import { createGuards, registerAuthorization } from "./auth/guards.js";
 import { registerTenantGate } from "./auth/tenant.js";
 import { assertIdentityAllowed } from "./identity/select.js";
 import { resolveRequestId } from "./lib/request-id.js";
+import { registerMedplum } from "./plugins/medplum.js";
 import { registerRateLimit, registerSecurityHeaders } from "./plugins/security.js";
 import { registerRoutes } from "./routes/index.js";
 
@@ -31,6 +32,8 @@ interface AppOptions {
   readonly catalogVersion: string;
   /** True in production and staging (`isProductionEnv()`): a fake identity adapter is refused. */
   readonly production: boolean;
+  /** `MEDPLUM_BASE_URL`: where `request.medplum` calls, as the signed-in user. Unset: those routes answer 503. */
+  readonly medplumBaseUrl?: string | undefined;
 }
 
 export async function buildApp({
@@ -41,6 +44,7 @@ export async function buildApp({
   audit,
   catalogVersion,
   production,
+  medplumBaseUrl,
 }: AppOptions) {
   assertIdentityAllowed(identity, production);
   const app = Fastify({
@@ -79,6 +83,7 @@ export async function buildApp({
     userRateLimit: { max: rateLimit.userMax, windowMs: rateLimit.windowMs },
   });
   registerAuthorization(app, createGuards(deny));
+  registerMedplum(app, { baseUrl: medplumBaseUrl });
 
   registerRoutes(app);
 

@@ -246,34 +246,49 @@ describe("api build id and rate limits", () => {
 const fixture = (name: string) => `fixture-${name}`;
 
 describe("Medplum env", () => {
-  const medplum = {
-    MEDPLUM_BASE_URL: "http://localhost:8203/",
-    MEDPLUM_CLIENT_ID: fixture("client"),
-    MEDPLUM_CLIENT_SECRET: fixture("client-secret"),
-  };
+  const workerClients = JSON.stringify({
+    "org-a": { clientId: fixture("client-a"), clientSecret: fixture("secret-a") },
+    "org-b": { clientId: fixture("client-b"), clientSecret: fixture("secret-b") },
+  });
 
-  it("accepts the Medplum connection for api and worker, and keeps it optional", () => {
+  it("accepts the Medplum base URL for api and worker, and keeps it optional", () => {
     for (const schema of [apiEnvSchema, workerEnvSchema]) {
-      expect(parseEnv(schema, medplum)).toMatchObject(medplum);
+      expect(parseEnv(schema, { MEDPLUM_BASE_URL: "http://localhost:8203/" })).toMatchObject({ MEDPLUM_BASE_URL: "http://localhost:8203/" });
       expect(parseEnv(schema, {})).not.toHaveProperty("MEDPLUM_BASE_URL");
+    }
+    expect(() => parseEnv(apiEnvSchema, { MEDPLUM_BASE_URL: "not a url" })).toThrow("MEDPLUM_BASE_URL (invalid)");
+  });
+
+  it("gives the API no Medplum credentials: a client id or secret in its environment is dropped (#57)", () => {
+    expect(Object.keys(apiEnvSchema.shape)).not.toEqual(expect.arrayContaining(["MEDPLUM_CLIENT_ID"]));
+    expect(Object.keys(apiEnvSchema.shape)).not.toEqual(expect.arrayContaining(["MEDPLUM_CLIENT_SECRET"]));
+    expect(Object.keys(apiEnvSchema.shape)).not.toEqual(expect.arrayContaining(["MEDPLUM_WORKER_CLIENTS"]));
+    expect(parseEnv(apiEnvSchema, { MEDPLUM_CLIENT_SECRET: fixture("secret") })).not.toHaveProperty("MEDPLUM_CLIENT_SECRET");
+  });
+
+  it("parses the worker's per-facility clients (#60)", () => {
+    expect(parseEnv(workerEnvSchema, { MEDPLUM_WORKER_CLIENTS: workerClients }).MEDPLUM_WORKER_CLIENTS).toEqual({
+      "org-a": { clientId: fixture("client-a"), clientSecret: fixture("secret-a") },
+      "org-b": { clientId: fixture("client-b"), clientSecret: fixture("secret-b") },
+    });
+    expect(parseEnv(workerEnvSchema, {})).not.toHaveProperty("MEDPLUM_WORKER_CLIENTS");
+  });
+
+  it("rejects malformed worker clients, naming only the variable", () => {
+    for (const bad of ["not json", "[]", JSON.stringify({ "org a": { clientId: "c", clientSecret: "s" } }), JSON.stringify({ "org-a": { clientId: "c" } })]) {
+      expect(() => parseEnv(workerEnvSchema, { MEDPLUM_WORKER_CLIENTS: bad })).toThrow("MEDPLUM_WORKER_CLIENTS (invalid)");
     }
   });
 
-  it("rejects a bad Medplum URL, an empty client id or an empty secret, naming only the variable", () => {
-    expect(() => parseEnv(apiEnvSchema, { MEDPLUM_BASE_URL: "not a url" })).toThrow("MEDPLUM_BASE_URL (invalid)");
-    expect(() => parseEnv(workerEnvSchema, { MEDPLUM_CLIENT_ID: "" })).toThrow("MEDPLUM_CLIENT_ID (invalid)");
-    expect(() => parseEnv(apiEnvSchema, { MEDPLUM_CLIENT_SECRET: "" })).toThrow("MEDPLUM_CLIENT_SECRET (invalid)");
-  });
-
-  it("never puts the client secret in a validation error", () => {
+  it("never puts a client secret in a validation error", () => {
     const leaked = "CANARY-CLIENT-SECRET";
     let message = "";
     try {
-      parseEnv(apiEnvSchema, { MEDPLUM_CLIENT_SECRET: leaked, PORT: "nope" });
+      parseEnv(workerEnvSchema, { MEDPLUM_WORKER_CLIENTS: `{"org-a":{"clientId":"c","clientSecret":"${leaked}"`, REDIS_URL: "nope" });
     } catch (error) {
       message = (error as Error).message;
     }
-    expect(message).toContain("PORT (invalid)");
+    expect(message).toContain("MEDPLUM_WORKER_CLIENTS (invalid)");
     expect(message).not.toContain(leaked);
   });
 });

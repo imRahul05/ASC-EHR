@@ -4,3 +4,4 @@ export * from "./hooks";
 export * from "./mutation";
 export * from "./query-keys";
 export * from "./use-note-generation";
+export * from "./provider";

@@ -23,6 +23,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@asc/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
       '@asc/audit':
         specifier: workspace:*
         version: link:../../packages/audit
@@ -56,6 +59,9 @@ importers:
       '@fastify/rate-limit':
         specifier: 11.2.0
         version: 11.2.0
+      '@medplum/core':
+        specifier: 5.1.42
+        version: 5.1.42
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0
@@ -96,6 +102,9 @@ importers:
       '@asc/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
+      '@medplum/mock':
+        specifier: 5.1.42
+        version: 5.1.42
       '@types/node':
         specifier: ^20
         version: 20.19.43
@@ -114,6 +123,9 @@ importers:
 
   apps/bots:
     dependencies:
+      '@asc/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
       '@asc/authz':
         specifier: workspace:*
         version: link:../../packages/authz
@@ -236,6 +248,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@asc/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
       '@asc/audit':
         specifier: workspace:*
         version: link:../../packages/audit
@@ -254,6 +269,9 @@ importers:
       '@asc/validation':
         specifier: workspace:*
         version: link:../../packages/validation
+      '@medplum/core':
+        specifier: 5.1.42
+        version: 5.1.42
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0
@@ -361,6 +379,15 @@ importers:
       '@asc/validation':
         specifier: workspace:*
         version: link:../validation
+      '@medplum/core':
+        specifier: 5.1.42
+        version: 5.1.42
+      '@medplum/fhirtypes':
+        specifier: 5.1.42
+        version: 5.1.42
+      '@medplum/react-hooks':
+        specifier: 5.1.42
+        version: 5.1.42(@medplum/core@5.1.42)(react@19.2.8)
     devDependencies:
       '@asc/eslint-config':
         specifier: workspace:*
@@ -368,6 +395,9 @@ importers:
       '@asc/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
+      '@medplum/mock':
+        specifier: 5.1.42
+        version: 5.1.42
       '@tanstack/react-query':
         specifier: ^5.103.2
         version: 5.103.2(react@19.2.8)
@@ -2044,6 +2074,14 @@ packages:
       pdfmake:
         optional: true
 
+  '@medplum/definitions@5.1.42':
+    resolution: {integrity: sha512-bCXucZAwVfYi8NnJMJncgEauDKbAT7PZDmDqq6d8Zgc48PuJ0jkqL4eFF26F+TtRy8D38zdCzd/b1Zpi11+UFw==}
+    engines: {node: ^22.18.0 || >=24.2.0}
+
+  '@medplum/fhir-router@5.1.42':
+    resolution: {integrity: sha512-CdL/+Suww3Mg0qbTjqUUEOQG7+nNL+lo7UaFPMXabIpIAjiI6ir+5WX/br3RYrChNpGdQLIabQCDMeI2JXhiAg==}
+    engines: {node: ^22.18.0 || >=24.2.0}
+
   '@medplum/fhirtypes@5.1.42':
     resolution: {integrity: sha512-7Jr1iBE/pJ3g1/WU31loG6Hz4KYauGjZzFKnwjprMedSd14sK+UbZhYkOeX3peUhEVPa9wUWLb+3opnuHgiKUw==}
     engines: {node: ^22.18.0 || >=24.2.0}
@@ -2051,6 +2089,17 @@ packages:
   '@medplum/hl7@5.1.42':
     resolution: {integrity: sha512-3w82yVpspzMAuoOFbEgUUeLV33pLPzPrbmQjkLk4FKShCtwaNw6AW7xkNQc4MD9mHCjsXtyD8tiuTRdYK61r5w==}
     engines: {node: ^22.18.0 || >=24.2.0}
+
+  '@medplum/mock@5.1.42':
+    resolution: {integrity: sha512-QrQ0UH/dLq135ItXqEFE2inZUtyqKcuAKOfM6vYH1QgaZj1ZjJ5IPgj63n8w0NHEO26ZhllJ6rFi+fGysrACuA==}
+    engines: {node: ^22.18.0 || >=24.2.0}
+
+  '@medplum/react-hooks@5.1.42':
+    resolution: {integrity: sha512-IAzo6+YarJEPshFvY9w2i7E2pdjaoHaF7IeLgzNumQLqAT4cFF2N6YRZOvC9g8zkNbBo78MMQ9VT3wqr9v6CYw==}
+    engines: {node: ^22.18.0 || >=24.2.0}
+    peerDependencies:
+      '@medplum/core': 5.1.42
+      react: ^18.0.0 || ^19.0.0
 
   '@modelcontextprotocol/sdk@1.30.1':
     resolution: {integrity: sha512-H2HxLvC3HDNybePJaLdSrU1hhUK5iQw+WvV1b01myFyI7sdVGe1u/IPTE5D9fGCiJDVtgMV/lmFkQXLmQyIFYA==}
@@ -3564,6 +3613,9 @@ packages:
     resolution: {integrity: sha512-BS8PfmtDGnrgYdOonGZQdLZslWIeCGFP9tpan0hi1Co2Zr2NKADsvGYA8XxuG/4UWgJ6Cjtv+YJnB6MM69QGlQ==}
     engines: {node: '>= 0.4'}
 
+  dataloader@2.2.3:
+    resolution: {integrity: sha512-y2krtASINtPFS1rSDjacrFgn1dcUuoREVabwlOGOe4SdxenREqwjwjElAdwvbGM7kgZz9a3KVicWR7vcz8rnzA==}
+
   dateformat@4.6.3:
     resolution: {integrity: sha512-2P0p0pFGzHS5EMnhdxQi7aJN+iMheud0UhG4dlE1DLAlvL8JHjJJTX/CSm4JXwV0Ka5nGk3zC5mcb5bUQUxxMA==}
 
@@ -4267,6 +4319,10 @@ packages:
   graphql@16.14.2:
     resolution: {integrity: sha512-Chq1s4CY7jmh8gO2qvLIJyfCDIN+EHLFW/9iShnp1z8FjBQMoodWP1kDC36VAMXXIvAjj4ARa7ntfAV2BrjsbA==}
     engines: {node: ^12.22.0 || ^14.16.0 || ^16.0.0 || >=17.0.0}
+
+  graphql@17.0.2:
+    resolution: {integrity: sha512-FRWbddMxfkjiB7z+aQDWIR+E34xo9I8c9mtK2RPv8PmMzKRvrdsreHL/Ui/TmwHJfhHChEtsFPyMHKI+xuarQQ==}
+    engines: {node: ^22.0.0 || ^24.0.0 || ^25.0.0 || >=26.0.0}
 
   has-bigints@1.1.0:
     resolution: {integrity: sha512-R3pbpkcIqv2Pm3dUwgjclDRVmWpTJW2DcMzcIhEXEx1oh/CEMObMm3KLmRJOdvhM7o4uQBnwr8pzRK2sJWIqfg==}
@@ -7327,6 +7383,18 @@ snapshots:
 
   '@medplum/core@5.1.42': {}
 
+  '@medplum/definitions@5.1.42': {}
+
+  '@medplum/fhir-router@5.1.42':
+    dependencies:
+      '@medplum/core': 5.1.42
+      '@medplum/definitions': 5.1.42
+      '@medplum/fhirtypes': 5.1.42
+      dataloader: 2.2.3
+      graphql: 17.0.2
+    transitivePeerDependencies:
+      - pdfmake
+
   '@medplum/fhirtypes@5.1.42': {}
 
   '@medplum/hl7@5.1.42':
@@ -7335,6 +7403,21 @@ snapshots:
       iconv-lite: 0.7.3
     transitivePeerDependencies:
       - pdfmake
+
+  '@medplum/mock@5.1.42':
+    dependencies:
+      '@medplum/core': 5.1.42
+      '@medplum/definitions': 5.1.42
+      '@medplum/fhir-router': 5.1.42
+      '@medplum/fhirtypes': 5.1.42
+      dataloader: 2.2.3
+    transitivePeerDependencies:
+      - pdfmake
+
+  '@medplum/react-hooks@5.1.42(@medplum/core@5.1.42)(react@19.2.8)':
+    dependencies:
+      '@medplum/core': 5.1.42
+      react: 19.2.8
 
   '@modelcontextprotocol/sdk@1.30.1(zod@3.25.76)':
     dependencies:
@@ -8760,6 +8843,8 @@ snapshots:
       es-errors: 1.3.0
       is-data-view: 1.0.2
 
+  dataloader@2.2.3: {}
+
   dateformat@4.6.3: {}
 
   debounce-fn@4.0.0:
@@ -9647,6 +9732,8 @@ snapshots:
   graceful-fs@4.2.11: {}
 
   graphql@16.14.2: {}
+
+  graphql@17.0.2: {}
 
   has-bigints@1.1.0: {}
 
