@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { isOriginAllowed, POST as tokenHandler, REFRESH_COOKIE_NAME } from "./route";
+import { isOriginAllowed, POST as tokenHandler, REFRESH_COOKIE_NAME, SESSION_START_COOKIE_NAME } from "./route";
 import { POST as logoutHandler } from "../logout/route";
 
 describe("token route handler", () => {
@@ -113,6 +113,34 @@ describe("token route handler", () => {
 
     const cookie = response.cookies.get(REFRESH_COOKIE_NAME);
     expect(cookie?.value).toBe("new-refresh-token");
+  });
+
+  it("rejects silent refresh and clears cookies when 12-hour session limit is exceeded", async () => {
+    const request = new NextRequest("http://localhost:3000/api/auth/token", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "http://localhost:3000",
+        "sec-fetch-site": "same-origin",
+      },
+      body: JSON.stringify({ grantType: "refresh_token" }),
+    });
+    request.cookies.set(REFRESH_COOKIE_NAME, "existing-refresh-token");
+    // Session started 13 hours ago (exceeding 12-hour limit)
+    const thirteenHoursAgo = Date.now() - 13 * 60 * 60 * 1000;
+    request.cookies.set(SESSION_START_COOKIE_NAME, String(thirteenHoursAgo));
+
+    const response = await tokenHandler(request);
+    expect(response.status).toBe(401);
+
+    const data = (await response.json()) as { error: string };
+    expect(data.error).toBe("session_expired");
+
+    const refreshCookie = response.cookies.get(REFRESH_COOKIE_NAME);
+    expect(refreshCookie?.maxAge).toBe(0);
+
+    const sessionStartCookie = response.cookies.get(SESSION_START_COOKIE_NAME);
+    expect(sessionStartCookie?.maxAge).toBe(0);
   });
 
   it("rejects silent refresh if refresh cookie is missing", async () => {

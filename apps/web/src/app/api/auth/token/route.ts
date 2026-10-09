@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getPublicMedplumBaseUrl, getPublicMedplumClientId, isProductionBuild } from "@asc/config/public-env";
 
 export const REFRESH_COOKIE_NAME = "asc_refresh_token";
+export const SESSION_START_COOKIE_NAME = "asc_session_start";
 export const ABSOLUTE_SESSION_MAX_AGE_SECONDS = 12 * 60 * 60; // 12 hours absolute (M12-3 / P05j)
 
 interface CodeExchangePayload {
@@ -34,7 +35,9 @@ export function isOriginAllowed(request: NextRequest): boolean {
   if (origin !== null) {
     try {
       const originUrl = new URL(origin);
-      const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? request.nextUrl.host;
+      const rawForwarded = request.headers.get("x-forwarded-host");
+      const forwardedHost = rawForwarded !== null ? rawForwarded.split(",")[0]?.trim() : null;
+      const host = forwardedHost ?? request.headers.get("host") ?? request.nextUrl.host;
       if (originUrl.host !== host) {
         return false;
       }
@@ -65,6 +68,11 @@ async function callMedplumToken(params: Record<string, string>): Promise<Medplum
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  // Origin & Sec-Fetch-Site check enforced on ALL token operations
+  if (!isOriginAllowed(request)) {
+    return NextResponse.json({ error: "forbidden_origin" }, { status: 403 });
+  }
+
   let body: CodeExchangePayload | RefreshPayload;
   try {
     body = (await request.json()) as CodeExchangePayload | RefreshPayload;
@@ -76,14 +84,42 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Action 1: Silent Refresh
   if ("grantType" in body && body.grantType === "refresh_token") {
-    if (!isOriginAllowed(request)) {
-      return NextResponse.json({ error: "forbidden_origin" }, { status: 403 });
-    }
-
     const refreshToken = request.cookies.get(REFRESH_COOKIE_NAME)?.value;
     if (refreshToken === undefined || refreshToken.length === 0) {
       return NextResponse.json({ error: "no_refresh_token" }, { status: 401 });
     }
+
+    const nowMs = Date.now();
+    const sessionStartStr = request.cookies.get(SESSION_START_COOKIE_NAME)?.value;
+    const parsedStartMs = sessionStartStr !== undefined ? Number(sessionStartStr) : NaN;
+    const sessionStartMs = Number.isNaN(parsedStartMs) ? nowMs : parsedStartMs;
+    const maxDurationMs = ABSOLUTE_SESSION_MAX_AGE_SECONDS * 1000;
+    const elapsedMs = nowMs - sessionStartMs;
+
+    if (elapsedMs >= maxDurationMs) {
+      const expiredResponse = NextResponse.json({ error: "session_expired" }, { status: 401 });
+      expiredResponse.cookies.set({
+        name: REFRESH_COOKIE_NAME,
+        value: "",
+        httpOnly: true,
+        secure: isProductionBuild(),
+        sameSite: "strict",
+        path: "/api/auth",
+        maxAge: 0,
+      });
+      expiredResponse.cookies.set({
+        name: SESSION_START_COOKIE_NAME,
+        value: "",
+        httpOnly: true,
+        secure: isProductionBuild(),
+        sameSite: "strict",
+        path: "/api/auth",
+        maxAge: 0,
+      });
+      return expiredResponse;
+    }
+
+    const remainingSeconds = Math.max(0, Math.floor((maxDurationMs - elapsedMs) / 1000));
 
     try {
       const data = await callMedplumToken({
@@ -100,6 +136,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         accessToken: data.access_token,
         idToken: data.id_token,
         expiresIn: data.expires_in,
+        sessionStartedAt: sessionStartMs,
       });
 
       if (data.refresh_token !== undefined) {
@@ -110,15 +147,33 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           secure: isProductionBuild(),
           sameSite: "strict",
           path: "/api/auth",
-          maxAge: ABSOLUTE_SESSION_MAX_AGE_SECONDS,
+          maxAge: remainingSeconds,
+        });
+        response.cookies.set({
+          name: SESSION_START_COOKIE_NAME,
+          value: String(sessionStartMs),
+          httpOnly: true,
+          secure: isProductionBuild(),
+          sameSite: "strict",
+          path: "/api/auth",
+          maxAge: remainingSeconds,
         });
       }
       return response;
     } catch {
-      // On refresh failure, clear the cookie immediately
+      // On refresh failure, clear cookies immediately
       const errResponse = NextResponse.json({ error: "refresh_failed" }, { status: 401 });
       errResponse.cookies.set({
         name: REFRESH_COOKIE_NAME,
+        value: "",
+        httpOnly: true,
+        secure: isProductionBuild(),
+        sameSite: "strict",
+        path: "/api/auth",
+        maxAge: 0,
+      });
+      errResponse.cookies.set({
+        name: SESSION_START_COOKIE_NAME,
         value: "",
         httpOnly: true,
         secure: isProductionBuild(),
@@ -148,16 +203,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         return NextResponse.json({ error: "no_access_token" }, { status: 400 });
       }
 
+      const nowMs = Date.now();
       const response = NextResponse.json({
         accessToken: data.access_token,
         idToken: data.id_token,
         expiresIn: data.expires_in,
+        sessionStartedAt: nowMs,
       });
 
       if (data.refresh_token !== undefined) {
         response.cookies.set({
           name: REFRESH_COOKIE_NAME,
           value: data.refresh_token,
+          httpOnly: true,
+          secure: isProductionBuild(),
+          sameSite: "strict",
+          path: "/api/auth",
+          maxAge: ABSOLUTE_SESSION_MAX_AGE_SECONDS,
+        });
+        response.cookies.set({
+          name: SESSION_START_COOKIE_NAME,
+          value: String(nowMs),
           httpOnly: true,
           secure: isProductionBuild(),
           sameSite: "strict",
