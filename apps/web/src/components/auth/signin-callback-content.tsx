@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   exchangeWebAuthCode,
@@ -23,6 +23,7 @@ export function SignInCallbackContent() {
   const errorDescription = searchParams.get("error_description");
 
   const [asyncError, setAsyncError] = useState<string | null>(null);
+  const hasTriggeredRef = useRef(false);
 
   const urlError = useMemo(() => {
     if (authError !== null) {
@@ -37,17 +38,15 @@ export function SignInCallbackContent() {
   const errorMessage = urlError ?? asyncError;
 
   useEffect(() => {
-    if (urlError !== null) return;
-    if (code === null || code.length === 0) return;
-
-    let isMounted = true;
+    if (urlError !== null || code === null || code.length === 0 || hasTriggeredRef.current) return;
+    hasTriggeredRef.current = true;
 
     async function completeCallback() {
       try {
         const codeVerifier = getPendingCodeVerifier();
-        clearPendingCodeVerifier();
         if (code === null) return;
         const tokenResult = await exchangeWebAuthCode(code, codeVerifier);
+        clearPendingCodeVerifier();
 
         const medplum = getBrowserMedplumClient();
         if (medplum !== undefined) {
@@ -73,21 +72,16 @@ export function SignInCallbackContent() {
           tokenResult.sessionStartedAt,
         );
 
-        if (!isMounted) return;
         const { principal: signedIn, facilityId: facility } = useAuthStore.getState();
         router.push(workspacesFor(signedIn, facility)[0]?.home ?? "/dashboard");
       } catch (err) {
-        if (!isMounted) return;
+        clearPendingCodeVerifier();
         const message = err instanceof Error ? err.message : "Failed to exchange authorization code";
         setAsyncError(message);
       }
     }
 
     void completeCallback();
-
-    return () => {
-      isMounted = false;
-    };
   }, [code, router, urlError]);
 
   if (errorMessage !== null) {

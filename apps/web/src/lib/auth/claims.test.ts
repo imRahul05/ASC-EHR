@@ -39,6 +39,22 @@ describe("claims parser and profile builder", () => {
     expect(claims?.name).toBe("Dr. Sarah Jenkins");
   });
 
+  it("parses UTF-8 encoded non-ASCII clinician names correctly", () => {
+    const header = Buffer.from(JSON.stringify({ alg: "RS256" })).toString("base64url");
+    const payload = Buffer.from(
+      JSON.stringify({
+        sub: "user-utf8",
+        email: "jose@hospital.org",
+        name: "Dr. José Müller",
+      }),
+    ).toString("base64url");
+    const token = `${header}.${payload}.mock-sig`;
+
+    const claims = parseIdTokenClaims(token);
+    expect(claims?.email).toBe("jose@hospital.org");
+    expect(claims?.name).toBe("Dr. José Müller");
+  });
+
   it("builds user profile with actual clinician metadata from ID token", () => {
     const header = btoa(JSON.stringify({ alg: "RS256" })).replace(/=+$/, "");
     const payload = btoa(

@@ -16,7 +16,9 @@ export function parseIdTokenClaims(idToken: string | undefined): IdTokenClaims |
     const parts = idToken.split(".");
     if (parts.length < 2 || parts[1] === undefined) return null;
     const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-    const json = atob(base64);
+    const binary = atob(base64);
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+    const json = new TextDecoder().decode(bytes);
     return JSON.parse(json) as IdTokenClaims;
   } catch {
     return null;

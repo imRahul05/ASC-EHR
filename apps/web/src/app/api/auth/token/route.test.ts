@@ -104,6 +104,7 @@ describe("token route handler", () => {
       body: JSON.stringify({ grantType: "refresh_token" }),
     });
     request.cookies.set(REFRESH_COOKIE_NAME, "existing-refresh-token");
+    request.cookies.set(SESSION_START_COOKIE_NAME, String(Date.now()));
 
     const response = await tokenHandler(request);
     expect(response.status).toBe(200);
@@ -113,6 +114,25 @@ describe("token route handler", () => {
 
     const cookie = response.cookies.get(REFRESH_COOKIE_NAME);
     expect(cookie?.value).toBe("new-refresh-token");
+  });
+
+  it("rejects silent refresh if session start cookie is missing (fail-closed)", async () => {
+    const request = new NextRequest("http://localhost:3000/api/auth/token", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "http://localhost:3000",
+        "sec-fetch-site": "same-origin",
+      },
+      body: JSON.stringify({ grantType: "refresh_token" }),
+    });
+    request.cookies.set(REFRESH_COOKIE_NAME, "existing-refresh-token");
+
+    const response = await tokenHandler(request);
+    expect(response.status).toBe(401);
+
+    const data = (await response.json()) as { error: string };
+    expect(data.error).toBe("session_expired");
   });
 
   it("rejects silent refresh and clears cookies when 12-hour session limit is exceeded", async () => {
@@ -204,8 +224,15 @@ describe("token route handler", () => {
 });
 
 describe("logout route handler", () => {
-  it("clears the refresh cookie with maxAge 0", async () => {
-    const response = logoutHandler();
+  it("clears the refresh cookie with maxAge 0 for allowed origins", async () => {
+    const request = new NextRequest("http://localhost:3000/api/auth/logout", {
+      method: "POST",
+      headers: {
+        origin: "http://localhost:3000",
+        "sec-fetch-site": "same-origin",
+      },
+    });
+    const response = logoutHandler(request);
     expect(response.status).toBe(200);
 
     const data = (await response.json()) as { ok: boolean };
@@ -214,6 +241,20 @@ describe("logout route handler", () => {
     const cookie = response.cookies.get(REFRESH_COOKIE_NAME);
     expect(cookie?.maxAge).toBe(0);
     expect(cookie?.path).toBe("/api/auth");
+  });
+
+  it("blocks cross-origin logout attempts", async () => {
+    const request = new NextRequest("http://localhost:3000/api/auth/logout", {
+      method: "POST",
+      headers: {
+        origin: "https://evil.attacker.com",
+      },
+    });
+    const response = logoutHandler(request);
+    expect(response.status).toBe(403);
+
+    const data = (await response.json()) as { error: string };
+    expect(data.error).toBe("forbidden_origin");
   });
 });
 
@@ -236,5 +277,21 @@ describe("isOriginAllowed", () => {
       },
     });
     expect(isOriginAllowed(req)).toBe(false);
+  });
+
+  it("validates referer when origin header is absent", () => {
+    const validReq = new NextRequest("http://localhost:3000/api/auth/token", {
+      headers: {
+        referer: "http://localhost:3000/login",
+      },
+    });
+    expect(isOriginAllowed(validReq)).toBe(true);
+
+    const evilReq = new NextRequest("http://localhost:3000/api/auth/token", {
+      headers: {
+        referer: "https://malicious-site.com/attack",
+      },
+    });
+    expect(isOriginAllowed(evilReq)).toBe(false);
   });
 });

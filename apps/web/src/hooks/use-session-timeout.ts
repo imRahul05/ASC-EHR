@@ -116,6 +116,7 @@ export function useSessionTimeout(options: SessionTimeoutOptions = {}) {
     };
 
     if (!isAuthenticated || typeof window === "undefined") {
+      lastActivityRef.current = null;
       return;
     }
 

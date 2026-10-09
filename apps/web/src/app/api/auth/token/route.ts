@@ -23,7 +23,6 @@ interface MedplumTokenResponse {
 }
 
 export function isOriginAllowed(request: NextRequest): boolean {
-  const origin = request.headers.get("origin");
   const secFetchSite = request.headers.get("sec-fetch-site");
 
   // Sec-Fetch-Site must be same-origin or none if provided
@@ -31,14 +30,16 @@ export function isOriginAllowed(request: NextRequest): boolean {
     return false;
   }
 
-  // Origin must match host or x-forwarded-host if provided
-  if (origin !== null) {
+  const origin = request.headers.get("origin");
+  const referer = request.headers.get("referer");
+  const candidate = origin ?? referer;
+
+  // Origin or referer must match request host if provided
+  if (candidate !== null) {
     try {
-      const originUrl = new URL(origin);
-      const rawForwarded = request.headers.get("x-forwarded-host");
-      const forwardedHost = rawForwarded !== null ? rawForwarded.split(",")[0]?.trim() : null;
-      const host = forwardedHost ?? request.headers.get("host") ?? request.nextUrl.host;
-      if (originUrl.host !== host) {
+      const candidateUrl = new URL(candidate);
+      const expectedHost = request.nextUrl.host;
+      if (candidateUrl.host !== expectedHost) {
         return false;
       }
     } catch {
@@ -61,8 +62,7 @@ async function callMedplumToken(params: Record<string, string>): Promise<Medplum
     body: new URLSearchParams(params),
   });
   if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`Medplum token request failed with status ${res.status}: ${errorText}`);
+    throw new Error(`Medplum token request failed with status ${res.status}`);
   }
   return res.json() as Promise<MedplumTokenResponse>;
 }
@@ -92,11 +92,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const nowMs = Date.now();
     const sessionStartStr = request.cookies.get(SESSION_START_COOKIE_NAME)?.value;
     const parsedStartMs = sessionStartStr !== undefined ? Number(sessionStartStr) : NaN;
-    const sessionStartMs = Number.isNaN(parsedStartMs) ? nowMs : parsedStartMs;
     const maxDurationMs = ABSOLUTE_SESSION_MAX_AGE_SECONDS * 1000;
-    const elapsedMs = nowMs - sessionStartMs;
+    const elapsedMs = nowMs - parsedStartMs;
 
-    if (elapsedMs >= maxDurationMs) {
+    if (
+      sessionStartStr === undefined ||
+      Number.isNaN(parsedStartMs) ||
+      parsedStartMs <= 0 ||
+      parsedStartMs > nowMs ||
+      elapsedMs >= maxDurationMs
+    ) {
       const expiredResponse = NextResponse.json({ error: "session_expired" }, { status: 401 });
       expiredResponse.cookies.set({
         name: REFRESH_COOKIE_NAME,
@@ -119,6 +124,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return expiredResponse;
     }
 
+    const sessionStartMs = parsedStartMs;
     const remainingSeconds = Math.max(0, Math.floor((maxDurationMs - elapsedMs) / 1000));
 
     try {
@@ -232,9 +238,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         });
       }
       return response;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Token exchange error";
-      return NextResponse.json({ error: "token_exchange_failed", message }, { status: 400 });
+    } catch {
+      return NextResponse.json(
+        { error: "token_exchange_failed", message: "Failed to exchange authorization code with identity provider" },
+        { status: 400 },
+      );
     }
   }
 
