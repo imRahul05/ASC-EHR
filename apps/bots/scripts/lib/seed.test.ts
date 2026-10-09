@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 import {
   ensureProject,
   parseClientAppDefinitions,
+  parseRetiredClientApplications,
+  retireClientApplications,
   seedClientApplications,
   seedFacility,
   seedPractitioners,
@@ -85,16 +87,20 @@ describe("seedPractitioners", () => {
 describe("client application definitions", () => {
   const real = JSON.parse(readFileSync(new URL("../../../../infra/medplum/client-apps.json", import.meta.url), "utf8")) as unknown;
 
-  it("accepts the shipped infra/medplum/client-apps.json: a PKCE web app and two confidential apps", () => {
+  it("accepts the shipped infra/medplum/client-apps.json: a PKCE web app and a per-facility worker, no API client (#57)", () => {
     const definitions = parseClientAppDefinitions(real);
-    expect(definitions.map((definition) => definition.key)).toEqual(["web", "api", "worker"]);
+    expect(definitions.map((definition) => definition.key)).toEqual(["web", "worker"]);
     const web = definitions.find((definition) => definition.key === "web");
     expect(web).toMatchObject({ redirectUri: "http://localhost:3000/signin/callback", secret: false, membership: false });
-    for (const key of ["api", "worker"]) {
-      expect(definitions.find((definition) => definition.key === key)).toMatchObject({ secret: true, membership: true });
-    }
+    expect(definitions.find((definition) => definition.key === "worker")).toMatchObject({ secret: true, membership: true, perFacility: true });
     // Any client with a membership must name a policy, or it would have full project access.
     expect(definitions.filter((definition) => definition.membership).every((definition) => definition.policy !== undefined)).toBe(true);
+  });
+
+  it("retires the API client and the shared, unscoped worker client (#57, #60)", () => {
+    expect(parseRetiredClientApplications(real)).toEqual(["asc-ehr-api", "asc-ehr-worker"]);
+    expect(parseRetiredClientApplications({ clientApplications: [] })).toEqual([]);
+    expect(() => parseRetiredClientApplications({ retiredClientApplications: [""] })).toThrow("list of client application names");
   });
 
   it("rejects a malformed definition file", () => {
@@ -105,10 +111,20 @@ describe("client application definitions", () => {
       parseClientAppDefinitions({ clientApplications: [{ key: "a", name: "n", description: "d", secret: "yes", membership: true }] }),
     ).toThrow('"secret" boolean');
   });
+
+  it("refuses a per-facility client without a secret, a membership or a policy", () => {
+    const perFacility = { key: "w", name: "n", description: "d", secret: true, membership: true, perFacility: true };
+    expect(() => parseClientAppDefinitions({ clientApplications: [perFacility] })).toThrow("needs a secret, a membership and a policy");
+    expect(() => parseClientAppDefinitions({ clientApplications: [{ ...perFacility, policy: "p", secret: false }] })).toThrow("needs a secret");
+  });
 });
 
 describe("seedClientApplications", () => {
-  const policyIds = { "api-service-v1": "policy-api", "system-worker-v1": "policy-worker" };
+  const policyIds = { "system-worker-v2": "policy-worker" };
+  const facilities = [
+    { key: "facility-demo-1", id: "org-a" },
+    { key: "facility-demo-2", id: "org-b" },
+  ];
   const definitions = parseClientAppDefinitions(
     JSON.parse(readFileSync(new URL("../../../../infra/medplum/client-apps.json", import.meta.url), "utf8")),
   );
@@ -117,55 +133,63 @@ describe("seedClientApplications", () => {
     const secrets: string[] = [];
     return { secretFor: () => (secrets[secrets.length] = `secret-${++n}`), secrets };
   };
+  const membershipOf = (store: Resource[], clientId: string | undefined) =>
+    store.find((r) => r.resourceType === "ProjectMembership" && (r.user as { reference: string }).reference === `ClientApplication/${clientId}`);
+  const facilityAccess = (org: string) => [
+    { policy: { reference: "AccessPolicy/policy-worker" }, parameter: [{ name: "facility", valueReference: { reference: `Organization/${org}` } }] },
+  ];
 
-  it("gives confidential clients a secret and a membership, and the public web client neither", async () => {
+  it("creates one worker client per facility, each with its own secret and membership, and a public web client", async () => {
     const { medplum, store } = fakeMedplum();
     const { secretFor, secrets } = counter();
-    const apps = await seedClientApplications(medplum, "project-1", definitions, policyIds, secretFor);
+    const apps = await seedClientApplications(medplum, "project-1", definitions, policyIds, { facilities, secretFor });
+    expect(Object.keys(apps)).toEqual(["web", "worker@facility-demo-1", "worker@facility-demo-2"]);
     expect(apps.web).toEqual({ id: expect.any(String) });
-    expect(apps.api?.secret).toBe(secrets[0]);
-    expect(apps.worker?.secret).toBe(secrets[1]);
+    expect(apps["worker@facility-demo-1"]).toEqual({ id: expect.any(String), secret: secrets[0], facilityId: "org-a" });
+    expect(apps["worker@facility-demo-2"]).toEqual({ id: expect.any(String), secret: secrets[1], facilityId: "org-b" });
     expect(secrets[0]).not.toBe(secrets[1]);
-    const memberships = store.filter((resource) => resource.resourceType === "ProjectMembership");
-    expect(memberships.map((m) => (m.user as { reference: string }).reference).sort()).toEqual(
-      [`ClientApplication/${apps.api?.id}`, `ClientApplication/${apps.worker?.id}`].sort(),
-    );
+    expect(store.filter((r) => r.resourceType === "ClientApplication").map((r) => r.name)).toEqual([
+      "asc-ehr-web",
+      "asc-ehr-worker@facility-demo-1",
+      "asc-ehr-worker@facility-demo-2",
+    ]);
+    const memberships = store.filter((r) => r.resourceType === "ProjectMembership");
+    expect(memberships).toHaveLength(2);
     expect(memberships.every((m) => (m.project as { reference: string }).reference === "Project/project-1")).toBe(true);
     expect(store.find((r) => r.name === "asc-ehr-web")).toMatchObject({ pkceOptional: false });
   });
 
-  it("gives each membership its narrow service policy, never a full-access client", async () => {
+  it("binds each worker membership's %facility to its own facility (#60)", async () => {
     const { medplum, store } = fakeMedplum();
-    const apps = await seedClientApplications(medplum, "project-1", definitions, policyIds);
-    const accessOf = (clientId: string | undefined) =>
-      store.find((r) => r.resourceType === "ProjectMembership" && (r.user as { reference: string }).reference === `ClientApplication/${clientId}`)?.access;
-    expect(accessOf(apps.api?.id)).toEqual([{ policy: { reference: "AccessPolicy/policy-api" } }]);
-    expect(accessOf(apps.worker?.id)).toEqual([{ policy: { reference: "AccessPolicy/policy-worker" } }]);
+    const apps = await seedClientApplications(medplum, "project-1", definitions, policyIds, { facilities });
+    expect(membershipOf(store, apps["worker@facility-demo-1"]?.id)?.access).toEqual(facilityAccess("org-a"));
+    expect(membershipOf(store, apps["worker@facility-demo-2"]?.id)?.access).toEqual(facilityAccess("org-b"));
   });
 
-  it("refuses a client with a membership and no policy, or a policy that was not seeded", async () => {
+  it("refuses a client with a membership and no policy, a policy that was not seeded, or a per-facility client with no facility", async () => {
     const { medplum } = fakeMedplum();
-    const withoutPolicy = definitions.map(({ policy: _policy, ...rest }) => rest);
+    const withoutPolicy = definitions.map(({ policy: _policy, perFacility: _perFacility, ...rest }) => rest);
     await expect(seedClientApplications(medplum, "project-1", withoutPolicy, policyIds)).rejects.toThrow("refusing to create a full-access client");
-    await expect(seedClientApplications(medplum, "project-1", definitions, {})).rejects.toThrow("was not seeded");
+    await expect(seedClientApplications(medplum, "project-1", definitions, {}, { facilities })).rejects.toThrow("was not seeded");
+    await expect(seedClientApplications(medplum, "project-1", definitions, policyIds)).rejects.toThrow("no facility was seeded");
   });
 
   it("narrows a membership that was created before and has no access list (full project access)", async () => {
     const { medplum, store } = fakeMedplum([
-      { resourceType: "ClientApplication", id: "app-api", name: "asc-ehr-api", description: "old", secret: "kept" },
-      { resourceType: "ProjectMembership", id: "m-api", user: { reference: "ClientApplication/app-api" } },
+      { resourceType: "ClientApplication", id: "app-w", name: "asc-ehr-worker@facility-demo-1", description: "old", secret: "kept" },
+      { resourceType: "ProjectMembership", id: "m-w", user: { reference: "ClientApplication/app-w" } },
     ]);
-    await seedClientApplications(medplum, "project-1", definitions, policyIds);
-    expect(store.find((r) => r.id === "m-api")?.access).toEqual([{ policy: { reference: "AccessPolicy/policy-api" } }]);
-    expect(store.filter((r) => r.resourceType === "ProjectMembership" && (r.user as { reference: string }).reference === "ClientApplication/app-api")).toHaveLength(1);
+    await seedClientApplications(medplum, "project-1", definitions, policyIds, { facilities });
+    expect(store.find((r) => r.id === "m-w")?.access).toEqual(facilityAccess("org-a"));
+    expect(store.filter((r) => r.resourceType === "ProjectMembership" && (r.user as { reference: string }).reference === "ClientApplication/app-w")).toHaveLength(1);
   });
 
   it("changes nothing on a second run: same ids, same secrets, no new memberships", async () => {
     const { medplum, store } = fakeMedplum();
     const { secretFor, secrets } = counter();
-    const first = await seedClientApplications(medplum, "project-1", definitions, policyIds, secretFor);
+    const first = await seedClientApplications(medplum, "project-1", definitions, policyIds, { facilities, secretFor });
     const sizeAfterFirst = store.length;
-    const second = await seedClientApplications(medplum, "project-1", definitions, policyIds, secretFor);
+    const second = await seedClientApplications(medplum, "project-1", definitions, policyIds, { facilities, secretFor });
     expect(second).toEqual(first);
     expect(store).toHaveLength(sizeAfterFirst);
     expect(secrets).toHaveLength(2); // generated once per confidential client, never rotated
@@ -173,15 +197,32 @@ describe("seedClientApplications", () => {
 
   it("gives an existing client that has no secret one, and corrects a drifted redirect without touching secrets", async () => {
     const { medplum, store } = fakeMedplum([
-      { resourceType: "ClientApplication", id: "app-api", name: "asc-ehr-api", description: "old" },
+      { resourceType: "ClientApplication", id: "app-w", name: "asc-ehr-worker@facility-demo-1", description: "old" },
       { resourceType: "ClientApplication", id: "app-web", name: "asc-ehr-web", redirectUri: "http://localhost:9999/old", pkceOptional: false, description: "old" },
     ]);
     const { secretFor, secrets } = counter();
-    const apps = await seedClientApplications(medplum, "project-1", definitions, policyIds, secretFor);
-    expect(apps.api).toEqual({ id: "app-api", secret: secrets[0] });
+    const apps = await seedClientApplications(medplum, "project-1", definitions, policyIds, { facilities, secretFor });
+    expect(apps["worker@facility-demo-1"]).toEqual({ id: "app-w", secret: secrets[0], facilityId: "org-a" });
     expect(apps.web?.id).toBe("app-web");
     expect(store.find((r) => r.id === "app-web")).toMatchObject({ redirectUri: "http://localhost:3000/signin/callback" });
     expect(countOf(store, "ClientApplication")).toBe(3);
+  });
+});
+
+describe("retireClientApplications", () => {
+  it("deletes the retired clients and their memberships, keeps the others, and does nothing on a second run", async () => {
+    const { medplum, store } = fakeMedplum([
+      { resourceType: "ClientApplication", id: "app-api", name: "asc-ehr-api" },
+      { resourceType: "ProjectMembership", id: "m-api", user: { reference: "ClientApplication/app-api" } },
+      { resourceType: "ClientApplication", id: "app-worker", name: "asc-ehr-worker" },
+      { resourceType: "ProjectMembership", id: "m-worker", user: { reference: "ClientApplication/app-worker" } },
+      { resourceType: "ClientApplication", id: "app-a", name: "asc-ehr-worker@facility-demo-1" },
+      { resourceType: "ProjectMembership", id: "m-a", user: { reference: "ClientApplication/app-a" } },
+    ]);
+    expect(await retireClientApplications(medplum, ["asc-ehr-api", "asc-ehr-worker"])).toEqual(["asc-ehr-api", "asc-ehr-worker"]);
+    expect(store.map((r) => r.id)).toEqual(["app-a", "m-a"]);
+    expect(await retireClientApplications(medplum, ["asc-ehr-api", "asc-ehr-worker"])).toEqual([]);
+    expect(store).toHaveLength(2);
   });
 });
 

@@ -217,11 +217,12 @@ describe("service policies (apps/api and apps/worker)", () => {
     expect(named).toEqual(shipped.map((policy) => policy.name).sort());
   });
 
-  it("gives the API a read-only directory and no patient data, and the worker only Task", () => {
-    const api = shipped.find((policy) => policy.name.startsWith("api-service"));
-    expect(api?.resource.map((rule) => rule.resourceType).sort()).toEqual(["AccessPolicy", "Organization", "PractitionerRole"]);
-    expect(api?.resource.every((rule) => rule.readonly === true)).toBe(true);
-    expect(shipped.find((policy) => policy.name.startsWith("system-worker"))?.resource.map((rule) => rule.resourceType)).toEqual(["Task"]);
+  it("has no API service policy (#57: the API uses the user's token) and confines the worker to its facility's Tasks (#60)", () => {
+    expect(shipped.map((policy) => policy.name)).toEqual(["system-worker-v2"]);
+    const worker = shipped.find((policy) => policy.name.startsWith("system-worker"));
+    expect(worker?.resource).toEqual([{ resourceType: "Task", criteria: "Task?_compartment=%facility" }]);
+    // Every rule of a facility-scoped worker policy names the facility compartment.
+    expect(worker?.resource.every((rule) => (rule as { criteria?: string }).criteria?.endsWith("?_compartment=%facility"))).toBe(true);
   });
 
   it("rejects wildcards and malformed files", () => {
@@ -236,10 +237,10 @@ describe("service policies (apps/api and apps/worker)", () => {
     const first = await seedServicePolicies(medplum, shipped);
     expect(await seedServicePolicies(medplum, shipped)).toEqual(first);
     expect(policiesIn(store)).toHaveLength(shipped.length);
-    const worker = store.find((resource) => resource.id === first["system-worker-v1"]);
+    const worker = store.find((resource) => resource.id === first["system-worker-v2"]);
     if (worker === undefined) throw new Error("worker policy missing");
     worker.resource = [{ resourceType: "*" }];
     await seedServicePolicies(medplum, shipped);
-    expect(store.find((resource) => resource.id === first["system-worker-v1"])?.resource).toEqual([{ resourceType: "Task" }]);
+    expect(store.find((resource) => resource.id === first["system-worker-v2"])?.resource).toEqual([{ resourceType: "Task", criteria: "Task?_compartment=%facility" }]);
   });
 });

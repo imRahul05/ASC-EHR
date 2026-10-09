@@ -68,6 +68,12 @@ export function fakeMedplum(initial: Resource[] = []) {
           return true;
         }),
       ),
+    deleteResource: (type: string, id: string) => {
+      const index = store.findIndex((candidate) => candidate.resourceType === type && candidate.id === id);
+      if (index === -1) return Promise.reject(new Error("Not found"));
+      store.splice(index, 1);
+      return Promise.resolve();
+    },
     readResource: (type: string, id: string) => {
       const found = store.find((candidate) => candidate.resourceType === type && candidate.id === id);
       return found === undefined ? Promise.reject(new Error("Not found")) : Promise.resolve(found);

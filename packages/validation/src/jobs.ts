@@ -18,7 +18,14 @@ export const jobDataIdSchema = z.string().min(1).max(128).regex(JOB_DATA_ID_PATT
 export const baseJobDataSchema = z
   .object({
     correlationId: jobDataIdSchema.optional(),
-    /** User who triggered the job, for audit (`actorId`). */
+    /** Tenant the job runs for; the worker checks it is an active tenant before doing anything. */
+    tenantId: jobDataIdSchema.optional(),
+    /**
+     * Facility (`Organization` id) the job runs at. The worker picks its Medplum client from this value only,
+     * so Medplum's policy confines the job to that facility (#60); never from model output or other job fields.
+     */
+    facilityId: jobDataIdSchema.optional(),
+    /** User who triggered the job, for audit (`actorId`); the worker re-checks their grant before each PHI step (#57). */
     actorId: jobDataIdSchema.optional(),
     patientId: jobDataIdSchema.optional(),
     surgicalCaseId: jobDataIdSchema.optional(),
@@ -26,6 +33,14 @@ export const baseJobDataSchema = z
   .strict();
 
 export type BaseJobData = z.infer<typeof baseJobDataSchema>;
+
+/**
+ * Contract for any job that reads or writes PHI (including AI agent runs): tenant and facility are required,
+ * so the worker can never fall back to a client that is not scoped to one facility (#60).
+ */
+export const phiJobDataSchema = baseJobDataSchema.required({ tenantId: true, facilityId: true });
+
+export type PhiJobData = z.infer<typeof phiJobDataSchema>;
 
 /** Job names are static identifiers (they are stored in Redis and logged). */
 export const jobNameSchema = z

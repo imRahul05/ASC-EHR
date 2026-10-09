@@ -4,8 +4,11 @@ import { ROLE_TEMPLATES } from "@asc/authz";
 import { loadSeedEnv, signInToProject } from "./lib/medplum-session.js";
 import { mergeDemoUsers, parseServicePolicies, seedDemoUsers, seedRolePolicies, seedServicePolicies } from "./lib/seed-access.js";
 import {
+  FACILITY_KEY,
   PROJECT_NAME,
   parseClientAppDefinitions,
+  parseRetiredClientApplications,
+  retireClientApplications,
   SECOND_FACILITY_KEY,
   seedClientApplications,
   seedFacility,
@@ -44,13 +47,18 @@ const newUsers = await seedDemoUsers(client, staffTemplates, { projectId, facili
 const users = mergeDemoUsers(previousOutput, newUsers);
 say(`demo users: ${Object.keys(users).length} (${Object.values(newUsers).filter((user) => user.password !== undefined).length} new)`);
 
-const definitions = parseClientAppDefinitions(
-  JSON.parse(readFileSync(new URL("../../../infra/medplum/client-apps.json", import.meta.url), "utf8")),
-);
+const clientAppsJson: unknown = JSON.parse(readFileSync(new URL("../../../infra/medplum/client-apps.json", import.meta.url), "utf8"));
+const definitions = parseClientAppDefinitions(clientAppsJson);
+const retired = await retireClientApplications(client, parseRetiredClientApplications(clientAppsJson));
+if (retired.length > 0) say(`retired client applications: ${retired.join(", ")}`);
 const servicePolicies = parseServicePolicies(JSON.parse(readFileSync(new URL("../../../infra/medplum/service-policies.json", import.meta.url), "utf8")));
 const servicePolicyIds = await seedServicePolicies(client, servicePolicies);
 say(`service policies: ${Object.keys(servicePolicyIds).join(", ")}`);
-const clientApplications = await seedClientApplications(client, projectId, definitions, servicePolicyIds);
+const facilities = [
+  { key: FACILITY_KEY, id: facilityId },
+  { key: SECOND_FACILITY_KEY, id: secondFacilityId },
+];
+const clientApplications = await seedClientApplications(client, projectId, definitions, servicePolicyIds, { facilities });
 for (const [key, app] of Object.entries(clientApplications)) say(`client application ${key}: ${app.id}`);
 
 // Ids and the generated secrets and demo passwords for local use. Git-ignored; never printed.
