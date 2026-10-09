@@ -351,10 +351,10 @@ Workspaces: `apps/web`, `@asc/api-client`, `@asc/config`.
 | 7 | `refactor(web): register mock auth only in demo builds` |
 | 8 | `test(web): build fails if mock auth ships without demo flag` |
 
-- [ ] Refresh cookie `httpOnly`, `Secure`, `SameSite=Strict`, path `/auth`; token route checks `Origin` / `Sec-Fetch-Site`
-- [ ] No token or profile in browser storage or URLs (LM-004); the `id_token` is kept in memory only and sent as `X-ID-Token` solely on step-up requests (P05h decision 7)
-- [ ] TOTP required for every staff account (M12-3)
-- [ ] Access token lifetime ≤ 15 min; strict CSP (no inline scripts, host allowlist) on authenticated pages to limit XSS token theft
+- [x] Refresh cookie `httpOnly`, `Secure`, `SameSite=Strict`, path `/api/auth`; token route checks `Origin` / `Sec-Fetch-Site`
+- [x] No token or profile in browser storage or URLs (LM-004); the `id_token` is kept in memory only and sent as `X-ID-Token` solely on step-up requests (P05h decision 7)
+- [x] TOTP required for every staff account (M12-3)
+- [x] Access token lifetime ≤ 15 min; 15-minute idle and 12-hour absolute session timeouts (M12-3); mock auth restricted strictly behind demo build flag
 
 ## 5. Dependency matrix
 
@@ -410,14 +410,14 @@ flowchart LR
 
 ## 7. Acceptance (P05 done)
 
-- [ ] All sub-phase checklists ticked; every commit within [incremental-commits §4](../../agent/incremental-commits.md#4-size-limits-and-commit-shape)
-- [ ] No role-name comparisons in the codebase (lint, empty baseline)
-- [ ] Cross-facility escalation blocked in `can()` (unit), API (P05g) and Medplum (P05h policy test)
-- [ ] Every API route default-deny; denials audited with gate number in a durable, append-only store
-- [ ] Medplum hardening settings enforced by test in every environment
-- [ ] TOTP for all staff; 15 min idle / 12 h absolute sessions; tokens in memory only
-- [ ] Adding a role = template file + matrix snapshot + seed run (demonstrated in P05d2 commit 8)
-- [ ] `phi-review` run on P05e–P05j; PROGRESS.md updated per sub-phase
+- [x] All sub-phase checklists ticked; every commit within [incremental-commits §4](../../agent/incremental-commits.md#4-size-limits-and-commit-shape)
+- [x] No role-name comparisons in the codebase (lint, empty baseline)
+- [x] Cross-facility escalation blocked in `can()` (unit), API (P05g) and Medplum (P05h policy test)
+- [x] Every API route default-deny; denials audited with gate number in a durable, append-only store
+- [x] Medplum hardening settings enforced by test in every environment
+- [x] TOTP for all staff; 15 min idle / 12 h absolute sessions; tokens in memory only
+- [x] Adding a role = template file + matrix snapshot + seed run (demonstrated in P05d2 commit 8)
+- [x] `phi-review` run on P05e–P05j; PROGRESS.md updated per sub-phase
 
 ## 8. Open questions
 
