@@ -376,7 +376,8 @@ sequenceDiagram
     TH-->>W: Set-Cookie refresh (httpOnly, Secure, SameSite=Strict, encrypted)
     TH-->>W: access token in response body (kept in memory only)
     W->>A: GET /me (Bearer access token)
-    A->>M: /auth/me (cached ≤ 60 s)
+    A->>M: /auth/me (cached per token hash for the token lifetime)
+    A->>M: PractitionerRole?practitioner=me&active=true (user's token, every request, #57)
     A-->>W: Principal {tenant, facilities, roles, capabilities}
 ```
 
@@ -392,11 +393,31 @@ sequenceDiagram
 
 ### 5.2 Step-up for high-risk actions
 
-Signing a note, attesting coding, break-glass and admin changes need a **fresh login** (within 5 min).
+There are two mechanisms. A fresh login shows the session is recent but is not an electronic signature, so signatures get their own ceremony.
 
-1. The API returns `401 step_up_required` with the capability that asked for it.
-2. The UI re-runs the login flow with `prompt=login`, which also re-asks MFA.
-3. The API checks the new token's issue time (S1: confirm the claim Medplum exposes) and allows the action once.
+**Step-up for actions that are not signatures** (`admin.*`, break-glass, exports): option C, decided in #49.
+1. The web app keeps the signed `id_token` from sign-in in memory and sends it as `X-ID-Token`, only on step-up requests.
+2. The API verifies Medplum's signature (JWKS), the same `login_id` and `sub` as the access token, and `auth_time` within 5 min.
+3. Any failure returns `403 { code: "step_up_required" }`. The UI re-authenticates (password and TOTP) and retries.
+
+**Signatures** (note finalization, attestations, order signing): the nonce-bound signing ceremony, decided in [#58](https://github.com/imRahul05/ASC-EHR/issues/58) on 2026-10-09.
+1. `POST /signing-sessions { items: [{ ref, versionId, contentHash }], meaning }`. The API checks gate 4 (capability and case state) and returns a single-use nonce. The nonce is kept in Redis for 2 min and bound to the item hashes.
+2. The UI asks for password and TOTP. The client re-authenticates with Medplum, passing the nonce; Medplum carries it into the new `id_token` (verified on 5.1.42).
+3. `POST /signing-sessions/:id/complete` sends that `id_token`. The API verifies:
+   - the JWKS signature;
+   - the nonce, matched and consumed atomically;
+   - `auth_time` no more than 60 s old;
+   - `sub` and `login_id` equal to the access token's;
+   - the current versions still hash to what was shown.
+4. With the **user's** token, the API sets each item to `final` and writes a `Provenance` whose `signature` covers the content hash, with who, when and the meaning (author or attester). The browser never signs. One ceremony may sign several items, which keeps a day's signing under Medplum's login throttle.
+5. The principal kinds `agent` and `service` can never open or complete a signing session. When an agent drafted the content, the `Provenance` records the agent run (`agentExecutionId`) as contributor and the clinician as attester.
+
+**Regulations** (to be confirmed by each customer's compliance contact at onboarding):
+- Chart authentication follows CMS 42 CFR 416.47, state law and HIPAA.
+- The ceremony also meets 21 CFR Part 11 §11.50, §11.70 and §11.200.
+- Controlled-substance e-prescribing (DEA 21 CFR 1311) goes through a **certified e-prescribing vendor**; it is not built here.
+
+Before the signing route ships, check whether Medplum's login throttle counts per user or per address.
 
 ### 5.3 Hospital SSO (federation per tenant)
 
@@ -447,7 +468,7 @@ flowchart LR
 | Gate | Question | Owner | Failure |
 |---|---|---|---|
 | 1 Tenant | Which active tenant is this request for? | `TenantResolver` port: `StaticTenantResolver` (config) in Phase 1; host-based resolver + web middleware for Customer #2 | 404 (unknown host, multi-tenant only) |
-| 2 Identity | Is the token valid, the membership active, and was the token issued for this tenant's Project? | `apps/api` authn plugin → `IdentityPort` (Medplum `/auth/me`) | 401 |
+| 2 Identity | Is the token valid, the membership active, and was the token issued for this tenant's Project? | `apps/api` authn plugin → `IdentityPort` (Medplum `/auth/me`, plus the user's `PractitionerRole`s read with the user's token on every request, #57) | 401 |
 | 3 Facility | Does the principal hold a grant at the target resource's facility? | `apps/api` guard (`@asc/authz`) | 403 |
 | 4 Capability + workflow | Does a grant **at that facility** include the capability, and does the case state allow it now? | `@asc/authz` `can(principal, cap, { facilityId })` + `@asc/clinical-rules` | 403 / 409 |
 | 5 Data policy | May this membership read or write this resource and field? | **Medplum** `AccessPolicy` | 403 |
@@ -456,17 +477,18 @@ flowchart LR
 
 Gate 5 is the safety net: even if gates 3–4 had a bug, Medplum would still refuse. Gates 3–4 exist for clear errors, workflow rules and non-FHIR actions such as export and AI generation. The safety net covers only actions that end in a FHIR call made with the user's token: app Postgres data, AI runs, SSE channels, exports and worker jobs rely on gates 3–4 alone. Their input (grant `PractitionerRole`s) is therefore protected like a membership: no staff policy may write one ([spike results ADR](../decisions/2026-10-08-medplum-spike-results-and-fallbacks.md), review amendments, decision 4).
 
-**Authorization freshness (cache policy).** Gate 2 caches the `/auth/me` result to avoid a Medplum call per request. Rules:
+**Authorization freshness (decided in [#57](https://github.com/imRahul05/ASC-EHR/issues/57), 2026-10-09).** Rules:
 
 | Rule | Detail |
 |---|---|
-| Cache key and TTL | SHA-256 of the token; TTL ≤ 60 s; never stores the raw token; bounded size. **Shared (Redis), never per-instance memory**: with more than one API replica an invalidation must reach every replica |
-| High-risk capabilities bypass the cache | Any capability flagged `stepUp` (sign, attest, discharge, `admin.*`, break-glass) re-validates against Medplum on every call |
-| Our admin actions invalidate | Every role, facility or membership change made through our tools clears that user's cache entries in the same operation |
-| Out-of-band changes invalidate | **Dropped for now** (spike S6, [spike results ADR](../decisions/2026-10-08-medplum-spike-results-and-fallbacks.md) decision 5, #49): a `Subscription` on `ProjectMembership` failed Medplum's access-policy check. Edits made in the Medplum App are bounded by the TTL and corrected by the provisioner's reconciler sweep |
-| Fail closed | Medplum unreachable → 503; an expired entry is never used as a fallback |
-| Worst case documented | Without a delivered invalidation, a revoked user keeps API access (gates 1–4) for at most the TTL. Spike S6 measured gate 5 as immediate (1 to 4 ms), so the TTL is the only delay |
-| Proposed amendment | **Pending [#57](https://github.com/imRahul05/ASC-EHR/issues/57) (Q-IAM-E):** read the user's `PractitionerRole`s per request with the user's token (proves the token is live and yields the grants in one call); cache only per-token facts that never change (`/auth/me` project, membership, profile) for the token lifetime; no grant cache, so no invalidation or bypass rules |
+| Grants are read on every request | Gate 2 reads the user's role-grant `PractitionerRole`s (`practitioner` = the profile, `active=true`) **with the user's own token**. That one indexed search also proves the token is live: Medplum answers 401 for a revoked login or a disabled membership. Memoized within the request only; never cached across requests |
+| What is cached | Only `/auth/me` facts that cannot change for a given token (project, membership id, profile), keyed by the SHA-256 of the token, for that token's lifetime. The raw token is never stored |
+| No invalidation needed | With no grant cache there are no admin-action invalidation hooks, no step-up cache bypass and no `ProjectMembership` Subscription. That Subscription failed Medplum's access-policy check in spike S6 ([spike results ADR](../decisions/2026-10-08-medplum-spike-results-and-fallbacks.md) decision 5) |
+| Revocation | Immediate at gates 1–4 as well as at gate 5 (spike S6 measured Medplum at 1 to 4 ms) |
+| No API service secret | `apps/api` calls Medplum only with the user's token; `api-service-v1` is retired from the API in P05i |
+| Fail closed | Medplum unreachable → 503, never allow |
+| Fallback only if the P05i load test fails | A cache of at most 5 s, **shared in Redis**, keyed by membership; never per-instance memory |
+| Worker and AI jobs | A job started by a user re-checks that user's grant at the job's facility before each step that reads or writes PHI (in-process memo of at most 5 s per job), so a revoked clinician stops mid-run |
 
 ### 6.1 API request lifecycle
 
@@ -481,15 +503,17 @@ sequenceDiagram
     participant M as Medplum
     participant AU as @asc/audit
 
-    W->>T: POST /cases/123/sign (Host acme, Bearer)
+    W->>T: POST /signing-sessions/abc/complete (Host acme, Bearer, signed id_token)
     T->>T: host → tenant acme (registry cache)
     T->>N: request.tenant
-    N->>M: /auth/me (cache key token hash, TTL ≤ 60 s)
-    M-->>N: profile, membership, project, merged accessPolicy
+    N->>M: /auth/me (cache key token hash, for the token lifetime)
+    M-->>N: profile, membership, project
+    N->>M: PractitionerRole?practitioner=profile&active=true (USER's token, every request)
+    M-->>N: role grants (role key + facility)
     N->>N: project.id == tenant.medplumProjectId ?
     N->>N: build Principal (per-facility grants from role templates)
     N->>G: request.principal
-    G->>G: requireCapability("note.sign", case.facility), requireFreshAuth() once step-up ships
+    G->>G: requireCapability("note.sign", case.facility), verify signing session (nonce, auth_time, content hash; #58)
     G->>R: allowed
     R->>M: FHIR transaction with the USER's token
     M-->>R: 200 or 403 (policy)
@@ -592,7 +616,7 @@ Code only ever calls `can(principal, "note.sign")`. Role names appear in exactly
 | Admin | `admin.users`, `admin.roles`, `admin.facility`, `audit.read`, `quality.read`, **`breakglass.invoke`** ⓢ |
 | Portal | `portal.self.read`, `portal.self.forms` |
 
-ⓢ = needs step-up (fresh login).
+ⓢ = needs step-up (fresh login, option C). Signing capabilities (`note.sign`, `coding.attest`, `discharge.approve`) use the signing ceremony instead (§5.2, #58).
 
 ### 7.3 Role template × capability (P1 proposal; merges code, P05 and M12-1 lists)
 
@@ -737,10 +761,10 @@ flowchart TB
 
 | Caller | Identity | Medplum access | Notes |
 |---|---|---|---|
-| `apps/api` for a user | The **user's** token (forwarded) | User's policy | Default for every command (P04 Q1) |
-| `apps/worker` | **One `ClientApplication` per tenant** (`worker@acme`) using client credentials; secret in Key Vault `tenant-{id}-worker` | `system-worker` policy: only the resource types its jobs touch | Never a server-wide super-admin token. Per-facility worker clients (`worker@<tenant>/<facility>`, so Medplum enforces facility for background jobs and AI agent runs) are recommended in [#60](https://github.com/imRahul05/ASC-EHR/issues/60), pending lead sign-off |
+| `apps/api` for a user | The **user's** token (forwarded) | User's policy | Every call, including the grant lookup ([#57](https://github.com/imRahul05/ASC-EHR/issues/57)); the API holds no Medplum client secret (`api-service-v1` is retired from it in P05i) |
+| `apps/worker` | **One `ClientApplication` per tenant** (`worker@acme`) using client credentials; secret in Key Vault `tenant-{id}-worker` | `system-worker` policy: only the resource types its jobs touch | Never a server-wide super-admin token. Per-facility worker clients (`worker@<tenant>/<facility>`, so Medplum enforces facility for background jobs and AI agent runs) are recommended in [#60](https://github.com/imRahul05/ASC-EHR/issues/60) (still open). A job started by a user re-checks that user's grant before each PHI step ([#57](https://github.com/imRahul05/ASC-EHR/issues/57)) |
 | Bots | Run inside the tenant Project as their own `Bot` identity | Bot's own AccessPolicy | Tenant-scoped by construction |
-| AI agents | Their own principal kind `agent`, never the raw user or worker credential | Capabilities = caller's capabilities ∩ the agent's allow-list; data scoped to the run's tenant, patient and case | `Provenance` and audit record `agentExecutionId` and `onBehalfOf`; `@asc/agents` context-scope assertions reject items outside the run scope; model-supplied IDs are never trusted |
+| AI agents | Their own principal kind `agent`, never the raw user or worker credential | Capabilities = caller's capabilities ∩ the agent's allow-list; data scoped to the run's tenant, patient and case | `Provenance` and audit record `agentExecutionId` and `onBehalfOf`; `@asc/agents` context-scope assertions reject items outside the run scope; model-supplied IDs are never trusted. An agent can never sign ([#58](https://github.com/imRahul05/ASC-EHR/issues/58)): the clinician signs what the agent drafted, and is recorded as attester |
 | Provisioner (CI/ops) | Super-admin, ops-only pipeline | Platform | Never present in app runtime config |
 
 **Job context propagation**
@@ -952,7 +976,7 @@ If a spike fails, record the fallback in the ADR before building the sub-phase t
 | Q-IAM-1 | Tenant = customer (BAA holder): agreed? | Yes, one Project per customer | P05e, P05h |
 | Q-IAM-2 | Single role list (§7.3), CRNA as qualifier | As proposed | P05b |
 | Q-IAM-3 | Session timeouts: 15 min idle / 12 h absolute; logout on browser close configurable per tenant | As proposed | P05j |
-| Q-IAM-4 | Step-up for `note.sign`, `coding.attest`, `discharge.approve`, `breakglass.invoke` | As proposed | Step-up follow-up |
+| Q-IAM-4 | Step-up for `note.sign`, `coding.attest`, `discharge.approve`, `breakglass.invoke` | **Decided:** option C for `breakglass.invoke` and `admin.*` (#49); the signing ceremony for sign, attest and approve ([#58](https://github.com/imRahul05/ASC-EHR/issues/58), 2026-10-09) | Step-up and signing follow-ups |
 | Q-IAM-5 | Subdomain scheme and apex domain (`*.asc-ehr.app`?) | `{slug}.<apex>` | Customer #2 |
 | Q-IAM-6 | First pilot hospital IdP (Entra / Okta / Google) | Entra | SSO follow-up |
 | ~~Q-IAM-7~~ | Medplum hosting (D1) | **Decided 2026-10-03: self-host from open source, no hosted service** | — |
