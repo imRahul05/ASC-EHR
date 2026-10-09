@@ -35,10 +35,10 @@ export function practitionerRolesToAssignments(
   const assignments: RoleAssignment[] = [];
   for (const role of roles) {
     if (role.active !== true) continue;
-    const coding = role.code
+    const matchingCodings = role.code
       ?.flatMap((c) => c.coding ?? [])
-      .find((coding) => coding.system === codeSystem && coding.code !== undefined);
-    if (coding?.code === undefined) continue;
+      .filter((coding) => coding.system === codeSystem && typeof coding.code === "string" && coding.code.length > 0) ?? [];
+    if (matchingCodings.length === 0) continue;
 
     const orgRef = role.organization?.reference;
     const facilityId = orgRef
@@ -46,10 +46,14 @@ export function practitionerRolesToAssignments(
         ? orgRef.slice("Organization/".length)
         : orgRef
       : undefined;
-    assignments.push({
-      roleKey: coding.code,
-      ...(facilityId !== undefined && facilityId.length > 0 ? { facilityId } : {}),
-    });
+
+    for (const coding of matchingCodings) {
+      if (coding.code === undefined) continue;
+      assignments.push({
+        roleKey: coding.code,
+        ...(facilityId !== undefined && facilityId.length > 0 ? { facilityId } : {}),
+      });
+    }
   }
   return assignments;
 }

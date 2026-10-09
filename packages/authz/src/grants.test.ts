@@ -99,6 +99,28 @@ describe("practitionerRolesToAssignments", () => {
     ]);
   });
 
+  it("extracts multiple role codings present on a single PractitionerRole", () => {
+    const assignments = practitionerRolesToAssignments([
+      {
+        active: true,
+        code: [
+          {
+            coding: [
+              { system: "https://asc-ehr.app/role-template", code: "rn" },
+              { system: "https://asc-ehr.app/role-template", code: "preop-pacu-rn" },
+              { system: "http://example.com/other", code: "other-system" },
+            ],
+          },
+        ],
+        organization: { reference: "Organization/fac-c" },
+      },
+    ]);
+    expect(assignments).toEqual([
+      { roleKey: "rn", facilityId: "fac-c" },
+      { roleKey: "preop-pacu-rn", facilityId: "fac-c" },
+    ]);
+  });
+
   it("ignores inactive roles and non-matching coding systems", () => {
     const assignments = practitionerRolesToAssignments([
       {
