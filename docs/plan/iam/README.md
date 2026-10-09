@@ -21,13 +21,13 @@ The earlier 18-phase IAM track (I00–I17) was folded into P05 on 2026-10-05. It
 | D-A6 | Role templates are repo-defined, versioned data for Phase 1 | P05b |
 | D-A7 | Role list: `front-desk`, `rn`, `tech`, `gi-physician`, `anesthesia` (MD/CRNA via qualification), `coder`, `admin`, `auditor` + `patient` | P05b |
 | D-A8 | Audit: Medplum `AuditEvent` for FHIR access (`saveAuditEvents: true`); append-only Postgres `audit_events` for IAM/API events | P05f, P05h |
-| D-A9 | Numbers: `/auth/me` cache ≤ 60 s (recommended to change in [#57](https://github.com/imRahul05/ASC-EHR/issues/57): no cross-request grant cache, pending lead sign-off), idle 15 min, absolute 12 h, step-up window 5 min | P05i, P05j; step-up gated |
+| D-A9 | Numbers: `/auth/me` facts cached for the token lifetime, grants never cached across requests ([#57](https://github.com/imRahul05/ASC-EHR/issues/57), decided 2026-10-09); idle 15 min, absolute 12 h; step-up window 5 min (option C, not signatures); signing-ceremony nonce 2 min, `auth_time` ≤ 60 s ([#58](https://github.com/imRahul05/ASC-EHR/issues/58)) | P05i, P05j; step-up and signing gated |
 | D-A10 | Tenant-ready, one tenant: `tenant_id` + RLS, facility in `meta.accounts`, `StaticTenantResolver`; staff at two customers get two accounts | P05a, P05e |
 | D-A11 | Scope cut: multi-tenant routing, registry, provisioner, cross-tenant suite wait for Customer #2 | [future doc](../../product/future-multi-tenancy-architecture.md) |
 | D-A12 | Medplum hardened, not on defaults: `registerEnabled: false`, `saveAuditEvents: true`, `storeBotInput: false`, explicit super-admin credentials | P05h, P06 |
 | D-A13 | Medplum assumptions proven before use: spikes S1, S1b, S6, S7 and a policy test against local Medplum | P05h |
 | D-A14 | Identity-provider flexibility, not Medplum portability: enterprise IdPs federate into Medplum, which keeps issuing the token gate 5 checks; leaving Medplum is a re-platform | ADR item 5, 08 §2.3 |
-| D-A15 | Authorization freshness: identity cache ≤ 60 s, bypassed for step-up capabilities, invalidated by our admin actions (the membership Subscription is dropped until shown to work, #49); fail closed. Recommended to change in [#57](https://github.com/imRahul05/ASC-EHR/issues/57) (grants read per request with the user's token, no grant cache), pending lead sign-off | P05i, 08 §6 |
+| D-A15 | Authorization freshness (decided in [#57](https://github.com/imRahul05/ASC-EHR/issues/57), 2026-10-09): grants are read on every request with the user's token, with no grant cache, so revocation is immediate. No invalidation hooks, no step-up bypass, no membership Subscription. Fail closed. Fallback only if the load test fails: a Redis cache of at most 5 s | P05i, 08 §6 |
 | D-A16 | AI agents are principal kind `agent`: caller's capabilities ∩ agent allow-list, data scoped to the run; workers use their own client | P05a, 08 §9 |
 | D-A17 | Decision provenance in audit: role template versions, catalog version, gate, cache state | P05f, 08 §12.3 |
 | D-A18 | Hybrid token handling (httpOnly refresh cookie, ≤ 15 min in-memory access token, strict CSP); full BFF only if required | P05j, ADR item 6 |

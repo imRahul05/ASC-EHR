@@ -205,7 +205,7 @@ Key modeling choices:
 - **Finding ⇄ specimen ⇄ pathology link is first-class.** ADR, surveillance interval, GIQuIC export, and coding evidence all depend on it.
 - **Intent on `ServiceRequest`** (screening/surveillance/diagnostic) set at booking — the coding engine reads it; nobody retypes it.
 - **Signed = `Composition.status=final` + `Provenance` signature.** Changes after sign = new version + addendum `Provenance`; Medplum `_history` keeps every version.
-- **Every resource carries the facility `Organization` in `meta.accounts` (the singular `meta.account` is deprecated in Medplum 5.1.42)** → AccessPolicy compartments make multi-site a config change later.
+- **Every resource carries the facility `Organization` in `meta.accounts` (the singular `meta.account` is deprecated in Medplum 5.1.42)** → AccessPolicy compartments make multi-site a config change later. A patient seen at a second facility gets that facility added through `$set-accounts`, following the tenant's `patientRecordSharing` setting ([#59](https://github.com/imRahul05/ASC-EHR/issues/59), decided 2026-10-09).
 - **eCW patient ID on `Patient.identifier`** (per-practice system) so ASC EHR and MindScript resolve the same patient without sharing a database.
 - Profiles authored in FSH in `packages/fhir/profiles`, compiled to `StructureDefinition`s, uploaded to Medplum; types generated for TS.
 

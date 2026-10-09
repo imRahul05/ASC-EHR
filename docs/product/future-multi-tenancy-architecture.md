@@ -85,7 +85,7 @@ flowchart LR
 
     Edge["Azure App Gateway<br/>Wildcard TLS (*.asc-ehr.app)"]:::ours
     Web["apps/web + apps/api<br/>(Pooled Containers)"]:::ours
-    Reg[("Tenant Registry<br/>slug, hosts, projectId,<br/>status, mfa_mode")]:::reg
+    Reg[("Tenant Registry<br/>slug, hosts, projectId,<br/>status, mfa_mode,<br/>patientRecordSharing")]:::reg
     MP["Medplum Server<br/>(Project per Tenant)"]:::ours
     Silo["Dedicated Silo Stack<br/>(Isolated DB / Medplum for large health systems)"]:::silo
 
@@ -185,7 +185,7 @@ sequenceDiagram
     TH-->>W: Set-Cookie: refresh_token (httpOnly, Secure, SameSite=Strict, path=/auth)
     TH-->>W: JSON body: { accessToken } (stored in JS memory only)
     W->>A: GET /me (Bearer accessToken)
-    A->>M: /auth/me (cached ≤ 60s; grant cache removal recommended in #57)
+    A->>M: /auth/me (cached for the token lifetime) + user's PractitionerRoles (every request, #57)
     A->>A: Verify token project.id === tenant.medplumProjectId
     A-->>W: Principal { tenantId, facilities, grants, capabilities }
 ```
@@ -254,7 +254,7 @@ At multi-tenant scale, changing roles must not break active users:
 | **Deprecate Role** | Set template `status: "deprecated"` | New user assignments blocked; existing users continue uninterrupted. |
 | **Retire Role** | Set template `status: "retired"` | Provisioner rejects retirement until 0 memberships reference the template. |
 | **Split Role** | Run `role split --from front-desk --to [reception, registration] --map mapping.csv` | Assigns new roles first, verifies coverage, then removes deprecated role. |
-| **Disable User** | Set Medplum `ProjectMembership.active = false` | Access ends within the `/auth/me` cache TTL (≤ 60 s). Recommended in [#57](https://github.com/imRahul05/ASC-EHR/issues/57) (pending lead sign-off): no cross-request grant cache, so access ends on the next request, as it already does at Medplum. |
+| **Disable User** | Set Medplum `ProjectMembership.active = false` | Access ends on the next request: there is no cross-request grant cache ([#57](https://github.com/imRahul05/ASC-EHR/issues/57), decided 2026-10-09), and Medplum refuses the token immediately. |
 
 ---
 
@@ -262,7 +262,7 @@ At multi-tenant scale, changing roles must not break active users:
 
 When the business signs its second customer, follow this operational checklist:
 
-- [ ] **Step 1: Deploy Tenant Registry Table** (`tenants` and `tenant_hosts` in `@asc/db`). Populate Tenant #1 retroactively.
+- [ ] **Step 1: Deploy Tenant Registry Table** (`tenants` and `tenant_hosts` in `@asc/db`). Populate Tenant #1 retroactively. Each tenant records `patientRecordSharing` (`on-encounter` | `isolated`, [#59](https://github.com/imRahul05/ASC-EHR/issues/59)), set at onboarding with the customer's compliance contact. `on-encounter` is for facilities that form one covered entity; `isolated` is for separate legal entities. Until the registry exists, Tenant #1's value lives in `@asc/config` (`on-encounter`).
 - [ ] **Step 2: Enable Web Host Middleware** (Next 16 middleware/proxy file — check `node_modules/next/dist/docs`, LM-008): Resolve `Host` header to `tenantId` via registry cache. Return 404 for unknown hosts.
 - [ ] **Step 3: Swap the API `TenantResolver`** from `StaticTenantResolver` (P05a) to a host-based resolver backed by the registry; the existing gate-1 check (token `project.id` = resolved tenant's project) stays unchanged.
 - [ ] **Step 4: Configure Wildcard DNS & TLS** (`*.asc-ehr.app` on Azure App Gateway).
