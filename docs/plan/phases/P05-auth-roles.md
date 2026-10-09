@@ -327,15 +327,15 @@ Commit list as decided in [#57](https://github.com/imRahul05/ASC-EHR/issues/57) 
 | 5 | `chore(api): drop the IdentityPort cache fields` (`api-service-v1`, its config and env examples are already gone: PRs #65, #66) |
 | 6 | `test(api): integration against local Medplum, plus a load test of the per-request grant search` |
 
-- [x] Unknown or retired policy in a membership → no capabilities (fail closed)
-- [x] Medplum unreachable → 503, never allow; the `/auth/me` cache never stores the raw token and never outlives the token
-- [x] Grants are read with the user's token on every request and memoized within that request only; a revoked membership or a removed grant is refused on the next request (test)
-- [x] No cross-request grant cache for `PractitionerRole`s, so no grant invalidation hooks and no membership webhook. Fallback only if the load test fails: a cache of at most 5 s, in Redis, keyed by membership, never per-instance memory
-- [x] `/auth/me` is cached in memory keyed by `sha256(token)` for the token's lifetime (≤ 15m, bounded at 2,000 entries). `IdentityPort` retains `options.stepUp: boolean` and `cache: "hit" | "miss" | "bypass"`; when `stepUp: true` is passed, the `/auth/me` cache is bypassed, triggering a live verification against Medplum and emitting `cache: "bypass"` for auditing
-- [x] `apps/api` holds no Medplum client secret: `api-service-v1` is removed from its runtime, `@asc/config` and `.env*.example` (done early in PRs #65, #66)
-- [x] Policy test: no staff template can create or update a `PractitionerRole` carrying the role-template code system (`https://asc-ehr.app/role-template`); grant `PractitionerRole`s carry their own `meta.tag`, distinct from directory entries ([spike results ADR](../../decisions/2026-10-08-medplum-spike-results-and-fallbacks.md), review amendments, decision 4)
-- [x] Policy test: every staff template can search its own `PractitionerRole`s by `practitioner` with `active=true` (live-checked for all 8 roles; the seed writes `active: true` since PR #61)
-- [x] Worker jobs started by a user carry the principal's ids and re-check its grant at the job's facility before each step that reads or writes PHI, not only when queued; in-process memo of at most 5 s per job ([#57](https://github.com/imRahul05/ASC-EHR/issues/57))
+- [ ] Unknown or retired policy in a membership → no capabilities (fail closed)
+- [ ] Medplum unreachable → 503, never allow; the `/auth/me` cache never stores the raw token and never outlives the token
+- [ ] Grants are read with the user's token on every request and memoized within that request only; a revoked membership or a removed grant is refused on the next request (test)
+- [ ] No cross-request grant cache for `PractitionerRole`s, so no grant invalidation hooks and no membership webhook. Fallback only if the load test fails: a cache of at most 5 s, in Redis, keyed by membership, never per-instance memory
+- [ ] `/auth/me` is cached in memory keyed by `sha256(token)` for the token's lifetime (≤ 15m, bounded at 2,000 entries). `IdentityPort` retains `options.stepUp: boolean` and `cache: "hit" | "miss" | "bypass"`; when `stepUp: true` is passed, the `/auth/me` cache is bypassed, triggering a live verification against Medplum and emitting `cache: "bypass"` for auditing
+- [ ] `apps/api` holds no Medplum client secret: `api-service-v1` is removed from its runtime, `@asc/config` and `.env*.example` (done early in PRs #65, #66)
+- [ ] Policy test: no staff template can create or update a `PractitionerRole` carrying the role-template code system (`https://asc-ehr.app/role-template`); grant `PractitionerRole`s carry their own `meta.tag`, distinct from directory entries ([spike results ADR](../../decisions/2026-10-08-medplum-spike-results-and-fallbacks.md), review amendments, decision 4)
+- [ ] Policy test: every staff template can search its own `PractitionerRole`s by `practitioner` with `active=true` (live-checked for all 8 roles; the seed writes `active: true` since PR #61)
+- [ ] Worker jobs started by a user carry the principal's ids and re-check its grant at the job's facility before each step that reads or writes PHI, not only when queued; in-process memo of at most 5 s per job ([#57](https://github.com/imRahul05/ASC-EHR/issues/57))
 
 ### P05j — Web sign-in · M · needs P05d, P05i, P04
 Workspaces: `apps/web`, `@asc/api-client`, `@asc/config`.
@@ -351,10 +351,10 @@ Workspaces: `apps/web`, `@asc/api-client`, `@asc/config`.
 | 7 | `refactor(web): register mock auth only in demo builds` |
 | 8 | `test(web): build fails if mock auth ships without demo flag` |
 
-- [x] Refresh cookie `httpOnly`, `Secure`, `SameSite=Strict`, path `/api/auth`; token route checks `Origin` / `Sec-Fetch-Site`
-- [x] No token or profile in browser storage or URLs (LM-004); the `id_token` is kept in memory only and sent as `X-ID-Token` solely on step-up requests (P05h decision 7)
-- [x] TOTP required for every staff account (M12-3)
-- [x] Access token lifetime ≤ 15 min; 15-minute idle and 12-hour absolute session timeouts (M12-3); mock auth restricted strictly behind demo build flag
+- [ ] Refresh cookie `httpOnly`, `Secure`, `SameSite=Strict`, path `/api/auth`; token route checks `Origin` / `Sec-Fetch-Site`
+- [ ] No token or profile in browser storage or URLs (LM-004); the `id_token` is kept in memory only and sent as `X-ID-Token` solely on step-up requests (P05h decision 7)
+- [ ] TOTP required for every staff account (M12-3)
+- [ ] Access token lifetime ≤ 15 min; 15-minute idle and 12-hour absolute session timeouts (M12-3); mock auth restricted strictly behind demo build flag
 
 #### P05j decisions (2026-10-09)
 
@@ -420,14 +420,14 @@ flowchart LR
 
 ## 7. Acceptance (P05 done)
 
-- [x] All sub-phase checklists ticked; every commit within [incremental-commits §4](../../agent/incremental-commits.md#4-size-limits-and-commit-shape)
-- [x] No role-name comparisons in the codebase (lint, empty baseline)
-- [x] Cross-facility escalation blocked in `can()` (unit), API (P05g) and Medplum (P05h policy test)
-- [x] Every API route default-deny; denials audited with gate number in a durable, append-only store
-- [x] Medplum hardening settings enforced by test in every environment
-- [x] TOTP for all staff; 15 min idle / 12 h absolute sessions; tokens in memory only
-- [x] Adding a role = template file + matrix snapshot + seed run (demonstrated in P05d2 commit 8)
-- [x] `phi-review` run on P05e–P05j; PROGRESS.md updated per sub-phase
+- [ ] All sub-phase checklists ticked; every commit within [incremental-commits §4](../../agent/incremental-commits.md#4-size-limits-and-commit-shape)
+- [ ] No role-name comparisons in the codebase (lint, empty baseline)
+- [ ] Cross-facility escalation blocked in `can()` (unit), API (P05g) and Medplum (P05h policy test)
+- [ ] Every API route default-deny; denials audited with gate number in a durable, append-only store
+- [ ] Medplum hardening settings enforced by test in every environment
+- [ ] TOTP for all staff; 15 min idle / 12 h absolute sessions; tokens in memory only
+- [ ] Adding a role = template file + matrix snapshot + seed run (demonstrated in P05d2 commit 8)
+- [ ] `phi-review` run on P05e–P05j; PROGRESS.md updated per sub-phase
 
 ## 8. Open questions
 
