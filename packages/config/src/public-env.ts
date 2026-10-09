@@ -45,6 +45,10 @@ export function getPublicMedplumClientId(): string | undefined {
   return nonEmpty(typeof process === "undefined" ? undefined : process.env.NEXT_PUBLIC_MEDPLUM_CLIENT_ID);
 }
 
+export function isProductionBuild(): boolean {
+  return typeof process !== "undefined" && process.env.NODE_ENV === "production";
+}
+
 export const publicEnv = {
   get NEXT_PUBLIC_API_URL(): string {
     return getPublicApiUrl();
@@ -54,5 +58,8 @@ export const publicEnv = {
   },
   get NEXT_PUBLIC_MEDPLUM_CLIENT_ID(): string | undefined {
     return getPublicMedplumClientId();
+  },
+  get isProduction(): boolean {
+    return isProductionBuild();
   },
 } as const;
