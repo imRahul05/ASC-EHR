@@ -17,11 +17,11 @@
 
 ## 1. Snapshot (update on every phase change)
 
-| Updated | 2026-10-08 |
+| Updated | 2026-10-09 |
 |---|---|
 | Current wave | 0 |
-| In progress | none (P03 in review, PR #56; P05a–P05h and P02 merged) |
-| Ready to start | P00b, P01, P03, P09, P06 (needs Azure access) |
+| In progress | none (P03, P05a–P05h and P02 merged) |
+| Ready to start | P04 (next on the auth path), P00b, P01, P07, P08, P09, P06 (needs Azure access) |
 | Blocked | P13 soft-blocked on Q-MS1 (fallback allowed) |
 | Go-live target | 2026-12-07 |
 
@@ -35,12 +35,12 @@
 | P00b | Library upgrades (zod 4, bullmq 6, ioredis 6) | ready | P00 | | | | | |
 | P01 | CI + eval gate | ready | P00 | | | | | |
 | P02 | Local Medplum + bots skeleton | done | — | Claude (bg job 640ebd7d) | `phase/P02-local-medplum-clean` | [#43](https://github.com/imRahul05/ASC-EHR/pull/43), [#44](https://github.com/imRahul05/ASC-EHR/pull/44) (#42 closed, replaced by #43) | 2026-10-07 | 2026-10-07 |
-| P03 | `@asc/fhir` | review | — | Claude (bg job 7f0d4791) | `phase/P03-fhir-package` | [#56](https://github.com/imRahul05/ASC-EHR/pull/56) | 2026-10-08 | |
-| P04 | Medplum clients | pending | P02, P03 | | | | | |
-| P05 | Auth + roles (sub-phases P05a–P05j below) | in-progress (P05a–P05h done; P05i–j pending P03/P04) | P05i–j: P04 | | | | | |
+| P03 | `@asc/fhir` | done | — | Claude (bg job 7f0d4791) | `phase/P03-fhir-package` | [#56](https://github.com/imRahul05/ASC-EHR/pull/56) | 2026-10-08 | 2026-10-08 |
+| P04 | Medplum clients | ready | P02, P03 | | | | | |
+| P05 | Auth + roles (sub-phases P05a–P05j below) | in-progress (P05a–P05h done; P05i–j pending P04) | P05i–j: P04 | | | | | |
 | P06 | Azure infra (dev) | ready (external: subscription/BAA) | — | | | | | |
-| P07 | `@asc/clinical-rules` | pending | P03 | | | | | |
-| P08 | Terminology + profiles | pending | P02, P03 | | | | | |
+| P07 | `@asc/clinical-rules` | ready | P03 | | | | | |
+| P08 | Terminology + profiles | ready | P02, P03 | | | | | |
 | P09 | UI clinical kit | ready | P00 | | | | | |
 | P10 | Realtime SSE | pending | P04 | | | | | |
 | P11 | Questionnaire renderer | pending | P03, P09 | | | | | |
@@ -72,7 +72,7 @@
 | P05f | Durable audit | done | P05e | Claude (bg job 640ebd7d) | `phase/P05f-durable-audit` | [#38](https://github.com/imRahul05/ASC-EHR/pull/38) | 2026-10-06 | 2026-10-07 |
 | P05g | API security spine | done | P05a, P05e, P05f | Claude (bg job 640ebd7d) | `phase/P05g-api-security-spine` | [#40](https://github.com/imRahul05/ASC-EHR/pull/40) | 2026-10-07 | 2026-10-07 |
 | P05h | Medplum hardening, spikes, seed, policy test | done | P05c, P02 | Claude (bg job 7f0d4791) | `phase/P05h-medplum-hardening` | [#47](https://github.com/imRahul05/ASC-EHR/pull/47) | 2026-10-08 2026-10-08 |
-| P05i | Medplum identity in API | blocked ([#57](https://github.com/imRahul05/ASC-EHR/issues/57) picks the commit list; also needs P04) | P05g, P05h, P04 | | | | | |
+| P05i | Medplum identity in API | pending (needs P04; commit list as decided in [#57](https://github.com/imRahul05/ASC-EHR/issues/57)) | P05g, P05h, P04 | | | | | |
 | P05j | Web sign-in | pending | P05d, P05i, P04 | | | | | |
 
 ## 3. Done log (newest first)
@@ -81,6 +81,7 @@ Work completed before this plan existed, grouped from git history (`origin/main`
 
 | Date | Area | What | Ref |
 |---|---|---|---|
+| 2026-10-09 | Auth | **Decisions #57, #58, #59 adopted** and recorded across the docs: spike results and identity ADRs; P05 plan (P05i commit list per #57, signing-ceremony follow-up); 08 §5.2, §6, §6.1 and §9; IAM notes, 03, future multi-tenancy (tenant `patientRecordSharing`) and the runbooks (`asc-ehr-api` retired from `apps/api` in P05i); phase files P04, P14, P15, P16, P19, P21 and P22. P03 marked done (PR #56); P04, P07 and P08 ready | docs PR, branch `docs/adopt-57-58-59` |
 | 2026-10-08 | Auth | **Role-grant write lockdown** (architecture review F1, found live): `PractitionerRole` read-only for every staff role (admin template v2: it could grant itself any role at any facility); seed writes grants with `active: true` and `period.start` and repairs old ones; live policy test, 8 roles × (read own active grant, 403 self-grant, 403 edit own grant): 65/65 (63/65 before the fix); LM-023 | PR #61, branch `fix/authz-role-grant-write` |
 | 2026-10-08 | Auth | **P05h** Medplum hardening, spikes, seed, policy test: hardening settings tested over every `infra/medplum/medplum.config*.json`; live suite (`pnpm --filter bots test:medplum`, 86 tests, not in `pnpm test`) runs spikes S1, S1b, S6, S7, a role × resource policy test of the seeded model and a service-client test; seed adds a second facility, one compiled policy per staff role, one demo user per role (membership + `PractitionerRole` copy) and narrow `api-service-v1` / `system-worker-v1` policies for the API and worker clients (data in `infra/medplum/service-policies.json`; a client with a membership and no policy is refused). **Findings:** `/auth/me` has no `access[]` and `ProjectMembership` is admin-only, so grants come from `PractitionerRole`; facility writes must carry `meta.account`; `writeConstraint` is order-dependent across entries; revocation at Medplum is immediate (1 to 4 ms); the membership webhook was not shown to work. Spike ADR is `proposed` (ratification pending); Q-IAM-D (auth time for step-up) is open | PR #47, branch `phase/P05h-medplum-hardening` |
 | 2026-10-07 | Platform | **P02** local Medplum: `pnpm medplum:up` starts Medplum server and admin app 5.1.42 with their own Postgres and Redis (compose profile `medplum`, host ports 8203/3003/5443/6390, localhost only); `pnpm medplum:seed` creates the project (`Project/$init`), a facility, one synthetic practitioner per staff role and the web (PKCE), api and worker client applications, idempotently (byte-identical second run); `apps/bots` skeleton (esbuild, lint, tests); `MEDPLUM_*` and `NEXT_PUBLIC_MEDPLUM_*` env validated in `@asc/config`; the seed refuses anything but localhost. **No committed passwords**: credentials are generated per machine into git-ignored `infra/medplum/.local` (GitGuardian flagged the first version, #42, closed and replaced by #43; LM-019). Review hardening in #44: Redis refuses to start without a password, a missing config fails the start instead of becoming a directory, damaged credentials give one friendly error, `medplum:down` needs no credentials, esbuild paths independent of cwd (LM-020). Seeded api/worker clients have full project access: local-only, least-privilege policies tracked in P05h | PRs #43, #44 (#42 closed) |
@@ -135,9 +136,9 @@ Work completed before this plan existed, grouped from git history (`origin/main`
 | Q-AUDIT-1 | An *allowed* PHI read whose audit write fails: proposal 503 and no data. Denials are already never skipped ([P05g decision 6](docs/plan/phases/P05-auth-roles.md)) | first PHI route (P12/P14) | eng lead | open ([#52](https://github.com/imRahul05/ASC-EHR/issues/52)): decide before the first PHI route |
 | P03-Q2 / P04-Q1 | Confirm defaults: case number format `<facility>-<yyyymmdd>-<seq>`; forward the user's token to Medplum ([#55](https://github.com/imRahul05/ASC-EHR/issues/55)) | P03 T2, P04 T3 | eng lead | open: defaults used until answered |
 | Q-ADR-1 | Ratify the Medplum spike results ADR ([#50](https://github.com/imRahul05/ASC-EHR/issues/50)) | none technical | eng lead | open |
-| Q-IAM-E | Grant lookup: read the user's `PractitionerRole`s with the user's token per request and drop the 60 s grant cache, or keep #49's `api-service-v1` + cache (which must then be shared Redis) ([#57](https://github.com/imRahul05/ASC-EHR/issues/57)) | P05i commits 2, 3, 5, 6 | eng lead | open: recommended decision posted (adopt; worker re-checks grants per PHI step); #49 design stands until signed off |
-| Q-IAM-F | Signing as a nonce-bound re-authentication ceremony (`Provenance.signature` over a content hash); which regulations apply (Part 11 vs CMS 42 CFR 416.47 / state); EPCS through a certified vendor ([#58](https://github.com/imRahul05/ASC-EHR/issues/58)) | step-up middleware, P16/P19 signing, e-prescribing | eng lead + compliance | open: recommended decision posted (ceremony for signatures, option C for other step-up, EPCS vendor; nonce verified live) |
-| Q-FHIR-ACCT | Patients seen at more than one facility: `meta.accounts` + `$set-accounts` with or without `propagate`, per tenant ([#59](https://github.com/imRahul05/ASC-EHR/issues/59)) | patient registration and scheduling phases | product + compliance | open: recommended decision posted (per-tenant `patientRecordSharing`, default `on-encounter` within one covered entity) |
+| Q-IAM-E | Grant lookup: read the user's `PractitionerRole`s with the user's token per request and drop the 60 s grant cache, or keep #49's `api-service-v1` + cache (which must then be shared Redis) ([#57](https://github.com/imRahul05/ASC-EHR/issues/57)) | P05i commits 2, 3, 5, 6 | eng lead | **decided 2026-10-09, closed:** adopted (grants read per request with the user's token, no grant cache, `api-service-v1` retired from `apps/api`, worker re-checks grants per PHI step) |
+| Q-IAM-F | Signing as a nonce-bound re-authentication ceremony (`Provenance.signature` over a content hash); which regulations apply (Part 11 vs CMS 42 CFR 416.47 / state); EPCS through a certified vendor ([#58](https://github.com/imRahul05/ASC-EHR/issues/58)) | step-up middleware, P16/P19 signing, e-prescribing | eng lead + compliance | **decided 2026-10-09, closed:** nonce-bound ceremony for signatures, option C for other step-up, EPCS via a certified vendor, agents never sign (nonce verified live; throttle per user/address still to check) |
+| Q-FHIR-ACCT | Patients seen at more than one facility: `meta.accounts` + `$set-accounts` with or without `propagate`, per tenant ([#59](https://github.com/imRahul05/ASC-EHR/issues/59)) | patient registration and scheduling phases | product + compliance | **decided 2026-10-09, closed:** per-tenant `patientRecordSharing` (`on-encounter` default within one covered entity, `isolated` for separate legal entities), add-only `$set-accounts`, audited `patient.facility_added` |
 | Q-IAM-G | Facility-scoped worker identities: one worker `ClientApplication` per (tenant, facility) so Medplum enforces facility for background jobs and AI agent runs ([#60](https://github.com/imRahul05/ASC-EHR/issues/60)) | P06 service-client provisioning, first PHI worker job, background AI agents | eng lead | open: recommended option 2 |
 | Q-IAM-C | Workspace overlap: roles whose capabilities are a subset of another's (tech ⊂ nurse/physician) appear as an extra workspace option in the switcher. Add `hiddenWhen` to workspace definitions? ([P05 §4 P05d decisions](docs/plan/phases/P05-auth-roles.md)) | none (UX only) | eng lead | open: accepted for now |
 
@@ -145,8 +146,8 @@ Full lists: [implementation plan §6](docs/plan/implementation-plan.md#6-cross-p
 
 ## 5. Next up
 
-1. Confirm the defaults in [#55](https://github.com/imRahul05/ASC-EHR/issues/55) and ratify the spike ADR ([#50](https://github.com/imRahul05/ASC-EHR/issues/50)). **P03** `@asc/fhir` is unblocked (stamps `meta.accounts` on facility-scoped resources, P05h decision 3 as amended) and **P04** Medplum clients (never write without `meta.accounts`; forward the user's token) are the auth path; P05i needs both (grants from `PractitionerRole`) and P05j needs P05i (keeps the `id_token` in memory for step-up). Before the first sign/attest route: the three step-up checks in the ADR. **P00b** library upgrades (zod 4, bullmq 6, ioredis 6) must land before Wave 2. In parallel: **P01** CI (must run a Postgres service and set `TEST_DATABASE_URL`, and should run the live Medplum suite against a disposable Medplum; the GitGuardian check runs on every PR to `main`). P06 must set `trustProxy`, revisit the per-address flood limit behind Front Door, and provision `infra/medplum/service-policies.json`.
-2. In parallel: **P03** `@asc/fhir` (the last gate for P04 and P08; P02 is done).
+1. Confirm the defaults in [#55](https://github.com/imRahul05/ASC-EHR/issues/55), ratify the spike ADR ([#50](https://github.com/imRahul05/ASC-EHR/issues/50)) and decide [#60](https://github.com/imRahul05/ASC-EHR/issues/60) (per-facility worker clients). **P04** Medplum clients are next on the auth path: `forFacility()` stamps `meta.accounts` on every write, and the API client uses only the user's token. Then **P05i**, following the #57 commit list: grants read per request with the user's token, no grant cache, `api-service-v1` retired from `apps/api`. Then **P05j**, which keeps the `id_token` in memory for option C step-up. Before the first sign/attest route: the signing ceremony ([#58](https://github.com/imRahul05/ASC-EHR/issues/58)) and the step-up checks in the ADR. **P00b** library upgrades (zod 4, bullmq 6, ioredis 6) must land before Wave 2. In parallel: **P01** CI (must run a Postgres service and set `TEST_DATABASE_URL`, and should run the live Medplum suite against a disposable Medplum; the GitGuardian check runs on every PR to `main`). P06 must set `trustProxy`, revisit the per-address flood limit behind Front Door, and provision `infra/medplum/service-policies.json`.
+2. In parallel: **P07** clinical rules and **P08** terminology (both unblocked by P03).
 3. Escalate week-1 questions: Q-MS1, Azure subscription/BAA (P06), Q8 CPT licence.
 4. Wire `pnpm --filter web build && pnpm --filter web test:bundles` and Lighthouse CI into **P01** CI; re-measure `/login` mobile LCP on an HTTP/2 deploy preview (see web perf done-log entry).
 
