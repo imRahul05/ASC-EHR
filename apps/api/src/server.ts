@@ -37,6 +37,7 @@ async function start(): Promise<void> {
     audit,
     catalogVersion: env.GIT_SHA ?? "unknown",
     production,
+    medplumBaseUrl: env.MEDPLUM_BASE_URL,
   });
 
   let shuttingDown = false;

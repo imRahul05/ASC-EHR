@@ -23,6 +23,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@asc/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
       '@asc/audit':
         specifier: workspace:*
         version: link:../../packages/audit
@@ -56,6 +59,9 @@ importers:
       '@fastify/rate-limit':
         specifier: 11.2.0
         version: 11.2.0
+      '@medplum/core':
+        specifier: 5.1.42
+        version: 5.1.42
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0

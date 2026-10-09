@@ -9,6 +9,9 @@ import { isStepUp } from "./route-auth.js";
 // `Authorization: Bearer <token>`, scheme case-insensitive, one opaque token, bounded length.
 const BEARER = /^Bearer ([^\s]{1,4096})$/i;
 
+/** The bearer token of an `Authorization` header, or undefined when it is missing or malformed. */
+export const bearerToken = (header: string | undefined): string | undefined => BEARER.exec(header ?? "")?.[1];
+
 /** How each identity failure is answered. Exhaustive over `IdentityFailure`. */
 const FAILURES = {
   "invalid-token": { status: 401, reason: "invalid-token" },
@@ -47,7 +50,7 @@ export function registerAuthentication(
     const tenant = request.tenant;
     if (tenant === undefined) return deny(request, reply, { status: 404, gate: 1, reason: "unknown-tenant" });
 
-    const token = BEARER.exec(request.headers.authorization ?? "")?.[1];
+    const token = bearerToken(request.headers.authorization);
     if (token === undefined) return deny(request, reply, { status: 401, gate: 2, reason: "invalid-token" });
 
     const stepUp = auth?.mode === "capability" && isStepUp(auth.capability);
