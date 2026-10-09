@@ -82,7 +82,7 @@ export function seedOutput() {
       facilityId: string;
       secondFacilityId: string;
       practitioners: Record<string, string>;
-      clientApplications: Record<string, { id: string; secret?: string }>;
+      clientApplications: Record<string, { id: string; secret?: string; facilityId?: string }>;
     };
   } catch {
     throw new Error("apps/bots/.seed-output.json is missing or unreadable. Run `pnpm medplum:seed` first.");
