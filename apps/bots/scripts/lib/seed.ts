@@ -17,7 +17,7 @@ export const SECOND_FACILITY_KEY = "facility-demo-2";
 /** The narrow slice of the Medplum client the seed uses (so tests can fake it). */
 type Medplum = Pick<
   MedplumClient,
-  "createResourceIfNoneExist" | "createResource" | "updateResource" | "searchResources"
+  "createResourceIfNoneExist" | "createResource" | "updateResource" | "searchResources" | "deleteResource"
 >;
 type ProjectAdmin = Pick<MedplumClient, "searchResources" | "post" | "fhirUrl">;
 
@@ -30,7 +30,15 @@ type ClientAppDefinition = {
   readonly membership: boolean;
   /** Name of the service policy (`infra/medplum/service-policies.json`) the membership holds. Required with a membership. */
   readonly policy?: string;
+  /**
+   * One client per facility (`<name>@<facility key>`), each membership binding the policy's `%facility` to that
+   * facility, so Medplum confines it there (#60). Needs a secret, a membership and a policy.
+   */
+  readonly perFacility?: boolean;
 };
+
+/** A seeded facility, as the per-facility clients need it. */
+export type SeededFacility = { readonly key: string; readonly id: string };
 
 export const SYNTHETIC_TAG = [{ system: SEED_SYSTEM, code: "synthetic", display: "Synthetic seed data" }];
 export const identifierOf = (value: string) => [{ system: SEED_SYSTEM, value }];
@@ -120,7 +128,8 @@ export function parseClientAppDefinitions(json: unknown): ClientAppDefinition[] 
       return value;
     };
     const redirectUri = typeof item.redirectUri === "string" ? item.redirectUri : undefined;
-    return {
+    const perFacility = item.perFacility === undefined ? false : flag("perFacility");
+    const definition = {
       key: text("key"),
       name: text("name"),
       description: text("description"),
@@ -128,7 +137,61 @@ export function parseClientAppDefinitions(json: unknown): ClientAppDefinition[] 
       secret: flag("secret"),
       membership: flag("membership"),
       ...(policy === undefined ? {} : { policy }),
+      ...(perFacility ? { perFacility } : {}),
     };
+    if (perFacility && !(definition.secret && definition.membership && policy !== undefined)) {
+      throw new Error(`client application ${definition.key} is per facility, so it needs a secret, a membership and a policy`);
+    }
+    return definition;
+  });
+}
+
+/** Names of client applications that must no longer exist (`retiredClientApplications` in client-apps.json). */
+export function parseRetiredClientApplications(json: unknown): string[] {
+  const list = (json as { retiredClientApplications?: unknown } | null)?.retiredClientApplications;
+  if (list === undefined) return [];
+  if (!Array.isArray(list) || list.some((name) => typeof name !== "string" || name.length === 0)) {
+    throw new Error("retiredClientApplications must be a list of client application names");
+  }
+  return list as string[];
+}
+
+/**
+ * Deletes retired client applications and their memberships, so their credentials stop working. Membership
+ * first: a membership without its client would be an orphan. Safe to run again (nothing found, nothing done).
+ */
+export async function retireClientApplications(medplum: Medplum, names: readonly string[]): Promise<string[]> {
+  const removed: string[] = [];
+  for (const name of names) {
+    for (const app of await medplum.searchResources("ClientApplication", { "name:exact": name })) {
+      if (app.id === undefined) continue;
+      for (const membership of await medplum.searchResources("ProjectMembership", { user: `ClientApplication/${app.id}` })) {
+        if (membership.id !== undefined) await medplum.deleteResource("ProjectMembership", membership.id);
+      }
+      await medplum.deleteResource("ClientApplication", app.id);
+      removed.push(name);
+    }
+  }
+  return removed;
+}
+
+/** Expands per-facility definitions into one definition per facility; the others pass through. */
+function expandPerFacility(
+  definitions: readonly ClientAppDefinition[],
+  facilities: readonly SeededFacility[],
+): { definition: ClientAppDefinition; facilityId: string | undefined }[] {
+  return definitions.flatMap((definition): { definition: ClientAppDefinition; facilityId: string | undefined }[] => {
+    if (definition.perFacility !== true) return [{ definition, facilityId: undefined }];
+    if (facilities.length === 0) throw new Error(`client application ${definition.key} is per facility, but no facility was seeded`);
+    return facilities.map((facility) => ({
+      definition: {
+        ...definition,
+        key: `${definition.key}@${facility.key}`,
+        name: `${definition.name}@${facility.key}`,
+        description: `${definition.description} Confined to facility ${facility.key}.`,
+      },
+      facilityId: facility.id,
+    }));
   });
 }
 
@@ -140,17 +203,18 @@ export const newSecret = () => randomBytes(24).toString("hex");
  * secret is kept). A membership ties a confidential client to the project so its
  * client credentials work, and it always holds a narrow service policy: a client
  * with a membership and no policy would have full project access, so the seed
- * refuses to create one. An existing membership is corrected to the wanted policy.
+ * refuses to create one. An existing membership is corrected to the wanted policy. A per-facility definition
+ * becomes one client per facility, its access entry naming that facility (`facilityId` in the result).
  */
 export async function seedClientApplications(
   medplum: Medplum,
   projectId: string,
   definitions: readonly ClientAppDefinition[],
   policyIds: Readonly<Record<string, string>>,
-  secretFor: () => string = newSecret,
+  { facilities = [], secretFor = newSecret }: { readonly facilities?: readonly SeededFacility[]; readonly secretFor?: () => string } = {},
 ) {
-  const result: Record<string, { id: string; secret?: string }> = {};
-  for (const definition of definitions) {
+  const result: Record<string, { id: string; secret?: string; facilityId?: string }> = {};
+  for (const { definition, facilityId } of expandPerFacility(definitions, facilities)) {
     const [existing] = await medplum.searchResources("ClientApplication", { "name:exact": definition.name });
     const wanted = {
       name: definition.name,
@@ -173,7 +237,12 @@ export async function seedClientApplications(
       }
       const policyId = policyIds[definition.policy];
       if (policyId === undefined) throw new Error(`policy ${definition.policy} of client application ${definition.key} was not seeded`);
-      const access = [{ policy: { reference: `AccessPolicy/${policyId}` } }];
+      const access = [
+        {
+          policy: { reference: `AccessPolicy/${policyId}` },
+          ...(facilityId === undefined ? {} : { parameter: [{ name: "facility", valueReference: { reference: `Organization/${facilityId}` } }] }),
+        },
+      ];
       const [membership] = await medplum.searchResources("ProjectMembership", { user: `ClientApplication/${app.id}` });
       if (membership === undefined) {
         await medplum.createResource({
@@ -187,7 +256,11 @@ export async function seedClientApplications(
         await medplum.updateResource({ ...membership, access });
       }
     }
-    result[definition.key] = { id: app.id, ...(definition.secret && app.secret !== undefined ? { secret: app.secret } : {}) };
+    result[definition.key] = {
+      id: app.id,
+      ...(definition.secret && app.secret !== undefined ? { secret: app.secret } : {}),
+      ...(facilityId === undefined ? {} : { facilityId }),
+    };
   }
   return result;
 }
