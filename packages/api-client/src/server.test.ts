@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createBrowserMedplumClient } from "./medplum/browser";
-import { createClientCredentialsClient, createOnBehalfClient } from "./server";
+import { createClientCredentialsClient, createOnBehalfClient, fetchAuthMe } from "./server";
 
 describe("createOnBehalfClient (apps/api)", () => {
   it("acts with the user's own token, at the configured Medplum only", () => {
@@ -23,6 +23,22 @@ describe("createOnBehalfClient (apps/api)", () => {
   });
 });
 
+describe("fetchAuthMe (apps/api, #57)", () => {
+  it("calls auth/me on the client and returns the user, project and membership payload", async () => {
+    const client = createOnBehalfClient({ baseUrl: "http://localhost:8203/", accessToken: "user-token" });
+    const expected = {
+      user: { id: "user-123", resourceType: "User" },
+      project: { id: "proj-123", resourceType: "Project" },
+      membership: { id: "mem-123", profile: { reference: "Practitioner/prac-123" } },
+      profile: { id: "prac-123", resourceType: "Practitioner" },
+    };
+    const spy = vi.spyOn(client, "get").mockResolvedValueOnce(expected);
+    const me = await fetchAuthMe(client);
+    expect(spy).toHaveBeenCalledWith("auth/me");
+    expect(me).toEqual(expected);
+  });
+});
+
 describe("createClientCredentialsClient (apps/worker)", () => {
   it("signs in with the client credentials grant and fails when Medplum refuses", async () => {
     await expect(createClientCredentialsClient({ baseUrl: "http://127.0.0.1:9/", clientId: "c", clientSecret: "s" })).rejects.toThrow();
@@ -40,3 +56,4 @@ describe("createBrowserMedplumClient (apps/web)", () => {
     expect(client?.getBaseUrl()).toBe("http://localhost:8203/");
   });
 });
+

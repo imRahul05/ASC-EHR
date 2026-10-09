@@ -3,24 +3,36 @@ import type { IdentityPort } from "@asc/authz";
 import type { TenantRef } from "@asc/types";
 
 import { DevIdentityPort } from "./dev-identity.js";
+import { MedplumIdentityPort } from "./medplum.js";
 
 export class IdentityAdapterRefusedError extends Error {
   constructor() {
     super(
-      "No identity adapter is available for production or staging: the dev-only fake is refused and the " +
-        "Medplum adapter arrives with P05i. The API will not start without a real identity provider.",
+      "No identity adapter is available: a real Medplum base URL is required in production and staging.",
     );
     this.name = "IdentityAdapterRefusedError";
   }
 }
 
 /**
- * Which `IdentityPort` the process uses. Locally it is the dev-only fake. In
- * production and staging there must be a real adapter (Medplum, P05i); until then
- * the process refuses to start rather than accept tokens it cannot verify.
+ * Which `IdentityPort` the process uses. Locally it is the dev-only fake (unless Medplum is chosen).
+ * In production and staging, the real Medplum adapter (P05i) is required.
  */
-export function createIdentityPort(options: { production: boolean; tenant: TenantRef }): IdentityPort {
-  if (options.production) throw new IdentityAdapterRefusedError();
+export function createIdentityPort(options: {
+  production: boolean;
+  tenant: TenantRef;
+  medplumBaseUrl?: string;
+  useMedplum?: boolean;
+}): IdentityPort {
+  if (options.production) {
+    if (options.medplumBaseUrl === undefined || options.medplumBaseUrl.length === 0) {
+      throw new IdentityAdapterRefusedError();
+    }
+    return new MedplumIdentityPort({ baseUrl: options.medplumBaseUrl });
+  }
+  if (options.useMedplum && options.medplumBaseUrl !== undefined && options.medplumBaseUrl.length > 0) {
+    return new MedplumIdentityPort({ baseUrl: options.medplumBaseUrl });
+  }
   return new DevIdentityPort(options.tenant);
 }
 

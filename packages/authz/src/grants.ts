@@ -1,11 +1,76 @@
 import type { Capability, Grant, RoleKey } from "@asc/types";
 import type { RoleRegistry } from "./roles/registry.js";
 
+export const ROLE_TEMPLATE_CODE_SYSTEM = "https://asc-ehr.app/role-template";
+
 // One role held by a user, optionally at one facility.
 export interface RoleAssignment {
   readonly roleKey: RoleKey;
   readonly facilityId?: string;
 }
+
+/** Minimal structural shape of a FHIR PractitionerRole needed to extract role assignments. */
+export interface PractitionerRoleLike {
+  readonly active?: boolean;
+  readonly code?: readonly {
+    readonly coding?: readonly {
+      readonly system?: string;
+      readonly code?: string;
+    }[];
+  }[];
+  readonly organization?: {
+    readonly reference?: string;
+  };
+}
+
+/**
+ * Extracts role assignments from a user's active PractitionerRole resources.
+ * Only roles with `active === true` and a coding matching `ROLE_TEMPLATE_CODE_SYSTEM`
+ * are mapped. Organization reference "Organization/<id>" is parsed into facilityId.
+ */
+export function practitionerRolesToAssignments(
+  roles: readonly PractitionerRoleLike[],
+  codeSystem: string = ROLE_TEMPLATE_CODE_SYSTEM,
+): RoleAssignment[] {
+  const assignments: RoleAssignment[] = [];
+  for (const role of roles) {
+    if (role.active !== true) continue;
+    const matchingCodings = role.code
+      ?.flatMap((c) => c.coding ?? [])
+      .filter((coding) => coding.system === codeSystem && typeof coding.code === "string" && coding.code.length > 0) ?? [];
+    if (matchingCodings.length === 0) continue;
+
+    const orgRef = role.organization?.reference;
+    const facilityId = orgRef
+      ? orgRef.startsWith("Organization/")
+        ? orgRef.slice("Organization/".length)
+        : orgRef
+      : undefined;
+
+    for (const coding of matchingCodings) {
+      if (coding.code === undefined) continue;
+      assignments.push({
+        roleKey: coding.code,
+        ...(facilityId !== undefined && facilityId.length > 0 ? { facilityId } : {}),
+      });
+    }
+  }
+  return assignments;
+}
+
+/**
+ * Maps a list of PractitionerRole resources (read with the user's token)
+ * to per-facility grants using the provided role registry.
+ */
+export function grantsFromPractitionerRoles(
+  roles: readonly PractitionerRoleLike[],
+  registry: RoleRegistry,
+  codeSystem: string = ROLE_TEMPLATE_CODE_SYSTEM,
+): Grant[] {
+  const assignments = practitionerRolesToAssignments(roles, codeSystem);
+  return buildGrants(assignments, registry);
+}
+
 
 interface Bucket {
   readonly roleKeys: Set<RoleKey>;

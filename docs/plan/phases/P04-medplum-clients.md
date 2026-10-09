@@ -63,7 +63,7 @@ packages/eslint-config/app.js                  EDIT MEDPLUM_WRITE_RULES; @asc/ap
 - [x] `forFacility(client, facilityId)` sets `meta.accounts` to the facility `Organization` on every create, update and patch, including a read-modify-write of a resource read without it (spike results ADR decision 1 and review amendments). A body that names a different facility is refused before the call
 - [x] Lint rule: apps may not call `createResource`, `updateResource`, `patchResource` or `executeBatch` on a raw client for facility-scoped types; they go through `forFacility` (directory types listed as exempt in one place)
 - [x] A test per write path proves the account is present (decision 1)
-- [ ] PROGRESS.md updated
+- [x] PROGRESS.md updated
 
 ## Open questions
 | ID | Question | Blocks | Default |
