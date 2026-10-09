@@ -356,6 +356,16 @@ Workspaces: `apps/web`, `@asc/api-client`, `@asc/config`.
 - [x] TOTP required for every staff account (M12-3)
 - [x] Access token lifetime ≤ 15 min; 15-minute idle and 12-hour absolute session timeouts (M12-3); mock auth restricted strictly behind demo build flag
 
+#### P05j decisions (2026-10-09)
+
+1. **Endpoint Scope & Origin Verification**: `/api/auth/token` handles PKCE authorization code exchange (`grant_type: "authorization_code"`) and silent token refresh (`grant_type: "refresh_token"`). Origin (`Origin` / `Referer`) is validated against allowed hosts on all incoming token requests. `Sec-Fetch-Site` is enforced, allowing only `same-origin` or `none`. Behind reverse proxies, comma-separated `x-forwarded-host` headers are safely parsed by taking the first client-supplied host (`rawForwarded.split(",")[0]?.trim()`).
+2. **Zero Persistent Storage (LM-004)**: Access tokens, ID tokens, and clinical user profiles are held strictly in JS memory (`@asc/api-client` in-memory module state and Zustand `useAuthStore`). No PHI, access tokens, ID tokens, or refresh tokens are ever written to `localStorage`, `sessionStorage`, cookies, or URLs.
+3. **Transient PKCE Verifier**: The PKCE `code_verifier` is stored in browser `sessionStorage` strictly between login initiation and code exchange at `/signin/callback`, and purged immediately (`clearPendingCodeVerifier()`) once exchanged or on abort/logout.
+4. **TOTP MFA Enforcement (M12-3)**: All staff authentications enforce two-factor authentication. When Medplum returns `mfaRequired: true`, the flow halts and presents a 6-digit TOTP challenge. Verifications pass through `auth/mfa/verify` or `auth/login` fallback with the preserved PKCE challenge.
+5. **Absolute and Idle Session Timeouts (M12-3)**: Enforces 15-minute idle inactivity timeout across mouse, keyboard, touch, and scroll interactions, and an absolute 12-hour session maximum. The initial login timestamp is anchored in an `httpOnly`, `SameSite=Strict`, `Secure` companion cookie (`asc_session_start`). Silent refreshes compute remaining session life (`maxAge = remainingSeconds`) and reject expired sessions (> 12 hours) with HTTP 401 `session_expired`. On the client, the idle timeout tracker uses mutable refs to preserve activity timestamps across re-renders without reset.
+6. **Mock Auth Isolation & Demo Guard**: Demo login presets and mock authentications are strictly disabled in production builds, executing only when `NEXT_PUBLIC_API_MOCKING="enabled"` is verified at compile and runtime.
+7. **Profile Reconstruction from OIDC Claims**: Clinician identity and name are decoded from the OIDC `idToken` payload JWT claims (`sub`, `email`, `name`, `given_name`, `family_name`), and role titles / facilities are derived from backend `/me` response, eliminating hardcoded user profiles.
+
 ## 5. Dependency matrix
 
 | Sub-phase | Depends on | Blocks | Parallel with |
