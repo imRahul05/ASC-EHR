@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildTestApp } from "../testing/test-app.js";
 import { DEV_FACILITY_ID, DevIdentityPort } from "./dev-identity.js";
+import { MedplumIdentityPort } from "./medplum.js";
 import { assertIdentityAllowed, createIdentityPort, IdentityAdapterRefusedError } from "./select.js";
 
 describe("createIdentityPort", () => {
@@ -12,8 +13,20 @@ describe("createIdentityPort", () => {
     expect(createIdentityPort({ production: false, tenant: TEST_TENANT })).toBeInstanceOf(DevIdentityPort);
   });
 
-  it("refuses to provide any adapter in production or staging until the real one exists", () => {
+  it("refuses to provide an adapter in production without Medplum configured", () => {
     expect(() => createIdentityPort({ production: true, tenant: TEST_TENANT })).toThrow(IdentityAdapterRefusedError);
+  });
+
+  it("returns the Medplum adapter in production when configured", () => {
+    expect(createIdentityPort({ production: true, tenant: TEST_TENANT, medplumBaseUrl: "http://localhost:8203/" })).toBeInstanceOf(
+      MedplumIdentityPort,
+    );
+  });
+
+  it("returns the Medplum adapter in non-production when useMedplum is requested", () => {
+    expect(
+      createIdentityPort({ production: false, tenant: TEST_TENANT, useMedplum: true, medplumBaseUrl: "http://localhost:8203/" }),
+    ).toBeInstanceOf(MedplumIdentityPort);
   });
 });
 
