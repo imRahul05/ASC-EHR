@@ -16,7 +16,7 @@ import {
   setAccessToken,
 } from "@asc/api-client";
 import { queryKeys } from "@asc/api-client/react";
-import { getPublicMedplumClientId } from "@asc/config/public-env";
+import { getPublicMedplumClientId, isApiMockingEnabled } from "@asc/config/public-env";
 import type { AuthSession, DemoPersonaId, LoginResult } from "@asc/types";
 import type { LoginFormData } from "@asc/validation/auth";
 import { clearPendingCodeVerifier } from "../lib/auth/pkce";
@@ -239,7 +239,15 @@ export function useAuth() {
     }
   };
 
-  const demoLogin = useMutation({ mutationFn: loginWithDemoPreset, onSuccess: startSession });
+  const demoLogin = useMutation({
+    mutationFn: (presetId: DemoPersonaId) => {
+      if (!isApiMockingEnabled()) {
+        return Promise.reject(new Error("Demo accounts are unavailable when API mocking is disabled"));
+      }
+      return loginWithDemoPreset(presetId);
+    },
+    onSuccess: startSession,
+  });
 
   /** Demo persona switch = demo login as that preset. */
   const switchPersona = (personaId: DemoPersonaId) => demoLogin.mutateAsync(personaId);
