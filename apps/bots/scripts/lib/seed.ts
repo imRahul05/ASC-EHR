@@ -38,7 +38,10 @@ type ClientAppDefinition = {
 };
 
 /** A seeded facility, as the per-facility clients need it. */
-export type SeededFacility = { readonly key: string; readonly id: string };
+interface SeededFacility {
+  readonly key: string;
+  readonly id: string;
+}
 
 export const SYNTHETIC_TAG = [{ system: SEED_SYSTEM, code: "synthetic", display: "Synthetic seed data" }];
 export const identifierOf = (value: string) => [{ system: SEED_SYSTEM, value }];
