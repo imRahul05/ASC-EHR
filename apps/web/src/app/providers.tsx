@@ -1,7 +1,7 @@
 "use client";
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState, type ReactNode } from "react";
+import { AscMedplumProvider } from "@asc/api-client/react";
+import type { ReactNode } from "react";
 import { ThemeProvider } from "@asc/ui/components/theme/theme-provider";
 import { Toaster } from "@asc/ui/components/ui/sonner";
 import { TooltipProvider } from "@asc/ui/components/ui/tooltip";
@@ -19,17 +19,14 @@ interface ProvidersProps {
 }
 
 export function Providers({ children }: ProvidersProps) {
-  // Lazy init so each browser session gets one client (not recreated on re-render).
-  const [queryClient] = useState(() => new QueryClient({ defaultOptions: QUERY_DEFAULTS }));
-
   return (
     <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
+      <AscMedplumProvider queryDefaults={QUERY_DEFAULTS}>
         <TooltipProvider>
           {children}
           <Toaster />
         </TooltipProvider>
-      </QueryClientProvider>
+      </AscMedplumProvider>
     </ThemeProvider>
   );
 }
