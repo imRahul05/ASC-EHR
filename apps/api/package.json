@@ -38,6 +38,7 @@
   "devDependencies": {
     "@asc/eslint-config": "workspace:*",
     "@asc/typescript-config": "workspace:*",
+    "@medplum/mock": "5.1.42",
     "@types/node": "^20",
     "eslint": "^10.9.1",
     "tsup": "^8.5.1",

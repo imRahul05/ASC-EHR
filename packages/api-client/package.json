@@ -6,7 +6,8 @@
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
-    "./react": "./src/react/index.ts"
+    "./react": "./src/react/index.ts",
+    "./server": "./src/server.ts"
   },
   "scripts": {
     "lint": "eslint --max-warnings 0",
@@ -16,17 +17,21 @@
   "dependencies": {
     "@asc/config": "workspace:*",
     "@asc/types": "workspace:*",
-    "@asc/validation": "workspace:*"
+    "@asc/validation": "workspace:*",
+    "@medplum/core": "5.1.42",
+    "@medplum/fhirtypes": "5.1.42",
+    "@medplum/react-hooks": "5.1.42"
   },
   "devDependencies": {
     "@asc/eslint-config": "workspace:*",
     "@asc/typescript-config": "workspace:*",
-    "@types/node": "^20",
-    "eslint": "^10.9.1",
-    "typescript": "^7.0.0",
+    "@medplum/mock": "5.1.42",
     "@tanstack/react-query": "^5.103.2",
+    "@types/node": "^20",
     "@types/react": "^19",
-    "react": "19.2.8"
+    "eslint": "^10.9.1",
+    "react": "19.2.8",
+    "typescript": "^7.0.0"
   },
   "peerDependencies": {
     "@tanstack/react-query": "^5.103.2",
