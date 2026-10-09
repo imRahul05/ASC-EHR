@@ -1,10 +1,17 @@
-import { MockClient } from "@medplum/mock";
+import { ClientStorage, MemoryStorage } from "@medplum/core";
+import { MockClient as BaseMockClient } from "@medplum/mock";
 import type { Bundle, Task } from "@medplum/fhirtypes";
 import { describe, expect, it, vi } from "vitest";
 
 import { forFacility } from "./facility";
 
 const A = { reference: "Organization/fac-a" };
+// Explicit memory storage: Node 25 has a global localStorage stub that MockClient would otherwise pick up.
+class MockClient extends BaseMockClient {
+  constructor() {
+    super({ storage: new ClientStorage(new MemoryStorage()) });
+  }
+}
 const task = (extra: Partial<Task> = {}): Task => ({ resourceType: "Task", status: "requested", intent: "order", ...extra });
 
 describe("forFacility", () => {
