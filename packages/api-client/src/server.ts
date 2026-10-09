@@ -44,6 +44,12 @@ export async function createClientCredentialsClient({
   return client;
 }
 
+export interface MedplumAuthProfile {
+  readonly id?: string;
+  readonly resourceType?: string;
+  readonly display?: string;
+}
+
 export interface MedplumAuthMe {
   readonly user?: { readonly id?: string; readonly resourceType?: string };
   readonly project?: { readonly id?: string; readonly resourceType?: string };
@@ -55,7 +61,7 @@ export interface MedplumAuthMe {
     readonly admin?: boolean;
     readonly active?: boolean;
   };
-  readonly profile?: { readonly id?: string; readonly resourceType?: string; readonly [key: string]: unknown };
+  readonly profile?: MedplumAuthProfile;
   readonly accessPolicy?: { readonly id?: string; readonly resourceType?: string; readonly basedOn?: readonly { readonly reference?: string }[] };
   readonly security?: { readonly mfaEnrolled?: boolean };
 }
@@ -64,7 +70,6 @@ export interface MedplumAuthMe {
  * Fetches the caller's identity, project and membership from Medplum `/auth/me` on behalf of the signed-in user (#57).
  */
 export async function fetchAuthMe(client: MedplumClient): Promise<MedplumAuthMe> {
-  const result: unknown = await client.get("auth/me");
-  return result as MedplumAuthMe;
+  return client.get<MedplumAuthMe>("auth/me");
 }
 
