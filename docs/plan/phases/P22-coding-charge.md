@@ -49,6 +49,7 @@ None (CPT data depends on licence).
 ## Acceptance
 - [ ] Golden cases (coder-reviewed) pass 100 %
 - [ ] LLM output never final without coder attestation; every code has evidence IDs
+- [ ] `coding.attest` uses the nonce-bound signing ceremony ([08 §5.2](../../product/08-identity-access-and-tenancy.md#52-step-up-for-high-risk-actions), [#58](https://github.com/imRahul05/ASC-EHR/issues/58)); the `coding_suggest` agent can never attest (test)
 - [ ] Export validated against biller sample file
 - [ ] PROGRESS.md updated
 

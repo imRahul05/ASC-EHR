@@ -45,6 +45,8 @@ None (react-pdf from P17).
 ## Acceptance
 - [ ] Cannot discharge below threshold or without escort; override requires reason + audit
 - [ ] Instructions are draft until RN approves
+- [ ] `discharge.approve` uses the nonce-bound signing ceremony ([08 §5.2](../../product/08-identity-access-and-tenancy.md#52-step-up-for-high-risk-actions), [#58](https://github.com/imRahul05/ASC-EHR/issues/58)); `agent` and `service` principals can never approve (test)
+- [ ] Any discharge prescription for a controlled substance goes through a certified e-prescribing vendor (DEA 21 CFR 1311, [#58](https://github.com/imRahul05/ASC-EHR/issues/58)); this product does not build EPCS
 - [ ] PROGRESS.md updated
 
 ## Open questions

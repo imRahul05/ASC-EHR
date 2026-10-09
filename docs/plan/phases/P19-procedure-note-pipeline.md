@@ -56,6 +56,12 @@ None new.
 ## Acceptance
 - [ ] Draft visible ≤ 60 s p95 on synthetic cases; critic never overwrites clinician edits
 - [ ] Composition preliminary → final only via sign command; `sign-note` Task resolves (P12)
+- [ ] The sign command is the nonce-bound signing ceremony ([08 §5.2](../../product/08-identity-access-and-tenancy.md#52-step-up-for-high-risk-actions), [#58](https://github.com/imRahul05/ASC-EHR/issues/58)):
+  - re-authentication with password and TOTP, carrying a single-use nonce bound to the note's version and content hash;
+  - `Provenance.signature` over that hash, written with the clinician's token;
+  - batch signing of several notes allowed.
+- [ ] Only a `staff` principal can sign; an `agent` or `service` principal is refused (test). An AI-drafted note's `Provenance` names the agent run as contributor and the clinician as attester
+- [ ] Editing a `final` note is refused at gate 4 as well as by Medplum's `writeConstraint` (spike results ADR, decision 3)
 - [ ] Every AI-touched resource has Provenance with agentExecutionId
 - [ ] Evals: must-pass 100 %; judge ≥ 90 %
 - [ ] PROGRESS.md updated
