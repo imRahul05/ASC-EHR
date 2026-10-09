@@ -53,3 +53,53 @@ describe("getMe", () => {
     expect(queryKeys.auth.me[0]).toBe(queryKeys.auth.all[0]);
   });
 });
+
+describe("web auth token helpers", () => {
+  it("exchanges code and verifier via /api/auth/token", async () => {
+    const mockResult = { accessToken: "access-123", idToken: "id-456", expiresIn: 900 };
+    const fetchMock = vi.fn((_input: string, _init?: RequestInit) => Promise.resolve(Response.json(mockResult)));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { exchangeWebAuthCode } = await import("./auth");
+    const result = await exchangeWebAuthCode("code-abc", "verifier-xyz");
+    expect(result).toEqual(mockResult);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:3000/api/auth/token",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ code: "code-abc", codeVerifier: "verifier-xyz" }),
+      }),
+    );
+  });
+
+  it("silently refreshes token via /api/auth/token", async () => {
+    const mockResult = { accessToken: "access-refreshed", expiresIn: 900 };
+    const fetchMock = vi.fn((_input: string, _init?: RequestInit) => Promise.resolve(Response.json(mockResult)));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { refreshWebAuthToken } = await import("./auth");
+    const result = await refreshWebAuthToken();
+    expect(result).toEqual(mockResult);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:3000/api/auth/token",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ grantType: "refresh_token" }),
+      }),
+    );
+  });
+
+  it("calls /api/auth/logout on logoutWebSession", async () => {
+    const fetchMock = vi.fn((_input: string, _init?: RequestInit) => Promise.resolve(Response.json({ ok: true })));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { logoutWebSession } = await import("./auth");
+    await logoutWebSession();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:3000/api/auth/logout",
+      expect.objectContaining({
+        method: "POST",
+      }),
+    );
+  });
+});

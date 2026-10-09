@@ -36,6 +36,10 @@ export function setAccessToken(token: string | null): void {
   accessToken = token;
 }
 
+export function getAccessToken(): string | null {
+  return accessToken;
+}
+
 /** Authorization header for the current session (empty when signed out). */
 export function authHeaders(): Record<string, string> {
   return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
@@ -51,7 +55,7 @@ export function buildUrl(path: string, query?: RequestOptions["query"]): string 
 
 /** Drops undefined values so optional filters can be passed straight through as `query`. */
 export function toQuery(params: object): Record<string, string> {
-  const entries = Object.entries(params as Record<string, unknown>).filter(
+  const entries = Object.entries(params as Record<string, string | number | boolean | undefined | null | object>).filter(
     (entry): entry is [string, string | number | boolean] =>
       typeof entry[1] === "string" || typeof entry[1] === "number" || typeof entry[1] === "boolean",
   );
