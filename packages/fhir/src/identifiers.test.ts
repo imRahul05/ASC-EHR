@@ -45,21 +45,30 @@ describe("MRN and case number identifiers", () => {
 });
 
 describe("formatCaseNumber", () => {
-  it("is <facility>-<yyyymmdd>-<seq>, padded", () => {
-    expect(formatCaseNumber({ facilityCode: "ASC1", date: "2026-10-08", sequence: 1 })).toBe("ASC1-20261008-0001");
-    expect(formatCaseNumber({ facilityCode: "ASC1", date: "2026-02-28", sequence: 9999 })).toBe("ASC1-20260228-9999");
+  it("is <facility>-<yyyy>-<seq>, padded to six digits", () => {
+    expect(formatCaseNumber({ facilityCode: "ASC1", year: 2026, sequence: 1 })).toBe("ASC1-2026-000001");
+    expect(formatCaseNumber({ facilityCode: "ASC1", year: 2099, sequence: 999_999 })).toBe("ASC1-2099-999999");
+    expect(formatCaseNumber({ facilityCode: "AB", year: 2000, sequence: 42 })).toBe("AB-2000-000042");
+  });
+
+  it("carries the year only, never a month or day", () => {
+    expect(formatCaseNumber({ facilityCode: "ASC1", year: 2026, sequence: 7 })).toMatch(/^[A-Z0-9]{2,8}-\d{4}-\d{6}$/);
   });
 
   it.each([
-    [{ facilityCode: "asc1", date: "2026-10-08", sequence: 1 }, "invalid facility code"],
-    [{ facilityCode: "A", date: "2026-10-08", sequence: 1 }, "invalid facility code"],
-    [{ facilityCode: "ASC1", date: "2026-13-08", sequence: 1 }, "invalid case date"],
-    [{ facilityCode: "ASC1", date: "2026-02-30", sequence: 1 }, "invalid case date"],
-    [{ facilityCode: "ASC1", date: "20261008", sequence: 1 }, "invalid case date"],
-    [{ facilityCode: "ASC1", date: "2026-10-08", sequence: 0 }, "invalid case sequence"],
-    [{ facilityCode: "ASC1", date: "2026-10-08", sequence: 10_000 }, "invalid case sequence"],
-    [{ facilityCode: "ASC1", date: "2026-10-08", sequence: 1.5 }, "invalid case sequence"],
+    [{ facilityCode: "asc1", year: 2026, sequence: 1 }, "invalid facility code"],
+    [{ facilityCode: "A", year: 2026, sequence: 1 }, "invalid facility code"],
+    [{ facilityCode: "ASC1", year: 1999, sequence: 1 }, "invalid case year"],
+    [{ facilityCode: "ASC1", year: 2100, sequence: 1 }, "invalid case year"],
+    [{ facilityCode: "ASC1", year: 2026.5, sequence: 1 }, "invalid case year"],
+    [{ facilityCode: "ASC1", year: 2026, sequence: 0 }, "invalid case sequence"],
+    [{ facilityCode: "ASC1", year: 2026, sequence: 1_000_000 }, "invalid case sequence"],
+    [{ facilityCode: "ASC1", year: 2026, sequence: 1.5 }, "invalid case sequence"],
   ])("rejects %j", (parts, message) => {
     expect(() => formatCaseNumber(parts)).toThrow(message);
+  });
+
+  it("never echoes the input in its errors", () => {
+    expect(() => formatCaseNumber({ facilityCode: "ASC1", year: 1850, sequence: 1 })).toThrow(/^invalid case year$/);
   });
 });

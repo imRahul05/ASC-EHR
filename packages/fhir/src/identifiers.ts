@@ -40,23 +40,22 @@ export function caseNumberIdentifier(caseNumber: string, urls: FhirUrls = fhirUr
 export interface CaseNumberParts {
   /** Short facility code, upper-case letters and digits. */
   readonly facilityCode: string;
-  /** Date of the case as `YYYY-MM-DD` (a string, so no time zone can shift it). */
-  readonly date: string;
-  /** Running number within that facility and day, starting at 1. */
+  /** Calendar year of the case, 2000 to 2099 (we only mint numbers for new cases; imports keep their own ids). */
+  readonly year: number;
+  /** Running number within that facility and year, starting at 1. */
   readonly sequence: number;
 }
 
 /**
- * `<facility>-<yyyymmdd>-<seq>` (default of P03 Q2, confirmation in issue #55; changing it before data exists
- * is free). The date makes it closer to a date of service than an opaque id, so treat it as sensitive: it is
- * not logged with a patient name and URLs carry the internal id.
+ * `<facility>-<yyyy>-<seq>` (P03 Q2, decided in issue #55). The year replaces the full date so the date of
+ * service is not spelled out on the whiteboard, in URLs or in logs. The number is still a HIPAA identifier
+ * whatever its format (a unique identifying code, Safe Harbor §164.514(b)(2)(i)(R)): never log or show it next
+ * to a patient name, and URLs carry the internal id. Six sequence digits: a busy ASC does tens of thousands of
+ * cases a year per site, which four digits would overflow.
  */
-export function formatCaseNumber({ facilityCode, date, sequence }: CaseNumberParts): string {
+export function formatCaseNumber({ facilityCode, year, sequence }: CaseNumberParts): string {
   if (!/^[A-Z0-9]{2,8}$/.test(facilityCode)) throw new Error("invalid facility code");
-  const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
-  if (day === null || Number.isNaN(Date.parse(`${date}T00:00:00Z`)) || new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) !== date) {
-    throw new Error("invalid case date");
-  }
-  if (!Number.isInteger(sequence) || sequence < 1 || sequence > 9999) throw new Error("invalid case sequence");
-  return `${facilityCode}-${day[1]}${day[2]}${day[3]}-${String(sequence).padStart(4, "0")}`;
+  if (!Number.isInteger(year) || year < 2000 || year > 2099) throw new Error("invalid case year");
+  if (!Number.isInteger(sequence) || sequence < 1 || sequence > 999_999) throw new Error("invalid case sequence");
+  return `${facilityCode}-${year}-${String(sequence).padStart(6, "0")}`;
 }
