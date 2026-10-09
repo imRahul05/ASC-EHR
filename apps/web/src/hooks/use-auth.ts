@@ -19,6 +19,7 @@ import { queryKeys } from "@asc/api-client/react";
 import { getPublicMedplumClientId } from "@asc/config/public-env";
 import type { AuthSession, DemoPersonaId, LoginResult } from "@asc/types";
 import type { LoginFormData } from "@asc/validation/auth";
+import { clearPendingCodeVerifier } from "../lib/auth/pkce";
 import { useAuthStore } from "../lib/stores/auth.store";
 import { workspacesFor } from "../lib/workspaces";
 
@@ -259,6 +260,7 @@ export function useAuth() {
     }
     setAccessToken(null);
     setIdToken(null);
+    clearPendingCodeVerifier();
     clearSession();
     queryClient.clear();
     router.push("/login");

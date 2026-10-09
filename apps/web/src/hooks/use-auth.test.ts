@@ -2,6 +2,7 @@ import type * as AscApiClient from "@asc/api-client";
 import type * as TanstackQuery from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAuth } from "./use-auth";
+import { getPendingCodeVerifier, setPendingCodeVerifier } from "../lib/auth/pkce";
 import { useAuthStore } from "../lib/stores/auth.store";
 
 const mockRouter = { push: vi.fn(), replace: vi.fn() };
@@ -156,6 +157,9 @@ describe("useAuth with Medplum PKCE and TOTP", () => {
   });
 
   it("clears Medplum session, web session, and query cache on logout", async () => {
+    setPendingCodeVerifier("pending-verifier-xyz");
+    expect(getPendingCodeVerifier()).toBe("pending-verifier-xyz");
+
     const { logout } = getAuthHook();
     await logout();
 
@@ -163,6 +167,7 @@ describe("useAuth with Medplum PKCE and TOTP", () => {
     expect(mockQueryClient.clear).toHaveBeenCalled();
     expect(useAuthStore.getState().session).toBeNull();
     expect(useAuthStore.getState().idToken).toBeNull();
+    expect(getPendingCodeVerifier()).toBe("");
     expect(mockRouter.push).toHaveBeenCalledWith("/login");
   });
 });
