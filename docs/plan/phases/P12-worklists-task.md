@@ -55,7 +55,7 @@ None new (Medplum packages already added).
 - [ ] Worklist updates live without refresh
 - [ ] AccessPolicy: each role sees only its kinds
 - [ ] Work items are owned by a queue/capability, never a role key (P05 rule; no role-name checks)
-- [ ] Worker identity follow-up from [P05 §6](P05-auth-roles.md#6-gated-follow-ups-not-in-p05-start-no-later-than-the-gate) done before any worker job reads or writes PHI: own `ClientApplication` with a narrow policy, job data `{tenantId, facilityId, actor}` IDs only (08 §9)
+- [ ] Worker identity follow-up from [P05 §6](P05-auth-roles.md#6-gated-follow-ups-not-in-p05-start-no-later-than-the-gate) done before any worker job reads or writes PHI: one worker `ClientApplication` per facility (`asc-ehr-worker@<facility>`, `%facility` policy) chosen from the validated `job.facilityId`; job data `{tenantId, facilityId, actor}` IDs only, `facilityId` required for PHI jobs; the acting user's grant re-checked before each PHI step ([#60](https://github.com/imRahul05/ASC-EHR/issues/60), [#57](https://github.com/imRahul05/ASC-EHR/issues/57), 08 §9)
 - [ ] PROGRESS.md updated
 
 ## Open questions

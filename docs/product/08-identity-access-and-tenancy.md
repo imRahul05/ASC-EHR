@@ -762,9 +762,9 @@ flowchart TB
 | Caller | Identity | Medplum access | Notes |
 |---|---|---|---|
 | `apps/api` for a user | The **user's** token (forwarded) | User's policy | Every call, including the grant lookup ([#57](https://github.com/imRahul05/ASC-EHR/issues/57)); the API holds no Medplum client secret (`api-service-v1` is retired from it in P05i) |
-| `apps/worker` | **One `ClientApplication` per tenant** (`worker@acme`) using client credentials; secret in Key Vault `tenant-{id}-worker` | `system-worker` policy: only the resource types its jobs touch | Never a server-wide super-admin token. Per-facility worker clients (`worker@<tenant>/<facility>`, so Medplum enforces facility for background jobs and AI agent runs) are recommended in [#60](https://github.com/imRahul05/ASC-EHR/issues/60) (still open). A job started by a user re-checks that user's grant before each PHI step ([#57](https://github.com/imRahul05/ASC-EHR/issues/57)) |
+| `apps/worker` | **One `ClientApplication` per (tenant, facility)** (`asc-ehr-worker@<facility>`) using client credentials ([#60](https://github.com/imRahul05/ASC-EHR/issues/60), decided 2026-10-09); secret in Key Vault `tenant-{id}-worker-{facility}`. Tenant-wide jobs (directory sync, reporting) get their own narrow client only when such a job exists | `system-worker` policy parameterized by `%facility`: only the resource types its jobs touch, only at that facility | Never a server-wide super-admin token. The client is chosen from the validated `job.facilityId`, never from model output or job free text, so Medplum (gate 5) enforces facility for background jobs and AI agent runs as it does for people. The one shared unscoped worker client is removed (it read every facility's Tasks, shown live 2026-10-09). A job started by a user re-checks that user's grant before each PHI step ([#57](https://github.com/imRahul05/ASC-EHR/issues/57)) |
 | Bots | Run inside the tenant Project as their own `Bot` identity | Bot's own AccessPolicy | Tenant-scoped by construction |
-| AI agents | Their own principal kind `agent`, never the raw user or worker credential | Capabilities = caller's capabilities ∩ the agent's allow-list; data scoped to the run's tenant, patient and case | `Provenance` and audit record `agentExecutionId` and `onBehalfOf`; `@asc/agents` context-scope assertions reject items outside the run scope; model-supplied IDs are never trusted. An agent can never sign ([#58](https://github.com/imRahul05/ASC-EHR/issues/58)): the clinician signs what the agent drafted, and is recorded as attester |
+| AI agents | Their own principal kind `agent`, never the raw user or worker credential | Capabilities = caller's capabilities ∩ the agent's allow-list; data scoped to the run's tenant, facility, patient and case. Tools receive the facility-scoped worker client or the user-scoped client, never a raw client or an arbitrary FHIR query surface | `Provenance` and audit record `agentExecutionId` and `onBehalfOf`; `@asc/agents` context-scope assertions reject items outside the run scope; model-supplied IDs are never trusted. An agent can never sign ([#58](https://github.com/imRahul05/ASC-EHR/issues/58)): the clinician signs what the agent drafted, and is recorded as attester |
 | Provisioner (CI/ops) | Super-admin, ops-only pipeline | Platform | Never present in app runtime config |
 
 **Job context propagation**
@@ -779,12 +779,13 @@ sequenceDiagram
     participant M as Medplum (Project A)
 
     A->>Q: add job {tenantId, facilityId, actor: membershipId, caseId, executionId}
-    Note over Q: IDs only, no PHI, key prefix t:{tenantId}:
+    Note over Q: IDs only, no PHI, key prefix t:{tenantId}:<br/>facilityId required for PHI jobs
     W->>Q: take job
-    W->>W: validate job schema + tenant active in registry
-    W->>KV: get tenant-{tenantId}-worker secret (cached)
-    W->>M: client_credentials → token for Project A
-    W->>M: FHIR reads/writes (system-worker policy)
+    W->>W: validate job schema (jobDataIdSchema ids) + tenant active in registry
+    W->>KV: get tenant-{tenantId}-worker-{facilityId} secret (cached)
+    W->>M: client_credentials → token for asc-ehr-worker@facility
+    W->>M: re-check actor's PractitionerRole grant (before each PHI step)
+    W->>M: FHIR reads/writes (system-worker policy, %facility)
     W->>W: withTenant(tenantId) for app-DB writes
     W-->>A: progress over t:{tenantId}:job:{id} channel
 ```
@@ -926,7 +927,7 @@ Wybit staff never use super-admin to read PHI.
 | `authz.roleVersions` (e.g. `rn-v3`), `authz.catalogVersion` (git SHA of `@asc/authz`), `authz.cache` (`hit` / `miss` / `bypass`) | Guard — lets an auditor reconstruct why a decision was made at that time |
 | `sessionId`, `ip` (hashed/truncated), `userAgent` | API |
 
-- Medplum `AuditEvent` covers FHIR access automatically. `@asc/audit` covers everything else and **fails closed**.
+- Medplum `AuditEvent` covers FHIR access automatically. `@asc/audit` covers everything else and **fails closed**: a denial is always recorded, and an *allowed* PHI read whose audit write fails returns 503 with no PHI and raises an alert ([#52](https://github.com/imRahul05/ASC-EHR/issues/52), decided 2026-10-09). An AI tool result that carries PHI is not passed to the model unless its access is recorded. This is our policy choice, not a HIPAA mandate: §164.312(b) requires mechanisms that record and examine activity, not a specific response to a failed write. Trade-off accepted: an audit-store outage stops PHI reads.
 - **Implemented in P05f** (`@asc/audit`, `audit_events` in `@asc/db`): `tenantId`, `facilityId`, `membershipId`, `actorType` (user · system · agent · worker · bot · service), `agentExecutionId`, `action`, `resourceType`/`resourceId`, `outcome` (`SUCCESS` / `FAILURE` / `DENIED`) with `gate` 1–5 on denials, `decision` (`roleVersions`, `catalogVersion`, `cache`), `sessionId`, `clientIpPrefix` (a /24 or /48 prefix, never the full address) and `userAgent` (200 characters). IAM events are `auth.login|logout|denied`, `membership.*`, `role.*`, `user.invited` with ID-only details. The store is append-only. Decisions: [P05 plan, P05f decisions](../plan/phases/P05-auth-roles.md).
 - Denied events include the gate number, which makes misconfigured roles easy to spot.
 

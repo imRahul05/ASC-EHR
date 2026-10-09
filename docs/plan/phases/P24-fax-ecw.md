@@ -48,6 +48,7 @@ apps/web/src/app/(clinical)/faxes/page.tsx         NEW
 - [ ] Only allowlisted faxagnet paths reachable; demo/staging blocked from real fax
 - [ ] eCW write-back off by default; once-only per encounter (ledger)
 - [ ] BAAs recorded for faxagnet hosting + Integuru before enabling in prod
+- [ ] The worker and its AI tools run on the facility's own worker client (`asc-ehr-worker@<facility>`, chosen from the validated `job.facilityId`), never a shared or raw client, and re-check the acting user's grant before each PHI step ([#60](https://github.com/imRahul05/ASC-EHR/issues/60), [P05 §6](P05-auth-roles.md#6-gated-follow-ups-not-in-p05-start-no-later-than-the-gate))
 - [ ] PROGRESS.md updated
 
 ## Open questions
