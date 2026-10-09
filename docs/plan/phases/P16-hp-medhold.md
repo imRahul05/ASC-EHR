@@ -53,6 +53,7 @@ None.
 
 ## Acceptance
 - [ ] Every AI row is draft until confirmed; confirmed rows carry Provenance (user + agentExecutionId)
+- [ ] H&P sign-off uses the nonce-bound signing ceremony ([08 §5.2](../../product/08-identity-access-and-tenancy.md#52-step-up-for-high-risk-actions), [#58](https://github.com/imRahul05/ASC-EHR/issues/58)); only a `staff` principal can sign, never an `agent` or `service` (test)
 - [ ] Med-hold table reviewed by a physician (link recorded in PROGRESS)
 - [ ] Gate blocks transition with named reasons (API authoritative, UI instant)
 - [ ] phi-review skill clean; evals green

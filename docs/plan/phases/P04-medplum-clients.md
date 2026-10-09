@@ -10,7 +10,7 @@
 | Branch | `phase/P04-medplum-clients` |
 
 ## Goal
-One client factory per context: browser (user token, PKCE), API (on-behalf-of the calling user), worker (scoped system client). Apps never construct `MedplumClient` themselves.
+One client factory per context: browser (user token, PKCE), API (on-behalf-of the calling user), worker (scoped system client). Apps never construct `MedplumClient` themselves. The API factory takes **only the user's token**: there is no API service client, and the grant lookup (`PractitionerRole?practitioner=…&active=true`) also runs with the user's token ([#57](https://github.com/imRahul05/ASC-EHR/issues/57), decided 2026-10-09).
 
 ## Out of scope
 Login UI and access policies (P05), SSE (P10).
@@ -56,6 +56,7 @@ apps/worker/src/medplum.ts                     NEW  system client from parseEnv(
 ## Acceptance
 - [ ] Lint blocks `@asc/api-client/server` import from `apps/web` (P00 rule)
 - [ ] Client secret never reaches the browser bundle (check `next build` output grep)
+- [ ] The API server factory has no client-credentials path: it builds a client from the request's user token only, and a test fails if `apps/api` reads `MEDPLUM_CLIENT_SECRET` ([#57](https://github.com/imRahul05/ASC-EHR/issues/57))
 - [ ] Tests use `MockClient`, no live server
 - [ ] `forFacility(client, facilityId)` sets `meta.accounts` to the facility `Organization` on every create, update and patch, including a read-modify-write of a resource read without it (spike results ADR decision 1 and review amendments). A body that names a different facility is refused before the call
 - [ ] Lint rule: apps may not call `createResource`, `updateResource`, `patchResource` or `executeBatch` on a raw client for facility-scoped types; they go through `forFacility` (directory types listed as exempt in one place)

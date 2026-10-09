@@ -54,6 +54,7 @@ None (date-fns from P07).
 - [ ] Booking with a conflicting room/provider is blocked naming the conflict (M01 AC)
 - [ ] Phase change reflects on board ≤ 2 s
 - [ ] Cancelled/no-show renders muted and creates `cancelled-followup` Task (P12 bot)
+- [ ] Booking a patient at a facility not yet in the Patient's `meta.accounts` adds it through the same `$set-accounts` flow as P14, following the tenant's `patientRecordSharing` setting and audited as `patient.facility_added` ([#59](https://github.com/imRahul05/ASC-EHR/issues/59))
 - [ ] PROGRESS.md updated
 
 ## Open questions

@@ -54,6 +54,10 @@ None.
 - [ ] Card images stored as Binary via Medplum, not in our DB
 - [ ] No PHI in URLs (IDs only) or logs
 - [ ] e2e: register → open patient
+- [ ] Patients at more than one facility follow the tenant's `patientRecordSharing` setting ([#59](https://github.com/imRahul05/ASC-EHR/issues/59), decided 2026-10-09). A new Patient is created with its registering facility in `meta.accounts`. Registering an existing Patient at another facility adds that facility through `$set-accounts`, with the current accounts kept:
+  - `on-encounter` (the default for one covered entity) uses `propagate: true`, so the new facility sees the full chart;
+  - `isolated` (separate legal entities) adds the account without propagation.
+- [ ] Every addition is audited as `patient.facility_added` (actor, facility, reason). Registration only adds accounts; removing one is an admin action with a reason, audited (test)
 - [ ] PROGRESS.md updated
 
 ## Open questions
