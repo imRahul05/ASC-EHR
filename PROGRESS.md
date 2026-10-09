@@ -36,7 +36,7 @@
 | P01 | CI + eval gate | ready | P00 | | | | | |
 | P02 | Local Medplum + bots skeleton | done | — | Claude (bg job 640ebd7d) | `phase/P02-local-medplum-clean` | [#43](https://github.com/imRahul05/ASC-EHR/pull/43), [#44](https://github.com/imRahul05/ASC-EHR/pull/44) (#42 closed, replaced by #43) | 2026-10-07 | 2026-10-07 |
 | P03 | `@asc/fhir` | done | — | Claude (bg job 7f0d4791) | `phase/P03-fhir-package` | [#56](https://github.com/imRahul05/ASC-EHR/pull/56) | 2026-10-08 | 2026-10-08 |
-| P04 | Medplum clients | in-progress | P02, P03 | Claude (bg job d952b9e4) | `phase/P04-medplum-clients` (after `feat/worker-facility-clients`, #60) | | 2026-10-09 | |
+| P04 | Medplum clients | review | P02, P03 | Claude (bg job d952b9e4) | `phase/P04-medplum-clients` (after `feat/worker-facility-clients`, #60) | [#65](https://github.com/imRahul05/ASC-EHR/pull/65) (#60 worker clients), [#66](https://github.com/imRahul05/ASC-EHR/pull/66) (P04, stacked on #65) | 2026-10-09 | |
 | P05 | Auth + roles (sub-phases P05a–P05j below) | in-progress (P05a–P05h done; P05i–j pending P04) | P05i–j: P04 | | | | | |
 | P06 | Azure infra (dev) | ready (external: subscription/BAA) | — | | | | | |
 | P07 | `@asc/clinical-rules` | ready | P03 | | | | | |

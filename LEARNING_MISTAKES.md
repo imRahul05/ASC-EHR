@@ -225,3 +225,10 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **Rule:** When a decision cites a regulation, quote or paraphrase what the provision actually requires, and mark anything stricter as **our policy**. Before calling a value non-identifying, check it against the full Safe Harbor list in §164.514(b)(2)(i), including (R). Compliance wording in issues, ADRs and docs is reviewed for this before it is posted.
 - **How to check:** grep a change's docs for "HIPAA requires", "required by", "not PHI" and "de-identified": each must name the provision and match its text, or be reworded as policy.
 - **Guarded by:** review (no automated check); `docs/COMPLIANCE_AND_PHI.md` §4 now states both rules.
+
+### LM-025 — Never build a `MedplumClient` on its defaults
+- **Seen:** 1 · 2026-10-09 · P04 (PR #66), found while writing the client factories and their tests
+- **What went wrong:** `MedplumClient` defaults `baseUrl` to Medplum's hosted service and `storage` to `localStorage`. A factory that forgot `baseUrl` would send our tokens (and PHI) to a third party, and on Node 25 the global `localStorage` is a broken stub, so `MockClient` tests failed until they were given memory storage.
+- **Rule:** Every `MedplumClient` / `MockClient` is built through the `@asc/api-client` factories, which require `baseUrl` from `@asc/config` (no default) and pass memory storage; tokens are never persisted in browser storage. Apps never call `new MedplumClient` (lint rule).
+- **How to check:** `pnpm --filter @asc/api-client test` (factories refuse a missing `baseUrl`); the lint rule bans `new MedplumClient` in apps.
+- **Guarded by:** those tests and the P04 lint rule.

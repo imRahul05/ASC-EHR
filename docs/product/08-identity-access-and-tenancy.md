@@ -485,7 +485,7 @@ Gate 5 is the safety net: even if gates 3–4 had a bug, Medplum would still ref
 | What is cached | Only `/auth/me` facts that cannot change for a given token (project, membership id, profile), keyed by the SHA-256 of the token, for that token's lifetime. The raw token is never stored |
 | No invalidation needed | With no grant cache there are no admin-action invalidation hooks, no step-up cache bypass and no `ProjectMembership` Subscription. That Subscription failed Medplum's access-policy check in spike S6 ([spike results ADR](../decisions/2026-10-08-medplum-spike-results-and-fallbacks.md) decision 5) |
 | Revocation | Immediate at gates 1–4 as well as at gate 5 (spike S6 measured Medplum at 1 to 4 ms) |
-| No API service secret | `apps/api` calls Medplum only with the user's token; `api-service-v1` is retired from the API in P05i |
+| No API service secret | `apps/api` calls Medplum only with the user's token; `api-service-v1` and the `asc-ehr-api` client are no longer seeded (PR #65), and `@asc/config` gives `apps/api` no Medplum client credentials (PR #66) |
 | Fail closed | Medplum unreachable → 503, never allow |
 | Fallback only if the P05i load test fails | A cache of at most 5 s, **shared in Redis**, keyed by membership; never per-instance memory |
 | Worker and AI jobs | A job started by a user re-checks that user's grant at the job's facility before each step that reads or writes PHI (in-process memo of at most 5 s per job), so a revoked clinician stops mid-run |
