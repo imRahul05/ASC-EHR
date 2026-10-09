@@ -20,6 +20,7 @@ export interface TokenExchangeResult {
   readonly accessToken: string;
   readonly idToken?: string;
   readonly expiresIn?: number;
+  readonly sessionStartedAt?: number;
 }
 
 function toBase64Url(bytes: Uint8Array): string {
