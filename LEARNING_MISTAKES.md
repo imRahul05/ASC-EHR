@@ -218,3 +218,17 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **Rule:** Before treating a resource type as "shared directory data", ask whether any code derives permissions from it. If so it is a grant: read-only for every staff role (admin included), written only by the seed/provisioner with ops credentials, and covered by a live 403 test per role. A grant carries `active: true` and `period.start`.
 - **How to check:** `pnpm --filter @asc/authz test` (`templates.test.ts`: no role writes `PractitionerRole`); `pnpm --filter bots test` (`seed-access.test.ts`: grants active, drift repaired); `pnpm --filter bots test:medplum` (`policy.live.ts`: "role grants for <role>").
 - **Guarded by:** those tests; admin template v2.
+
+### LM-024 — Say what a regulation requires, and label our own choices as policy
+- **Seen:** 1 · 2026-10-09 · recommendations for decisions #52 and #55, corrected by the user before they were recorded
+- **What went wrong:** Two recommendations overstated the law. For #52, fail-closed (503 when an audit write fails) was presented as what HIPAA audit controls require; §164.312(b) requires mechanisms that record and examine activity, and does not prescribe the response to a failed write. For #55, a year-only case number was described as no longer counting as an identifier; the year does avoid the date element, but Safe Harbor also lists "any other unique identifying number, characteristic, or code" (§164.514(b)(2)(i)(R)), so a case number is an identifier whatever its format.
+- **Rule:** When a decision cites a regulation, quote or paraphrase what the provision actually requires, and mark anything stricter as **our policy**. Before calling a value non-identifying, check it against the full Safe Harbor list in §164.514(b)(2)(i), including (R). Compliance wording in issues, ADRs and docs is reviewed for this before it is posted.
+- **How to check:** grep a change's docs for "HIPAA requires", "required by", "not PHI" and "de-identified": each must name the provision and match its text, or be reworded as policy.
+- **Guarded by:** review (no automated check); `docs/COMPLIANCE_AND_PHI.md` §4 now states both rules.
+
+### LM-025 — Never build a `MedplumClient` on its defaults
+- **Seen:** 1 · 2026-10-09 · P04 (PR #66), found while writing the client factories and their tests
+- **What went wrong:** `MedplumClient` defaults `baseUrl` to Medplum's hosted service and `storage` to `localStorage`. A factory that forgot `baseUrl` would send our tokens (and PHI) to a third party, and on Node 25 the global `localStorage` is a broken stub, so `MockClient` tests failed until they were given memory storage.
+- **Rule:** Every `MedplumClient` / `MockClient` is built through the `@asc/api-client` factories, which require `baseUrl` from `@asc/config` (no default) and pass memory storage; tokens are never persisted in browser storage. Apps never call `new MedplumClient` (lint rule).
+- **How to check:** `pnpm --filter @asc/api-client test` (factories refuse a missing `baseUrl`); the lint rule bans `new MedplumClient` in apps.
+- **Guarded by:** those tests and the P04 lint rule.

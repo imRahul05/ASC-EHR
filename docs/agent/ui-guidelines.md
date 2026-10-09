@@ -250,7 +250,7 @@ Base UI primitives give keyboard + ARIA; keep them. Label every input; `aria-liv
 - **No auth tokens or user profiles in browser storage.** The session lives in memory (`useAuthStore`); signed-in areas are wrapped in `RequireAuth` until Medplum sign-in (P05) replaces the mock. Only non-sensitive UI preferences (e.g. `theme`) may use `localStorage` (LM-004).
 - Offline queue (AIMS/room tablet) is the only local PHI store: encrypted, purged on sync and logout ([P20](../plan/phases/P20-aims-flowsheet.md)).
 - Logout clears Query cache, Medplum client, zustand stores, offline keys.
-- Whiteboard in public-facing areas: initials + case number only.
+- Whiteboard in public-facing areas: initials + case number only. The case number (`<FAC>-<YYYY>-<seq>`, [#55](https://github.com/imRahul05/ASC-EHR/issues/55)) is still an identifier (HIPAA Safe Harbor (R)): never next to a full patient name, never in a URL ([compliance §4](../COMPLIANCE_AND_PHI.md#4-phi-audit-logging-requirements)).
 
 ## 10. Testing
 

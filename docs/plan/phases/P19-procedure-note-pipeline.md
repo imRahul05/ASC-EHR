@@ -62,6 +62,7 @@ None new.
   - batch signing of several notes allowed.
 - [ ] Only a `staff` principal can sign; an `agent` or `service` principal is refused (test). An AI-drafted note's `Provenance` names the agent run as contributor and the clinician as attester
 - [ ] Editing a `final` note is refused at gate 4 as well as by Medplum's `writeConstraint` (spike results ADR, decision 3)
+- [ ] The worker and its AI tools run on the facility's own worker client (`asc-ehr-worker@<facility>`, chosen from the validated `job.facilityId`), never a shared or raw client, and re-check the acting user's grant before each PHI step ([#60](https://github.com/imRahul05/ASC-EHR/issues/60), [P05 §6](P05-auth-roles.md#6-gated-follow-ups-not-in-p05-start-no-later-than-the-gate))
 - [ ] Every AI-touched resource has Provenance with agentExecutionId
 - [ ] Evals: must-pass 100 %; judge ≥ 90 %
 - [ ] PROGRESS.md updated

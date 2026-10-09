@@ -209,13 +209,13 @@ sequenceDiagram
     Note over Q: Queue key: t:{tenantId}:jobs<br/>IDs only, ZERO PHI in payload
     W->>Q: Pop job
     W->>W: Validate tenant active in registry
-    W->>KV: Fetch secret tenant-{tenantId}-worker
-    W->>M: OAuth2 client_credentials exchange → Project A Token
-    W->>M: FHIR read/write under system-worker AccessPolicy
+    W->>KV: Fetch secret tenant-{tenantId}-worker-{facilityId}
+    W->>M: OAuth2 client_credentials exchange → token for that facility's worker client
+    W->>M: FHIR read/write under system-worker AccessPolicy (%facility)
     W->>W: Execute DB writes inside withTenant(tenantId, tx)
 ```
 
-1. **Per-Tenant Client Applications:** Each tenant has its own `ClientApplication` in Medplum with a dedicated `system-worker` AccessPolicy granting only the specific resources needed for queue processing.
+1. **Per-Facility Client Applications:** Each (tenant, facility) has its own worker `ClientApplication` in Medplum with a `system-worker` AccessPolicy parameterized by `%facility`, granting only the resources its jobs need at that facility ([#60](https://github.com/imRahul05/ASC-EHR/issues/60), decided 2026-10-09). The worker chooses the client from the validated `job.facilityId`. Tenant-wide jobs get their own narrow client only when one exists.
 2. **Bot Execution:** Medplum Bots execute within the customer's Project container, automatically inheriting that tenant's boundaries.
 
 ---
