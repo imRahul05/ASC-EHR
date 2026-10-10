@@ -6,6 +6,7 @@ import {
   exchangeWebAuthCode,
   getBrowserMedplumClient,
   getMe,
+  logoutWebSession,
   setAccessToken,
 } from "@asc/api-client";
 import { Button } from "@asc/ui/components/ui/button";
@@ -76,6 +77,8 @@ export function SignInCallbackContent() {
         router.push(workspacesFor(signedIn, facility)[0]?.home ?? "/dashboard");
       } catch (err) {
         clearPendingCodeVerifier();
+        setAccessToken(null);
+        void logoutWebSession();
         const message = err instanceof Error ? err.message : "Failed to exchange authorization code";
         setAsyncError(message);
       }

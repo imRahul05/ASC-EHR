@@ -294,4 +294,24 @@ describe("isOriginAllowed", () => {
     });
     expect(isOriginAllowed(evilReq)).toBe(false);
   });
+
+  it("allows requests matching comma-separated x-forwarded-host behind reverse proxies", () => {
+    const req = new NextRequest("http://127.0.0.1:3000/api/auth/token", {
+      headers: {
+        origin: "https://ehr.hospital.org",
+        "x-forwarded-host": "ehr.hospital.org, ingress-internal.local",
+      },
+    });
+    expect(isOriginAllowed(req)).toBe(true);
+  });
+
+  it("denies requests when origin does not match x-forwarded-host", () => {
+    const req = new NextRequest("http://127.0.0.1:3000/api/auth/token", {
+      headers: {
+        origin: "https://attacker.org",
+        "x-forwarded-host": "ehr.hospital.org, ingress-internal.local",
+      },
+    });
+    expect(isOriginAllowed(req)).toBe(false);
+  });
 });

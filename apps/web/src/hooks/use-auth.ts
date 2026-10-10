@@ -74,6 +74,7 @@ export function useAuth() {
         setSession(next, me, sessionStartedAt);
       } catch (error) {
         setAccessToken(null);
+        void logoutWebSession();
         throw error;
       }
       // Clinical data is role-scoped: drop anything cached for the previous persona.
@@ -114,6 +115,8 @@ export function useAuth() {
 
           let authCode = loginRes.code;
           if (authCode === undefined && loginRes.memberships && loginRes.memberships.length > 0) {
+            // Note: In single-facility ASC EHR deployments, clinician accounts map to a single active
+            // membership profile. For multi-hospital networks, interactive profile selection will be needed.
             const firstMembership = loginRes.memberships[0];
             const chosen = await medplum.post<MedplumProfileResponse>("auth/profile", {
               login: loginRes.login,
@@ -133,22 +136,28 @@ export function useAuth() {
             setIdToken(tokenResult.idToken);
           }
           setAccessToken(tokenResult.accessToken);
-          const me = await getMe();
-          const user = buildUserProfileFromSession({
-            me,
-            idToken: tokenResult.idToken,
-            emailFallback: credentials.email,
-          });
-          await startSession(
-            {
-              user,
-              token: tokenResult.accessToken,
-              expiresAt: new Date(Date.now() + (tokenResult.expiresIn ?? 900) * 1000).toISOString(),
-            },
-            me,
-            tokenResult.sessionStartedAt,
-          );
-          return { status: "complete" };
+          try {
+            const me = await getMe();
+            const user = buildUserProfileFromSession({
+              me,
+              idToken: tokenResult.idToken,
+              emailFallback: credentials.email,
+            });
+            await startSession(
+              {
+                user,
+                token: tokenResult.accessToken,
+                expiresAt: new Date(Date.now() + (tokenResult.expiresIn ?? 900) * 1000).toISOString(),
+              },
+              me,
+              tokenResult.sessionStartedAt,
+            );
+            return { status: "complete" };
+          } catch (error) {
+            setAccessToken(null);
+            void logoutWebSession();
+            throw error;
+          }
         }
 
         const sessionData = await loginWithCredentials(credentials);
@@ -190,6 +199,8 @@ export function useAuth() {
 
         let authCode = verifyRes.code;
         if (authCode === undefined && verifyRes.memberships && verifyRes.memberships.length > 0) {
+          // Note: In single-facility ASC EHR deployments, clinician accounts map to a single active
+          // membership profile. For multi-hospital networks, interactive profile selection will be needed.
           const firstMembership = verifyRes.memberships[0];
           const chosen = await medplum.post<MedplumProfileResponse>("auth/profile", {
             login: verifyRes.login ?? params.loginId,
@@ -209,21 +220,27 @@ export function useAuth() {
           setIdToken(tokenResult.idToken);
         }
         setAccessToken(tokenResult.accessToken);
-        const me = await getMe();
-        const user = buildUserProfileFromSession({
-          me,
-          idToken: tokenResult.idToken,
-          emailFallback: params.email,
-        });
-        await startSession(
-          {
-            user,
-            token: tokenResult.accessToken,
-            expiresAt: new Date(Date.now() + (tokenResult.expiresIn ?? 900) * 1000).toISOString(),
-          },
-          me,
-          tokenResult.sessionStartedAt,
-        );
+        try {
+          const me = await getMe();
+          const user = buildUserProfileFromSession({
+            me,
+            idToken: tokenResult.idToken,
+            emailFallback: params.email,
+          });
+          await startSession(
+            {
+              user,
+              token: tokenResult.accessToken,
+              expiresAt: new Date(Date.now() + (tokenResult.expiresIn ?? 900) * 1000).toISOString(),
+            },
+            me,
+            tokenResult.sessionStartedAt,
+          );
+        } catch (error) {
+          setAccessToken(null);
+          void logoutWebSession();
+          throw error;
+        }
       } finally {
         setIsLoggingIn(false);
       }

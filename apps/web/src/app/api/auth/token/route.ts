@@ -38,7 +38,10 @@ export function isOriginAllowed(request: NextRequest): boolean {
   if (candidate !== null) {
     try {
       const candidateUrl = new URL(candidate);
-      const expectedHost = request.nextUrl.host;
+      const rawForwarded = request.headers.get("x-forwarded-host");
+      const firstForwarded = rawForwarded !== null ? rawForwarded.split(",")[0]?.trim() : null;
+      const forwardedHost = firstForwarded !== null && firstForwarded.length > 0 ? firstForwarded : null;
+      const expectedHost = forwardedHost ?? request.headers.get("host") ?? request.nextUrl.host;
       if (candidateUrl.host !== expectedHost) {
         return false;
       }
