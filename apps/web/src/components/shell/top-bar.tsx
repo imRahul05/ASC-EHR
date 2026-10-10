@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useResetDemo } from "@asc/api-client/react";
+import { isApiMockingEnabled } from "@asc/config/public-env";
 import {
   Avatar,
   AvatarFallback,
@@ -29,9 +30,12 @@ import { WorkspaceSwitcher } from "./workspace-switcher";
 import { routeTitle } from "./nav-config";
 
 function PersonaSwitcher() {
+  const isMocking = isApiMockingEnabled();
   const { user, switchPersona } = useAuth();
   const presets = useDemoPresets();
   const current = useCurrentPersona();
+
+  if (!isMocking) return null;
   const ordered = (presets.data ?? []).toSorted((a, b) => PERSONAS[a.id].order - PERSONAS[b.id].order);
 
   return (
@@ -114,11 +118,13 @@ export function TopBar() {
               </DropdownMenuLabel>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onReset} disabled={resetDemo.isPending} data-testid="reset-demo">
-              <RotateCcw className="size-3.5" />
-              Reset demo data
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={logout} variant="destructive" data-testid="logout">
+            {isApiMockingEnabled() && (
+              <DropdownMenuItem onClick={onReset} disabled={resetDemo.isPending} data-testid="reset-demo">
+                <RotateCcw className="size-3.5" />
+                Reset demo data
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onClick={() => void logout()} variant="destructive" data-testid="logout">
               <LogOut className="size-3.5" />
               Sign out
             </DropdownMenuItem>

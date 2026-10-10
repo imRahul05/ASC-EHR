@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { isApiMockingEnabled } from "@asc/config/public-env";
 import type { DemoPersonaId } from "@asc/types";
 import { Skeleton } from "@asc/ui/components/ui/skeleton";
 import { toast } from "@asc/ui/components/ui/sonner";
@@ -20,9 +21,14 @@ const PERSONA_ICON: Readonly<Record<DemoPersonaId, LucideIcon>> = {
 
 /** One-click demo sign-in: a card per persona (all five roles). Export name kept for the login page. */
 export function DemoLoginBar() {
+  const isMocking = isApiMockingEnabled();
   const { loginWithDemo, isDemoLoggingIn } = useAuth();
   const presets = useDemoPresets();
   const [pendingId, setPendingId] = useState<DemoPersonaId | null>(null);
+
+  if (!isMocking) {
+    return null;
+  }
   const ordered = (presets.data ?? []).toSorted(
     (a, b) => PERSONAS[a.id].order - PERSONAS[b.id].order,
   );

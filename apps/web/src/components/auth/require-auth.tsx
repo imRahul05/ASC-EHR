@@ -4,19 +4,34 @@ import { useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { Skeleton } from "@asc/ui/components/ui/skeleton";
 import { useAuth } from "../../hooks/use-auth";
+import { useSessionTimeout } from "../../hooks/use-session-timeout";
 
 /**
  * Client-side guard for signed-in areas while auth is mocked (P05 replaces it
  * with Medplum sign-in + server-side checks). Unauthenticated users go to /login.
  */
 export function RequireAuth({ children }: { readonly children: ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, restoreSession } = useAuth();
   const router = useRouter();
 
-  // Navigation is a side effect on an external system (the router) — a legitimate effect.
+  useSessionTimeout();
+
+  // Navigation and silent session restore are side effects on external systems.
   useEffect(() => {
-    if (!isAuthenticated) router.replace("/login");
-  }, [isAuthenticated, router]);
+    if (isAuthenticated) return;
+
+    let isMounted = true;
+    void restoreSession().then((restored) => {
+      if (!isMounted) return;
+      if (!restored) {
+        router.replace("/login");
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthenticated, restoreSession, router]);
 
   if (!isAuthenticated) {
     return (

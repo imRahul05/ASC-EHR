@@ -39,3 +39,14 @@ export interface LoginCredentials {
   readonly email: string;
   readonly password: string;
 }
+
+export interface MfaChallenge {
+  readonly loginId: string;
+  readonly codeVerifier: string;
+  readonly email: string;
+}
+
+export type LoginResult =
+  | { readonly status: "complete" }
+  | { readonly status: "mfa_required"; readonly challenge: MfaChallenge };
+
