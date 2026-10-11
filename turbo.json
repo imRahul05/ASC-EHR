@@ -1,6 +1,10 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
+  "globalEnv": [
+    "DEFAULT_TENANT_ID",
+    "MEDPLUM_PROJECT_ID"
+  ],
   "tasks": {
     "build": {
       "dependsOn": [

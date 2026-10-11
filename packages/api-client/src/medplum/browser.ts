@@ -16,9 +16,10 @@ export function createBrowserMedplumClient({
   clientId: string | undefined;
 }): MedplumClient | undefined {
   if (baseUrl === undefined || baseUrl.length === 0) return undefined;
-  if (!/^https?:\/\/.+\/$/.test(baseUrl)) throw new Error("Medplum base URL must be an http(s) URL ending in /");
+  const normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+  if (!/^https?:\/\/.+\/$/.test(normalizedBaseUrl)) throw new Error("Medplum base URL must be an http(s) URL ending in /");
   return new MedplumClient({
-    baseUrl,
+    baseUrl: normalizedBaseUrl,
     storage: new ClientStorage(new MemoryStorage()),
     ...(clientId === undefined || clientId.length === 0 ? {} : { clientId }),
   });

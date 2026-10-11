@@ -259,6 +259,15 @@ describe("Medplum env", () => {
     expect(() => parseEnv(apiEnvSchema, { MEDPLUM_BASE_URL: "not a url" })).toThrow("MEDPLUM_BASE_URL (invalid)");
   });
 
+  it("parses USE_MEDPLUM as a boolean or keeps it undefined when unset", () => {
+    expect(parseEnv(apiEnvSchema, { USE_MEDPLUM: "true" })).toMatchObject({ USE_MEDPLUM: true });
+    expect(parseEnv(apiEnvSchema, { USE_MEDPLUM: "false" })).toMatchObject({ USE_MEDPLUM: false });
+    expect(parseEnv(apiEnvSchema, { USE_MEDPLUM: "1" })).toMatchObject({ USE_MEDPLUM: true });
+    expect(parseEnv(apiEnvSchema, { USE_MEDPLUM: "0" })).toMatchObject({ USE_MEDPLUM: false });
+    expect(parseEnv(apiEnvSchema, {})).not.toHaveProperty("USE_MEDPLUM");
+    expect(() => parseEnv(apiEnvSchema, { USE_MEDPLUM: "yes" })).toThrow("USE_MEDPLUM (invalid)");
+  });
+
   it("gives the API no Medplum credentials: a client id or secret in its environment is dropped (#57)", () => {
     expect(Object.keys(apiEnvSchema.shape)).not.toEqual(expect.arrayContaining(["MEDPLUM_CLIENT_ID"]));
     expect(Object.keys(apiEnvSchema.shape)).not.toEqual(expect.arrayContaining(["MEDPLUM_CLIENT_SECRET"]));

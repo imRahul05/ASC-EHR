@@ -14,7 +14,13 @@ async function start(): Promise<void> {
 
   const production = isProductionEnv();
   // A real identity provider is mandatory in production and staging (the dev fake is refused).
-  const identity = createIdentityPort({ production, tenant, medplumBaseUrl: env.MEDPLUM_BASE_URL });
+  const useMedplum = env.USE_MEDPLUM ?? (env.MEDPLUM_BASE_URL !== undefined && env.MEDPLUM_BASE_URL.length > 0);
+  const identity = createIdentityPort({
+    production,
+    tenant,
+    medplumBaseUrl: env.MEDPLUM_BASE_URL,
+    useMedplum,
+  });
 
   // Runtime role only (never the owner URL): tenant-scoped, cannot alter tables or bypass RLS.
   const database = env.DATABASE_RUNTIME_URL === undefined ? undefined : createTenantDb({ url: env.DATABASE_RUNTIME_URL });

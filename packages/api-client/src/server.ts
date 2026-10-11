@@ -10,8 +10,9 @@ export type { MedplumClient } from "@medplum/core";
  * tokens in memory only, and no response cache, so a revoked grant is never served from a cache (#57).
  */
 function serverClient(baseUrl: string, extra: { clientId?: string; clientSecret?: string } = {}): MedplumClient {
-  if (!/^https?:\/\/.+\/$/.test(baseUrl)) throw new Error("Medplum base URL must be an http(s) URL ending in /");
-  return new MedplumClient({ baseUrl, storage: new ClientStorage(new MemoryStorage()), cacheTime: 0, ...extra });
+  const normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+  if (!/^https?:\/\/.+\/$/.test(normalizedBaseUrl)) throw new Error("Medplum base URL must be an http(s) URL ending in /");
+  return new MedplumClient({ baseUrl: normalizedBaseUrl, storage: new ClientStorage(new MemoryStorage()), cacheTime: 0, ...extra });
 }
 
 /**

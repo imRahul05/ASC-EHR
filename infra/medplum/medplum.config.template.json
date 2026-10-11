@@ -2,6 +2,7 @@
   "port": 8103,
   "baseUrl": "http://localhost:8203/",
   "appBaseUrl": "http://localhost:3003/",
+  "allowedOrigins": "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3003",
   "storageBaseUrl": "http://localhost:8203/storage/",
   "binaryStorage": "file:./binary/",
   "database": {

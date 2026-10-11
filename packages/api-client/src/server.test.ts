@@ -55,5 +55,10 @@ describe("createBrowserMedplumClient (apps/web)", () => {
     const client = createBrowserMedplumClient({ baseUrl: "http://localhost:8203/", clientId: "web" });
     expect(client?.getBaseUrl()).toBe("http://localhost:8203/");
   });
+
+  it("normalizes a base URL missing a trailing slash", () => {
+    const client = createBrowserMedplumClient({ baseUrl: "http://localhost:8203", clientId: "web" });
+    expect(client?.getBaseUrl()).toBe("http://localhost:8203/");
+  });
 });
 

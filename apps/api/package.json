@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch --import ./src/instrumentation.ts src/server.ts",
+    "dev": "tsx watch --env-file=.env.local --import ./src/instrumentation.ts src/server.ts",
     "build": "tsup",
     "start": "node --enable-source-maps --import ./dist/instrumentation.js dist/server.js",
     "lint": "eslint --max-warnings 0",

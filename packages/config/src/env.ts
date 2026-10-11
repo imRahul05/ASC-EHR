@@ -173,6 +173,14 @@ export const corsOriginsSchema = z
     message: "expected comma-separated origins like https://app.example.com",
   })
   .optional();
+/**
+ * In local development, whether to use the real Medplum identity provider instead of DevIdentityPort.
+ * Defaults to true if MEDPLUM_BASE_URL is set, but can be explicitly forced with USE_MEDPLUM=true or false.
+ */
+export const useMedplumSchema = z
+  .enum(["true", "false", "1", "0"])
+  .transform((v): boolean => v === "true" || v === "1")
+  .optional();
 
 export const apiEnvSchema = z.object({
   NODE_ENV: nodeEnvSchema,
@@ -186,6 +194,7 @@ export const apiEnvSchema = z.object({
   MEDPLUM_PROJECT_ID: medplumProjectIdSchema,
   GIT_SHA: gitShaSchema,
   ...medplumServerEnvShape,
+  USE_MEDPLUM: useMedplumSchema,
   // Requests per window. IP: coarse flood guard in front of authentication (a clinic shares
   // one address, so it is high). User: per tenant and signed-in user.
   RATE_LIMIT_IP_MAX: z.coerce.number().int().min(1).default(1200),
