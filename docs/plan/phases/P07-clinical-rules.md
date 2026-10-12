@@ -60,3 +60,12 @@ packages/clinical-rules/README.md                    NEW "pure functions only: n
 |---|---|---|---|
 | Q1 | Final phase list incl. "In room / Scope in / Scope out / PACU / Discharged / Closed" naming | T2 | Use 04 §4.2 as-is |
 | Q2 | Facility timezone per Organization vs global | T1 | Per Organization (multi-site ready) |
+
+## P07 decisions
+
+- **Decoupled physical stage from computed readiness**: 12 sequential `CaseStage` values (`requested` ➔ `scheduled` ➔ `confirmed` ➔ `arrived` ➔ `preop` ➔ `in_room` ➔ `procedure_start` ➔ `procedure_end` ➔ `pacu` ➔ `discharged` ➔ `cancelled` ➔ `no_show`) decoupled from 12 `ReadinessCheck` items per REQ-5 §154–210.
+- **Hard Gate 1 (`arrived` ➔ `preop`)**: Evaluates `identity`, `consent`, and `hp`. Per REQ-5 §202, `identity` and `consent` can NEVER be waived or overridden; waivers on these checks are rejected by the engine.
+- **Hard Gate 2 (`preop` ➔ `in_room`)**: Evaluates `anesthesia_clearance`, `anticoagulation`, `equipment`, and `escort`. Blocks transition into the procedure room if any check is pending or failed.
+- **Scope Hang-Time Lock (168 Hours / REQ-13)**: Reprocessed endoscopes expire after 168 hours (7 days) hanging in storage cabinets. Hard lockout with zero overrides permitted: expired scopes fail with `"Scope hang-time exceeded 168 hours. Must return to sterile processing."`
+- **Nursing Role Specialization (REQ-3:86–88)**: Registered nurse split into three discrete clinical role templates (`preop-nurse`, `circulating-nurse`, and `pacu-nurse`), while retaining `rn` for backward compatibility.
+

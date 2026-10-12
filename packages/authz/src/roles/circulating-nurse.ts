@@ -1,0 +1,40 @@
+import type { RoleTemplate } from "@asc/types";
+import { REFERENCE_READ, ro, rw } from "@asc/authz/roles/rules";
+
+export const circulatingNurse: RoleTemplate = {
+  key: "circulating-nurse",
+  version: 1,
+  label: "Circulating nurse",
+  status: "active",
+  capabilities: [
+    "patient.read",
+    "schedule.read",
+    "whiteboard.read",
+    "case.read",
+    "case.advance",
+    "timeout.participate",
+    "procedure.document",
+    "specimen.manage",
+    "image.manage",
+    "breakglass.invoke",
+    "ai.generate",
+  ],
+  data: [
+    ro("Patient"),
+    ro("Coverage"),
+    ro("Appointment"),
+    rw("Encounter"),
+    rw("QuestionnaireResponse"),
+    ro("Composition"),
+    rw("MedicationAdministration"),
+    rw("Observation"),
+    ...REFERENCE_READ,
+    rw("Task"),
+    ro("Consent"),
+    rw("Procedure"),
+    rw("Specimen"),
+    rw("DocumentReference"),
+  ],
+  facilityScoped: true,
+  requiresMfa: true,
+};

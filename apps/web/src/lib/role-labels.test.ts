@@ -33,7 +33,7 @@ describe("role labels from templates", () => {
 
   it("names the roles whose templates open a screen, or every role when any user may", () => {
     expect(roleLabelsWith(ROUTE_ACCESS.audit)).toEqual(["Administrator", "Auditor"]);
-    expect(roleLabelsWith(ROUTE_ACCESS.guide)).toHaveLength(9);
+    expect(roleLabelsWith(ROUTE_ACCESS.guide)).toHaveLength(12);
   });
 });
 

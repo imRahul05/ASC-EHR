@@ -21,7 +21,7 @@
 |---|---|
 | Current wave | 2 |
 | In progress | — |
-| Ready to start | P07 (Clinical Rules & Hard Gates), P08 (Terminology & Profiles), P09 (UI Clinical Kit), P14 (Registration) · also ready: P00b, P01, P06, P10, P12 |
+| Ready to start | P08 (Terminology & Profiles), P09 (UI Clinical Kit), P12 (Worklists on Task), P14 (Registration) · also ready: P00b, P01, P06, P10 |
 | Blocked | P13 soft-blocked on Q-MS1 (fallback allowed) |
 | Go-live target | November 15, 2026 (Software Freeze) / January 2027 (Facility Opening) |
 
@@ -51,12 +51,12 @@
 | P04 | EP-A | Medplum clients | done | P02, P03 | Claude (bg job d952b9e4) | `phase/P04-medplum-clients` (after `feat/worker-facility-clients`, #60) | [#65](https://github.com/imRahul05/ASC-EHR/pull/65) (#60 worker clients), [#66](https://github.com/imRahul05/ASC-EHR/pull/66) (P04, stacked on #65) | 2026-10-09 | 2026-10-09 |
 | P05 | EP-A | Auth + roles (sub-phases P05a–P05j below) | done | P05i–j: P04 | Antigravity | `phase/P05j-web-signin` | [#68](https://github.com/imRahul05/ASC-EHR/pull/68) (P05i) | 2026-10-06 | 2026-10-09 |
 | P06 | EP-A | Azure infra (dev) | ready (external: subscription/BAA) | — | | | | | |
-| P07 | EP-E | `@asc/clinical-rules` & hard gates | ready | P03 | | | | | |
+| P07 | EP-E | `@asc/clinical-rules` & hard gates | done | P03 | Antigravity | `feat/clinical-hard-gates-and-nurse-roles` | | 2026-10-12 | 2026-10-12 |
 | P08 | EP-A / EP-G | Terminology + profiles | ready | P02, P03 | | | | | |
 | P09 | EP-A | UI clinical kit | ready | P00 | | | | | |
 | P10 | EP-A / EP-C | Realtime SSE | ready | P04 | | | | | |
 | P11 | EP-E | Questionnaire renderer | pending | P03, P09 | | | | | |
-| P12 | EP-A / EP-E | Worklists on Task | pending | P05, P07 | | | | | |
+| P12 | EP-A / EP-E | Worklists on Task | ready | P05, P07 | | | | | |
 | P13 | EP-G | Record engine port | pending | P09, Q-MS1 | | | | | |
 | P14 | EP-B | Registration | ready | P05, P09 | | | | | |
 | P15 | EP-C | Scheduling + whiteboard | pending | P14, P07, P10 | | | | | |
@@ -93,6 +93,7 @@ Work completed before this plan existed, grouped from git history (`origin/main`
 
 | Date | Area | What | Ref |
 |---|---|---|---|
+| 2026-10-12 | Clinical | **Clinical Hard Gates & Specialized Nursing Roles (P07 / EP-E, EP-F, EP-I)**: Implemented Gate 1 (`evaluateGate1` for `arrived` ➔ `preop`: checks `identity`, `consent`, and `hp`; non-waivable identity and consent strictly reject any waiver attempts per REQ-5 §202), Gate 2 (`evaluateGate2` for `preop` ➔ `in_room`: evaluates `anesthesia_clearance`, `anticoagulation`, `equipment`, and `escort`), and Scope Hang-Time Lock (`evaluateScopeHangTime`: 168-hour / 7-day limit with zero overrides permitted per REQ-13, failing with `"Scope hang-time exceeded 168 hours. Must return to sterile processing."`). Updated `transitionGate` to evaluate Gate 1 on `preop` and Gate 2 on `in_room`. Specialized nursing roles in `@asc/authz`: discrete `preop-nurse`, `circulating-nurse`, and `pacu-nurse` templates per REQ-3:86–88 while preserving `rn` for backward compatibility. Full matrix and policy snapshots updated. All 50 Turbo quality gates green with zero `any` or `unknown`. | PR [#73](https://github.com/imRahul05/ASC-EHR/pull/73), branch `feat/clinical-hard-gates-and-nurse-roles` |
 | 2026-10-12 | Clinical | **Case State Model Refounded (Stage & Readiness Decoupled)**: Per REQ-5 §154–210 and build spec §6 lines 223–232, decoupled physical patient Stage from clinical/administrative computed Readiness. `@asc/types`: 12 physical `CaseStage` values, 12 `ReadinessCheckName` items, `ReadinessCheck`, `OverallReadiness`, waiver rules (`identity` and `consent` non-waivable), `ProcedureCase` stage extensions with backward compatibility for `CasePhase`. `@asc/fhir`: CodeSystems for `case-stage` and `readiness-check`, mappings to FHIR `Encounter.status`, stage extensions, `buildReadinessObservation`, and `buildCaseEncounter` stage support with 100% test coverage. `@asc/clinical-rules`: 12-stage sequential `STAGE_ORDER` / `PHASE_ORDER`, `FORWARD_TRANSITIONS`, `STAGE_REVERSALS` (explicit logged reversals, e.g. `in_room` -> `preop`), `nextStage`, overloads for `nextPhase`, and stage evaluation in `transitionGate`. `@asc/ui`: `PatientBanner`, `PhaseChip`, `PhaseStepper`, and `RoomTimeGrid` updated to accept `CasePhase | CaseStage`. All 50 Turbo quality gates green with zero `any` or `unknown`. | PR [#71](https://github.com/imRahul05/ASC-EHR/pull/71), branch `refactor/case-stage-readiness-split` |
 | 2026-10-12 | Web | **Marketing surface cleanup & clinical root re-baseline**: Removed `apps/web/src/features/landing/*` (hero, journey, player, stats, workflow sections); replaced `(marketing)` route group with root `apps/web/src/app/page.tsx` redirecting cleanly (`307`) to `/login`; cleaned landing globs from `@asc/eslint-config`; re-baselined performance budgets in `perf-budget.json` removing marketing landing budget and landing copy rules; preserved full MSW mock layer under `NEXT_PUBLIC_API_MOCKING=enabled`; all 50 quality gate tasks pass | branch `refactor/remove-marketing-landing` |
 | 2026-10-09 | Auth | **P05j** Web sign-in: Browser PKCE OAuth sign-in with Medplum + mandatory TOTP (MFA) for staff accounts; in-memory access tokens (never in browser storage per LM-004), httpOnly SameSite=Strict refresh cookie on `/api/auth` with origin and Sec-Fetch-Site checks; 15-minute idle and 12-hour absolute session timeouts (M12-3); silent token refresh and session restore on app load; logout clearing Medplum session, refresh cookie, and in-memory caches; mock auth restricted strictly behind demo build flag (`NEXT_PUBLIC_API_MOCKING=enabled`); 22 test suites (214 tests) pass | branch `phase/P05j-web-signin` |
@@ -167,9 +168,9 @@ Full lists: [implementation plan §6](docs/plan/implementation-plan.md#6-cross-p
 ## 5. Next up
 
 1. **Sprint 1 Clinical Kick-Off**:
-   - **P07** `@asc/clinical-rules` & Hard Gates (`EP-E`): Decoupled case stage machine, forward transitions, explicit reversals, and hard gate evaluation logic (unblocked by P03, PR #71 merged).
    - **P08** Terminology + FSH Profiles (`EP-A` / `EP-G`): GI clinical concepts, code systems, ValueSets (unblocked by P02, P03).
    - **P09** `@asc/ui` Clinical Kit (`EP-A`): Core clinical presentational components, app shell, patient banner.
+   - **P12** Worklists on Task (`EP-A` / `EP-E`): Work queues backed by FHIR Task unblocked by P05 and P07.
    - **P14** Registration & Referral Intake (`EP-B`): Patient registration, search, and eligibility stubs unblocked by P05 and ready for clinical intake.
 2. **External Lead-Time Escalations (REQ-22)**:
    - **Q-EXT-1**: Clearinghouse EDI 837/835 payer enrollment (6–10 weeks lead time; blocks EP-D / EP-K).

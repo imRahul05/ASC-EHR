@@ -13,6 +13,9 @@ describe("role templates", () => {
     expect(roleRegistry.all().map((t) => t.key)).toEqual([
       "front-desk",
       "rn",
+      "preop-nurse",
+      "circulating-nurse",
+      "pacu-nurse",
       "tech",
       "gi-physician",
       "anesthesia",
@@ -75,7 +78,17 @@ describe("role templates", () => {
 
   it("gives Task read-write to working roles and read-only to the auditor", () => {
     const task = (key: string) => roleRegistry.get(key)?.data.find((r) => r.resourceType === "Task");
-    for (const key of ["front-desk", "rn", "tech", "gi-physician", "anesthesia", "coder"]) {
+    for (const key of [
+      "front-desk",
+      "rn",
+      "preop-nurse",
+      "circulating-nurse",
+      "pacu-nurse",
+      "tech",
+      "gi-physician",
+      "anesthesia",
+      "coder",
+    ]) {
       expect(task(key), key).toBeDefined();
       expect(task(key)?.readonly, key).toBeUndefined();
     }

@@ -19,6 +19,29 @@ export function canWaiveCheck(name: ReadinessCheckName): boolean {
 }
 
 /**
+ * Maps an array of readiness checks by check name for constant-time lookup.
+ */
+export function mapReadinessChecks(
+  checks: readonly ReadinessCheck[],
+): ReadonlyMap<ReadinessCheckName, ReadinessCheck> {
+  const map = new Map<ReadinessCheckName, ReadinessCheck>();
+  for (const check of checks) {
+    map.set(check.name, check);
+  }
+  return map;
+}
+
+/**
+ * Evaluates whether a readiness check is satisfied or legally waived.
+ */
+export function isCheckSatisfiedOrWaived(check: ReadinessCheck | undefined): boolean {
+  if (!check) return false;
+  if (check.status === "satisfied") return true;
+  if (check.status === "waived") return canWaiveCheck(check.name);
+  return false;
+}
+
+/**
  * Computes overall readiness from an array of readiness checks per REQ-5 §200:
  * - "ready": Every check is satisfied or waived.
  * - "blocked": Any check is failed.
