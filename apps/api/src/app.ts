@@ -1,5 +1,6 @@
 import cors from "@fastify/cors";
 import Fastify from "fastify";
+import type { createOnBehalfClient } from "@asc/api-client/server";
 import type { AuditClient } from "@asc/audit";
 import type { IdentityPort, TenantResolver } from "@asc/authz";
 import { loggerOptions } from "@asc/logger";
@@ -34,6 +35,8 @@ interface AppOptions {
   readonly production: boolean;
   /** `MEDPLUM_BASE_URL`: where `request.medplum` calls, as the signed-in user. Unset: those routes answer 503. */
   readonly medplumBaseUrl?: string | undefined;
+  /** Test override for creating the Medplum client on behalf of a user. */
+  readonly createMedplumClient?: typeof createOnBehalfClient | undefined;
 }
 
 export async function buildApp({
@@ -45,6 +48,7 @@ export async function buildApp({
   catalogVersion,
   production,
   medplumBaseUrl,
+  createMedplumClient,
 }: AppOptions) {
   assertIdentityAllowed(identity, production);
   const app = Fastify({
@@ -83,7 +87,10 @@ export async function buildApp({
     userRateLimit: { max: rateLimit.userMax, windowMs: rateLimit.windowMs },
   });
   registerAuthorization(app, createGuards(deny));
-  registerMedplum(app, { baseUrl: medplumBaseUrl });
+  registerMedplum(app, {
+    baseUrl: medplumBaseUrl,
+    ...(createMedplumClient === undefined ? {} : { createClient: createMedplumClient }),
+  });
 
   registerRoutes(app);
 
