@@ -17,7 +17,7 @@
 
 ## 1. Snapshot (update on every phase change)
 
-| Updated | 2026-10-09 |
+| Updated | 2026-10-12 |
 |---|---|
 | Current wave | 0 |
 | In progress | — |
@@ -81,6 +81,7 @@ Work completed before this plan existed, grouped from git history (`origin/main`
 
 | Date | Area | What | Ref |
 |---|---|---|---|
+| 2026-10-12 | Web | **Marketing surface cleanup & clinical root re-baseline**: Removed `apps/web/src/features/landing/*` (hero, journey, player, stats, workflow sections); replaced `(marketing)` route group with root `apps/web/src/app/page.tsx` redirecting cleanly (`307`) to `/login`; cleaned landing globs from `@asc/eslint-config`; re-baselined performance budgets in `perf-budget.json` removing marketing landing budget and landing copy rules; preserved full MSW mock layer under `NEXT_PUBLIC_API_MOCKING=enabled`; all 50 quality gate tasks pass | branch `refactor/remove-marketing-landing` |
 | 2026-10-09 | Auth | **P05j** Web sign-in: Browser PKCE OAuth sign-in with Medplum + mandatory TOTP (MFA) for staff accounts; in-memory access tokens (never in browser storage per LM-004), httpOnly SameSite=Strict refresh cookie on `/api/auth` with origin and Sec-Fetch-Site checks; 15-minute idle and 12-hour absolute session timeouts (M12-3); silent token refresh and session restore on app load; logout clearing Medplum session, refresh cookie, and in-memory caches; mock auth restricted strictly behind demo build flag (`NEXT_PUBLIC_API_MOCKING=enabled`); 22 test suites (214 tests) pass | branch `phase/P05j-web-signin` |
 | 2026-10-09 | Auth | **P05i** Medplum identity in API: `MedplumIdentityPort` in `apps/api` verifies bearer tokens on behalf of calling users; `/auth/me` is cached in-memory keyed by sha256(token) for the token's lifetime; `PractitionerRole` grants are queried fresh with the user's token on every request (#57, live load test measured 2.1ms p50 / 3.0ms p95, instant revocation proved); gate 2 rejects wrong project and inactive membership; zero Medplum client secrets or admin credentials in the API; 97 hermetic api tests + live suite pass | branch `phase/P05i-medplum-identity` |
 | 2026-10-09 | Platform | **P04** Medplum clients: `createBrowserMedplumClient` (PKCE, in-memory tokens), `createOnBehalfClient` (user token for API), per-facility worker clients from job data (#60), `AscMedplumProvider`, `forFacility()` stamping `meta.accounts` on writes, and lint rule banning raw writes in apps | PRs #65, #66 |
