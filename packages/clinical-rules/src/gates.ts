@@ -3,6 +3,7 @@ import type {
   AldreteScore,
   CaseDetail,
   CasePhase,
+  CaseStage,
   Consent,
   DischargeInstructions,
   HpAssessment,
@@ -165,15 +166,23 @@ export function signGate(note: NoteDraft | null): RuleResult {
 
 type GateFn = (detail: CaseDetail) => RuleResult;
 
-/** Gate evaluated when a case moves INTO the key phase (stop transitions have none). */
-export const GATE_BY_TARGET: Partial<Record<CasePhase, GateFn>> = {
+/** Gate evaluated when a case moves INTO the key phase/stage (stop transitions have none). */
+export const GATE_BY_TARGET: Partial<Record<CasePhase | CaseStage, GateFn>> = {
   CONFIRMED: (detail) => confirmGate(detail.patient),
+  confirmed: (detail) => confirmGate(detail.patient),
   READY_FOR_PROCEDURE: (detail) =>
     readinessGate(detail.case, detail.hp, detail.consents, detail.patient.medications),
+  in_room: (detail) =>
+    readinessGate(detail.case, detail.hp, detail.consents, detail.patient.medications),
   IN_PROCEDURE: (detail) => timeOutGate(detail.timeOut),
+  procedure_start: (detail) => timeOutGate(detail.timeOut),
   RECOVERY: (detail) => procedureEndGate(detail.events),
+  procedure_end: (detail) => procedureEndGate(detail.events),
+  pacu: (detail) => procedureEndGate(detail.events),
   READY_FOR_DISCHARGE: (detail) => dischargeGate(detail.aldrete, detail.patient.escort?.present ?? false),
   DISCHARGED: (detail) =>
+    finalDischargeGate(detail.aldrete, detail.patient.escort?.present ?? false, detail.discharge),
+  discharged: (detail) =>
     finalDischargeGate(detail.aldrete, detail.patient.escort?.present ?? false, detail.discharge),
   CHART_COMPLETE: (detail) =>
     fromChecks([
@@ -206,8 +215,9 @@ export const GATE_BY_TARGET: Partial<Record<CasePhase, GateFn>> = {
 };
 
 /** Full check for moving a case to `to`: state machine + the target phase's gate. */
-export function transitionGate(detail: CaseDetail, to: CasePhase): RuleResult {
-  const allowed = transitionAllowed(detail.case.phase, to);
+export function transitionGate(detail: CaseDetail, to: CasePhase | CaseStage): RuleResult {
+  const current = detail.case.stage ?? detail.case.phase;
+  const allowed = transitionAllowed(current, to);
   if (!allowed.ok) return allowed;
   return GATE_BY_TARGET[to]?.(detail) ?? OK;
 }
