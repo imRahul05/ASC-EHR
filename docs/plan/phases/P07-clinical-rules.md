@@ -2,6 +2,7 @@
 
 | Field | Value |
 |---|---|
+| Status | done (PR #73) |
 | Wave · Lane · Size | 2 · Domain · M |
 | Depends on | P03 |
 | Unblocks | P12, P15, P16, P19–P23 |
@@ -50,10 +51,12 @@ packages/clinical-rules/README.md                    NEW "pure functions only: n
 | `@date-fns/tz` | 1.5.0 | `@asc/clinical-rules` |
 
 ## Acceptance
-- [ ] No imports of `@medplum/core` client, fetch, fs, or `process.env`
-- [ ] Every transition in 04 §4.2 has a test (allowed + disallowed)
-- [ ] Each transition names the `@asc/authz` capability it needs (data in the transition table, never a role name); a matrix test covers transition × capability × facility (a grant at another facility must not allow it)
-- [ ] PROGRESS.md updated
+- [x] No imports of `@medplum/core` client, fetch, fs, or `process.env`
+- [x] Every transition in 04 §4.2 has a test (allowed + disallowed)
+- [x] Each transition names the `@asc/authz` capability it needs; matrix test covers transition × capability × facility
+- [x] Hard Gates 1 & 2 and 168-Hour Scope Hang-Time Lock implemented per REQ-5 §204–210 and REQ-13
+- [x] Specialized nursing roles (preop-nurse, circulating-nurse, pacu-nurse) added per REQ-3:86–88
+- [x] PROGRESS.md updated
 
 ## Open questions
 | ID | Question | Blocks | Default |

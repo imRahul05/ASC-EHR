@@ -51,7 +51,7 @@
 | P04 | EP-A | Medplum clients | done | P02, P03 | Claude (bg job d952b9e4) | `phase/P04-medplum-clients` (after `feat/worker-facility-clients`, #60) | [#65](https://github.com/imRahul05/ASC-EHR/pull/65) (#60 worker clients), [#66](https://github.com/imRahul05/ASC-EHR/pull/66) (P04, stacked on #65) | 2026-10-09 | 2026-10-09 |
 | P05 | EP-A | Auth + roles (sub-phases P05a–P05j below) | done | P05i–j: P04 | Antigravity | `phase/P05j-web-signin` | [#68](https://github.com/imRahul05/ASC-EHR/pull/68) (P05i) | 2026-10-06 | 2026-10-09 |
 | P06 | EP-A | Azure infra (dev) | ready (external: subscription/BAA) | — | | | | | |
-| P07 | EP-E | `@asc/clinical-rules` & hard gates | done | P03 | Antigravity | `feat/clinical-hard-gates-and-nurse-roles` | | 2026-10-12 | 2026-10-12 |
+| P07 | EP-E | `@asc/clinical-rules` & hard gates | done | P03 | Antigravity | `feat/clinical-hard-gates-and-nurse-roles` | [#73](https://github.com/imRahul05/ASC-EHR/pull/73) | 2026-10-12 | 2026-10-12 |
 | P08 | EP-A / EP-G | Terminology + profiles | ready | P02, P03 | | | | | |
 | P09 | EP-A | UI clinical kit | ready | P00 | | | | | |
 | P10 | EP-A / EP-C | Realtime SSE | ready | P04 | | | | | |
@@ -167,11 +167,13 @@ Full lists: [implementation plan §6](docs/plan/implementation-plan.md#6-cross-p
 
 ## 5. Next up
 
-1. **Sprint 1 Clinical Kick-Off**:
+1. **Sprint 1 Clinical Kick-Off & Active Targets**:
+   - **P07** Clinical Hard Gates & Nursing Roles (`EP-E`): **Completed** ([#73](https://github.com/imRahul05/ASC-EHR/pull/73)).
+   - **P14** Referral Intake & Registration (`EP-B`): Patient registration, search, and eligibility stubs unblocked by P05 and ready for clinical intake (**Active Upcoming Clinical Target**).
+   - **P15** Scheduling & Whiteboard (`EP-C`): Operating room scheduling and case whiteboard flow unblocked by P07 (**Active Upcoming Clinical Target**).
    - **P08** Terminology + FSH Profiles (`EP-A` / `EP-G`): GI clinical concepts, code systems, ValueSets (unblocked by P02, P03).
    - **P09** `@asc/ui` Clinical Kit (`EP-A`): Core clinical presentational components, app shell, patient banner.
    - **P12** Worklists on Task (`EP-A` / `EP-E`): Work queues backed by FHIR Task unblocked by P05 and P07.
-   - **P14** Registration & Referral Intake (`EP-B`): Patient registration, search, and eligibility stubs unblocked by P05 and ready for clinical intake.
 2. **External Lead-Time Escalations (REQ-22)**:
    - **Q-EXT-1**: Clearinghouse EDI 837/835 payer enrollment (6–10 weeks lead time; blocks EP-D / EP-K).
    - **Q-EXT-2**: Pathology Lab HL7 MLLP interface (4–8 weeks lead time; blocks EP-H).
