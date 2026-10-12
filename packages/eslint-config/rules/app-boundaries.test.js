@@ -107,14 +107,13 @@ describe("app boundary rules", () => {
     assert.deepEqual(await lint(code, { browser: true }), []);
   });
 
-  it("bans @asc/ui root barrel in routes, auth, and landing components (LM-011)", async () => {
+  it("bans @asc/ui root barrel in routes and auth components (LM-011)", async () => {
     const barrelCode = 'import { ThemeToggle } from "@asc/ui";';
     const leafCode = 'import { ThemeToggle } from "@asc/ui/components/theme/theme-toggle";';
 
     for (const file of [
       "src/app/page.tsx",
       "src/components/auth/card.tsx",
-      "src/features/landing/hero.tsx",
     ]) {
       assert.deepEqual(
         await lint(barrelCode, { browser: true, file }),

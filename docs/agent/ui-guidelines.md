@@ -25,7 +25,7 @@ apps/web/src/features/<domain>/       FEATURE    compose @asc/ui + data hooks; r
 | Third-party UI lib? | Install in `@asc/ui` only, never `apps/web` |
 | Icons / theme? | `@asc/ui/icons` (lucide re-export) · `ThemeProvider` / `ThemeToggle` from leaf paths (`@asc/ui/components/theme/*`) — never `lucide-react` / `next-themes` in an app |
 | Importing `@asc/validation` or `@asc/config` in browser code? | Use the **leaf subpath** (`@asc/validation/auth`, `@asc/config/public-env`, `@asc/config/api`, `@asc/authz/can` · `/grants` · `/roles` · `/workspaces`). Their root entries use NodeNext `.js` re-exports that Turbopack can't resolve (lint-enforced) |
-| Importing `@asc/ui`? | Root `@asc/ui` is permitted in client feature components on signed-in routes. Use leaf imports in `src/app/**`, the auth tree (`src/components/auth/**`), the landing tree (`src/features/landing/**`), and Server Components (route files and anything they import directly, without a use client file in between) (LM-011) |
+| Importing `@asc/ui`? | Root `@asc/ui` is permitted in client feature components on signed-in routes. Use leaf imports in `src/app/**`, the auth tree (`src/components/auth/**`), and Server Components (route files and anything they import directly, without a use client file in between) (LM-011) |
 | Show or hide something by permission? | `useCan()`, `<Can>` or `<RequireCapability>` (`apps/web/src/hooks/use-can.ts`, `components/auth/`) with a **capability** — never compare role names (lint: `asc/no-role-name-comparison`). Screens and nav list their capabilities in `lib/route-access.ts`. UI gating is convenience; apps/api and Medplum enforce |
 | Fake API data during development? | MSW handlers in `apps/web/src/mocks` (on by default in dev, `NEXT_PUBLIC_API_MOCKING=disabled` to turn off; production builds only with `NEXT_PUBLIC_API_MOCKING=enabled` for the hosted demo — see [Deployment Configuration](../DEPLOYMENT_CONFIGURATION.md)). UI code never imports mock data — it calls `@asc/api-client` like production |
 
@@ -122,7 +122,7 @@ Other rules of thumb:
 
 ## 3b. Workflow Tabs & Dynamic Splitting
 
-- **`@asc/ui` Import Policy:** Root `@asc/ui` is permitted in client feature components on signed-in routes. Use leaf imports in `src/app/**`, the auth tree (`src/components/auth/**`), the landing tree (`src/features/landing/**`), and Server Components (route files and anything they import directly, without a use client file in between).
+- **`@asc/ui` Import Policy:** Root `@asc/ui` is permitted in client feature components on signed-in routes. Use leaf imports in `src/app/**`, the auth tree (`src/components/auth/**`), and Server Components (route files and anything they import directly, without a use client file in between).
 - **The `lazyTab` + `preload` Pattern:** Heavy tab implementations are split via `dynamic()` with on-demand preloading as defined directly in `apps/web/src/features/case/case-tabs.ts`. Each tab returns `{ Component, preload }`, where `Component` is a lazy component and `preload` triggers chunk loading. In `apps/web/src/features/case/case-workspace.tsx`, `TabsTrigger` calls `preload` on `onPointerEnter` and `onFocus` so tab code begins downloading before the user clicks. `preload` swallows its own rejection (`load().catch(() => undefined)`): it is speculative, and real load errors are reported by the `dynamic` render path when the tab is opened.
 - **SSR Strategy (`{ ssr: false }` vs Default SSR):**
   - **`{ ssr: false }`:** Use for client-only overlays/modals triggered strictly on demand (e.g. `CommandPalette`, `WelcomeDialog`). They are not visible on initial render, so omitting server HTML avoids server rendering costs and hydration overhead.
@@ -271,7 +271,7 @@ Base UI primitives give keyboard + ARIA; keep them. Label every input; `aria-liv
 - [ ] AI values marked draft with provenance; no auto-final action
 - [ ] No PHI in URL/logs/storage; `data-testid`s present
 - [ ] `pnpm turbo run lint check-types test --filter=web --filter=@asc/ui` green
-- [ ] Root `@asc/ui` imports only in client feature components on signed-in routes; leaf imports in `src/app/**`, auth (`src/components/auth/**`), landing (`src/features/landing/**`), and non-client files (LM-011)
+- [ ] Root `@asc/ui` imports only in client feature components on signed-in routes; leaf imports in `src/app/**`, auth (`src/components/auth/**`), and non-client files (LM-011)
 - [ ] Workflow tabs and heavy interactive overlays are dynamically imported (`next/dynamic`) with loading fallbacks
 - [ ] `pnpm --filter web test:bundles` passes bundle budget and forbidden string checks
 - [ ] `PROGRESS.md` updated; any correction recorded in `LEARNING_MISTAKES.md`

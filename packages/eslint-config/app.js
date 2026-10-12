@@ -77,7 +77,7 @@ const ROUTE_RESTRICTED_PATHS = [
   {
     name: "@asc/ui",
     message:
-      "Route files under src/app/**, auth components, and landing pages must import leaf subpaths from @asc/ui (e.g. @asc/ui/components/ui/*, @asc/ui/components/theme/*, @asc/ui/lib/utils) to prevent barrel bundle inflation (LM-011).",
+      "Route files under src/app/** and auth components must import leaf subpaths from @asc/ui (e.g. @asc/ui/components/ui/*, @asc/ui/components/theme/*, @asc/ui/lib/utils) to prevent barrel bundle inflation (LM-011).",
   },
 ];
 
@@ -141,7 +141,6 @@ export function appBoundaryConfig({ browser = false } = {}) {
       files: [
         "src/app/**/*.ts*",
         "src/components/auth/**/*.ts*",
-        "src/features/landing/**/*.ts*",
       ],
       rules: {
         "no-restricted-imports": [

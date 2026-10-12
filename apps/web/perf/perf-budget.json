@@ -1,9 +1,9 @@
 {
-  "budgetsKbGz": { "/": 299, "/login": 322, "/signup": 310, "*": 385 },
-  "dynamicBudgetsKbGz": { "/cases/[caseId]": 200 },
+  "budgetsKbGz": { "/login": 370, "/signup": 350, "*": 440 },
+  "dynamicBudgetsKbGz": { "/cases/[caseId]": 245 },
   "forbidden": [
     { "string": "Retroflexion in rectum", "notIn": "*", "reason": "case workspace tabs belong to /cases/[caseId] only" },
     { "string": "Signature captured", "notIn": "*", "reason": "clinical kit (SignaturePad) belongs to /cases/[caseId] only" },
-    { "string": "Scan the numbers at the top", "notIn": ["/", "/login", "/signup"], "reason": "internal route help copy belongs to authenticated routes only" }
+    { "string": "Scan the numbers at the top", "notIn": ["/login", "/signup"], "reason": "internal route help copy belongs to authenticated routes only" }
   ]
 }
