@@ -15,6 +15,8 @@ export const API_ROUTE_PATTERNS = {
 
   // Patients & referrals (front desk)
   patients: "/patients",
+  patientsSearch: "/patients/search",
+  patientsRegister: "/patients/register",
   patientDuplicateCheck: "/patients/duplicate-check",
   patient: "/patients/:patientId",
   patientEligibility: "/patients/:patientId/eligibility",
@@ -105,6 +107,8 @@ export const API_ROUTES = {
   me: P.me,
 
   patients: P.patients,
+  patientsSearch: P.patientsSearch,
+  patientsRegister: P.patientsRegister,
   patientDuplicateCheck: P.patientDuplicateCheck,
   patient: (patientId: string) => fill(P.patient, { patientId }),
   patientEligibility: (patientId: string) => fill(P.patientEligibility, { patientId }),
