@@ -1,10 +1,10 @@
 import { PHASE_GROUP, PHASE_LABEL } from "@asc/clinical-rules"
-import type { CasePhase } from "@asc/types"
+import type { CasePhase, CaseStage } from "@asc/types"
 import { cn } from "../../lib/utils"
 import { PHASE_GROUP_CLASS, PHASE_GROUP_ICON } from "./phase-style"
 
 export interface PhaseChipProps {
-  readonly phase: CasePhase
+  readonly phase: CasePhase | CaseStage
   readonly size?: "sm" | "md"
   readonly className?: string
 }

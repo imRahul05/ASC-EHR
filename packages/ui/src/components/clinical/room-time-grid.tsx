@@ -1,5 +1,5 @@
 import { formatTime24, PHASE_GROUP, PHASE_LABEL } from "@asc/clinical-rules"
-import type { CasePhase } from "@asc/types"
+import type { CasePhase, CaseStage } from "@asc/types"
 import { Plus } from "lucide-react"
 import type { ReactNode } from "react"
 import { cn } from "../../lib/utils"
@@ -18,7 +18,7 @@ export interface RoomTimeGridItem {
   /** ISO start time. */
   readonly start: string
   readonly durationMin: number
-  readonly phase: CasePhase
+  readonly phase: CasePhase | CaseStage
   readonly title: ReactNode
   readonly subtitle?: ReactNode
   /** Right-aligned detail on the first line (e.g. case number). */

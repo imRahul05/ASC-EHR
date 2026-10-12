@@ -39,3 +39,6 @@ yarn-error.log*
 
 # Playwright MCP session artifacts
 .playwright-mcp/
+
+# Graphify artifacts
+graphify-out/

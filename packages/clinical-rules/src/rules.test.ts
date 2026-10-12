@@ -1,16 +1,33 @@
-import type { Consent, HpAssessment, Medication, NoteDraft, PathologyResult, ProcedureCase, ProcedureEvent, ReadinessFlags } from "@asc/types";
+import type {
+  Consent,
+  HpAssessment,
+  Medication,
+  NoteDraft,
+  PathologyResult,
+  ProcedureCase,
+  ProcedureEvent,
+  ReadinessCheck,
+  ReadinessFlags,
+} from "@asc/types";
 import { describe, expect, it } from "vitest";
 import {
   aldreteTotal,
+  canWaiveCheck,
+  computeOverallReadiness,
   dischargeGate,
   findScheduleConflicts,
+  isStageReversal,
   medClassFor,
   medHoldCheck,
   nextPhase,
+  nextStage,
+  NON_WAIVABLE_CHECKS,
   PHASE_GROUP,
   PHASE_ORDER,
   readinessGate,
   signGate,
+  STAGE_GROUP,
+  STAGE_ORDER,
   surveillanceInterval,
   transitionAllowed,
   withdrawalMinutes,
@@ -64,19 +81,76 @@ const med = (holdStatus: Medication["holdStatus"]): Medication => ({
 
 const event = (type: ProcedureEvent["type"], at: string): ProcedureEvent => ({ id: type, caseId: "c1", type, at, by: STAFF });
 
-describe("phases", () => {
-  it("has 13 happy-path phases and a group for every phase", () => {
-    expect(PHASE_ORDER).toHaveLength(13);
+describe("phases and stages", () => {
+  it("reflects the strictly sequential 12 CaseStage values and groups", () => {
+    expect(PHASE_ORDER).toHaveLength(12);
+    expect(STAGE_ORDER).toHaveLength(12);
+    expect(STAGE_GROUP.in_room).toBe("procedure");
+    expect(STAGE_GROUP.no_show).toBe("stopped");
     expect(PHASE_GROUP.IN_PROCEDURE).toBe("procedure");
-    expect(PHASE_GROUP.NO_SHOW).toBe("stopped");
   });
 
-  it("allows forward transitions only along the state machine", () => {
+  it("allows forward stage transitions along the stage machine", () => {
+    expect(transitionAllowed("preop", "in_room").ok).toBe(true);
+    expect(transitionAllowed("scheduled", "procedure_start").ok).toBe(false);
+    expect(transitionAllowed("discharged", "preop").ok).toBe(false);
+    expect(nextStage("confirmed")).toBe("arrived");
+    expect(nextStage("discharged")).toBeNull();
+  });
+
+  it("permits explicit logged stage reversals", () => {
+    expect(transitionAllowed("in_room", "preop").ok).toBe(true);
+    expect(isStageReversal("in_room", "preop")).toBe(true);
+    expect(isStageReversal("preop", "in_room")).toBe(false);
+    expect(transitionAllowed("pacu", "in_room").ok).toBe(true);
+    expect(isStageReversal("pacu", "in_room")).toBe(true);
+  });
+
+  it("maintains backward compatibility with legacy phase transitions", () => {
     expect(transitionAllowed("PRE_OP", "READY_FOR_PROCEDURE").ok).toBe(true);
     expect(transitionAllowed("SCHEDULED", "IN_PROCEDURE").ok).toBe(false);
     expect(transitionAllowed("IN_PROCEDURE", "CANCELLED").ok).toBe(false);
     expect(nextPhase("CONFIRMED")).toBe("ARRIVED");
     expect(nextPhase("CLOSED")).toBeNull();
+  });
+});
+
+describe("readiness checks and waivers", () => {
+  it("enforces that identity and consent can never be waived per REQ-5 §202", () => {
+    expect(canWaiveCheck("identity")).toBe(false);
+    expect(canWaiveCheck("consent")).toBe(false);
+    expect(NON_WAIVABLE_CHECKS).toEqual(["identity", "consent"]);
+    expect(canWaiveCheck("coverage")).toBe(true);
+    expect(canWaiveCheck("prep")).toBe(true);
+    expect(canWaiveCheck("equipment")).toBe(true);
+  });
+
+  it("computes overall readiness correctly per REQ-5 §200", () => {
+    expect(computeOverallReadiness([])).toBe("pending");
+
+    const allSatisfied: ReadinessCheck[] = [
+      { name: "identity", status: "satisfied", label: "ID verified" },
+      { name: "consent", status: "satisfied", label: "Consent signed" },
+    ];
+    expect(computeOverallReadiness(allSatisfied)).toBe("ready");
+
+    const withWaived: ReadinessCheck[] = [
+      { name: "identity", status: "satisfied", label: "ID verified" },
+      { name: "prep", status: "waived", label: "Prep waived", waiverReason: "Emergency" },
+    ];
+    expect(computeOverallReadiness(withWaived)).toBe("ready");
+
+    const withFailed: ReadinessCheck[] = [
+      { name: "identity", status: "satisfied", label: "ID verified" },
+      { name: "anticoagulation", status: "failed", label: "Hold pending" },
+    ];
+    expect(computeOverallReadiness(withFailed)).toBe("blocked");
+
+    const withPending: ReadinessCheck[] = [
+      { name: "identity", status: "satisfied", label: "ID verified" },
+      { name: "escort", status: "pending", label: "Escort pending" },
+    ];
+    expect(computeOverallReadiness(withPending)).toBe("pending");
   });
 });
 
@@ -179,16 +253,34 @@ describe("surveillanceInterval", () => {
 });
 
 describe("findScheduleConflicts", () => {
-  const existing = {
+  const existing: ProcedureCase = {
     id: "c1",
     caseNumber: "C-1",
     patientId: "p1",
+    patient: { id: "p1", mrn: "MRN-1", displayName: "Demo Patient", initials: "DP", age: 45, sex: "M", dateOfBirth: "1980-01-01" },
+    procedure: "COLONOSCOPY",
+    procedureLabel: "Colonoscopy",
+    intent: "screening",
+    indication: "Screening colonoscopy",
     roomId: "room-1",
     scheduledStart: "2026-01-01T09:00:00Z",
     durationMin: 30,
     phase: "CONFIRMED",
     team: { surgeon: STAFF, anesthesia: { ...STAFF, id: "a1" }, nurse: { ...STAFF, id: "n1" } },
-  } as unknown as ProcedureCase;
+    timestamps: {},
+    readiness: {
+      prepConfirmed: true,
+      eligibilityActive: true,
+      hpCurrent: true,
+      asaSet: true,
+      consentsSigned: true,
+      holdsConfirmed: true,
+      escortConfirmed: true,
+      npoConfirmed: true,
+      ivPlaced: true,
+      timeOutComplete: false,
+    },
+  };
   const proposed = {
     patientId: "p2",
     roomId: "room-1",

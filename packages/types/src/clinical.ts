@@ -9,8 +9,19 @@ export type IsoDateTime = string;
 /** ISO-8601 calendar date `YYYY-MM-DD`. */
 export type IsoDate = string;
 
-// ─── Case phases ────────────────────────────────────────────────────────────
+import type {
+  CaseStage,
+  OverallReadiness,
+  ReadinessCheck,
+} from "./case-stage.js";
 
+// ─── Case phases & stages ───────────────────────────────────────────────────
+
+/**
+ * @deprecated Legacy case phase enum. Per REQ-5 §158–163, physical patient location is now
+ * represented by `CaseStage`, and clinical/administrative readiness is represented by
+ * `ReadinessCheck` and `OverallReadiness`.
+ */
 export type CasePhase =
   | "SCHEDULED"
   | "CONFIRMED"
@@ -280,9 +291,17 @@ export interface ProcedureCase {
   readonly durationMin: number;
   readonly team: CaseTeam;
   readonly phase: CasePhase;
+  /** Physical patient stage per REQ-5 §164–180. */
+  readonly stage?: CaseStage;
   /** When the case entered each phase. */
   readonly timestamps: Partial<Record<CasePhase, IsoDateTime>>;
+  /** When the case entered each physical stage. */
+  readonly stageTimestamps?: Partial<Record<CaseStage, IsoDateTime>>;
   readonly readiness: ReadinessFlags;
+  /** Computed readiness checks per REQ-5 §185–199. */
+  readonly readinessChecks?: readonly ReadinessCheck[];
+  /** Computed aggregate readiness per REQ-5 §200. */
+  readonly overallReadiness?: OverallReadiness;
   readonly asa?: AsaClass;
   readonly npoSince?: IsoDateTime;
   readonly bbps?: BbpsScore;

@@ -68,4 +68,28 @@ describe("buildCaseEncounter", () => {
     expect(() => buildCaseEncounter({ ...base, start: "2026-10-08" })).toThrow("invalid case start");
     expect(() => buildCaseEncounter({ ...base, end: "tomorrow" })).toThrow("invalid case end");
   });
+
+  it("builds an encounter with physical stage and readiness checks", () => {
+    const encounter = buildCaseEncounter({
+      facilityId: "fac-1",
+      patientId: "pat-1",
+      stage: "in_room",
+      readinessChecks: [
+        { name: "identity", status: "satisfied", label: "Identity verified" },
+        { name: "consent", status: "satisfied", label: "Consent signed" },
+      ],
+    });
+    expect(encounter.status).toBe("in-progress");
+    expect(encounter.extension).toHaveLength(3);
+    expect(encounter.extension?.[0]?.url).toBe("https://fhir.wybit.io/asc/StructureDefinition/case-stage");
+  });
+
+  it("refuses an encounter without stage or phase", () => {
+    expect(() =>
+      buildCaseEncounter({
+        facilityId: "fac-1",
+        patientId: "pat-1",
+      }),
+    ).toThrow("case encounter requires stage or phase");
+  });
 });

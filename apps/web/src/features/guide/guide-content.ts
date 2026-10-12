@@ -1,4 +1,4 @@
-import { PHASE_ORDER } from "@asc/clinical-rules/phases";
+import { isPhaseAtLeast } from "@asc/clinical-rules/phases";
 import type { CaseDetail, CasePhase, DemoPersonaId } from "@asc/types";
 import {
   Bot,
@@ -285,7 +285,7 @@ export const CASE_TAB_HELP: Readonly<Record<string, TabHelp>> = {
 
 /* ─── Guided tour (demo script §6) ─────────────────────────────────────── */
 
-const reached = (phase: CasePhase) => (detail: CaseDetail) => PHASE_ORDER.indexOf(detail.case.phase) >= PHASE_ORDER.indexOf(phase);
+const reached = (phase: CasePhase) => (detail: CaseDetail) => isPhaseAtLeast(detail.case.phase, phase);
 
 /** Default hint for steps that auto-complete from the case phase. */
 export const TOUR_PHASE_HINT = "Ticks itself when the case moves on.";

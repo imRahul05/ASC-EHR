@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./phases": "./src/phases.ts",
+    "./readiness": "./src/readiness.ts",
     "./time": "./src/time.ts"
   },
   "scripts": {
