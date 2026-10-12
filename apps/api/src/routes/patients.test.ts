@@ -1,14 +1,54 @@
 import { forFacility } from "@asc/api-client/server";
 import { facilityGrant, staffPrincipal } from "@asc/authz/testing";
-import { ClientStorage, MemoryStorage } from "@medplum/core";
+import { ClientStorage, MemoryStorage, ReadablePromise, type WithId } from "@medplum/core";
+import type { Bundle, ExtractResource, ResourceType } from "@medplum/fhirtypes";
 import { MockClient as BaseMockClient } from "@medplum/mock";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { buildTestApp } from "../testing/test-app.js";
 
+type MedplumQuery = Parameters<BaseMockClient["search"]>[1];
+type MedplumOptions = Parameters<BaseMockClient["search"]>[2];
+
 class MockClient extends BaseMockClient {
   constructor() {
     super({ storage: new ClientStorage(new MemoryStorage()) });
+  }
+
+  override search<RT extends ResourceType>(
+    resourceType: RT,
+    query?: MedplumQuery,
+    options?: MedplumOptions,
+  ): ReadablePromise<Bundle<WithId<ExtractResource<RT>>>> {
+    let accountFilter: string | undefined;
+    let cleanQuery = query;
+    if (
+      query !== undefined &&
+      typeof query === "object" &&
+      !(query instanceof URLSearchParams) &&
+      !Array.isArray(query) &&
+      !("resourceType" in query)
+    ) {
+      const copy: Record<string, string | number | boolean | undefined> = { ...query };
+      const rawAccount = copy["_account"];
+      if (typeof rawAccount === "string") {
+        accountFilter = rawAccount;
+        delete copy["_account"];
+      }
+      cleanQuery = copy;
+    }
+    const bundlePromise = super.search(resourceType, cleanQuery, options).then((bundle) => {
+      if (accountFilter === undefined) return bundle;
+      const filteredEntries = bundle.entry?.filter((e) =>
+        e.resource?.meta?.accounts?.some((a) => a.reference === accountFilter),
+      );
+      return {
+        ...bundle,
+        total: filteredEntries?.length ?? 0,
+        entry: filteredEntries !== undefined && filteredEntries.length > 0 ? filteredEntries : undefined,
+      };
+    });
+    return new ReadablePromise(bundlePromise);
   }
 }
 
@@ -98,6 +138,47 @@ describe("Patients routes", () => {
       });
 
       expect(response.statusCode).toBe(200);
+    });
+
+    it("isolates search results to caller's facility when patients exist across multiple facilities", async () => {
+      const mockMedplum = new MockClient();
+      await forFacility(mockMedplum, "fac-a").create({
+        resourceType: "Patient",
+        name: [{ family: "CrossSite", given: ["Alice"] }],
+        birthDate: "1980-01-01",
+      });
+      await forFacility(mockMedplum, "fac-b").create({
+        resourceType: "Patient",
+        name: [{ family: "CrossSite", given: ["Bob"] }],
+        birthDate: "1985-05-05",
+      });
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [
+          facilityGrant("fac-a", ["intake"], ["patient.read"]),
+          facilityGrant("fac-b", ["intake"], ["patient.read"]),
+        ],
+        "float-intake",
+      );
+      built.identity.addToken("token-float", principal);
+
+      const response = await built.app.inject({
+        method: "GET",
+        url: "/patients/search?facilityId=fac-a&name=CrossSite",
+        headers: bearer("token-float"),
+      });
+
+      expect(response.statusCode).toBe(200);
+      const json = response.json();
+      expect(json.total).toBe(1);
+      expect(json.patients).toHaveLength(1);
+      expect(json.patients[0].name?.[0]?.given?.[0]).toBe("Alice");
+      expect(json.patients[0].meta?.accounts?.[0]?.reference).toBe("Organization/fac-a");
     });
   });
 
@@ -190,6 +271,13 @@ describe("Patients routes", () => {
         gender: "male",
         phone: "(555) 321-7654",
         email: "bob.smith@example.com",
+        address: {
+          line: ["123 Main St", "Suite 200"],
+          city: "Anytown",
+          state: "CA",
+          postalCode: "90210",
+          country: "USA",
+        },
         mrn: "MRN-5544",
         insurance: {
           payerId: "org-payer-1",
@@ -217,10 +305,25 @@ describe("Patients routes", () => {
       expect(json.patient).toBeDefined();
       expect(json.patient.id).toBeDefined();
       expect(json.patient.meta?.accounts?.[0]?.reference).toBe("Organization/fac-a");
+      expect(json.patient.telecom).toEqual([
+        { system: "phone", value: "(555) 321-7654" },
+        { system: "email", value: "bob.smith@example.com" },
+      ]);
+      expect(json.patient.address).toEqual([
+        {
+          line: ["123 Main St", "Suite 200"],
+          city: "Anytown",
+          state: "CA",
+          postalCode: "90210",
+          country: "USA",
+        },
+      ]);
       expect(json.coverage).toBeDefined();
       expect(json.coverage.id).toBeDefined();
+      expect(json.coverage.beneficiary?.reference).toBe(`Patient/${json.patient.id}`);
       expect(json.escort).toBeDefined();
       expect(json.escort.id).toBeDefined();
+      expect(json.escort.patient?.reference).toBe(`Patient/${json.patient.id}`);
       expect(json.duplicateMatch?.hasMatch).toBe(false);
     });
 
@@ -333,6 +436,45 @@ describe("Patients routes", () => {
       const json = response.json();
       expect(json.patient.id).toBeDefined();
       expect(json.duplicateMatch?.hasMatch).toBe(true);
+    });
+
+    it("does not trigger duplicate match for candidate at a different facility", async () => {
+      const mockMedplum = new MockClient();
+      // Pre-seed matching patient at fac-b
+      await forFacility(mockMedplum, "fac-b").create({
+        resourceType: "Patient",
+        name: [{ family: "CrossDuplicate", given: ["Charlie"] }],
+        birthDate: "1990-04-12",
+        gender: "male",
+      });
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal([facilityGrant("fac-a", ["front-desk"], ["patient.register"])], "fd-cross");
+      built.identity.addToken("token-fd-cross", principal);
+
+      const payload = {
+        facilityId: "fac-a",
+        name: { family: "CrossDuplicate", given: ["Charlie"] },
+        dateOfBirth: "1990-04-12",
+        gender: "male",
+        phone: "(555) 123-9999",
+      };
+
+      const response = await built.app.inject({
+        method: "POST",
+        url: "/patients/register",
+        headers: bearer("token-fd-cross"),
+        payload,
+      });
+
+      expect(response.statusCode).toBe(201);
+      const json = response.json();
+      expect(json.patient.id).toBeDefined();
+      expect(json.duplicateMatch?.hasMatch).toBe(false);
     });
   });
 

@@ -1,9 +1,10 @@
-import type { Coverage, CoverageClass, Organization, Patient } from "@medplum/fhirtypes";
+import type { Coverage, CoverageClass, Organization, Patient, Reference } from "@medplum/fhirtypes";
 import { facilityMeta, reference, text } from "@asc/fhir/builders/common";
 
 export interface CoverageInput {
   readonly facilityId: string;
-  readonly patientId: string;
+  readonly patientId?: string;
+  readonly patientRef?: Reference<Patient>;
   readonly payorId: string;
   readonly subscriberId: string;
   readonly status?: "active" | "cancelled" | "draft" | "entered-in-error";
@@ -17,7 +18,11 @@ export interface CoverageInput {
  * Errors name the field and never echo the value.
  */
 export function buildCoverage(input: CoverageInput): Coverage {
-  const beneficiary = reference<Patient>("Patient", input.patientId, "patient id");
+  const beneficiary: Reference<Patient> =
+    input.patientRef ??
+    (input.patientId !== undefined && input.patientId.startsWith("urn:uuid:")
+      ? { reference: input.patientId }
+      : reference<Patient>("Patient", input.patientId ?? "", "patient id"));
   const payor = [reference<Organization>("Organization", input.payorId, "payor id")];
   const subscriberId = text(input.subscriberId, "subscriber id");
 

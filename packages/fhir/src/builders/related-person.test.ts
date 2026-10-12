@@ -91,6 +91,7 @@ describe("buildRelatedPerson", () => {
   it("rejects invalid inputs and protects PHI", () => {
     expect(() => buildRelatedPerson({ ...base, facilityId: "" })).toThrow("invalid facility id");
     expect(() => buildRelatedPerson({ ...base, patientId: "bad/id" })).toThrow("invalid patient id");
+    expect(() => buildRelatedPerson({ ...base, patientId: undefined })).toThrow("invalid patient id");
     expect(() => buildRelatedPerson({ ...base, relationship: "   " })).toThrow("invalid relationship");
     expect(() => buildRelatedPerson({ ...base, name: "   " })).toThrow("invalid related person name");
     expect(() => buildRelatedPerson({ ...base, name: { family: "  " } })).toThrow("invalid related person family name");
@@ -100,5 +101,20 @@ describe("buildRelatedPerson", () => {
     expect(() => buildRelatedPerson({ ...base, telecom: [{ system: "phone", value: "" }] })).toThrow(
       "invalid telecom value",
     );
+  });
+
+  it("supports patientRef and urn:uuid patientId for transactions", () => {
+    const withRef = buildRelatedPerson({
+      ...base,
+      patientId: undefined,
+      patientRef: { reference: "urn:uuid:temp-patient-1" },
+    });
+    expect(withRef.patient).toEqual({ reference: "urn:uuid:temp-patient-1" });
+
+    const withUrn = buildRelatedPerson({
+      ...base,
+      patientId: "urn:uuid:temp-patient-2",
+    });
+    expect(withUrn.patient).toEqual({ reference: "urn:uuid:temp-patient-2" });
   });
 });

@@ -1,9 +1,10 @@
-import type { ContactPoint, HumanName, Patient, RelatedPerson } from "@medplum/fhirtypes";
+import type { ContactPoint, HumanName, Patient, Reference, RelatedPerson } from "@medplum/fhirtypes";
 import { facilityMeta, reference, text } from "@asc/fhir/builders/common";
 
 export interface RelatedPersonInput {
   readonly facilityId: string;
-  readonly patientId: string;
+  readonly patientId?: string;
+  readonly patientRef?: Reference<Patient>;
   readonly relationship: string;
   readonly name?: { readonly family: string; readonly given?: readonly string[] } | string;
   readonly telecom?: readonly { readonly system: "phone" | "email"; readonly value: string }[];
@@ -15,7 +16,11 @@ export interface RelatedPersonInput {
  * Errors name the field and never echo the value.
  */
 export function buildRelatedPerson(input: RelatedPersonInput): RelatedPerson {
-  const patient = reference<Patient>("Patient", input.patientId, "patient id");
+  const patient: Reference<Patient> =
+    input.patientRef ??
+    (input.patientId !== undefined && input.patientId.startsWith("urn:uuid:")
+      ? { reference: input.patientId }
+      : reference<Patient>("Patient", input.patientId ?? "", "patient id"));
   const relationshipText = text(input.relationship, "relationship");
 
   let name: HumanName[] | undefined;

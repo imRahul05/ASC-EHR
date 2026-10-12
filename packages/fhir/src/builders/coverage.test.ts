@@ -99,9 +99,25 @@ describe("buildCoverage", () => {
   it("rejects invalid inputs and protects PHI", () => {
     expect(() => buildCoverage({ ...base, facilityId: "" })).toThrow("invalid facility id");
     expect(() => buildCoverage({ ...base, patientId: "bad/id" })).toThrow("invalid patient id");
+    expect(() => buildCoverage({ ...base, patientId: undefined })).toThrow("invalid patient id");
     expect(() => buildCoverage({ ...base, payorId: "bad/id" })).toThrow("invalid payor id");
     expect(() => buildCoverage({ ...base, subscriberId: "   " })).toThrow("invalid subscriber id");
     expect(() => buildCoverage({ ...base, groupNumber: "   " })).toThrow("invalid group number");
     expect(() => buildCoverage({ ...base, planName: "   " })).toThrow("invalid plan name");
+  });
+
+  it("supports patientRef and urn:uuid patientId for transactions", () => {
+    const withRef = buildCoverage({
+      ...base,
+      patientId: undefined,
+      patientRef: { reference: "urn:uuid:temp-patient-1" },
+    });
+    expect(withRef.beneficiary).toEqual({ reference: "urn:uuid:temp-patient-1" });
+
+    const withUrn = buildCoverage({
+      ...base,
+      patientId: "urn:uuid:temp-patient-2",
+    });
+    expect(withUrn.beneficiary).toEqual({ reference: "urn:uuid:temp-patient-2" });
   });
 });

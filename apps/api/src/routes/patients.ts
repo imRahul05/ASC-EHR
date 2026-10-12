@@ -5,7 +5,12 @@ import {
   type ExistingPatientSummary,
 } from "@asc/clinical-rules/patients/duplicate-match";
 import { API_ROUTE_PATTERNS } from "@asc/config";
-import { buildCoverage, buildPatient, buildRelatedPerson } from "@asc/fhir";
+import {
+  buildCoverage,
+  buildPatient,
+  buildRelatedPerson,
+  createTransaction,
+} from "@asc/fhir";
 import { patientSearchQuerySchema, registerPatientSchema } from "@asc/validation";
 import type { WithId } from "@medplum/core";
 import type { Coverage, Patient, RelatedPerson } from "@medplum/fhirtypes";
@@ -49,6 +54,10 @@ export function patientsRoutes(app: FastifyInstance): Promise<void> {
         _count: String(query.limit ?? 20),
       };
 
+      if (facilityId !== undefined) {
+        searchParams["_account"] = `Organization/${facilityId}`;
+      }
+
       if (query.mrn !== undefined && query.mrn !== "") {
         searchParams["identifier"] = query.mrn;
       }
@@ -62,11 +71,18 @@ export function patientsRoutes(app: FastifyInstance): Promise<void> {
 
       const patients = await request.medplum.searchResources("Patient", searchParams);
 
-      request.log.info({ facilityId, resultCount: patients.length }, "patients search completed");
+      const facilityPatients =
+        facilityId === undefined
+          ? patients
+          : patients.filter((p) =>
+              p.meta?.accounts?.some((a) => a.reference === `Organization/${facilityId}`),
+            );
+
+      request.log.info({ facilityId, resultCount: facilityPatients.length }, "patients search completed");
 
       return reply.code(200).send({
-        total: patients.length,
-        patients,
+        total: facilityPatients.length,
+        patients: facilityPatients,
       });
     },
   );
@@ -90,13 +106,17 @@ export function patientsRoutes(app: FastifyInstance): Promise<void> {
         return reply;
       }
 
-      // Query Medplum for duplicate candidates by family name, birthdate, or MRN
+      const facilityAccountRef = `Organization/${facilityId}`;
+
+      // Query Medplum for duplicate candidates by family name, birthdate, or MRN scoped to facility
       const candidateSearches: Promise<Patient[]>[] = [
         request.medplum.searchResources("Patient", {
+          _account: facilityAccountRef,
           name: body.name.family,
           _count: "50",
         }),
         request.medplum.searchResources("Patient", {
+          _account: facilityAccountRef,
           birthdate: body.dateOfBirth,
           _count: "50",
         }),
@@ -105,6 +125,7 @@ export function patientsRoutes(app: FastifyInstance): Promise<void> {
       if (body.mrn !== undefined && body.mrn !== "") {
         candidateSearches.push(
           request.medplum.searchResources("Patient", {
+            _account: facilityAccountRef,
             identifier: body.mrn,
             _count: "10",
           }),
@@ -115,7 +136,10 @@ export function patientsRoutes(app: FastifyInstance): Promise<void> {
       const candidatesById = new Map<string, Patient>();
       for (const list of candidateResults) {
         for (const candidate of list) {
-          if (candidate.id !== undefined) {
+          if (
+            candidate.id !== undefined &&
+            candidate.meta?.accounts?.some((a) => a.reference === facilityAccountRef)
+          ) {
             candidatesById.set(candidate.id, candidate);
           }
         }
@@ -160,7 +184,36 @@ export function patientsRoutes(app: FastifyInstance): Promise<void> {
         });
       }
 
-      const writer = forFacility(request.medplum, facilityId);
+      const telecom: { system: "phone" | "email"; value: string }[] = [];
+      if (body.phone !== undefined && body.phone.trim() !== "") {
+        telecom.push({ system: "phone", value: body.phone.trim() });
+      }
+      if (body.email !== undefined && body.email.trim() !== "") {
+        telecom.push({ system: "email", value: body.email.trim() });
+      }
+
+      const address =
+        body.address !== undefined
+          ? [
+              {
+                ...(body.address.line !== undefined && body.address.line.length > 0
+                  ? { line: body.address.line }
+                  : {}),
+                ...(body.address.city !== undefined && body.address.city.trim() !== ""
+                  ? { city: body.address.city.trim() }
+                  : {}),
+                ...(body.address.state !== undefined && body.address.state.trim() !== ""
+                  ? { state: body.address.state.trim() }
+                  : {}),
+                ...(body.address.postalCode !== undefined && body.address.postalCode.trim() !== ""
+                  ? { postalCode: body.address.postalCode.trim() }
+                  : {}),
+                ...(body.address.country !== undefined && body.address.country.trim() !== ""
+                  ? { country: body.address.country.trim() }
+                  : {}),
+              },
+            ]
+          : undefined;
 
       const patientResource = buildPatient({
         facilityId,
@@ -171,34 +224,61 @@ export function patientsRoutes(app: FastifyInstance): Promise<void> {
         birthDate: body.dateOfBirth,
         gender: body.gender,
         mrn: body.mrn,
+        telecom: telecom.length > 0 ? telecom : undefined,
+        address,
       });
 
-      const createdPatient = await writer.create(patientResource);
+      const tx = createTransaction({ facilityId });
+      const patientRef = tx.ref<Patient>("patient");
+      tx.add("patient", patientResource);
 
-      let createdCoverage: WithId<Coverage> | undefined;
+      let hasCoverage = false;
       if (body.insurance !== undefined) {
+        hasCoverage = true;
         const coverageResource = buildCoverage({
           facilityId,
-          patientId: createdPatient.id,
+          patientRef,
           payorId: body.insurance.payerId,
           subscriberId: body.insurance.memberId,
           planName: body.insurance.planName,
           groupNumber: body.insurance.groupNumber,
           relationship: body.insurance.relationship,
         });
-        createdCoverage = await writer.create(coverageResource);
+        tx.add("coverage", coverageResource);
       }
 
-      let createdEscort: WithId<RelatedPerson> | undefined;
+      let hasEscort = false;
       if (body.escort !== undefined) {
+        hasEscort = true;
         const escortResource = buildRelatedPerson({
           facilityId,
-          patientId: createdPatient.id,
+          patientRef,
           relationship: body.escort.relationship,
           name: body.escort.name,
           telecom: [{ system: "phone", value: body.escort.phone }],
         });
-        createdEscort = await writer.create(escortResource);
+        tx.add("escort", escortResource);
+      }
+
+      const bundle = tx.build();
+      const writer = forFacility(request.medplum, facilityId);
+      const responseBundle = await writer.transaction(bundle);
+
+      const createdPatient = responseBundle.entry?.[0]?.resource as WithId<Patient> | undefined;
+      if (createdPatient === undefined || createdPatient.id === undefined) {
+        throw new Error("Transaction succeeded but patient was not returned");
+      }
+
+      let createdCoverage: WithId<Coverage> | undefined;
+      let nextIdx = 1;
+      if (hasCoverage) {
+        createdCoverage = responseBundle.entry?.[nextIdx]?.resource as WithId<Coverage> | undefined;
+        nextIdx++;
+      }
+
+      let createdEscort: WithId<RelatedPerson> | undefined;
+      if (hasEscort) {
+        createdEscort = responseBundle.entry?.[nextIdx]?.resource as WithId<RelatedPerson> | undefined;
       }
 
       request.log.info({ patientId: createdPatient.id, facilityId }, "patient registered successfully");
