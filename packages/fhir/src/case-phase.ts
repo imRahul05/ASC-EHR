@@ -9,8 +9,6 @@ import { type FhirUrls, fhirUrls } from "@asc/fhir/urls";
  * Order and transitions live in `@asc/clinical-rules`, not here.
  */
 export type { CasePhase, ProcedureIntent } from "@asc/types";
-export * from "@asc/fhir/case-stage";
-export * from "@asc/fhir/case-readiness";
 
 /** Stored code and display of each phase (state machine: docs/product/04 §4.2). */
 const CASE_PHASES: Readonly<Record<CasePhase, { readonly code: string; readonly display: string }>> = {

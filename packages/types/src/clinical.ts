@@ -13,17 +13,7 @@ import type {
   CaseStage,
   OverallReadiness,
   ReadinessCheck,
-  ReadinessCheckName,
-  ReadinessCheckStatus,
 } from "./case-stage.js";
-
-export type {
-  CaseStage,
-  OverallReadiness,
-  ReadinessCheck,
-  ReadinessCheckName,
-  ReadinessCheckStatus,
-};
 
 // ─── Case phases & stages ───────────────────────────────────────────────────
 
