@@ -1,8 +1,25 @@
 # 05 — Delivery Plan, Decisions, Risks & Open Questions
 
-> **Execution plan moved (2026-09-27):** day-to-day sequencing now lives in the phase-wise [implementation plan](../plan/implementation-plan.md) with live status in [`PROGRESS.md`](../../PROGRESS.md). The Gantt in §5.1 is kept for history; decisions, risks and open questions below remain current.
+> **Update Notice (2026-10-12):** Synchronized with the master specification **`build_specification.md`** (Oct 7, 2026, by Anurag Chatterjee) and the decoupling of Case Stage and Computed Readiness (PR #71). Execution sequencing follows the phase-wise [implementation plan](../plan/implementation-plan.md) with live status in [`PROGRESS.md`](../../PROGRESS.md).
+> **Go-Live Anchor:** **November 15, 2026 (Software Freeze)** / **January 2027 (Facility Opening)** (superseding the preliminary early-December 2026 draft date).
 
-Assumptions: today 2026-09-25; go-live **early December 2026** (conflict C1 — confirm); team size unknown (plan below assumes ~5 engineers + 1 clinical informaticist/RN SME + part-time certified coder). Every workstream ships behind the same rule: **Medplum first, MindScript port second, new code last.**
+Assumptions: today 2026-10-12; anchor **November 15, 2026 (Software Freeze) / January 2027 (Facility Opening)**. Every workstream ships behind the same rule: **Medplum first, MindScript port second, new code last.**
+
+## 5.0 Scope-Cut Fallback Hierarchy (Schedule Compression Protocol)
+
+Per the Master Build Specification (`build_specification.md` §3:136), if sprint velocity or external dependencies compress the delivery timeline prior to the November 15, 2026 software freeze, scope must be dropped in the following strict order:
+
+### 🔻 What Slips First (Cut in this Order):
+1. **Ambient voice capture in `EP-G`** — physicians fall back to structured click/type note templates.
+2. **Patient self-check-in in `EP-F`** — front desk staff conducts check-in at the desk.
+3. **Cost-per-case reporting in `EP-I`** — operational cost reporting deferred to post-opening backlog.
+4. **Autonomous AI agent clearance in `EP-D`** — billing staff work the clearance queue manually.
+
+### 🛡️ Non-Negotiable Core (NEVER Cut Under Any Circumstances):
+- **Foundation (`EP-A`)** — facility config, identity, role capabilities, durable audit, RLS tenancy.
+- **Hard clinical gates in `EP-E` / `EP-F`** — Gate 1 (`arrived → preop` requires consent & identity) and Gate 2 (`preop → in_room` requires timeout, H&P attestation, escort verification). These are patient safety and regulatory mandates.
+- **Closed-loop specimen tracking in `EP-H`** — specimen count reconciliation closure lock, lab requisition, open specimen register. Missing specimens represent critical patient harm and malpractice liability.
+- **Physician / coder code approval in `EP-J` (Gate 3)** — mandatory clinical attestation before claim generation to comply with billing fraud regulations.
 
 ## 5.1 Critical path
 
@@ -72,7 +89,7 @@ gantt
 | CPT license not in place | No codes | Med | Start AMA license now (Q8) |
 | Medplum Azure ops harder than expected | Platform slip | Med | No hosted fallback (D1). Run upstream images unmodified; pin versions; single platform owner; start P02/P06 in week 1 |
 | AI note quality below physician bar | Wedge fails, fall back to clicking | Med | Record engine works fully manual; AI only accelerates; eval set from mock cases |
-| 10-week schedule | Scope creep kills go-live | High | Phase gates enforced; everything not P1 is parked in P2 backlog |
+| 10-week schedule | Scope creep kills go-live | High | Phase gates enforced; strict scope-cut fallback hierarchy (§5.0) applied if schedule compresses; everything not Phase 1–3 parked in post-opening backlog |
 | Network outage in procedure room | Lost anesthesia data | Low–Med | Offline queue (M07-7); downtime packet |
 
 ## 5.4 Open questions (owner → needed by)

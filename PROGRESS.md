@@ -19,46 +19,58 @@
 
 | Updated | 2026-10-12 |
 |---|---|
-| Current wave | 0 |
+| Current wave | 2 |
 | In progress | — |
-| Ready to start | P00b, P01, P06 (needs Azure access), P07, P08, P09, P10, P12, P14 |
+| Ready to start | P07 (Clinical Rules & Hard Gates), P08 (Terminology & Profiles), P09 (UI Clinical Kit), P14 (Registration) · also ready: P00b, P01, P06, P10, P12 |
 | Blocked | P13 soft-blocked on Q-MS1 (fallback allowed) |
-| Go-live target | 2026-12-07 |
+| Go-live target | November 15, 2026 (Software Freeze) / January 2027 (Facility Opening) |
 
 ## 2. Phase board
 
-| ID | Phase | Status | Depends on | Owner | Branch | PR | Started | Finished |
-|---|---|---|---|---|---|---|---|---|
-| 2026-10-01 | Web | Landing hero: headline and right column (copy + CTAs) now start on the same line — grid `items-start` plus `text-box: trim-start cap alphabetic` on headline and lede so cap tops align despite different font sizes | branch `worktree-hero-top-align` |
-| 2026-09-30 | Web | Landing interactivity: walkthrough player (sidebar/tab chapters, pause on hover, scoped keys, offscreen pause, reduced motion, accessible scrubber); clickable hero stations linked to player chapters / workflow steps; workflow scroll-spy; AI section provenance tooltips + resolve-gap-then-sign demo; modules hover spotlight + step links; stats count-up; section reveal | branch `worktree-landing-interactivity` |
-| P00 | Repo hygiene, guardrails | done | — | Claude (session fe18af87) | `worktree-docs-mindscript-wiring`, `worktree-p00-close` | #9 (+ close-out PR) | 2026-09-27 | 2026-09-28 |
-| P00b | Library upgrades (zod 4, bullmq 6, ioredis 6) | ready | P00 | | | | | |
-| P01 | CI + eval gate | ready | P00 | | | | | |
-| P02 | Local Medplum + bots skeleton | done | — | Claude (bg job 640ebd7d) | `phase/P02-local-medplum-clean` | [#43](https://github.com/imRahul05/ASC-EHR/pull/43), [#44](https://github.com/imRahul05/ASC-EHR/pull/44) (#42 closed, replaced by #43) | 2026-10-07 | 2026-10-07 |
-| P03 | `@asc/fhir` | done | — | Claude (bg job 7f0d4791) | `phase/P03-fhir-package` | [#56](https://github.com/imRahul05/ASC-EHR/pull/56) | 2026-10-08 | 2026-10-08 |
-| P04 | Medplum clients | done | P02, P03 | Claude (bg job d952b9e4) | `phase/P04-medplum-clients` (after `feat/worker-facility-clients`, #60) | [#65](https://github.com/imRahul05/ASC-EHR/pull/65) (#60 worker clients), [#66](https://github.com/imRahul05/ASC-EHR/pull/66) (P04, stacked on #65) | 2026-10-09 | 2026-10-09 |
-| P05 | Auth + roles (sub-phases P05a–P05j below) | done | P05i–j: P04 | Antigravity | `phase/P05j-web-signin` | | 2026-10-06 | 2026-10-09 |
-| P06 | Azure infra (dev) | ready (external: subscription/BAA) | — | | | | | |
-| P07 | `@asc/clinical-rules` | ready | P03 | | | | | |
-| P08 | Terminology + profiles | ready | P02, P03 | | | | | |
-| P09 | UI clinical kit | ready | P00 | | | | | |
-| P10 | Realtime SSE | ready | P04 | | | | | |
-| P11 | Questionnaire renderer | pending | P03, P09 | | | | | |
-| P12 | Worklists on Task | pending | P05, P07 | | | | | |
-| P13 | Record engine port | pending | P09, Q-MS1 | | | | | |
-| P14 | Registration | pending | P05, P09 | | | | | |
-| P15 | Scheduling + whiteboard | pending | P14, P07, P10 | | | | | |
-| P16 | H&P + med-hold | pending | P11, P13, P10, P07 | | | | | |
-| P17 | Pre-op + consent | pending | P11, P15 | | | | | |
-| P18 | Procedure capture | pending | P15, P10 | | | | | |
-| P19 | Procedure-note pipeline | pending | P18, P13, P08, P12 | | | | | |
-| P20 | AIMS flowsheet | pending | P15, P09 | | | | | |
-| P21 | PACU + discharge | pending | P11, P20 | | | | | |
-| P22 | Coding + charge export | pending | P19, P08 | | | | | |
-| P23 | Pathology loop | pending | P18, P12 | | | | | |
-| P24 | Fax + eCW | pending | P10, P12, Q-MS4/5 | | | | | |
-| P25 | Scope log + adverse events | pending | P11, P12 | | | | | |
-| P26 | Go-live hardening | pending | P19, P20, P22, P06, P05 | | | | | |
+> **Master Epic Mapping (`build_specification.md` §3):**
+> - **EP-A** (Foundation: Auth, Identity, Audit) [DONE]: P00–P05, P06
+> - **EP-B** (Referral Intake & Registration): P14, P24 (Inbound Fax / eCW)
+> - **EP-C** (Scheduling & Whiteboard): P15
+> - **EP-D** (Financial Clearance): P14 (Eligibility), P22 (Estimates / Claims)
+> - **EP-E** (Pre-Operative Readiness & Hard Gates): P07, P11, P16, P17
+> - **EP-F** (Day of Surgery Flow): P18, P20, P21
+> - **EP-G** (Clinical Documentation & Procedure Notes): P13, P19
+> - **EP-H** (Specimens & Pathology): P23
+> - **EP-I** (Scope Reprocessing & Hang-Time): P25
+> - **EP-J & EP-K** (Coding & Claims Cycle): P22
+> - **EP-L** (Quality, QAPI & Recall): Backlog / Post-OP
+> - **EP-M** (AI Agent Layer & Guardrails): Cross-cutting (P16, P19, P22, P23)
+
+| ID | Epic | Phase | Status | Depends on | Owner | Branch | PR | Started | Finished |
+|---|---|---|---|---|---|---|---|---|---|
+| P00 | EP-A | Repo hygiene, guardrails | done | — | Claude (session fe18af87) | `worktree-docs-mindscript-wiring`, `worktree-p00-close` | #9 (+ close-out PR) | 2026-09-27 | 2026-09-28 |
+| P00b | EP-A | Library upgrades (zod 4, bullmq 6, ioredis 6) | ready | P00 | | | | | |
+| P01 | EP-A | CI + eval gate | ready | P00 | | | | | |
+| P02 | EP-A | Local Medplum + bots skeleton | done | — | Claude (bg job 640ebd7d) | `phase/P02-local-medplum-clean` | [#43](https://github.com/imRahul05/ASC-EHR/pull/43), [#44](https://github.com/imRahul05/ASC-EHR/pull/44) (#42 closed, replaced by #43) | 2026-10-07 | 2026-10-07 |
+| P03 | EP-A | `@asc/fhir` | done | — | Claude (bg job 7f0d4791) | `phase/P03-fhir-package` | [#56](https://github.com/imRahul05/ASC-EHR/pull/56) | 2026-10-08 | 2026-10-08 |
+| P04 | EP-A | Medplum clients | done | P02, P03 | Claude (bg job d952b9e4) | `phase/P04-medplum-clients` (after `feat/worker-facility-clients`, #60) | [#65](https://github.com/imRahul05/ASC-EHR/pull/65) (#60 worker clients), [#66](https://github.com/imRahul05/ASC-EHR/pull/66) (P04, stacked on #65) | 2026-10-09 | 2026-10-09 |
+| P05 | EP-A | Auth + roles (sub-phases P05a–P05j below) | done | P05i–j: P04 | Antigravity | `phase/P05j-web-signin` | [#68](https://github.com/imRahul05/ASC-EHR/pull/68) (P05i) | 2026-10-06 | 2026-10-09 |
+| P06 | EP-A | Azure infra (dev) | ready (external: subscription/BAA) | — | | | | | |
+| P07 | EP-E | `@asc/clinical-rules` & hard gates | ready | P03 | | | | | |
+| P08 | EP-A / EP-G | Terminology + profiles | ready | P02, P03 | | | | | |
+| P09 | EP-A | UI clinical kit | ready | P00 | | | | | |
+| P10 | EP-A / EP-C | Realtime SSE | ready | P04 | | | | | |
+| P11 | EP-E | Questionnaire renderer | pending | P03, P09 | | | | | |
+| P12 | EP-A / EP-E | Worklists on Task | pending | P05, P07 | | | | | |
+| P13 | EP-G | Record engine port | pending | P09, Q-MS1 | | | | | |
+| P14 | EP-B | Registration | ready | P05, P09 | | | | | |
+| P15 | EP-C | Scheduling + whiteboard | pending | P14, P07, P10 | | | | | |
+| P16 | EP-E | H&P + med-hold | pending | P11, P13, P10, P07 | | | | | |
+| P17 | EP-E | Pre-op + consent | pending | P11, P15 | | | | | |
+| P18 | EP-F | Procedure capture | pending | P15, P10 | | | | | |
+| P19 | EP-G | Procedure-note pipeline | pending | P18, P13, P08, P12 | | | | | |
+| P20 | EP-F | AIMS flowsheet | pending | P15, P09 | | | | | |
+| P21 | EP-F | PACU + discharge | pending | P11, P20 | | | | | |
+| P22 | EP-J / EP-K | Coding + charge export | pending | P19, P08 | | | | | |
+| P23 | EP-H | Pathology loop | pending | P18, P12 | | | | | |
+| P24 | EP-B / EP-H | Fax + eCW | pending | P10, P12, Q-MS4/5 | | | | | |
+| P25 | EP-I | Scope log + adverse events | pending | P11, P12 | | | | | |
+| P26 | EP-A–EP-M | Go-live hardening | pending | P19, P20, P22, P06, P05 | | | | | |
 
 **P05 sub-phases** ([plan](docs/plan/phases/P05-auth-roles.md): modular single-hospital core, tenant-ready; gated follow-ups in P05 §6; Customer #2 in [future-multi-tenancy-architecture.md](docs/product/future-multi-tenancy-architecture.md))
 
@@ -130,11 +142,14 @@ Work completed before this plan existed, grouped from git history (`origin/main`
 
 | ID | Question | Blocks | Owner | Status |
 |---|---|---|---|---|
+| Q-EXT-1 | Clearinghouse EDI 837/835 payer enrollment (6–10 weeks lead time) | EP-D, EP-K, P22 | Business / Ops | open (critical lead time, REQ-22) |
+| Q-EXT-2 | Pathology Lab HL7 MLLP interface (4–8 weeks lead time) | EP-H, P23 | Ops / Lab SME | open (critical lead time, REQ-22) |
+| Q-EXT-3 | AMA CPT commercial license (2–4 weeks lead time) | EP-J, P08, P22 | Business / Legal | open (critical lead time, REQ-22) |
 | Q-MS1 | Access to `Wybit-LLC/MindScript` source | P13, P16, P19, P22, P24 | eng lead | open |
 | D1/Q10 | Medplum self-host vs hosted | P06, P26 | eng lead | **decided 2026-10-03** → self-host only, no hosted fallback |
 | P00-Q1 | Upgrade zod 4 / bullmq 6 / ioredis 6 / OTel before Wave 2? | P07+ | eng lead | **decided 2026-09-28** → P00b; OTel deferred |
 | Q4 | Biller file format | P22 | business | open |
-| Q8 | CPT licence | P08, P22 | business | open |
+| Q8 | CPT licence | P08, P22 | business | open (see Q-EXT-3) |
 | Q15/Q-MS7 | STT vendor + BAA | P18 | eng | open |
 | Q-MS4/5 | faxagnet + Integuru hosting/BAA/outbound | P24 | MindScript team | open |
 | Q-API-1 | Deployed API is paused until P05i: it refuses to start in staging and production (no real identity adapter; the dev fake is refused), so the API Vercel project shows failed deployments. The demo is unaffected (in-browser mocks). Pause its deploys in Vercel (Ignored Build Step `exit 0`) or accept the failures until P05i ([deployment doc §B](docs/DEPLOYMENT_CONFIGURATION.md)) | none for the demo; any real API deployment | eng lead | open ([#51](https://github.com/imRahul05/ASC-EHR/issues/51)): recommendation posted 2026-10-09 (pause with Ignored Build Step `exit 0` until P05i); waiting on the repository owner's Vercel change |
@@ -151,10 +166,19 @@ Full lists: [implementation plan §6](docs/plan/implementation-plan.md#6-cross-p
 
 ## 5. Next up
 
-1. **P04** Medplum clients (in progress): `forFacility()` stamps `meta.accounts` on every write, the API client uses only the user's token ([#57](https://github.com/imRahul05/ASC-EHR/issues/57)), and the worker factory picks the facility's own client from the validated `job.facilityId` ([#60](https://github.com/imRahul05/ASC-EHR/issues/60); per-facility worker clients and `tenantId`/`facilityId` job ids land first on `feat/worker-facility-clients`). Then **P05i** (identity in the API) and **P05j** (web sign-in). Still open: ratify the spike ADR ([#50](https://github.com/imRahul05/ASC-EHR/issues/50), explicit sign-off) and pause the API Vercel deploys ([#51](https://github.com/imRahul05/ASC-EHR/issues/51), owner action).
-2. In parallel: **P07** clinical rules and **P08** terminology (both unblocked by P03).
-3. Escalate week-1 questions: Q-MS1, Azure subscription/BAA (P06), Q8 CPT licence.
-4. Wire `pnpm --filter web build && pnpm --filter web test:bundles` and Lighthouse CI into **P01** CI; re-measure `/login` mobile LCP on an HTTP/2 deploy preview (see web perf done-log entry).
+1. **Sprint 1 Clinical Kick-Off**:
+   - **P07** `@asc/clinical-rules` & Hard Gates (`EP-E`): Decoupled case stage machine, forward transitions, explicit reversals, and hard gate evaluation logic (unblocked by P03, PR #71 merged).
+   - **P08** Terminology + FSH Profiles (`EP-A` / `EP-G`): GI clinical concepts, code systems, ValueSets (unblocked by P02, P03).
+   - **P09** `@asc/ui` Clinical Kit (`EP-A`): Core clinical presentational components, app shell, patient banner.
+   - **P14** Registration & Referral Intake (`EP-B`): Patient registration, search, and eligibility stubs unblocked by P05 and ready for clinical intake.
+2. **External Lead-Time Escalations (REQ-22)**:
+   - **Q-EXT-1**: Clearinghouse EDI 837/835 payer enrollment (6–10 weeks lead time; blocks EP-D / EP-K).
+   - **Q-EXT-2**: Pathology Lab HL7 MLLP interface (4–8 weeks lead time; blocks EP-H).
+   - **Q-EXT-3**: AMA CPT commercial license (2–4 weeks lead time; blocks EP-J).
+3. **Platform & Tooling Backlog**:
+   - **P00b** library upgrades (zod 4, bullmq 6, ioredis 6).
+   - **P01** CI pipeline + agent eval gate.
+   - **P06** Azure infrastructure dev environment (pending Azure subscription/BAA).
 
 ## 6. Decisions log
 

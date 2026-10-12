@@ -1,8 +1,8 @@
 # GI ASC EHR — Phase-wise Implementation Plan
 
-> **Status:** v1.0 (2026-09-27). **Supersedes** the Gantt in [05-delivery-plan](../product/05-delivery-plan.md) §5.1 for day-to-day execution; 05 still owns decisions (D1–D8), risks and business open questions.
-> **Inputs:** [01 requirements](../product/01-requirements.md) · [02 build/reuse matrix](../product/02-build-reuse-matrix.md) · [03 target architecture](../product/03-target-architecture.md) · [04 flows](../product/04-end-to-end-flows.md) · [06 MindScript integration](../product/06-mindscript-integration.md) · [architecture rules](../agent/architecture.md) · [UI guidelines](../agent/ui-guidelines.md).
-> **Auth & roles:** [`P05 — Auth & Roles`](phases/P05-auth-roles.md) is a modular single-hospital core in sub-phases P05a–P05j (index and design corrections in [`iam/README.md`](iam/README.md); Customer #2 steps in [`future-multi-tenancy-architecture.md`](../product/future-multi-tenancy-architecture.md)).
+> **Status:** v1.1 (2026-10-12, synchronized with `build_specification.md` after PR #71). **Supersedes** the Gantt in [05-delivery-plan](../product/05-delivery-plan.md) §5.1 for day-to-day execution; 05 still owns decisions (D1–D8), risks and business open questions.
+> **Inputs:** [01 requirements](../product/01-requirements.md) · [02 build/reuse matrix](../product/02-build-reuse-matrix.md) · [03 target architecture](../product/03-target-architecture.md) · [04 flows](../product/04-end-to-end-flows.md) · [06 MindScript integration](../product/06-mindscript-integration.md) · [architecture rules](../agent/architecture.md) · [UI guidelines](../agent/ui-guidelines.md) · **Master Build Specification** (`build_specification.md`, Oct 7, 2026).
+> **Auth & roles:** [`P05 — Auth & Roles`](phases/P05-auth-roles.md) is a modular single-hospital core in sub-phases P05a–P05j (P05a–P05j complete; Customer #2 steps in [`future-multi-tenancy-architecture.md`](../product/future-multi-tenancy-architecture.md)).
 > **Live status:** [`PROGRESS.md`](../../PROGRESS.md). **Mistakes to avoid:** [`LEARNING_MISTAKES.md`](../../LEARNING_MISTAKES.md).
 
 ---
@@ -37,82 +37,108 @@ T3 and T4 usually run in parallel (different workspaces, both only need T1/T2).
 
 **Sizes:** S ≤ 1.5 agent-days · M ≤ 3. **Lane** = who can own it in parallel.
 
-| Wave | ID | Phase | Lane | Size | Source mix | File |
-|---|---|---|---|---|---|---|
-| 0 | P00 | Repo hygiene, guardrails, dependency baseline | Platform | S | NEW | [P00](phases/P00-repo-hygiene.md) |
-| 0 | P00b | Library upgrades: zod 4, bullmq 6, ioredis 6 | Platform | S | NEW | [P00b](phases/P00b-library-upgrades.md) |
-| 0 | P01 | CI pipeline + agent eval gate | Platform | S | NEW | [P01](phases/P01-ci.md) |
-| 1 | P02 | Local Medplum stack + `apps/bots` skeleton + seed | Platform | M | MP | [P02](phases/P02-local-medplum.md) |
-| 1 | P03 | `@asc/fhir` package (types, identifiers, builders) | Domain | S | MP+NEW | [P03](phases/P03-fhir-package.md) |
-| 1 | P04 | Medplum client wiring (web, api, worker) | Platform | S | MP | [P04](phases/P04-medplum-clients.md) |
-| 1 | P05 | Auth + roles: modular core, sub-phases P05a–P05j (P05a–P05h and P02 done, P05i–P05j wait for P03/P04; see [`PROGRESS.md`](../../PROGRESS.md)) | Platform | M ×10 (S/M each) | MP+NEW | [P05](phases/P05-auth-roles.md) |
-| 1 | P06 | Azure infra (Terraform) — dev env | Infra | M | MP | [P06](phases/P06-azure-infra.md) |
-| 2 | P07 | `@asc/clinical-rules` + case state machine | Domain | M | NEW (+MS) | [P07](phases/P07-clinical-rules.md) |
-| 2 | P08 | Terminology + FSH profiles | Domain | M | MP+NEW | [P08](phases/P08-terminology-profiles.md) |
-| 2 | P09 | `@asc/ui` clinical kit + app shell | UI | M | NEW (+MS) | [P09](phases/P09-ui-clinical-kit.md) |
-| 2 | P10 | Realtime: SSE envelope, API SSE, job progress, stream client | Platform | M | NEW (MS pattern) | [P10](phases/P10-realtime-sse.md) |
-| 2 | P11 | Questionnaire renderer + forms-as-data | UI | M | MP+NEW | [P11](phases/P11-questionnaire-renderer.md) |
-| 2 | P12 | Worklist engine on FHIR `Task` + first Bots | Domain | M | MP (+MS UX) | [P12](phases/P12-worklists-task.md) |
-| 2 | P13 | Record engine port (MindScript → `@asc/ui/record`) | UI | M | **MS** | [P13](phases/P13-record-engine.md) |
-| 3 | P14 | Registration, patient search, eligibility stub | Clinical | M | MP+NEW | [P14](phases/P14-registration.md) |
-| 3 | P15 | Scheduling, case booking, whiteboard | Clinical | M | MP+MS+NEW | [P15](phases/P15-scheduling-whiteboard.md) |
-| 3 | P16 | Pre-procedure H&P + med-hold + readiness gate | Clinical/AI | M | MS+MP+NEW | [P16](phases/P16-hp-medhold.md) |
-| 3 | P17 | Pre-op nursing, time-out, consent + signature | Clinical | M | MP+NEW | [P17](phases/P17-preop-consent.md) |
-| 3 | P18 | Procedure-room capture (events, specimens, images, STT) | Clinical | M | MP+MS+NEW | [P18](phases/P18-procedure-capture.md) |
-| 3 | P19 | AI procedure-note pipeline + review + sign | AI | M | **MS**+MP+NEW | [P19](phases/P19-procedure-note-pipeline.md) |
-| 3 | P20 | AIMS anesthesia flowsheet (offline-safe) | Clinical | M | MP+NEW | [P20](phases/P20-aims-flowsheet.md) |
-| 3 | P21 | PACU + discharge | Clinical/AI | S | MP+NEW | [P21](phases/P21-pacu-discharge.md) |
-| 3 | P22 | Coding engine, coder queue, charge export | Clinical/AI | M | MS+MP+NEW | [P22](phases/P22-coding-charge.md) |
-| 3 | P23 | Pathology loop + requisition + result letters | Clinical/AI | M | MP+NEW | [P23](phases/P23-pathology-loop.md) |
-| 3 | P24 | Fax (faxagnet) + eCW (Integuru) integration | Integration | M | **MS** | [P24](phases/P24-fax-ecw.md) |
-| 3 | P25 | Scope reprocessing log + adverse events | Clinical | S | MP+NEW | [P25](phases/P25-scope-adverse.md) |
-| 4 | P26 | Go-live hardening (audit report, break-glass, downtime, UAT) | All | M | MP+NEW | [P26](phases/P26-golive-hardening.md) |
+| Wave | ID | Epic | Phase | Lane | Size | Source mix | File |
+|---|---|---|---|---|---|---|---|
+| 0 | P00 | EP-A | Repo hygiene, guardrails, dependency baseline | Platform | S | NEW | [P00](phases/P00-repo-hygiene.md) |
+| 0 | P00b | EP-A | Library upgrades: zod 4, bullmq 6, ioredis 6 | Platform | S | NEW | [P00b](phases/P00b-library-upgrades.md) |
+| 0 | P01 | EP-A | CI pipeline + agent eval gate | Platform | S | NEW | [P01](phases/P01-ci.md) |
+| 1 | P02 | EP-A | Local Medplum stack + `apps/bots` skeleton + seed | Platform | M | MP | [P02](phases/P02-local-medplum.md) |
+| 1 | P03 | EP-A | `@asc/fhir` package (types, identifiers, builders) | Domain | S | MP+NEW | [P03](phases/P03-fhir-package.md) |
+| 1 | P04 | EP-A | Medplum client wiring (web, api, worker) | Platform | S | MP | [P04](phases/P04-medplum-clients.md) |
+| 1 | P05 | EP-A | Auth + roles: modular core, sub-phases P05a–P05j (DONE; see [`PROGRESS.md`](../../PROGRESS.md)) | Platform | M ×10 (S/M each) | MP+NEW | [P05](phases/P05-auth-roles.md) |
+| 1 | P06 | EP-A | Azure infra (Terraform) — dev env | Infra | M | MP | [P06](phases/P06-azure-infra.md) |
+| 2 | P07 | EP-E | `@asc/clinical-rules` + case state machine & hard gates | Domain | M | NEW (+MS) | [P07](phases/P07-clinical-rules.md) |
+| 2 | P08 | EP-A / EP-G | Terminology + FSH profiles | Domain | M | MP+NEW | [P08](phases/P08-terminology-profiles.md) |
+| 2 | P09 | EP-A | `@asc/ui` clinical kit + app shell | UI | M | NEW (+MS) | [P09](phases/P09-ui-clinical-kit.md) |
+| 2 | P10 | EP-A / EP-C | Realtime: SSE envelope, API SSE, job progress, stream client | Platform | M | NEW (MS pattern) | [P10](phases/P10-realtime-sse.md) |
+| 2 | P11 | EP-E | Questionnaire renderer + forms-as-data | UI | M | MP+NEW | [P11](phases/P11-questionnaire-renderer.md) |
+| 2 | P12 | EP-A / EP-E | Worklist engine on FHIR `Task` + first Bots | Domain | M | MP (+MS UX) | [P12](phases/P12-worklists-task.md) |
+| 2 | P13 | EP-G | Record engine port (MindScript → `@asc/ui/record`) | UI | M | **MS** | [P13](phases/P13-record-engine.md) |
+| 3 | P14 | EP-B / EP-D | Registration, patient search, eligibility stub | Clinical | M | MP+NEW | [P14](phases/P14-registration.md) |
+| 3 | P15 | EP-C | Scheduling, case booking, whiteboard | Clinical | M | MP+MS+NEW | [P15](phases/P15-scheduling-whiteboard.md) |
+| 3 | P16 | EP-E | Pre-procedure H&P + med-hold + readiness gate | Clinical/AI | M | MS+MP+NEW | [P16](phases/P16-hp-medhold.md) |
+| 3 | P17 | EP-E | Pre-op nursing, time-out, consent + signature | Clinical | M | MP+NEW | [P17](phases/P17-preop-consent.md) |
+| 3 | P18 | EP-F | Procedure-room capture (events, specimens, images, STT) | Clinical | M | MP+MS+NEW | [P18](phases/P18-procedure-capture.md) |
+| 3 | P19 | EP-G | AI procedure-note pipeline + review + sign | AI | M | **MS**+MP+NEW | [P19](phases/P19-procedure-note-pipeline.md) |
+| 3 | P20 | EP-F | AIMS anesthesia flowsheet (offline-safe) | Clinical | M | MP+NEW | [P20](phases/P20-aims-flowsheet.md) |
+| 3 | P21 | EP-F | PACU + discharge | Clinical/AI | S | MP+NEW | [P21](phases/P21-pacu-discharge.md) |
+| 3 | P22 | EP-J / EP-K | Coding engine, coder queue, charge export | Clinical/AI | M | MS+MP+NEW | [P22](phases/P22-coding-charge.md) |
+| 3 | P23 | EP-H | Pathology loop + requisition + result letters | Clinical/AI | M | MP+NEW | [P23](phases/P23-pathology-loop.md) |
+| 3 | P24 | EP-B / EP-H | Fax (faxagnet) + eCW (Integuru) integration | Integration | M | **MS** | [P24](phases/P24-fax-ecw.md) |
+| 3 | P25 | EP-I | Scope reprocessing log + adverse events | Clinical | S | MP+NEW | [P25](phases/P25-scope-adverse.md) |
+| 4 | P26 | EP-A–EP-M | Go-live hardening (audit report, break-glass, downtime, UAT) | All | M | MP+NEW | [P26](phases/P26-golive-hardening.md) |
 
 Post go-live backlog (not yet split into phases): **P1.5** monitor HL7 via Medplum Agent, tower DICOM via Agent · **P2** GIQuIC/ADR/ASCQR export, patient SMS + portal, preference cards, inventory, referral intake queue · **P3** analytics, RCM, full eCW bridge, multi-specialty.
 
-### 2.1 Waves on the calendar (target go-live 2026-12-07)
+### 2.1 Waves on the calendar (Anchor: Nov 15 Freeze / Jan 2027 Facility Opening)
+
+> **Sprint Structure:** 3-week agent-driven sprints with parallel lane execution across packages.
+> **Anchor Dates:** Sprint 1 start: **October 12, 2026** · Software Freeze: **November 15, 2026** · Facility Opening: **January 2027**.
 
 ```mermaid
 gantt
-    title Waves (each bar = one short phase, parallel lanes)
+    title Agent-Driven Delivery Roadmap (Oct 12 Anchor → Nov 15 Freeze → Jan 2027 Opening)
     dateFormat YYYY-MM-DD
     axisFormat %b %d
-    section Wave 0
-    P00 hygiene            :p00, 2026-09-28, 2d
-    P00b upgrades          :p00b, after p00, 2d
-    P01 CI                 :p01, after p00, 2d
-    section Wave 1
-    P02 local Medplum      :p02, 2026-09-29, 3d
-    P03 @asc/fhir          :p03, 2026-09-29, 2d
-    P04 Medplum clients    :p04, after p02 p03, 2d
-    P05 auth + roles       :p05, after p04, 3d
-    P06 Azure infra (dev)  :p06, 2026-09-30, 10d
-    section Wave 2
-    P07 clinical-rules     :p07, after p03, 3d
-    P08 terminology        :p08, after p03, 4d
-    P09 UI kit             :p09, after p00, 4d
-    P10 realtime SSE       :p10, after p04, 3d
-    P11 questionnaires     :p11, after p09 p03, 3d
-    P12 worklists (Task)   :p12, after p05 p07, 3d
-    P13 Record engine      :p13, after p09, 5d
-    section Wave 3
-    P14 registration       :p14, after p05 p09, 3d
-    P15 scheduling         :p15, after p14 p07 p10, 4d
-    P16 H&P + med-hold     :p16, after p11 p13 p10, 4d
-    P17 pre-op + consent   :p17, after p11 p15, 3d
-    P18 procedure capture  :p18, after p15 p10, 4d
-    P19 note pipeline      :crit, p19, after p18 p13 p08, 6d
-    P20 AIMS               :crit, p20, after p15 p09, 6d
-    P21 PACU + discharge   :p21, after p11 p20, 3d
-    P22 coding + export    :crit, p22, after p19 p08, 5d
-    P23 pathology loop     :p23, after p18 p12, 4d
-    P24 fax + eCW          :p24, after p10 p12, 4d
-    P25 scope + AE         :p25, after p11 p12, 2d
-    section Wave 4
-    P26 go-live hardening  :crit, p26, after p19 p20 p22, 8d
+
+    section Foundation (EP-A) [DONE]
+    P00-P05 Core & Stage Split         :done, fdn, 2026-09-27, 2026-10-12
+
+    section Sprint 1: Wave 2 & Core Intake (Oct 12 - Nov 01)
+    P07 clinical-rules & gates (EP-E) :active, p07, 2026-10-12, 4d
+    P08 terminology & profiles (EP-A) :p08, 2026-10-12, 4d
+    P09 UI kit (EP-A)                 :p09, 2026-10-12, 5d
+    P10 realtime SSE (EP-A)           :p10, 2026-10-14, 4d
+    P11 questionnaires (EP-E)         :p11, after p09, 4d
+    P12 worklists on Task (EP-A)      :p12, after p07, 4d
+    P13 record engine port (EP-G)     :p13, after p09, 5d
+    P14 registration (EP-B)           :active, p14, 2026-10-16, 5d
+    P15 scheduling & whiteboard (EP-C):p15, after p14 p07, 6d
+
+    section Sprint 2: Clinical Day-of-Surgery (Nov 02 - Nov 22)
+    P16 H&P + med-hold (EP-E)         :p16, 2026-11-02, 5d
+    P17 pre-op + consent (EP-E)       :p17, 2026-11-02, 4d
+    P18 procedure capture (EP-F)      :p18, 2026-11-02, 5d
+    P19 note pipeline (EP-G)          :crit, p19, after p18 p13 p08, 6d
+    P20 AIMS flowsheet (EP-F)         :p20, 2026-11-02, 6d
+    P21 PACU + discharge (EP-F)       :p21, after p20, 4d
+    P22 coding & claims (EP-J/K)      :crit, p22, after p19, 6d
+    P23 pathology loop (EP-H)         :p23, after p18 p12, 5d
+    P24 fax & eCW (EP-B)              :p24, after p10 p12, 4d
+    P25 scope log & hang-time (EP-I)  :p25, 2026-11-05, 4d
+    Software Freeze Milestone         :milestone, freeze, 2026-11-15, 0d
+
+    section Sprint 3: Hardening & Dry Runs (Nov 23 - Dec 14)
+    P26 go-live hardening             :crit, p26, 2026-11-23, 10d
+    Dry Run 1 (Intake to Booking)     :dr1, 2026-11-27, 4d
+    Dry Run 2 (Pre-op to Gate 1)      :dr2, 2026-12-04, 4d
+    Dry Run 3 (Surgical Flow to Claim):crit, dr3, 2026-12-11, 4d
+
+    section Facility Opening Anchor (Jan 2027)
+    Facility Opening Day              :milestone, open, 2027-01-04, 0d
 ```
 
-Dates are targets for sequencing, not commitments; `PROGRESS.md` holds actuals.
+Dates are targets for sequencing and agent velocity; `PROGRESS.md` holds actuals.
+
+### 2.2 Mapping: 27 Implementation Phases $\leftrightarrow$ 13 Master Epics (`build_specification.md`)
+
+The master build specification (`build_specification.md` §3) organizes requirements into 13 Epics (`EP-A` through `EP-M`), encompassing ~130 user stories with Given/When/Then acceptance criteria. The 27 implementation phases (`P00`–`P26`) map to these Epics as follows:
+
+| Master Epic | Name & Scope | Stories | REQ Ref | Implementation Phases | Status |
+|---|---|---|---|---|---|
+| **EP-A** | **Foundation: Config, Identity, Roles, Audit**<br>Facility config, rooms/bays, roles, capabilities, access policies, durable audit, FHIR profiles. | 9 | 3, 4, 20 | **P00, P00b, P01, P02, P03, P04, P05a–P05j, P06, P08, P09, P10, P12** | **DONE / ACTIVE** |
+| **EP-B** | **Referral Intake & Registration**<br>Inbound fax extraction, duplicate patient matching, urgent triage banner (<1h), demographic intake. | 11 | 6 | **P14** (Registration & search), **P24** (Inbound fax parser & eCW interface) | **Ready / Sprint 1** |
+| **EP-C** | **Scheduling & Block Management**<br>Multi-resource block grid, digital status whiteboard (TV view), 72hr auto block release, appropriateness check. | 10 | 7 | **P15** (Scheduling, case booking, whiteboard) | **Sprint 1** |
+| **EP-D** | **Financial Clearance**<br>3-point 270/271 eligibility monitor, 278 prior auth lifecycle & reschedule check, Good-Faith estimator. | 12 | 8 | **P14** (Eligibility stub/check), **P22** (Prior auth revalidation & claims prep) | **Sprint 1 / 2** |
+| **EP-E** | **Pre-Operative Readiness & Hard Gates**<br>Decoupled case stage machine, Gate 1 (`arrived → preop`), anticoagulation hold tables, 30-day H&P, touchscreen consent. | 11 | 9 | **P07** (`@asc/clinical-rules` & gates), **P11** (Forms), **P16** (H&P & med-hold), **P17** (Pre-op & consent) | **Active / Ready (P07)** |
+| **EP-F** | **Day of Surgery Flow**<br>Gate 2 (`preop → in_room`), timeout modal, continuous AIMS vitals, sedation med log, Aldrete score, escort door verification. | 13 | 10 | **P18** (Intra-op room capture), **P20** (AIMS flowsheet), **P21** (PACU recovery & discharge) | **Sprint 2** |
+| **EP-G** | **Clinical Documentation & Procedure Notes**<br>Discrete findings (Paris, landmarks), BBPS 0–9, live cecal withdrawal timer, note editor with gap chips, physician attestation. | 10 | 11 | **P13** (Record engine port), **P19** (AI note pipeline & sign) | **Sprint 1 / 2** |
+| **EP-H** | **Specimens & Pathology Closed-Loop**<br>Specimen count reconciliation lock, lab HL7 interface, 2-year open specimen register, 1-hour critical pathology alert. | 9 | 12 | **P23** (Pathology loop, requisition & result letters) | **Sprint 2** |
+| **EP-I** | **Inventory, Scopes & Reprocessing**<br>Scope serial barcode tracking, hang-time lock (<168 hr), AER log, infection traceability query. | 8 | 13 | **P25** (Scope log & hang-time lock) | **Sprint 2** |
+| **EP-J** | **Coding & Charge Capture**<br>Modifier PT/33 (screening→therapeutic), multiple endoscopy reduction (modifier 51), distinct anatomical site (59/X), Gate 3 approval. | 8 | 14 | **P22** (Coding engine & coder worklist) | **Sprint 2** |
+| **EP-K** | **Claims & Revenue Cycle**<br>Native 837 EDI generation, 277CA acceptance, 835 ERA posting, clearinghouse pipeline. | 11 | 15 | **P22** (Claims generation & clearinghouse export) | **Sprint 2** |
+| **EP-L** | **Quality, QAPI and Recall**<br>ADR calculation, bowel prep adequacy rate, perforation/complication logging, ASCQR export, surveillance recall. | 10 | 16, 17 | Backlog / Post go-live (fed by **P21, P23, P25**) | **Sprint 3 / Post-OP** |
+| **EP-M** | **AI Agent Layer & Guardrails**<br>BAA-gated PHI routing, provenance citations, structured output, abstention fallbacks, physician attestation. | 9 | 18 | Cross-cutting alongside automated epics (**P14/P24, P16, P19, P22**) | **Cross-cutting** |
 
 ---
 
