@@ -34,5 +34,6 @@ export * from "./schedule.js";
 export * from "./authz.js";
 
 // Patient intake, registration, and duplicate search (Phase P14)
+export * from "./patients/coverage.js";
 export * from "./patients/register.js";
 export * from "./patients/search.js";

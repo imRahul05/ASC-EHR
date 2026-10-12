@@ -1,36 +1,18 @@
-export interface PatientMatchInput {
-  readonly mrn?: string;
-  readonly ecwId?: string;
-  readonly firstName: string;
-  readonly lastName: string;
-  readonly dateOfBirth: string;
-  readonly gender?: string;
-}
+import type {
+  DuplicateCandidateMatch,
+  DuplicateMatchConfidence,
+  DuplicateMatchResult,
+  ExistingPatientSummary,
+  PatientMatchInput,
+} from "@asc/types";
 
-export interface ExistingPatientSummary {
-  readonly id: string;
-  readonly mrn?: string;
-  readonly ecwId?: string;
-  readonly firstName: string;
-  readonly lastName: string;
-  readonly dateOfBirth: string;
-  readonly gender?: string;
-}
-
-export type DuplicateMatchConfidence = "exact_identifier" | "high" | "possible";
-
-export interface DuplicateCandidateMatch {
-  readonly patientId: string;
-  readonly confidence: DuplicateMatchConfidence;
-  readonly score: number;
-  readonly reasons: readonly string[];
-}
-
-export interface DuplicateMatchResult {
-  readonly hasMatch: boolean;
-  readonly highestConfidence: DuplicateMatchConfidence | "none";
-  readonly matches: readonly DuplicateCandidateMatch[];
-}
+export type {
+  DuplicateCandidateMatch,
+  DuplicateMatchConfidence,
+  DuplicateMatchResult,
+  ExistingPatientSummary,
+  PatientMatchInput,
+};
 
 function normalizeString(value: string | undefined): string {
   if (value === undefined) return "";

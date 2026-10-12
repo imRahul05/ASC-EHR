@@ -1029,6 +1029,40 @@ export interface DuplicateCheckPayload {
   readonly dateOfBirth: IsoDate;
 }
 
+export type DuplicateMatchConfidence = "exact_identifier" | "high" | "possible";
+
+export interface DuplicateCandidateMatch {
+  readonly patientId: string;
+  readonly confidence: DuplicateMatchConfidence;
+  readonly score: number;
+  readonly reasons: readonly string[];
+}
+
+export interface DuplicateMatchResult {
+  readonly hasMatch: boolean;
+  readonly highestConfidence: DuplicateMatchConfidence | "none";
+  readonly matches: readonly DuplicateCandidateMatch[];
+}
+
+export interface PatientMatchInput {
+  readonly mrn?: string;
+  readonly ecwId?: string;
+  readonly firstName: string;
+  readonly lastName: string;
+  readonly dateOfBirth: string;
+  readonly gender?: string;
+}
+
+export interface ExistingPatientSummary {
+  readonly id: string;
+  readonly mrn?: string;
+  readonly ecwId?: string;
+  readonly firstName: string;
+  readonly lastName: string;
+  readonly dateOfBirth: string;
+  readonly gender?: string;
+}
+
 export interface DuplicateMatch {
   readonly patient: PatientListItem;
   /** 0–1 match score. */
