@@ -1,0 +1,40 @@
+import type { RoleTemplate } from "@asc/types";
+import { REFERENCE_READ, ro, rw } from "@asc/authz/roles/rules";
+
+export const pacuNurse: RoleTemplate = {
+  key: "pacu-nurse",
+  version: 1,
+  label: "PACU recovery nurse",
+  status: "active",
+  capabilities: [
+    "patient.read",
+    "schedule.read",
+    "whiteboard.read",
+    "case.read",
+    "case.advance",
+    "pacu.document",
+    "discharge.approve",
+    "pathology.reconcile",
+    "pathology.letter.send",
+    "breakglass.invoke",
+  ],
+  data: [
+    ro("Patient"),
+    ro("Coverage"),
+    ro("Appointment"),
+    rw("Encounter"),
+    rw("QuestionnaireResponse"),
+    ro("Composition"),
+    rw("MedicationAdministration"),
+    rw("Observation"),
+    ...REFERENCE_READ,
+    rw("Task"),
+    ro("Consent"),
+    ro("Procedure"),
+    ro("Specimen"),
+    rw("DiagnosticReport"),
+    rw("DocumentReference"),
+  ],
+  facilityScoped: true,
+  requiresMfa: true,
+};

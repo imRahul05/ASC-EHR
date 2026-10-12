@@ -233,6 +233,97 @@ exports[`compiled policies > auditor compiles to a stable AccessPolicy 1`] = `
 }
 `;
 
+exports[`compiled policies > circulating-nurse compiles to a stable AccessPolicy 1`] = `
+{
+  "meta": {
+    "tag": [
+      {
+        "code": "circulating-nurse",
+        "system": "https://asc-ehr.app/role-template",
+        "version": "1",
+      },
+    ],
+  },
+  "name": "circulating-nurse-v1",
+  "resource": [
+    {
+      "criteria": "Appointment?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Appointment",
+    },
+    {
+      "criteria": "Composition?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Composition",
+    },
+    {
+      "criteria": "Consent?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Consent",
+    },
+    {
+      "criteria": "Coverage?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Coverage",
+    },
+    {
+      "criteria": "DocumentReference?_compartment=%facility",
+      "resourceType": "DocumentReference",
+    },
+    {
+      "criteria": "Encounter?_compartment=%facility",
+      "resourceType": "Encounter",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Location",
+    },
+    {
+      "criteria": "MedicationAdministration?_compartment=%facility",
+      "resourceType": "MedicationAdministration",
+    },
+    {
+      "criteria": "Observation?_compartment=%facility",
+      "resourceType": "Observation",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Organization",
+    },
+    {
+      "criteria": "Patient?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Patient",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Practitioner",
+    },
+    {
+      "readonly": true,
+      "resourceType": "PractitionerRole",
+    },
+    {
+      "criteria": "Procedure?_compartment=%facility",
+      "resourceType": "Procedure",
+    },
+    {
+      "criteria": "QuestionnaireResponse?_compartment=%facility",
+      "resourceType": "QuestionnaireResponse",
+    },
+    {
+      "criteria": "Specimen?_compartment=%facility",
+      "resourceType": "Specimen",
+    },
+    {
+      "criteria": "Task?_compartment=%facility",
+      "resourceType": "Task",
+    },
+  ],
+  "resourceType": "AccessPolicy",
+}
+`;
+
 exports[`compiled policies > coder compiles to a stable AccessPolicy 1`] = `
 {
   "meta": {
@@ -479,6 +570,194 @@ exports[`compiled policies > gi-physician compiles to a stable AccessPolicy 1`] 
     {
       "criteria": "Specimen?_compartment=%facility",
       "resourceType": "Specimen",
+    },
+    {
+      "criteria": "Task?_compartment=%facility",
+      "resourceType": "Task",
+    },
+  ],
+  "resourceType": "AccessPolicy",
+}
+`;
+
+exports[`compiled policies > pacu-nurse compiles to a stable AccessPolicy 1`] = `
+{
+  "meta": {
+    "tag": [
+      {
+        "code": "pacu-nurse",
+        "system": "https://asc-ehr.app/role-template",
+        "version": "1",
+      },
+    ],
+  },
+  "name": "pacu-nurse-v1",
+  "resource": [
+    {
+      "criteria": "Appointment?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Appointment",
+    },
+    {
+      "criteria": "Composition?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Composition",
+    },
+    {
+      "criteria": "Consent?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Consent",
+    },
+    {
+      "criteria": "Coverage?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Coverage",
+    },
+    {
+      "criteria": "DiagnosticReport?_compartment=%facility",
+      "resourceType": "DiagnosticReport",
+    },
+    {
+      "criteria": "DocumentReference?_compartment=%facility",
+      "resourceType": "DocumentReference",
+    },
+    {
+      "criteria": "Encounter?_compartment=%facility",
+      "resourceType": "Encounter",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Location",
+    },
+    {
+      "criteria": "MedicationAdministration?_compartment=%facility",
+      "resourceType": "MedicationAdministration",
+    },
+    {
+      "criteria": "Observation?_compartment=%facility",
+      "resourceType": "Observation",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Organization",
+    },
+    {
+      "criteria": "Patient?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Patient",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Practitioner",
+    },
+    {
+      "readonly": true,
+      "resourceType": "PractitionerRole",
+    },
+    {
+      "criteria": "Procedure?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Procedure",
+    },
+    {
+      "criteria": "QuestionnaireResponse?_compartment=%facility",
+      "resourceType": "QuestionnaireResponse",
+    },
+    {
+      "criteria": "Specimen?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Specimen",
+    },
+    {
+      "criteria": "Task?_compartment=%facility",
+      "resourceType": "Task",
+    },
+  ],
+  "resourceType": "AccessPolicy",
+}
+`;
+
+exports[`compiled policies > preop-nurse compiles to a stable AccessPolicy 1`] = `
+{
+  "meta": {
+    "tag": [
+      {
+        "code": "preop-nurse",
+        "system": "https://asc-ehr.app/role-template",
+        "version": "1",
+      },
+    ],
+  },
+  "name": "preop-nurse-v1",
+  "resource": [
+    {
+      "criteria": "Appointment?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Appointment",
+    },
+    {
+      "criteria": "Composition?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Composition",
+    },
+    {
+      "criteria": "Consent?_compartment=%facility",
+      "resourceType": "Consent",
+    },
+    {
+      "criteria": "Coverage?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Coverage",
+    },
+    {
+      "criteria": "DocumentReference?_compartment=%facility",
+      "resourceType": "DocumentReference",
+    },
+    {
+      "criteria": "Encounter?_compartment=%facility",
+      "resourceType": "Encounter",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Location",
+    },
+    {
+      "criteria": "MedicationAdministration?_compartment=%facility",
+      "resourceType": "MedicationAdministration",
+    },
+    {
+      "criteria": "Observation?_compartment=%facility",
+      "resourceType": "Observation",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Organization",
+    },
+    {
+      "criteria": "Patient?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Patient",
+    },
+    {
+      "readonly": true,
+      "resourceType": "Practitioner",
+    },
+    {
+      "readonly": true,
+      "resourceType": "PractitionerRole",
+    },
+    {
+      "criteria": "Procedure?_compartment=%facility",
+      "readonly": true,
+      "resourceType": "Procedure",
+    },
+    {
+      "criteria": "QuestionnaireResponse?_compartment=%facility",
+      "resourceType": "QuestionnaireResponse",
+    },
+    {
+      "criteria": "ServiceRequest?_compartment=%facility",
+      "resourceType": "ServiceRequest",
     },
     {
       "criteria": "Task?_compartment=%facility",

@@ -1,0 +1,40 @@
+import type { RoleTemplate } from "@asc/types";
+import { REFERENCE_READ, ro, rw } from "@asc/authz/roles/rules";
+
+export const preopNurse: RoleTemplate = {
+  key: "preop-nurse",
+  version: 1,
+  label: "Pre-op nurse",
+  status: "active",
+  capabilities: [
+    "patient.read",
+    "schedule.read",
+    "whiteboard.read",
+    "case.read",
+    "case.advance",
+    "hp.document",
+    "medhold.review",
+    "consent.collect",
+    "consent.witness",
+    "breakglass.invoke",
+    "referral.triage",
+  ],
+  data: [
+    ro("Patient"),
+    ro("Coverage"),
+    ro("Appointment"),
+    rw("Encounter"),
+    rw("QuestionnaireResponse"),
+    ro("Composition"),
+    rw("MedicationAdministration"),
+    rw("Observation"),
+    ...REFERENCE_READ,
+    rw("Task"),
+    rw("Consent"),
+    ro("Procedure"),
+    rw("DocumentReference"),
+    rw("ServiceRequest"),
+  ],
+  facilityScoped: true,
+  requiresMfa: true,
+};
