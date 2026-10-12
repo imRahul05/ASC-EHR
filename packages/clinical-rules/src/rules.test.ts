@@ -16,7 +16,9 @@ import {
   computeOverallReadiness,
   dischargeGate,
   findScheduleConflicts,
+  isCheckSatisfiedOrWaived,
   isStageReversal,
+  mapReadinessChecks,
   medClassFor,
   medHoldCheck,
   nextPhase,
@@ -123,6 +125,20 @@ describe("readiness checks and waivers", () => {
     expect(canWaiveCheck("coverage")).toBe(true);
     expect(canWaiveCheck("prep")).toBe(true);
     expect(canWaiveCheck("equipment")).toBe(true);
+
+    expect(isCheckSatisfiedOrWaived(undefined)).toBe(false);
+    expect(isCheckSatisfiedOrWaived({ name: "identity", status: "satisfied", label: "ID" })).toBe(true);
+    expect(isCheckSatisfiedOrWaived({ name: "identity", status: "waived", label: "ID" })).toBe(false);
+    expect(isCheckSatisfiedOrWaived({ name: "hp", status: "waived", label: "HP" })).toBe(true);
+    expect(isCheckSatisfiedOrWaived({ name: "hp", status: "pending", label: "HP" })).toBe(false);
+
+    const mapped = mapReadinessChecks([
+      { name: "identity", status: "satisfied", label: "ID" },
+      { name: "consent", status: "satisfied", label: "Consent" },
+    ]);
+    expect(mapped.get("identity")?.status).toBe("satisfied");
+    expect(mapped.get("consent")?.status).toBe("satisfied");
+    expect(mapped.get("hp")).toBeUndefined();
   });
 
   it("computes overall readiness correctly per REQ-5 §200", () => {

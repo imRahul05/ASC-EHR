@@ -13,13 +13,13 @@ import type {
   ProcedureCase,
   ProcedureEvent,
   ReadinessCheck,
-  ReadinessCheckName,
   RuleResult,
   TimeOutRecord,
   TimeOutRole,
 } from "@asc/types";
 import { medHoldCheck } from "./meds";
 import { transitionAllowed } from "./phases";
+import { canWaiveCheck, isCheckSatisfiedOrWaived, mapReadinessChecks } from "./readiness";
 import { combine, fail, fromChecks, OK } from "./result";
 import { ALDRETE_COMPONENTS } from "./scores";
 
@@ -173,10 +173,7 @@ export function signGate(note: NoteDraft | null): RuleResult {
  * Critical Rule (REQ-5 §202): identity and consent can NEVER be waived or overridden.
  */
 export function evaluateGate1(checks: readonly ReadinessCheck[]): RuleResult {
-  const checkByName = new Map<ReadinessCheckName, ReadinessCheck>();
-  for (const c of checks) {
-    checkByName.set(c.name, c);
-  }
+  const checkByName = mapReadinessChecks(checks);
 
   const identity = checkByName.get("identity");
   const consent = checkByName.get("consent");
@@ -184,11 +181,10 @@ export function evaluateGate1(checks: readonly ReadinessCheck[]): RuleResult {
 
   // identity cannot be waived; must be satisfied
   const identityWaived = identity?.status === "waived";
-  const identitySatisfied = identity?.status === "satisfied";
-  const identityOk = identitySatisfied && !identityWaived;
+  const identityOk = isCheckSatisfiedOrWaived(identity);
   const identityMsg = !identity
     ? "Identity verification is missing."
-    : identityWaived
+    : identityWaived && !canWaiveCheck("identity")
       ? "Identity check cannot be waived or overridden."
       : identityOk
         ? ""
@@ -196,18 +192,17 @@ export function evaluateGate1(checks: readonly ReadinessCheck[]): RuleResult {
 
   // consent cannot be waived; must be satisfied
   const consentWaived = consent?.status === "waived";
-  const consentSatisfied = consent?.status === "satisfied";
-  const consentOk = consentSatisfied && !consentWaived;
+  const consentOk = isCheckSatisfiedOrWaived(consent);
   const consentMsg = !consent
     ? "Informed consent is missing."
-    : consentWaived
+    : consentWaived && !canWaiveCheck("consent")
       ? "Consent cannot be waived or overridden."
       : consentOk
         ? ""
         : consent.details ?? "Informed consent is not satisfied.";
 
   // hp can be satisfied or waived
-  const hpOk = hp?.status === "satisfied" || hp?.status === "waived";
+  const hpOk = isCheckSatisfiedOrWaived(hp);
   const hpMsg = !hp
     ? "H&P assessment is missing."
     : hpOk
@@ -242,20 +237,17 @@ export function evaluateGate1(checks: readonly ReadinessCheck[]): RuleResult {
  * Rejects entry into the OR if any of these 4 checks are pending or failed.
  */
 export function evaluateGate2(checks: readonly ReadinessCheck[]): RuleResult {
-  const checkByName = new Map<ReadinessCheckName, ReadinessCheck>();
-  for (const c of checks) {
-    checkByName.set(c.name, c);
-  }
+  const checkByName = mapReadinessChecks(checks);
 
   const anesthesia = checkByName.get("anesthesia_clearance");
   const anticoagulation = checkByName.get("anticoagulation");
   const equipment = checkByName.get("equipment");
   const escort = checkByName.get("escort");
 
-  const anesthesiaOk = anesthesia?.status === "satisfied" || anesthesia?.status === "waived";
-  const anticoagulationOk = anticoagulation?.status === "satisfied" || anticoagulation?.status === "waived";
-  const equipmentOk = equipment?.status === "satisfied" || equipment?.status === "waived";
-  const escortOk = escort?.status === "satisfied" || escort?.status === "waived";
+  const anesthesiaOk = isCheckSatisfiedOrWaived(anesthesia);
+  const anticoagulationOk = isCheckSatisfiedOrWaived(anticoagulation);
+  const equipmentOk = isCheckSatisfiedOrWaived(equipment);
+  const escortOk = isCheckSatisfiedOrWaived(escort);
 
   return fromChecks([
     {
