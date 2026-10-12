@@ -3,10 +3,12 @@ import { describe, expect, it } from "vitest";
 import {
   agentExecutionIdExtension,
   casePhaseExtension,
+  caseStageExtension,
   extensionUrls,
   procedureIntentExtension,
   readAgentExecutionId,
   readCasePhase,
+  readCaseStage,
   readProcedureIntent,
 } from "./extensions.js";
 import { createFhirUrls } from "./urls.js";
@@ -16,10 +18,40 @@ const other = createFhirUrls("https://fhir.example.test/x/");
 describe("extension urls", () => {
   it("are StructureDefinitions under the canonical base", () => {
     expect(extensionUrls).toEqual({
+      caseStage: "https://fhir.wybit.io/asc/StructureDefinition/case-stage",
+      caseReadiness: "https://fhir.wybit.io/asc/StructureDefinition/case-readiness",
       casePhase: "https://fhir.wybit.io/asc/StructureDefinition/case-phase",
       procedureIntent: "https://fhir.wybit.io/asc/StructureDefinition/procedure-intent",
       agentExecutionId: "https://fhir.wybit.io/asc/StructureDefinition/agent-execution-id",
     });
+  });
+});
+
+describe("case stage extension", () => {
+  it("writes a coding in case-stage CodeSystem and reads it back", () => {
+    const extension = caseStageExtension("in_room");
+    expect(extension).toEqual({
+      url: "https://fhir.wybit.io/asc/StructureDefinition/case-stage",
+      valueCoding: { system: "https://fhir.wybit.io/asc/CodeSystem/case-stage", code: "in-room" },
+    });
+    expect(readCaseStage([extension])).toBe("in_room");
+  });
+
+  it("finds it among other extensions and ignores foreign systems and codes", () => {
+    expect(readCaseStage([{ url: "urn:other", valueString: "x" }, caseStageExtension("discharged")])).toBe("discharged");
+    expect(readCaseStage([{ url: extensionUrls.caseStage, valueCoding: { system: "urn:other", code: "discharged" } }])).toBeUndefined();
+    expect(readCaseStage([{ url: extensionUrls.caseStage, valueCoding: { system: "https://fhir.wybit.io/asc/CodeSystem/case-stage", code: "nope" } }])).toBeUndefined();
+    expect(readCaseStage([{ url: extensionUrls.caseStage }])).toBeUndefined();
+    expect(readCaseStage(undefined)).toBeUndefined();
+    expect(readCaseStage([])).toBeUndefined();
+  });
+
+  it("uses the custom base when provided", () => {
+    const extension = caseStageExtension("preop", other);
+    expect(extension.url).toBe("https://fhir.example.test/x/StructureDefinition/case-stage");
+    expect(extension.valueCoding?.system).toBe("https://fhir.example.test/x/CodeSystem/case-stage");
+    expect(readCaseStage([extension], other)).toBe("preop");
+    expect(readCaseStage([extension])).toBeUndefined();
   });
 });
 

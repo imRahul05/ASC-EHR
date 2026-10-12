@@ -1,16 +1,24 @@
 import type { Encounter } from "@medplum/fhirtypes";
 import { facilityMeta, instant, reference } from "@asc/fhir/builders/common";
 import type { CasePhase } from "@asc/fhir/case-phase";
-import { casePhaseExtension } from "@asc/fhir/extensions";
+import {
+  type CaseStage,
+  ENCOUNTER_STATUS_BY_STAGE,
+  type EncounterStatus,
+} from "@asc/fhir/case-stage";
+import { type ReadinessCheck } from "@asc/fhir/case-readiness";
+import {
+  casePhaseExtension,
+  caseReadinessExtensions,
+  caseStageExtension,
+} from "@asc/fhir/extensions";
 import { caseNumberIdentifier } from "@asc/fhir/identifiers";
 import { type FhirUrls, fhirUrls } from "@asc/fhir/urls";
 
-type EncounterStatus = NonNullable<Encounter["status"]>;
+export { ENCOUNTER_STATUS_BY_STAGE } from "@asc/fhir/case-stage";
 
 /**
- * The FHIR `Encounter.status` that goes with each case phase: the phase is the precise state (extension), the
- * status is what generic FHIR clients understand. A choice of this package, not from the product docs; typed as
- * a Record so a new phase cannot be added without deciding its status.
+ * The FHIR `Encounter.status` that goes with each legacy case phase.
  */
 export const ENCOUNTER_STATUS_BY_PHASE: Readonly<Record<CasePhase, EncounterStatus>> = {
   SCHEDULED: "planned",
@@ -33,7 +41,9 @@ export const ENCOUNTER_STATUS_BY_PHASE: Readonly<Record<CasePhase, EncounterStat
 export interface CaseEncounterInput {
   readonly facilityId: string;
   readonly patientId: string;
-  readonly phase: CasePhase;
+  readonly phase?: CasePhase;
+  readonly stage?: CaseStage;
+  readonly readinessChecks?: readonly ReadinessCheck[];
   readonly appointmentId?: string;
   readonly caseNumber?: string;
   /** Where the patient is now (room or bay); the history of these drives the whiteboard (03 §3). */
@@ -42,18 +52,33 @@ export interface CaseEncounterInput {
   readonly end?: string;
 }
 
-/** The Encounter that IS the case (docs/product/03 §3): status, the case-phase extension and the facility. */
+/** The Encounter that IS the case (docs/product/03 §3): status, stage/phase extension, readiness checks, and facility. */
 export function buildCaseEncounter(input: CaseEncounterInput, urls: FhirUrls = fhirUrls): Encounter {
   const start = input.start === undefined ? undefined : instant(input.start, "case start");
   const end = input.end === undefined ? undefined : instant(input.end, "case end");
   // A FHIR Period may not end before it starts (invariant per-1); equal is allowed.
   if (start !== undefined && end !== undefined && Date.parse(end) < Date.parse(start)) throw new Error("invalid case period range");
+
+  if (input.stage === undefined && input.phase === undefined) {
+    throw new Error("case encounter requires stage or phase");
+  }
+
+  const status: EncounterStatus = input.stage !== undefined
+    ? ENCOUNTER_STATUS_BY_STAGE[input.stage]
+    : ENCOUNTER_STATUS_BY_PHASE[input.phase as CasePhase];
+
+  const extensions = [
+    ...(input.stage !== undefined ? [caseStageExtension(input.stage, urls)] : []),
+    ...(input.phase !== undefined ? [casePhaseExtension(input.phase, urls)] : []),
+    ...(input.readinessChecks !== undefined ? caseReadinessExtensions(input.readinessChecks, urls) : []),
+  ];
+
   return {
     resourceType: "Encounter",
     meta: facilityMeta(input.facilityId),
-    status: ENCOUNTER_STATUS_BY_PHASE[input.phase],
+    status,
     class: { system: "http://terminology.hl7.org/CodeSystem/v3-ActCode", code: "AMB", display: "ambulatory" },
-    extension: [casePhaseExtension(input.phase, urls)],
+    extension: extensions,
     subject: reference("Patient", input.patientId, "patient id"),
     serviceProvider: reference("Organization", input.facilityId, "facility id"),
     ...(input.caseNumber === undefined ? {} : { identifier: [caseNumberIdentifier(input.caseNumber, urls)] }),
