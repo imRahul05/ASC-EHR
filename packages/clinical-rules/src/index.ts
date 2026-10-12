@@ -11,3 +11,4 @@ export * from "./schedule";
 export * from "./scores";
 export * from "./surveillance";
 export * from "./time";
+export * from "./patients/duplicate-match";
