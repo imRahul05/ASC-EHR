@@ -14,7 +14,9 @@
     "./api-error": "./src/api-error.ts",
     "./health": "./src/health.ts",
     "./jobs": "./src/jobs.ts",
-    "./agents/discharge-instructions": "./src/agents/discharge-instructions.ts"
+    "./agents/discharge-instructions": "./src/agents/discharge-instructions.ts",
+    "./patients/register": "./src/patients/register.ts",
+    "./patients/search": "./src/patients/search.ts"
   },
   "scripts": {
     "lint": "eslint --max-warnings 0",
