@@ -20,8 +20,8 @@
 | Updated | 2026-10-12 |
 |---|---|
 | Current wave | 2 |
-| In progress | — |
-| Ready to start | P08 (Terminology & Profiles), P09 (UI Clinical Kit), P12 (Worklists on Task), P14 (Registration) · also ready: P00b, P01, P06, P10 |
+| In progress | P14 (Registration) |
+| Ready to start | P08 (Terminology & Profiles), P09 (UI Clinical Kit), P12 (Worklists on Task) · also ready: P00b, P01, P06, P10 |
 | Blocked | P13 soft-blocked on Q-MS1 (fallback allowed) |
 | Go-live target | November 15, 2026 (Software Freeze) / January 2027 (Facility Opening) |
 
@@ -58,7 +58,7 @@
 | P11 | EP-E | Questionnaire renderer | pending | P03, P09 | | | | | |
 | P12 | EP-A / EP-E | Worklists on Task | ready | P05, P07 | | | | | |
 | P13 | EP-G | Record engine port | pending | P09, Q-MS1 | | | | | |
-| P14 | EP-B | Registration | ready | P05, P09 | | | | | |
+| P14 | EP-B | Registration | in-progress | P05, P09 | Antigravity | `feat/patient-registration-and-duplicate-match` | | 2026-10-12 | |
 | P15 | EP-C | Scheduling + whiteboard | pending | P14, P07, P10 | | | | | |
 | P16 | EP-E | H&P + med-hold | pending | P11, P13, P10, P07 | | | | | |
 | P17 | EP-E | Pre-op + consent | pending | P11, P15 | | | | | |
