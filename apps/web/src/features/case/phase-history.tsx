@@ -1,4 +1,4 @@
-import { ALL_PHASES, PHASE_GROUP, PHASE_LABEL } from "@asc/clinical-rules";
+import { ALL_PHASES, isCaseStage, PHASE_GROUP, PHASE_LABEL } from "@asc/clinical-rules";
 import type { PhaseGroup, ProcedureCase } from "@asc/types";
 import { PHASE_GROUP_ICON, SectionCard, Timeline, type TimelineItem } from "@asc/ui";
 
@@ -18,7 +18,9 @@ interface PhaseHistoryProps {
 /** When the case entered each phase (newest first). */
 export function PhaseHistory({ procedureCase }: PhaseHistoryProps) {
   const items: TimelineItem[] = ALL_PHASES.flatMap((phase) => {
-    const at = procedureCase.timestamps[phase];
+    const at = isCaseStage(phase)
+      ? procedureCase.stageTimestamps?.[phase]
+      : procedureCase.timestamps[phase];
     return at
       ? [{ id: phase, at, title: PHASE_LABEL[phase], icon: PHASE_GROUP_ICON[PHASE_GROUP[phase]], tone: TONE_BY_GROUP[PHASE_GROUP[phase]] }]
       : [];

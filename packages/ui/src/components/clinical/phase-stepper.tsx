@@ -1,13 +1,13 @@
 import { PHASE_GROUP, PHASE_LABEL, PHASE_ORDER, phaseIndex } from "@asc/clinical-rules"
-import type { CasePhase } from "@asc/types"
+import type { CasePhase, CaseStage } from "@asc/types"
 import { CheckIcon } from "lucide-react"
 import { cn } from "../../lib/utils"
 import { PHASE_GROUP_DOT } from "./phase-style"
 
 export interface PhaseStepperProps {
-  readonly phase: CasePhase
-  /** Optional subset of phases to show (default: the 13 happy-path phases). */
-  readonly phases?: readonly CasePhase[]
+  readonly phase: CasePhase | CaseStage
+  /** Optional subset of phases to show. */
+  readonly phases?: readonly (CasePhase | CaseStage)[]
   readonly className?: string
 }
 

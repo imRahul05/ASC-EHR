@@ -1,4 +1,4 @@
-import type { Allergy, CasePhase, Escort, PatientRef } from "@asc/types"
+import type { Allergy, CasePhase, CaseStage, Escort, PatientRef } from "@asc/types"
 import { ShieldAlert, ShieldCheck, UserRound, UsersRound } from "lucide-react"
 import type { ReactNode } from "react"
 import { cn } from "../../lib/utils"
@@ -7,7 +7,7 @@ import { PhaseChip } from "./phase-chip"
 export interface PatientBannerProps {
   readonly patient: PatientRef
   readonly allergies: readonly Allergy[]
-  readonly phase?: CasePhase
+  readonly phase?: CasePhase | CaseStage
   readonly escort?: Escort | null
   /** Extra identifiers shown after the MRN (case number, procedure, room). */
   readonly meta?: readonly ReactNode[]

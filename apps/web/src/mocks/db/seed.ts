@@ -1,4 +1,4 @@
-import { isPhaseAtLeast, PHASE_ORDER, STOPPED_PHASES } from "@asc/clinical-rules";
+import { isPhaseAtLeast, LEGACY_PHASE_ORDER, STOPPED_PHASES } from "@asc/clinical-rules";
 import type {
   AldreteScore,
   AnesthesiaRecord,
@@ -302,7 +302,7 @@ function seedCase(state: DemoState, spec: CaseSpec, nowMs: number, nowIso: strin
   state.patients.set(patient.id, patient);
 
   const timestamps: Partial<Record<CasePhase, string>> = Object.fromEntries(
-    [...PHASE_ORDER.filter(reached), ...(effective === spec.phase ? [] : [spec.phase])].map((phase) => [
+    [...LEGACY_PHASE_ORDER.filter(reached), ...(effective === spec.phase ? [] : [spec.phase])].map((phase) => [
       phase,
       clamp(addMinutes(start, PHASE_OFFSET_MIN[phase])),
     ]),
