@@ -230,8 +230,12 @@ export function useWorklist(query: WorklistQuery = {}) {
 
 export const useCompleteWorkItem = () => useClinicalMutation(completeWorkItem);
 
-export function useWhiteboard() {
-  return useQuery({ queryKey: queryKeys.whiteboard, queryFn: getWhiteboard, refetchInterval: LIVE_REFETCH_MS });
+export function useWhiteboard(options: { readonly refetchInterval?: number } = {}) {
+  return useQuery({
+    queryKey: queryKeys.whiteboard,
+    queryFn: getWhiteboard,
+    refetchInterval: options.refetchInterval ?? 5_000,
+  });
 }
 
 export function useQualityMetrics() {
