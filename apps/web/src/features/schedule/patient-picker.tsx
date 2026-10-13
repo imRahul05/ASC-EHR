@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { usePatient, usePatients } from "@asc/api-client/react";
+import { useDeferredValue, useState } from "react";
+import { usePatient, useSearchPatients } from "@asc/api-client/react";
 import { Button, cn, Input, Skeleton } from "@asc/ui";
 import { BadgeCheck, CircleAlert, Search, X } from "@asc/ui/icons";
+import { buildSearchPayload } from "../patients/patient-search-input";
+import { useAuthStore } from "../../lib/stores/auth.store";
 
 interface PatientPickerProps {
   readonly id: string;
@@ -14,14 +16,25 @@ interface PatientPickerProps {
 
 const RESULT_LIMIT = 6;
 
-/** Search-and-pick a patient for booking; shows the chosen patient's identity + eligibility. */
+/**
+ * Search-and-pick a patient for booking; re-uses patient search logic with exact MRN, DOB, and name search
+ * via POST /patients/search (PHI-safe).
+ */
 export function PatientPicker({ id, value, onChange, invalid }: PatientPickerProps) {
+  const facilityId = useAuthStore((s) => s.facilityId);
   const [q, setQ] = useState("");
-  const results = usePatients({ q });
+  const deferredTerm = useDeferredValue(q.trim());
+
+  const searchPayload = buildSearchPayload(deferredTerm, facilityId);
+  const searchQuery = useSearchPatients(searchPayload, {
+    enabled: deferredTerm.length > 0,
+  });
 
   if (value) return <SelectedPatient patientId={value} onClear={() => onChange("")} />;
 
-  const rows = (results.data ?? []).slice(0, RESULT_LIMIT);
+  const rows = (searchQuery.data ?? []).slice(0, RESULT_LIMIT);
+  const isSearching = deferredTerm.length > 0 && searchQuery.isFetching;
+
   return (
     <div className="space-y-2">
       <div className="relative">
@@ -30,41 +43,45 @@ export function PatientPicker({ id, value, onChange, invalid }: PatientPickerPro
           id={id}
           value={q}
           onChange={(event) => setQ(event.target.value)}
-          placeholder="Search name, MRN or DOB"
+          placeholder="Search patient name, MRN, or DOB (YYYY-MM-DD)…"
           aria-invalid={invalid || undefined}
           autoComplete="off"
           className="pl-8"
           data-testid="book-case-patient-search"
         />
       </div>
-      <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border" aria-label="Matching patients">
-        {results.isPending &&
-          Array.from({ length: 3 }, (_, index) => (
-            <li key={index} className="px-3 py-2">
-              <Skeleton className="h-4 w-40" />
+      {deferredTerm.length > 0 && (
+        <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border" aria-label="Matching patients">
+          {isSearching &&
+            Array.from({ length: 3 }, (_, index) => (
+              <li key={index} className="px-3 py-2">
+                <Skeleton className="h-4 w-40" />
+              </li>
+            ))}
+          {searchQuery.isError && <li className="px-3 py-2 text-sm text-destructive">Search failed — try again.</li>}
+          {!isSearching && rows.length === 0 && (
+            <li className="px-3 py-2 text-sm text-muted-foreground">No patients match “{deferredTerm}”.</li>
+          )}
+          {rows.map((patient) => (
+            <li key={patient.id}>
+              <button
+                type="button"
+                onClick={() => onChange(patient.id)}
+                className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm outline-none hover:bg-accent focus-visible:bg-accent"
+                data-testid="book-case-patient-option"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate font-medium">{patient.displayName}</span>
+                  <span className="block text-xs text-muted-foreground tabular-nums">
+                    <span className="font-mono">{patient.mrn}</span> · DOB {patient.dateOfBirth}
+                  </span>
+                </span>
+                <span className="shrink-0 text-xs text-muted-foreground">{patient.payer ?? "Self-pay"}</span>
+              </button>
             </li>
           ))}
-        {results.isError && <li className="px-3 py-2 text-sm text-destructive">Search failed — try again.</li>}
-        {!results.isPending && rows.length === 0 && <li className="px-3 py-2 text-sm text-muted-foreground">No patients match “{q}”.</li>}
-        {rows.map((patient) => (
-          <li key={patient.id}>
-            <button
-              type="button"
-              onClick={() => onChange(patient.id)}
-              className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm outline-none hover:bg-accent focus-visible:bg-accent"
-              data-testid="book-case-patient-option"
-            >
-              <span className="min-w-0">
-                <span className="block truncate font-medium">{patient.displayName}</span>
-                <span className="block text-xs text-muted-foreground tabular-nums">
-                  <span className="font-mono">{patient.mrn}</span> · DOB {patient.dateOfBirth}
-                </span>
-              </span>
-              <span className="shrink-0 text-xs text-muted-foreground">{patient.payer ?? "Self-pay"}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
+        </ul>
+      )}
     </div>
   );
 }

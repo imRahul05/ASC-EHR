@@ -1,45 +1,45 @@
-import type { ProcedureCode, ProcedureIntent, ParticipantRole } from "@asc/types";
+import type { ProcedureIntentInput } from "@asc/validation/cases/book";
 import type { SegmentedOption, SelectOption } from "@asc/ui";
-import { CASE_DURATIONS_MIN } from "@asc/validation/schedule";
 
-/** Select / segmented options for booking (UI labels only; values are the shared enums). */
-export const PROCEDURE_OPTIONS: readonly SelectOption<ProcedureCode>[] = [
-  { value: "COLONOSCOPY", label: "Colonoscopy", hint: "45378 / 45385" },
-  { value: "EGD", label: "EGD", hint: "43239" },
-  { value: "EGD_COLONOSCOPY", label: "EGD + colonoscopy", hint: "bidirectional" },
-  { value: "FLEX_SIG", label: "Flexible sigmoidoscopy", hint: "45330" },
+/** Standard ASC rooms (room-1 through room-4) per P15b specification. */
+export const ROOM_OPTIONS: readonly SegmentedOption<string>[] = [
+  { value: "room-1", label: "Room 1" },
+  { value: "room-2", label: "Room 2" },
+  { value: "room-3", label: "Room 3" },
+  { value: "room-4", label: "Room 4" },
 ];
 
-export const INTENT_OPTIONS: readonly SegmentedOption<ProcedureIntent>[] = [
+/** Selectable GI CPT codes for primary procedure per P15b specification. */
+export const GI_CPT_PROCEDURE_OPTIONS: readonly SelectOption<string>[] = [
+  { value: "45378", label: "45378 · Diagnostic Colonoscopy", hint: "Diagnostic colonoscopy, flexible" },
+  { value: "43239", label: "43239 · Upper GI Endoscopy (EGD)", hint: "EGD with biopsy" },
+  { value: "45385", label: "45385 · Colonoscopy w/ Polypectomy", hint: "Lesion removal / snare polypectomy" },
+  { value: "45380", label: "45380 · Colonoscopy w/ Biopsy", hint: "Single or multiple biopsies" },
+  { value: "43235", label: "43235 · Diagnostic EGD", hint: "Diagnostic esophagogastroduodenoscopy" },
+  { value: "45330", label: "45330 · Flexible Sigmoidoscopy", hint: "Diagnostic flexible sigmoidoscopy" },
+];
+
+export const INTENT_OPTIONS: readonly SegmentedOption<ProcedureIntentInput>[] = [
   { value: "screening", label: "Screening" },
   { value: "surveillance", label: "Surveillance" },
   { value: "diagnostic", label: "Diagnostic" },
   { value: "therapeutic", label: "Therapeutic" },
 ];
 
-export const DURATION_OPTIONS: readonly SegmentedOption<(typeof CASE_DURATIONS_MIN)[number]>[] = CASE_DURATIONS_MIN.map((minutes) => ({
-  value: minutes,
-  label: `${minutes} min`,
-}));
+/** Duration segmented control options: 15, 30, 45, 60, 90, 120 mins. */
+export const DURATION_OPTIONS: readonly SegmentedOption<number>[] = [
+  { value: 15, label: "15 min" },
+  { value: 30, label: "30 min" },
+  { value: 45, label: "45 min" },
+  { value: 60, label: "60 min" },
+  { value: 90, label: "90 min" },
+  { value: 120, label: "120 min" },
+];
 
-/** Default indication per intent — the scheduler edits it; the referral reason wins when present. */
-export const DEFAULT_INDICATION: Readonly<Record<ProcedureIntent, string>> = {
-  screening: "Average-risk colorectal cancer screening",
-  surveillance: "Surveillance after prior adenoma",
-  diagnostic: "Diagnostic evaluation",
-  therapeutic: "Therapeutic procedure",
-};
+export const DEFAULT_START_TIME = "09:00";
+export const DEFAULT_ROOM_ID = "room-1";
+export const DEFAULT_PRIMARY_PROCEDURE = "45378";
 
-/** Team slots on the booking form → staff role that fills them. */
-export const TEAM_FIELDS = [
-  { name: "surgeonId", label: "Gastroenterologist", role: "SURGEON" },
-  { name: "anesthesiaId", label: "Anesthesia", role: "ANESTHESIOLOGIST" },
-  { name: "nurseId", label: "Nurse", role: "NURSE" },
-] as const satisfies readonly { name: string; label: string; role: ParticipantRole }[];
-
-export const DEFAULT_START_TIME = "09:30";
-export const DEFAULT_ROOM_ID = "room-2";
-
-/** Grid always covers the clinic day; widens when cases fall outside it. */
+/** Grid covers the ASC clinic day: 07:00 – 17:00. */
 export const CLINIC_START_HOUR = 7;
-export const CLINIC_END_HOUR = 18;
+export const CLINIC_END_HOUR = 17;

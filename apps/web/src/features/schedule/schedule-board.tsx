@@ -32,6 +32,13 @@ const ROOM_STATUS_LABEL: Readonly<Record<RoomStatus, string>> = {
   blocked: "Blocked",
 };
 
+const ASC_STANDARD_ROOMS: readonly { readonly id: string; readonly name: string }[] = [
+  { id: "room-1", name: "Room 1" },
+  { id: "room-2", name: "Room 2" },
+  { id: "room-3", name: "Room 3" },
+  { id: "room-4", name: "Room 4" },
+];
+
 interface SheetState {
   readonly open: boolean;
   readonly defaults: BookCaseDefaults;
@@ -162,7 +169,14 @@ function ScheduleBoardView() {
             </p>
           )}
           <RoomTimeGrid
-            rooms={day.rooms.map((room) => ({ id: room.id, name: room.name, status: date === todayIsoDate() ? roomStatus(room) : undefined }))}
+            rooms={ASC_STANDARD_ROOMS.map((std) => {
+              const r = day.rooms.find((item) => item.id === std.id);
+              return {
+                id: std.id,
+                name: r?.name ?? std.name,
+                status: date === todayIsoDate() && r ? roomStatus(r) : undefined,
+              };
+            })}
             items={cases.map(gridItem)}
             date={date}
             startHour={hours.start}

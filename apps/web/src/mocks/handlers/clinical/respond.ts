@@ -4,8 +4,19 @@ import { caseDetail } from "../../db/store";
 import { latencyMs } from "../../db/util";
 
 /** Same error body shape as apps/api (`ApiErrorPayload`), so @asc/api-client maps it to ApiError. */
-export function apiError(status: number, code: string, message: string, details?: Record<string, string>) {
-  const body: ApiErrorPayload = { message, code, ...(details ? { details } : {}) };
+export function apiError(
+  status: number,
+  code: string,
+  message: string,
+  details?: Record<string, string>,
+  reasons?: readonly { readonly code: string; readonly message: string }[],
+) {
+  const body: ApiErrorPayload = {
+    message,
+    code,
+    ...(details ? { details } : {}),
+    ...(reasons ? { reasons } : {}),
+  };
   return HttpResponse.json(body, { status });
 }
 
