@@ -4,7 +4,7 @@ import { z } from "zod";
 // `bookCasePayloadFrom` returns a plain object shaped like `BookCasePayload` in @asc/types.
 
 export const procedureCodeSchema = z.enum(["COLONOSCOPY", "EGD", "EGD_COLONOSCOPY", "FLEX_SIG"]);
-export const procedureIntentSchema = z.enum(["screening", "surveillance", "diagnostic"]);
+export const procedureIntentSchema = z.enum(["screening", "surveillance", "diagnostic", "therapeutic"]);
 
 /** Bookable case lengths in minutes (select options). */
 export const CASE_DURATIONS_MIN = ["30", "45", "60", "90"] as const;

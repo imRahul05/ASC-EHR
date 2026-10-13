@@ -14,6 +14,7 @@ export const INTENT_OPTIONS: readonly SegmentedOption<ProcedureIntent>[] = [
   { value: "screening", label: "Screening" },
   { value: "surveillance", label: "Surveillance" },
   { value: "diagnostic", label: "Diagnostic" },
+  { value: "therapeutic", label: "Therapeutic" },
 ];
 
 export const DURATION_OPTIONS: readonly SegmentedOption<(typeof CASE_DURATIONS_MIN)[number]>[] = CASE_DURATIONS_MIN.map((minutes) => ({
@@ -26,6 +27,7 @@ export const DEFAULT_INDICATION: Readonly<Record<ProcedureIntent, string>> = {
   screening: "Average-risk colorectal cancer screening",
   surveillance: "Surveillance after prior adenoma",
   diagnostic: "Diagnostic evaluation",
+  therapeutic: "Therapeutic procedure",
 };
 
 /** Team slots on the booking form → staff role that fills them. */
