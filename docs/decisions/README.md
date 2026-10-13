@@ -29,3 +29,5 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 - [Env-driven API URL and CORS allowlist](2026-09-30-env-driven-api-url-and-cors-allowlist.md) (accepted, 2026-09-30)
 - [Medplum as identity and access platform; tenant = Medplum Project](2026-10-03-medplum-as-identity-and-access-platform.md) (proposed, 2026-10-03)
 - [Medplum 5.1.42 spike results (S1, S1b, S6, S7) and the fallbacks we adopt](2026-10-08-medplum-spike-results-and-fallbacks.md) (proposed, 2026-10-08)
+- [Case Booking Architecture and Pure Scheduling Conflict Engine](2026-10-13-case-booking-and-pure-scheduling-conflict-engine.md) (accepted, 2026-10-13)
+
