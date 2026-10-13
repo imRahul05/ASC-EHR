@@ -115,6 +115,17 @@ describe("phases and stages", () => {
     expect(nextPhase("CONFIRMED")).toBe("ARRIVED");
     expect(nextPhase("CLOSED")).toBeNull();
   });
+
+  it("supports cross-transitions between legacy CasePhase and CaseStage seamlessly", () => {
+    // Transition from legacy phase to new stage
+    expect(transitionAllowed("ARRIVED", "preop").ok).toBe(true);
+    expect(transitionAllowed("PRE_OP", "in_room").ok).toBe(true);
+    expect(transitionAllowed("SCHEDULED", "procedure_start").ok).toBe(false);
+
+    // Transition from new stage to legacy phase
+    expect(transitionAllowed("arrived", "PRE_OP").ok).toBe(true);
+    expect(transitionAllowed("in_room", "IN_PROCEDURE").ok).toBe(true);
+  });
 });
 
 describe("readiness checks and waivers", () => {
@@ -167,6 +178,18 @@ describe("readiness checks and waivers", () => {
       { name: "escort", status: "pending", label: "Escort pending" },
     ];
     expect(computeOverallReadiness(withPending)).toBe("pending");
+
+    const withIllegalIdentityWaiver: ReadinessCheck[] = [
+      { name: "identity", status: "waived", label: "ID waived", waiverReason: "Emergency arrival" },
+      { name: "consent", status: "satisfied", label: "Consent signed" },
+    ];
+    expect(computeOverallReadiness(withIllegalIdentityWaiver)).toBe("blocked");
+
+    const withIllegalConsentWaiver: ReadinessCheck[] = [
+      { name: "identity", status: "satisfied", label: "ID verified" },
+      { name: "consent", status: "waived", label: "Consent waived", waiverReason: "Urgent" },
+    ];
+    expect(computeOverallReadiness(withIllegalConsentWaiver)).toBe("blocked");
   });
 });
 

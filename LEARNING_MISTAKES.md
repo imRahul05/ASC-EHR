@@ -240,3 +240,22 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **Rule:** Search endpoints accepting demographics must use `POST` with a JSON body; request loggers must sanitize query parameters from `req.url`. Exact identifier (MRN) conflicts are non-waivable (unconditional 409 conflict); `confirmDuplicate` is strictly for demographic collisions. Validate FHIR IDs at the boundary schema with `/^[A-Za-z0-9.-]{1,64}$/`. Register a global `errorHandler` for ZodErrors returning HTTP 400 with standard `ApiErrorPayload`.
 - **How to check:** `pnpm --filter api test` (PHI hygiene tests, exact MRN conflict tests, and validation 400 tests); inspect request logs for absence of query strings.
 - **Guarded by:** `apps/api/src/routes/patients.test.ts`, `@asc/logger/src/index.test.ts`.
+
+### LM-027 — Enforce non-waivable clinical checks, validate chronological sequence in paired timestamps, and prevent workspace capability leakage
+- **Seen:** 1 · 2026-10-13 · PRs #71 & #73 post-merge review
+- **What went wrong:**
+  1. `computeOverallReadiness` treated `identity` and `consent` as ready if their status was `"waived"`, violating REQ-5 §202 and safety invariants (identity and consent cannot be waived).
+  2. `evaluateScopeHangTime` allowed reprocessing timestamps after procedure timestamps without rejecting chronological anomalies.
+  3. `transitionAllowed` lacked bridging from legacy `CasePhase` to `CaseStage`, risking stuck cases for records in transition.
+  4. Specialized nursing roles (`preop-nurse`, `circulating-nurse`) lacked access to the Nursing workspace because workspace resolution relied solely on `pacu.document`, while adding shared clinical capabilities to `requiresAny` leaked the workspace to physicians and techs.
+  5. `PhaseStepper` marked stopped stages (`cancelled`, `no_show`) as `done: true` with green checkmarks due to negative index evaluation (`-1 < current`), and `PhaseHistory` duplicated milestones when both `stageTimestamps` and `timestamps` were present.
+  6. FHIR `buildReadinessObservation` and `caseReadinessExtension` did not validate `effectiveDateTime` and `waivedAt` with `instant()`.
+- **Rule:**
+  1. Non-waivable checks must block overall readiness if waiver is attempted (`canWaiveCheck(name) === false`).
+  2. For paired clinical timestamps (e.g. reprocessing vs procedure time), validate chronological ordering (`reprocessedMs <= procedureMs`).
+  3. Cross-model state transitions must bridge legacy and modern models.
+  4. Workspaces must support role-keyed fallback (`requiresRoleAny`) alongside capabilities to prevent capability leakage across distinct clinical personas.
+  5. Stepper step completions must verify `stepIndex >= 0 && stepIndex < current`, and timelines must deduplicate equivalent legacy and modern milestones.
+  6. Validate all FHIR date/time strings with `instant()`.
+- **How to check:** `pnpm turbo run lint check-types test` across `@asc/clinical-rules`, `@asc/authz`, `@asc/fhir`, `@asc/ui`, and `web`.
+- **Guarded by:** `packages/clinical-rules/src/rules.test.ts`, `packages/clinical-rules/src/gates.test.ts`, `packages/authz/src/workspaces.test.ts`, `packages/fhir/src/case-readiness.test.ts`, `apps/web/src/lib/workspaces.test.ts`.

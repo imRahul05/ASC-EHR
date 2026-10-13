@@ -269,6 +269,28 @@ export function nextPhase(phase: CasePhase | CaseStage): (CasePhase | CaseStage)
   return ALLOWED_LEGACY_TRANSITIONS[phase]?.find((to) => !STOPPED_PHASES.includes(to)) ?? null;
 }
 
+export const STAGE_FROM_PHASE: Readonly<Record<CasePhase, CaseStage>> = {
+  SCHEDULED: "scheduled",
+  CONFIRMED: "confirmed",
+  ARRIVED: "arrived",
+  PRE_OP: "preop",
+  READY_FOR_PROCEDURE: "preop",
+  IN_PROCEDURE: "procedure_start",
+  RECOVERY: "pacu",
+  READY_FOR_DISCHARGE: "pacu",
+  DISCHARGED: "discharged",
+  CHART_COMPLETE: "discharged",
+  CODED: "discharged",
+  EXPORTED: "discharged",
+  CLOSED: "discharged",
+  CANCELLED: "cancelled",
+  NO_SHOW: "no_show",
+};
+
+export function stageFromPhase(phase: CasePhase): CaseStage {
+  return STAGE_FROM_PHASE[phase];
+}
+
 export function transitionAllowed(from: CasePhase | CaseStage, to: CasePhase | CaseStage): RuleResult {
   if (isCaseStage(from) && isCaseStage(to)) {
     const allowed = ALLOWED_STAGE_TRANSITIONS[from];
@@ -279,7 +301,15 @@ export function transitionAllowed(from: CasePhase | CaseStage, to: CasePhase | C
   if (!isCaseStage(from) && !isCaseStage(to)) {
     const allowed = ALLOWED_LEGACY_TRANSITIONS[from];
     if (allowed.includes(to)) return OK;
+    return fail("TRANSITION_NOT_ALLOWED", `A case cannot move from ${PHASE_LABEL[from]} to ${PHASE_LABEL[to]}.`);
   }
+
+  // Cross-compatibility between CasePhase and CaseStage
+  const fromStage = isCaseStage(from) ? from : stageFromPhase(from);
+  const toStage = isCaseStage(to) ? to : stageFromPhase(to);
+  const allowed = ALLOWED_STAGE_TRANSITIONS[fromStage];
+  if (allowed.includes(toStage)) return OK;
+
   const fromLabel = PHASE_LABEL[from] ?? String(from);
   const toLabel = PHASE_LABEL[to] ?? String(to);
   return fail("TRANSITION_NOT_ALLOWED", `A case cannot move from ${fromLabel} to ${toLabel}.`);

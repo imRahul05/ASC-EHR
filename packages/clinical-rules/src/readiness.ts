@@ -43,13 +43,15 @@ export function isCheckSatisfiedOrWaived(check: ReadinessCheck | undefined): boo
 
 /**
  * Computes overall readiness from an array of readiness checks per REQ-5 §200:
- * - "ready": Every check is satisfied or waived.
- * - "blocked": Any check is failed.
+ * - "ready": Every check is satisfied or legally waived.
+ * - "blocked": Any check is failed, or an illegal waiver was attempted on a non-waivable check.
  * - "pending": Otherwise.
  */
 export function computeOverallReadiness(checks: readonly ReadinessCheck[]): OverallReadiness {
   if (checks.length === 0) return "pending";
-  if (checks.some((check) => check.status === "failed")) return "blocked";
-  if (checks.every((check) => check.status === "satisfied" || check.status === "waived")) return "ready";
+  if (checks.some((check) => check.status === "failed" || (check.status === "waived" && !canWaiveCheck(check.name)))) {
+    return "blocked";
+  }
+  if (checks.every((check) => isCheckSatisfiedOrWaived(check))) return "ready";
   return "pending";
 }

@@ -1,4 +1,4 @@
-import { PHASE_GROUP, PHASE_LABEL, PHASE_ORDER, phaseIndex } from "@asc/clinical-rules"
+import { FORWARD_STAGE_ORDER, PHASE_GROUP, PHASE_LABEL, phaseIndex } from "@asc/clinical-rules"
 import type { CasePhase, CaseStage } from "@asc/types"
 import { CheckIcon } from "lucide-react"
 import { cn } from "../../lib/utils"
@@ -6,13 +6,13 @@ import { PHASE_GROUP_DOT } from "./phase-style"
 
 export interface PhaseStepperProps {
   readonly phase: CasePhase | CaseStage
-  /** Optional subset of phases to show. */
+  /** Optional subset of phases to show. Defaults to forward stages. */
   readonly phases?: readonly (CasePhase | CaseStage)[]
   readonly className?: string
 }
 
 /** Compact horizontal case-phase progress. Stopped cases (cancelled / no-show) render muted. */
-export function PhaseStepper({ phase, phases = PHASE_ORDER, className }: PhaseStepperProps) {
+export function PhaseStepper({ phase, phases = FORWARD_STAGE_ORDER, className }: PhaseStepperProps) {
   const current = phaseIndex(phase)
   const stopped = current < 0
   return (
@@ -23,8 +23,8 @@ export function PhaseStepper({ phase, phases = PHASE_ORDER, className }: PhaseSt
     >
       {phases.map((step, index) => {
         const stepIndex = phaseIndex(step)
-        const done = !stopped && stepIndex < current
-        const active = !stopped && stepIndex === current
+        const done = !stopped && stepIndex >= 0 && stepIndex < current
+        const active = !stopped && stepIndex >= 0 && stepIndex === current
         return (
           <li
             key={step}

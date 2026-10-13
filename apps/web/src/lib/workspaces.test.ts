@@ -1,7 +1,11 @@
 import { grantedFacilityIds } from "@asc/authz/can";
+import { buildGrants } from "@asc/authz/grants";
+import { roleRegistry } from "@asc/authz/roles";
+import type { StaffPrincipal } from "@asc/types";
 import { describe, expect, it } from "vitest";
 import { checkCapability } from "@/hooks/use-can";
 import { DASHBOARDS } from "@/features/dashboard/dashboard-config";
+import { DEMO_TENANT } from "@/mocks/data/identities";
 import { meFor } from "@/mocks/handlers/me";
 import { ROUTE_ACCESS } from "./route-access";
 import { WORKSPACES, workspacesFor } from "./workspaces";
@@ -71,3 +75,38 @@ describe("a tech added by configuration alone", () => {
     }
   });
 });
+
+describe("specialized nursing roles resolve to nursing workspace", () => {
+  function nursePrincipal(roleKey: "preop-nurse" | "circulating-nurse" | "pacu-nurse"): StaffPrincipal {
+    const grants = buildGrants([{ roleKey, facilityId: "fac-metro" }], roleRegistry);
+    return {
+      id: `user-${roleKey}`,
+      tenant: DEMO_TENANT,
+      kind: "staff",
+      membershipId: `membership-${roleKey}`,
+      grants,
+    };
+  }
+
+  it("resolves preop-nurse to the nursing workspace", () => {
+    const principal = nursePrincipal("preop-nurse");
+    const ws = workspacesFor(principal, "fac-metro").map((w) => w.key);
+    expect(ws).toContain("nursing");
+    expect(ws[0]).toBe("nursing");
+  });
+
+  it("resolves circulating-nurse to nursing workspace as primary", () => {
+    const principal = nursePrincipal("circulating-nurse");
+    const ws = workspacesFor(principal, "fac-metro").map((w) => w.key);
+    expect(ws).toContain("nursing");
+    expect(ws[0]).toBe("nursing");
+  });
+
+  it("resolves pacu-nurse to the nursing workspace", () => {
+    const principal = nursePrincipal("pacu-nurse");
+    const ws = workspacesFor(principal, "fac-metro").map((w) => w.key);
+    expect(ws).toContain("nursing");
+    expect(ws[0]).toBe("nursing");
+  });
+});
+

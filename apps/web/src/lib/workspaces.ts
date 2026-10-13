@@ -10,7 +10,14 @@ import type { Principal } from "@asc/types";
 export const WORKSPACES = [
   { key: "anesthesia", label: "Anesthesia", requiresAny: ["anesthesia.document"], home: "/dashboard", navTitles: {} },
   { key: "physician", label: "Physician", requiresAny: ["note.draft"], home: "/dashboard", navTitles: { worklist: "Sign queue" } },
-  { key: "nursing", label: "Nursing", requiresAny: ["pacu.document"], home: "/dashboard", navTitles: {} },
+  {
+    key: "nursing",
+    label: "Nursing",
+    requiresAny: ["pacu.document"],
+    requiresRoleAny: ["rn", "preop-nurse", "circulating-nurse", "pacu-nurse"],
+    home: "/dashboard",
+    navTitles: {},
+  },
   { key: "operations", label: "Center operations", requiresAny: ["schedule.manage", "admin.users"], home: "/dashboard", navTitles: {} },
   { key: "tech", label: "Endoscopy tech", requiresAny: ["procedure.document"], home: "/dashboard", navTitles: {} },
   { key: "patient", label: "Patient portal", requiresAny: ["portal.self.read"], home: "/my-care", navTitles: {} },

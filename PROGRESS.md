@@ -17,11 +17,11 @@
 
 ## 1. Snapshot (update on every phase change)
 
-| Updated | 2026-10-12 |
+| Updated | 2026-10-13 |
 |---|---|
 | Current wave | 2 |
-| In progress | P14a (Registration: PR #75 in review) |
-| Ready to start | P08 (Terminology & Profiles), P09 (UI Clinical Kit), P12 (Worklists on Task) · also ready: P00b, P01, P06, P10 |
+| In progress | — |
+| Ready to start | P14b (Registration UI & Stub Bot), P08 (Terminology & Profiles), P09 (UI Clinical Kit), P12 (Worklists on Task) · also ready: P00b, P01, P06, P10 |
 | Blocked | P13 soft-blocked on Q-MS1 (fallback allowed) |
 | Go-live target | November 15, 2026 (Software Freeze) / January 2027 (Facility Opening) |
 
@@ -58,7 +58,7 @@
 | P11 | EP-E | Questionnaire renderer | pending | P03, P09 | | | | | |
 | P12 | EP-A / EP-E | Worklists on Task | ready | P05, P07 | | | | | |
 | P13 | EP-G | Record engine port | pending | P09, Q-MS1 | | | | | |
-| P14a | EP-B | Registration: intake contracts, duplicate engine & API routes | review | P05 | Antigravity | `feat/patient-registration-and-duplicate-match` | [#75](https://github.com/imRahul05/ASC-EHR/pull/75) | 2026-10-12 | 2026-10-12 |
+| P14a | EP-B | Registration: intake contracts, duplicate engine & API routes | done | P05 | Antigravity | `feat/patient-registration-and-duplicate-match` | [#75](https://github.com/imRahul05/ASC-EHR/pull/75) | 2026-10-12 | 2026-10-13 |
 | P14b | EP-B | Registration: eligibility stub bot, UI components & web pages | ready | P14a, P09 | | | | | |
 | P15 | EP-C | Scheduling + whiteboard | pending | P14b, P07, P10 | | | | | |
 | P16 | EP-E | H&P + med-hold | pending | P11, P13, P10, P07 | | | | | |
@@ -94,6 +94,7 @@ Work completed before this plan existed, grouped from git history (`origin/main`
 
 | Date | Area | What | Ref |
 |---|---|---|---|
+| 2026-10-13 | Clinical | **Post-Merge Hard Gates, Readiness & Nursing Workspace Hardening (PR #71 & #73 Review / LM-027)**: Resolved 6 defects/edge-cases identified in merged PRs #71 & #73: (1) `computeOverallReadiness` strictly blocks illegal waivers on non-waivable checks (`identity`, `consent`) per REQ-5 §202; (2) `evaluateScopeHangTime` strictly validates chronological order (`procedureMs >= reprocessedMs`); (3) `transitionAllowed` bridges cross-model transitions between legacy `CasePhase` and modern `CaseStage` with `STAGE_FROM_PHASE`; (4) `@asc/authz` workspace resolution extended with `requiresRoleAny` so `preop-nurse` and `circulating-nurse` access the Nursing workspace without leaking capabilities to physician/tech; (5) `PhaseStepper` default updated to `FORWARD_STAGE_ORDER` with negative index guards, and `PhaseHistory` deduplicates milestones between `stageTimestamps` and `timestamps`; (6) FHIR `buildReadinessObservation` and `caseReadinessExtension` validate `effectiveDateTime` and `waivedAt` with `instant()`. All quality gates green with zero `any` or `unknown`. | PR [#76](https://github.com/imRahul05/ASC-EHR/pull/76), branch `fix/clinical-gates-stages-and-nursing-workspaces` |
 | 2026-10-12 | Clinical | **Patient Registration, Duplicate Matching & Coverage Intake (P14a / EP-B)**: Implemented Zod schemas for patient registration and search in `@asc/validation`; pure FHIR builders `buildCoverage` and `buildRelatedPerson` in `@asc/fhir` with 100% test coverage; pure deterministic duplicate-match engine in `@asc/clinical-rules` with golden tests (exact identifier, high confidence name+DOB+gender, possible match warning); Fastify routes `GET /patients/search` (requires `patient.read`) and `POST /patients/register` (requires `patient.register`, runs duplicate match check, returns 409 on match unless `confirmDuplicate: true`, writes through `forFacility` stamping `meta.accounts`); zero PHI in logs; 12 API unit tests; all 50 quality gate tasks green. | PR [#75](https://github.com/imRahul05/ASC-EHR/pull/75), branch `feat/patient-registration-and-duplicate-match` |
 | 2026-10-12 | Clinical | **Clinical Hard Gates & Specialized Nursing Roles (P07 / EP-E, EP-F, EP-I)**: Implemented Gate 1 (`evaluateGate1` for `arrived` ➔ `preop`: checks `identity`, `consent`, and `hp`; non-waivable identity and consent strictly reject any waiver attempts per REQ-5 §202), Gate 2 (`evaluateGate2` for `preop` ➔ `in_room`: evaluates `anesthesia_clearance`, `anticoagulation`, `equipment`, and `escort`), and Scope Hang-Time Lock (`evaluateScopeHangTime`: 168-hour / 7-day limit with zero overrides permitted per REQ-13, failing with `"Scope hang-time exceeded 168 hours. Must return to sterile processing."`). Updated `transitionGate` to evaluate Gate 1 on `preop` and Gate 2 on `in_room`. Specialized nursing roles in `@asc/authz`: discrete `preop-nurse`, `circulating-nurse`, and `pacu-nurse` templates per REQ-3:86–88 while preserving `rn` for backward compatibility. Full matrix and policy snapshots updated. All 50 Turbo quality gates green with zero `any` or `unknown`. | PR [#73](https://github.com/imRahul05/ASC-EHR/pull/73), branch `feat/clinical-hard-gates-and-nurse-roles` |
 | 2026-10-12 | Clinical | **Case State Model Refounded (Stage & Readiness Decoupled)**: Per REQ-5 §154–210 and build spec §6 lines 223–232, decoupled physical patient Stage from clinical/administrative computed Readiness. `@asc/types`: 12 physical `CaseStage` values, 12 `ReadinessCheckName` items, `ReadinessCheck`, `OverallReadiness`, waiver rules (`identity` and `consent` non-waivable), `ProcedureCase` stage extensions with backward compatibility for `CasePhase`. `@asc/fhir`: CodeSystems for `case-stage` and `readiness-check`, mappings to FHIR `Encounter.status`, stage extensions, `buildReadinessObservation`, and `buildCaseEncounter` stage support with 100% test coverage. `@asc/clinical-rules`: 12-stage sequential `STAGE_ORDER` / `PHASE_ORDER`, `FORWARD_TRANSITIONS`, `STAGE_REVERSALS` (explicit logged reversals, e.g. `in_room` -> `preop`), `nextStage`, overloads for `nextPhase`, and stage evaluation in `transitionGate`. `@asc/ui`: `PatientBanner`, `PhaseChip`, `PhaseStepper`, and `RoomTimeGrid` updated to accept `CasePhase | CaseStage`. All 50 Turbo quality gates green with zero `any` or `unknown`. | PR [#71](https://github.com/imRahul05/ASC-EHR/pull/71), branch `refactor/case-stage-readiness-split` |
@@ -171,7 +172,7 @@ Full lists: [implementation plan §6](docs/plan/implementation-plan.md#6-cross-p
 
 1. **Sprint 1 Clinical Kick-Off & Active Targets**:
    - **P07** Clinical Hard Gates & Nursing Roles (`EP-E`): **Completed** ([#73](https://github.com/imRahul05/ASC-EHR/pull/73)).
-   - **P14a/b** Referral Intake & Registration (`EP-B`): Patient registration, search, and eligibility stubs unblocked by P05 and ready for clinical intake (P14a in review [#75](https://github.com/imRahul05/ASC-EHR/pull/75); P14b ready).
+   - **P14a/b** Referral Intake & Registration (`EP-B`): Patient registration, search, and eligibility stubs unblocked by P05 and ready for clinical intake (P14a completed [#75](https://github.com/imRahul05/ASC-EHR/pull/75); P14b ready).
    - **P15** Scheduling & Whiteboard (`EP-C`): Operating room scheduling and case whiteboard flow unblocked by P07 (**Active Upcoming Clinical Target**).
    - **P08** Terminology + FSH Profiles (`EP-A` / `EP-G`): GI clinical concepts, code systems, ValueSets (unblocked by P02, P03).
    - **P09** `@asc/ui` Clinical Kit (`EP-A`): Core clinical presentational components, app shell, patient banner.

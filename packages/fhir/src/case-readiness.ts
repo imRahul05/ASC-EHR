@@ -4,7 +4,7 @@ import type {
   ReadinessCheckStatus,
 } from "@asc/types";
 import type { CodeSystem, Extension, Observation } from "@medplum/fhirtypes";
-import { facilityMeta, reference } from "@asc/fhir/builders/common";
+import { facilityMeta, instant, reference } from "@asc/fhir/builders/common";
 import { createExtensionUrls } from "@asc/fhir/extensions";
 import { type FhirUrls, fhirUrls } from "@asc/fhir/urls";
 
@@ -126,7 +126,7 @@ export function caseReadinessExtension(check: ReadinessCheck, urls: FhirUrls = f
       { url: "label", valueString: check.label },
       ...(check.details !== undefined ? [{ url: "details", valueString: check.details }] : []),
       ...(check.waivedBy !== undefined ? [{ url: "waivedBy", valueString: check.waivedBy }] : []),
-      ...(check.waivedAt !== undefined ? [{ url: "waivedAt", valueDateTime: check.waivedAt }] : []),
+      ...(check.waivedAt !== undefined ? [{ url: "waivedAt", valueDateTime: instant(check.waivedAt, "waivedAt") }] : []),
       ...(check.waiverReason !== undefined ? [{ url: "waiverReason", valueString: check.waiverReason }] : []),
     ],
   };
@@ -243,7 +243,11 @@ export function buildReadinessObservation(
     },
     subject: reference("Patient", input.patientId, "patient id"),
     encounter: reference("Encounter", input.encounterId, "encounter id"),
-    effectiveDateTime: input.effectiveDateTime ?? input.check.waivedAt ?? "2026-10-12T00:00:00Z",
+    effectiveDateTime: input.effectiveDateTime
+      ? instant(input.effectiveDateTime, "effectiveDateTime")
+      : input.check.waivedAt
+        ? instant(input.check.waivedAt, "waivedAt")
+        : "2026-10-12T00:00:00Z",
     valueCodeableConcept: {
       coding: [
         {
