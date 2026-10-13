@@ -541,5 +541,88 @@ describe("Cases routes", () => {
       expect(response.statusCode).toBe(400);
       expect(response.json().code).toBe("invalid_payload");
     });
+
+    it("returns 403 when caller has schedule.manage at fac-a but attempts to book for fac-b", async () => {
+      const mockMedplum = new MockClient();
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["front-desk"], ["schedule.manage"])],
+        "user-fac-a-only",
+      );
+      built.identity.addToken("token-fac-a-only", principal);
+
+      const response = await built.app.inject({
+        method: "POST",
+        url: "/cases",
+        headers: bearer("token-fac-a-only"),
+        payload: {
+          facilityId: "fac-b",
+          patientId: "pat-1",
+          roomId: "room-1",
+          scheduledAt: futureInstant(240),
+          durationMinutes: 45,
+          primaryPhysicianId: "doc-1",
+          procedureIntent: "screening",
+          primaryProcedureCode: "45378",
+        },
+      });
+
+      expect(response.statusCode).toBe(403);
+    });
+
+    it("does not trigger room conflict when an appointment with identical room ID is booked at a different facility", async () => {
+      const mockMedplum = new MockClient();
+
+      const scheduledAt = futureInstant(264);
+      const startMs = Date.parse(scheduledAt);
+      const endMs = startMs + 45 * 60 * 1000;
+
+      // Seed existing booked appointment in room-1 at fac-b
+      await forFacility(mockMedplum, "fac-b").create({
+        resourceType: "Appointment",
+        status: "booked",
+        start: new Date(startMs).toISOString(),
+        end: new Date(endMs).toISOString(),
+        participant: [
+          { actor: { reference: "Patient/pat-existing" }, status: "accepted" },
+          { actor: { reference: "Location/room-1" }, status: "accepted" },
+          { actor: { reference: "Practitioner/doc-other" }, status: "accepted" },
+        ],
+      });
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["front-desk"], ["schedule.manage"])],
+        "fd-fac-a",
+      );
+      built.identity.addToken("token-fd-fac-a", principal);
+
+      // Book the same room-1 at fac-a during the exact same time window
+      const response = await built.app.inject({
+        method: "POST",
+        url: "/cases",
+        headers: bearer("token-fd-fac-a"),
+        payload: {
+          facilityId: "fac-a",
+          patientId: "pat-new",
+          roomId: "room-1",
+          scheduledAt,
+          durationMinutes: 45,
+          primaryPhysicianId: "doc-dr-jones",
+          procedureIntent: "screening",
+          primaryProcedureCode: "45378",
+        },
+      });
+
+      expect(response.statusCode).toBe(201);
+    });
   });
 });
