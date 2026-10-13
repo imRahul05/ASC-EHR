@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  bookCaseFormSchema,
+  bookCaseInputFrom,
   bookCaseResultSchema,
   bookCaseSchema,
   procedureIntentSchema,
@@ -140,5 +142,51 @@ describe("bookCaseSchema", () => {
     };
     expect(bookCaseResultSchema.safeParse(validResult).success).toBe(true);
     expect(bookCaseResultSchema.safeParse({ ...validResult, caseId: "" }).success).toBe(false);
+  });
+
+  it("validates bookCaseFormSchema and transforms via bookCaseInputFrom", () => {
+    const validFormData = {
+      facilityId: "fac-1",
+      patientId: "pat-101",
+      roomId: "room-2",
+      date: "2026-10-25",
+      startTime: "10:30",
+      durationMinutes: 45,
+      primaryPhysicianId: "doc-1",
+      anesthesiologistId: "anes-1",
+      procedureIntent: "screening" as const,
+      primaryProcedureCode: "45378",
+      notes: "Screening procedure",
+    };
+    const parsed = bookCaseFormSchema.safeParse(validFormData);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      const input = bookCaseInputFrom(parsed.data);
+      expect(input.facilityId).toBe("fac-1");
+      expect(input.patientId).toBe("pat-101");
+      expect(input.roomId).toBe("room-2");
+      expect(input.durationMinutes).toBe(45);
+      expect(input.scheduledAt).toContain("2026-10-25");
+      expect(input.primaryPhysicianId).toBe("doc-1");
+      expect(input.anesthesiologistId).toBe("anes-1");
+      expect(input.primaryProcedureCode).toBe("45378");
+      expect(input.procedureIntent).toBe("screening");
+      expect(input.notes).toBe("Screening procedure");
+    }
+  });
+
+  it("rejects past date/time in bookCaseFormSchema", () => {
+    const pastFormData = {
+      facilityId: "fac-1",
+      patientId: "pat-101",
+      roomId: "room-2",
+      date: "2020-01-01",
+      startTime: "08:00",
+      durationMinutes: 45,
+      primaryPhysicianId: "doc-1",
+      procedureIntent: "diagnostic" as const,
+      primaryProcedureCode: "43239",
+    };
+    expect(bookCaseFormSchema.safeParse(pastFormData).success).toBe(false);
   });
 });
