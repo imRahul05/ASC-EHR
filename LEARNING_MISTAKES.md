@@ -52,6 +52,8 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 20. Compose defaults must not weaken security silently: an empty Redis `--requirepass` means no authentication, the short bind-mount syntax creates a directory where a missing file should be, and `${VAR:?}` fails unrelated commands because compose resolves every service. Keep parse-safe empty defaults and make the container itself refuse to start; use the long bind syntax with `create_host_path: false`; verify each with a real `docker compose` run, not by reading. (LM-020)
 21. A builder validates relations between inputs, and an exemption keeps the rest of its rule: when two inputs form a range (start/end), check their order, not only each value; when a type is exempt from a check (shared directory data needs no facility tag), a value it does carry must still be valid. Reproduce a review claim with a throwaway test first: two of three claims on PR #56 were real, one (a trailing `-` in a regex class) was not. (LM-021)
 22. No PHI in URL query parameters (send in POST body and sanitize logged URLs); exact identifier duplicates cannot be waived with confirmDuplicate; validate FHIR IDs at the schema boundary. (LM-026)
+23. Non-waivable clinical checks must strictly block waivers; validate chronological order in paired timestamps; prevent workspace capability leakage. (LM-027)
+24. Exact MRN conflicts must lock registration override buttons; empty intake sections must be sanitized to undefined; mock Base UI Dialog portals in static test environments. (LM-028)
 
 ---
 
@@ -259,3 +261,17 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
   6. Validate all FHIR date/time strings with `instant()`.
 - **How to check:** `pnpm turbo run lint check-types test` across `@asc/clinical-rules`, `@asc/authz`, `@asc/fhir`, `@asc/ui`, and `web`.
 - **Guarded by:** `packages/clinical-rules/src/rules.test.ts`, `packages/clinical-rules/src/gates.test.ts`, `packages/authz/src/workspaces.test.ts`, `packages/fhir/src/case-readiness.test.ts`, `apps/web/src/lib/workspaces.test.ts`.
+
+### LM-028 — Lock waiver overrides on exact identifier conflicts, sanitize optional intake sections, and mock Base UI Dialog portals in static test suites
+- **Seen:** 1 · 2026-10-13 · Phase P14b (`feat/patient-registration-ui-and-eligibility`)
+- **What went wrong:**
+  1. If an intake form sends blank address inputs as an empty address array/object `[{}]`, FHIR parsers fail validation downstream because fields like `city` or `line` are empty strings.
+  2. Exact MRN duplicates cannot be waived per P14 policy, but UI buttons without strict `disabled` states could mislead staff into attempting to force registration.
+  3. Base UI `<Dialog open={true}>` uses `<DialogPortal>`, which renders outside the React SSR tree during `renderToStaticMarkup`, causing static test assertions on dialog children to fail or find nothing.
+- **Rule:**
+  1. Intake forms must sanitize optional sections: if address lines/city/state/zip are blank, send `address: undefined` rather than `[{}]`. If optional insurance or escort are toggled off or empty, send `undefined`.
+  2. Exact identifier conflicts (`duplicate_mrn_conflict`) must display a locked/disabled button with an explanatory tooltip, permitting only demographic collisions (`duplicate_patient_detected`) to be confirmed with `confirmDuplicate: true`.
+  3. In Node/SSR test environments using `renderToStaticMarkup`, mock `@asc/ui` Dialog primitives (`Dialog`, `DialogContent`, `DialogHeader`, `DialogTitle`, `DialogDescription`, `DialogFooter`) inline to render children directly without `DialogPortal`.
+- **How to check:** `pnpm --filter web test` (`duplicate-match-dialog.test.tsx`, `registration-form.test.tsx`).
+- **Guarded by:** `apps/web/src/features/patients/duplicate-match-dialog.test.tsx`, `apps/web/src/features/patients/registration-form.test.tsx`.
+
