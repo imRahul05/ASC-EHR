@@ -10,6 +10,7 @@ import {
   buildPatient,
   buildRelatedPerson,
   createTransaction,
+  fhirUrls,
 } from "@asc/fhir";
 import {
   formatZodError,
@@ -22,6 +23,37 @@ import type { Coverage, Patient, RelatedPerson } from "@medplum/fhirtypes";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import { capabilityAtResource } from "../auth/route-auth.js";
+
+/**
+ * In-flight registration queue per facility.
+ * Serializes the duplicate-check-and-write critical section per facility to neutralize
+ * Time-Of-Check to Time-Of-Use (TOCTOU) race conditions where concurrent registration
+ * requests for the same patient arrive simultaneously, both observe 0 existing candidates,
+ * and both commit duplicate Patient records to Medplum.
+ */
+const facilityRegistrationQueues = new Map<string, Promise<void>>();
+
+export async function withFacilityRegistrationLock<T>(
+  facilityId: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const previous = facilityRegistrationQueues.get(facilityId) ?? Promise.resolve();
+  let release: () => void = () => {};
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  facilityRegistrationQueues.set(facilityId, current);
+
+  try {
+    await previous.catch(() => {});
+    return await operation();
+  } finally {
+    release();
+    if (facilityRegistrationQueues.get(facilityId) === current) {
+      facilityRegistrationQueues.delete(facilityId);
+    }
+  }
+}
 
 function resolveFacilityId(
   request: FastifyRequest,
@@ -140,202 +172,218 @@ export function patientsRoutes(app: FastifyInstance): Promise<void> {
         return reply;
       }
 
-      const facilityAccountRef = `Organization/${facilityId}`;
+      return withFacilityRegistrationLock(facilityId, async () => {
+        const facilityAccountRef = `Organization/${facilityId}`;
 
-      // Query Medplum for duplicate candidates by family name, birthdate, or MRN scoped to facility
-      const candidateSearches: Promise<Patient[]>[] = [
-        request.medplum.searchResources("Patient", {
-          _account: facilityAccountRef,
-          name: body.name.family,
-          _count: "50",
-        }),
-        request.medplum.searchResources("Patient", {
-          _account: facilityAccountRef,
-          birthdate: body.dateOfBirth,
-          _count: "50",
-        }),
-      ];
-
-      if (body.mrn !== undefined && body.mrn !== "") {
-        candidateSearches.push(
+        // Query Medplum for duplicate candidates by family name, birthdate, or MRN scoped to facility
+        const candidateSearches: Promise<Patient[]>[] = [
           request.medplum.searchResources("Patient", {
             _account: facilityAccountRef,
-            identifier: body.mrn,
-            _count: "10",
+            name: body.name.family,
+            _count: "50",
           }),
-        );
-      }
+          request.medplum.searchResources("Patient", {
+            _account: facilityAccountRef,
+            birthdate: body.dateOfBirth,
+            _count: "50",
+          }),
+        ];
 
-      const candidateResults = await Promise.all(candidateSearches);
-      const candidatesById = new Map<string, Patient>();
-      for (const list of candidateResults) {
-        for (const candidate of list) {
-          if (
-            candidate.id !== undefined &&
-            candidate.meta?.accounts?.some((a) => a.reference === facilityAccountRef)
-          ) {
-            candidatesById.set(candidate.id, candidate);
+        if (body.mrn !== undefined && body.mrn !== "") {
+          candidateSearches.push(
+            request.medplum.searchResources("Patient", {
+              _account: facilityAccountRef,
+              identifier: body.mrn,
+              _count: "10",
+            }),
+          );
+        }
+
+        const candidateResults = await Promise.all(candidateSearches);
+        const candidatesById = new Map<string, Patient>();
+        for (const list of candidateResults) {
+          for (const candidate of list) {
+            if (
+              candidate.id !== undefined &&
+              candidate.meta?.accounts?.some((a) => a.reference === facilityAccountRef)
+            ) {
+              candidatesById.set(candidate.id, candidate);
+            }
           }
         }
-      }
 
-      const candidateSummaries: ExistingPatientSummary[] = Array.from(candidatesById.values()).map((p) => {
-        const family = p.name?.[0]?.family ?? "";
-        const given = p.name?.[0]?.given?.[0] ?? "";
-        const mrnId = p.identifier?.find((id) => id.system?.includes("mrn") || id.system === undefined)?.value;
-        const ecwId = p.identifier?.find((id) => id.system?.startsWith("urn:wybit:ecw"))?.value;
-        return {
-          id: p.id ?? "",
-          mrn: mrnId,
-          ecwId,
-          firstName: given,
-          lastName: family,
-          dateOfBirth: p.birthDate ?? "",
-          gender: p.gender,
-        };
-      });
+        const candidateSummaries: ExistingPatientSummary[] = Array.from(candidatesById.values()).map((p) => {
+          const family = p.name?.[0]?.family ?? "";
+          const given = p.name?.[0]?.given?.[0] ?? "";
+          const mrnId = p.identifier?.find((id) => id.system?.includes("mrn") || id.system === undefined)?.value;
+          const ecwId = p.identifier?.find((id) => id.system?.startsWith("urn:wybit:ecw"))?.value;
+          return {
+            id: p.id ?? "",
+            mrn: mrnId,
+            ecwId,
+            firstName: given,
+            lastName: family,
+            dateOfBirth: p.birthDate ?? "",
+            gender: p.gender,
+          };
+        });
 
-      const duplicateResult = evaluateDuplicateMatch(
-        {
-          mrn: body.mrn,
-          firstName: body.name.given[0] ?? "",
-          lastName: body.name.family,
-          dateOfBirth: body.dateOfBirth,
+        const duplicateResult = evaluateDuplicateMatch(
+          {
+            mrn: body.mrn,
+            firstName: body.name.given[0] ?? "",
+            lastName: body.name.family,
+            dateOfBirth: body.dateOfBirth,
+            gender: body.gender,
+          },
+          candidateSummaries,
+        );
+
+        if (duplicateResult.hasMatch) {
+          if (duplicateResult.highestConfidence === "exact_identifier") {
+            return reply.code(409).send({
+              code: "duplicate_mrn_conflict",
+              message: "A patient with this MRN already exists at this facility.",
+              duplicateMatch: duplicateResult,
+            });
+          }
+
+          if (duplicateResult.highestConfidence === "high" && !body.confirmDuplicate) {
+            return reply.code(409).send({
+              code: "duplicate_patient_detected",
+              message: "Potential duplicate patient detected.",
+              duplicateMatch: duplicateResult,
+            });
+          }
+        }
+
+        const telecom: { system: "phone" | "email"; value: string }[] = [];
+        if (body.phone !== undefined && body.phone.trim() !== "") {
+          telecom.push({ system: "phone", value: body.phone.trim() });
+        }
+        if (body.email !== undefined && body.email.trim() !== "") {
+          telecom.push({ system: "email", value: body.email.trim() });
+        }
+
+        const hasAddress =
+          body.address !== undefined &&
+          ((body.address.line !== undefined && body.address.line.length > 0) ||
+            (body.address.city !== undefined && body.address.city.trim() !== "") ||
+            (body.address.state !== undefined && body.address.state.trim() !== "") ||
+            (body.address.postalCode !== undefined && body.address.postalCode.trim() !== "") ||
+            (body.address.country !== undefined && body.address.country.trim() !== ""));
+
+        const address =
+          hasAddress && body.address !== undefined
+            ? [
+                {
+                  ...(body.address.line !== undefined && body.address.line.length > 0
+                    ? { line: body.address.line }
+                    : {}),
+                  ...(body.address.city !== undefined && body.address.city.trim() !== ""
+                    ? { city: body.address.city.trim() }
+                    : {}),
+                  ...(body.address.state !== undefined && body.address.state.trim() !== ""
+                    ? { state: body.address.state.trim() }
+                    : {}),
+                  ...(body.address.postalCode !== undefined && body.address.postalCode.trim() !== ""
+                    ? { postalCode: body.address.postalCode.trim() }
+                    : {}),
+                  ...(body.address.country !== undefined && body.address.country.trim() !== ""
+                    ? { country: body.address.country.trim() }
+                    : {}),
+                },
+              ]
+            : undefined;
+
+        const patientResource = buildPatient({
+          facilityId,
+          name: {
+            family: body.name.family,
+            given: body.name.given,
+          },
+          birthDate: body.dateOfBirth,
           gender: body.gender,
-        },
-        candidateSummaries,
-      );
+          mrn: body.mrn,
+          telecom: telecom.length > 0 ? telecom : undefined,
+          address,
+        });
 
-      if (duplicateResult.hasMatch) {
-        if (duplicateResult.highestConfidence === "exact_identifier") {
+        const tx = createTransaction({ facilityId });
+        const patientRef = tx.ref<Patient>("patient");
+        const mrnSystem = fhirUrls.identifierSystem("mrn");
+        const ifNoneExist =
+          body.mrn !== undefined && body.mrn.trim() !== ""
+            ? `identifier=${encodeURIComponent(`${mrnSystem}|${body.mrn.trim()}`)}`
+            : undefined;
+        tx.add("patient", patientResource, ifNoneExist !== undefined ? { ifNoneExist } : undefined);
+
+        let hasCoverage = false;
+        if (body.insurance !== undefined) {
+          hasCoverage = true;
+          const coverageResource = buildCoverage({
+            facilityId,
+            patientRef,
+            payorId: body.insurance.payerId,
+            subscriberId: body.insurance.memberId,
+            planName: body.insurance.planName,
+            groupNumber: body.insurance.groupNumber,
+            relationship: body.insurance.relationship,
+          });
+          tx.add("coverage", coverageResource);
+        }
+
+        let hasEscort = false;
+        if (body.escort !== undefined) {
+          hasEscort = true;
+          const escortResource = buildRelatedPerson({
+            facilityId,
+            patientRef,
+            relationship: body.escort.relationship,
+            name: body.escort.name,
+            telecom: [{ system: "phone", value: body.escort.phone }],
+          });
+          tx.add("escort", escortResource);
+        }
+
+        const bundle = tx.build();
+        const writer = forFacility(request.medplum, facilityId);
+        const responseBundle = await writer.transaction(bundle);
+
+        const patientEntry = responseBundle.entry?.[0];
+        const entryStatus = patientEntry?.response?.status;
+        if (entryStatus === "200" || entryStatus?.startsWith("200") || entryStatus === "304") {
           return reply.code(409).send({
             code: "duplicate_mrn_conflict",
             message: "A patient with this MRN already exists at this facility.",
-            duplicateMatch: duplicateResult,
           });
         }
 
-        if (duplicateResult.highestConfidence === "high" && !body.confirmDuplicate) {
-          return reply.code(409).send({
-            code: "duplicate_patient_detected",
-            message: "Potential duplicate patient detected.",
-            duplicateMatch: duplicateResult,
-          });
+        const createdPatient = patientEntry?.resource as WithId<Patient> | undefined;
+        if (createdPatient === undefined || createdPatient.id === undefined) {
+          throw new Error("Transaction succeeded but patient was not returned");
         }
-      }
 
-      const telecom: { system: "phone" | "email"; value: string }[] = [];
-      if (body.phone !== undefined && body.phone.trim() !== "") {
-        telecom.push({ system: "phone", value: body.phone.trim() });
-      }
-      if (body.email !== undefined && body.email.trim() !== "") {
-        telecom.push({ system: "email", value: body.email.trim() });
-      }
+        let createdCoverage: WithId<Coverage> | undefined;
+        let nextIdx = 1;
+        if (hasCoverage) {
+          createdCoverage = responseBundle.entry?.[nextIdx]?.resource as WithId<Coverage> | undefined;
+          nextIdx++;
+        }
 
-      const hasAddress =
-        body.address !== undefined &&
-        ((body.address.line !== undefined && body.address.line.length > 0) ||
-          (body.address.city !== undefined && body.address.city.trim() !== "") ||
-          (body.address.state !== undefined && body.address.state.trim() !== "") ||
-          (body.address.postalCode !== undefined && body.address.postalCode.trim() !== "") ||
-          (body.address.country !== undefined && body.address.country.trim() !== ""));
+        let createdEscort: WithId<RelatedPerson> | undefined;
+        if (hasEscort) {
+          createdEscort = responseBundle.entry?.[nextIdx]?.resource as WithId<RelatedPerson> | undefined;
+        }
 
-      const address =
-        hasAddress && body.address !== undefined
-          ? [
-              {
-                ...(body.address.line !== undefined && body.address.line.length > 0
-                  ? { line: body.address.line }
-                  : {}),
-                ...(body.address.city !== undefined && body.address.city.trim() !== ""
-                  ? { city: body.address.city.trim() }
-                  : {}),
-                ...(body.address.state !== undefined && body.address.state.trim() !== ""
-                  ? { state: body.address.state.trim() }
-                  : {}),
-                ...(body.address.postalCode !== undefined && body.address.postalCode.trim() !== ""
-                  ? { postalCode: body.address.postalCode.trim() }
-                  : {}),
-                ...(body.address.country !== undefined && body.address.country.trim() !== ""
-                  ? { country: body.address.country.trim() }
-                  : {}),
-              },
-            ]
-          : undefined;
+        request.log.info({ patientId: createdPatient.id, facilityId }, "patient registered successfully");
 
-      const patientResource = buildPatient({
-        facilityId,
-        name: {
-          family: body.name.family,
-          given: body.name.given,
-        },
-        birthDate: body.dateOfBirth,
-        gender: body.gender,
-        mrn: body.mrn,
-        telecom: telecom.length > 0 ? telecom : undefined,
-        address,
-      });
-
-      const tx = createTransaction({ facilityId });
-      const patientRef = tx.ref<Patient>("patient");
-      tx.add("patient", patientResource);
-
-      let hasCoverage = false;
-      if (body.insurance !== undefined) {
-        hasCoverage = true;
-        const coverageResource = buildCoverage({
-          facilityId,
-          patientRef,
-          payorId: body.insurance.payerId,
-          subscriberId: body.insurance.memberId,
-          planName: body.insurance.planName,
-          groupNumber: body.insurance.groupNumber,
-          relationship: body.insurance.relationship,
+        return reply.code(201).send({
+          patient: createdPatient,
+          coverage: createdCoverage,
+          escort: createdEscort,
+          duplicateMatch: duplicateResult,
         });
-        tx.add("coverage", coverageResource);
-      }
-
-      let hasEscort = false;
-      if (body.escort !== undefined) {
-        hasEscort = true;
-        const escortResource = buildRelatedPerson({
-          facilityId,
-          patientRef,
-          relationship: body.escort.relationship,
-          name: body.escort.name,
-          telecom: [{ system: "phone", value: body.escort.phone }],
-        });
-        tx.add("escort", escortResource);
-      }
-
-      const bundle = tx.build();
-      const writer = forFacility(request.medplum, facilityId);
-      const responseBundle = await writer.transaction(bundle);
-
-      const createdPatient = responseBundle.entry?.[0]?.resource as WithId<Patient> | undefined;
-      if (createdPatient === undefined || createdPatient.id === undefined) {
-        throw new Error("Transaction succeeded but patient was not returned");
-      }
-
-      let createdCoverage: WithId<Coverage> | undefined;
-      let nextIdx = 1;
-      if (hasCoverage) {
-        createdCoverage = responseBundle.entry?.[nextIdx]?.resource as WithId<Coverage> | undefined;
-        nextIdx++;
-      }
-
-      let createdEscort: WithId<RelatedPerson> | undefined;
-      if (hasEscort) {
-        createdEscort = responseBundle.entry?.[nextIdx]?.resource as WithId<RelatedPerson> | undefined;
-      }
-
-      request.log.info({ patientId: createdPatient.id, facilityId }, "patient registered successfully");
-
-      return reply.code(201).send({
-        patient: createdPatient,
-        coverage: createdCoverage,
-        escort: createdEscort,
-        duplicateMatch: duplicateResult,
       });
     },
   );

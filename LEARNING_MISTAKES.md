@@ -55,6 +55,7 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 23. Non-waivable clinical checks must strictly block waivers; validate chronological order in paired timestamps; prevent workspace capability leakage. (LM-027)
 24. Exact MRN conflicts must lock registration override buttons; empty intake sections must be sanitized to undefined; mock Base UI Dialog portals in static test environments. (LM-028)
 25. Atomic case booking bundles: commit Appointment, Encounter, and ServiceRequest in a single FHIR transaction bundle with facility meta accounts; use narrativeText for clinical notes allowing newlines; validate roomId with FHIR_ID regex; pure conflict engine excludes cancelled and noshow slots (including normative FHIR "noshow" and "entered-in-error") and safely falls back on missing endMs; query up to 250 daily appointments; fail fast if transaction response IDs are unresolved. (LM-029)
+26. Neutralize registration TOCTOU race conditions: serialize in-flight duplicate-check-and-write critical sections per facility using an in-flight queue lock, use FHIR conditional create (ifNoneExist) for MRN, and verify transaction response status to reject duplicate creation with HTTP 409. (LM-030)
 
 ---
 
@@ -296,5 +297,18 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
   8. Audit logs must strictly contain non-identifying IDs, room strings, and timestamps; never log patient demographics or procedure indication text.
 - **How to check:** `pnpm turbo run lint check-types test` across `@asc/validation`, `@asc/clinical-rules`, `@asc/fhir`, and `apps/api`.
 - **Guarded by:** `packages/validation/src/cases/book.test.ts`, `packages/clinical-rules/src/scheduling/conflicts.test.ts`, `packages/fhir/src/builders/service-request.test.ts`, `packages/fhir/src/builders/common.test.ts`, `apps/api/src/routes/cases.test.ts`.
+
+### LM-030 — Neutralize registration TOCTOU race conditions with in-flight facility synchronization and FHIR conditional create
+- **Seen:** 1 · 2026-10-13 · Patient Registration Race Condition Investigation (`apps/api`)
+- **What went wrong:**
+  1. In `POST /patients/register`, duplicate detection read candidate patients from Medplum via `searchResources`, evaluated duplicate matching in memory, and then committed the new Patient in a separate transaction without any concurrency controls or conditional create parameters.
+  2. Two concurrent registration requests for the same patient (e.g. double-click or simultaneous intake) both queried Medplum before either transaction committed, both observed 0 candidates, both passed duplicate checks, and both created duplicate `Patient` records in Medplum with different UUIDs.
+- **Rule:**
+  1. Critical sections that check-and-create resources must serialize in-flight requests per facility using an in-flight queue lock (`withFacilityRegistrationLock(facilityId, ...)`). Requests targeting different facilities execute concurrently without blocking.
+  2. Always use defense-in-depth: pass FHIR conditional create options (`ifNoneExist: identifier=<system>|<mrn>`) on transaction entries where an exact identifier is present, and check `responseBundle.entry[0].response.status` (returning HTTP 409 `duplicate_mrn_conflict` if `status` is 200/304).
+  3. Ensure in-flight locks handle errors gracefully using `try ... finally` and `previous.catch(() => {})` so that failed or aborted requests never hang or deadlock subsequent operations in the queue.
+- **How to check:** `pnpm --filter api test` (`src/routes/patients.test.ts`, `src/routes/patients-lock.test.ts`).
+- **Guarded by:** `apps/api/src/routes/patients.test.ts` (concurrency suite), `apps/api/src/routes/patients-lock.test.ts`.
+
 
 
