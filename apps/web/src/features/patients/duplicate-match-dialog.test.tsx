@@ -1,9 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import type * as AscUi from "@asc/ui";
 import { DuplicateMatchDialog } from "./duplicate-match-dialog";
 
 vi.mock("@asc/ui", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@asc/ui")>();
+  const actual = await importOriginal<typeof AscUi>();
   return {
     ...actual,
     Dialog: ({ children, open }: { children: React.ReactNode; open: boolean }) =>
