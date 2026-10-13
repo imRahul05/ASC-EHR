@@ -65,3 +65,4 @@ export type PatientGenderInput = z.infer<typeof patientGenderSchema>;
 export type PatientAddressInput = z.infer<typeof patientAddressSchema>;
 export type PatientEscortInput = z.infer<typeof patientEscortSchema>;
 export type RegisterPatientInput = z.infer<typeof registerPatientSchema>;
+export type RegisterPatientFormInput = z.input<typeof registerPatientSchema>;

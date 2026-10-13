@@ -1003,6 +1003,7 @@ export interface MyCare {
 
 export interface PatientSearchQuery {
   readonly q?: string;
+  readonly facilityId?: string;
 }
 
 export interface CreatePatientPayload {
@@ -1012,6 +1013,7 @@ export interface CreatePatientPayload {
   readonly sex: Sex;
   readonly phone: string;
   readonly email?: string;
+  readonly mrn?: string;
   readonly address?: Address;
   readonly preferredLanguage?: string;
   readonly coverage?: Omit<Coverage, "id" | "eligibility">;

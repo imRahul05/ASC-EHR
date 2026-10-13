@@ -105,8 +105,12 @@ export function useSearchPatients(
 
 export const useSearchPatientsMutation = () => useClinicalMutation(searchPatients);
 
-export function usePatient(patientId: string) {
-  return useQuery({ queryKey: queryKeys.patients.detail(patientId), queryFn: () => getPatient(patientId) });
+export function usePatient(patientId: string, options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.patients.detail(patientId),
+    queryFn: () => getPatient(patientId),
+    enabled: options.enabled ?? (patientId !== ""),
+  });
 }
 
 export const useRegisterPatient = () => useClinicalMutation(registerPatient);
