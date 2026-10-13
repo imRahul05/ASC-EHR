@@ -65,3 +65,22 @@ None.
 |---|---|---|---|
 | Q4 | Clearinghouse (Stedi/Candid) | real eligibility | Stub + manual verification checkbox |
 | Q1 | Import referrals' eCW patient ID at registration? | T1 | Optional identifier field (06 §5.1) |
+
+## P14 decisions (recorded 2026-10-13, PR #75 review)
+
+1. **Sub-phase sizing (LM-015 / PROGRESS.md)**: Split P14 into:
+   - **P14a**: Patient Intake Contracts, Duplicate Match Engine & Fastify API Routes (PR #75)
+   - **P14b**: Eligibility Stub Bot, Clinical UI Components & Patient Web Pages
+2. **PHI in URLs and Request Logging (COMPLIANCE_AND_PHI §4)**:
+   - Patient search supports `POST /patients/search` with demographics passed in the JSON request body.
+   - For defense-in-depth, Fastify's request serializer in `@asc/logger` sanitizes query parameters from `req.url`, ensuring query strings are never written to request logs.
+3. **Exact Identifier (MRN) Duplicate vs Demographic Match**:
+   - Matches with `exact_identifier` confidence (matching MRN within the facility) are non-waivable and unconditionally return HTTP 409 `duplicate_mrn_conflict`.
+   - `confirmDuplicate: true` is honored only for high-confidence demographic overlaps (matching Name + DOB + Gender) to accommodate valid demographic collisions (e.g., parent/child with shared names).
+4. **Boundary Validation of FHIR Identifiers (LM-017 / LM-021)**:
+   - `facilityId` and `payerId` are validated at the Zod schema boundary against the canonical FHIR ID regex (`/^[A-Za-z0-9.-]{1,64}$/`) and `mrn` against bounded non-whitespace tokens to fail fast with HTTP 400 before reaching FHIR builders.
+5. **Multi-Facility Account Scoping & $set-accounts (#59)**:
+   - In P14a, duplicate candidate search is strictly scoped to the registering facility (`_account: Organization/${facilityId}`) to prevent cross-facility data leakage while preventing local facility duplicates.
+   - Tenant-wide patient record sharing, `$set-accounts` with `propagate` settings, and `patient.facility_added` audit logging are scheduled for P14b intake orchestration.
+6. **Address Sanitization**:
+   - Empty address objects (all fields blank or undefined) are sanitized to `undefined` before building FHIR `Patient` resources to prevent invalid empty address entries (`[{}]`).

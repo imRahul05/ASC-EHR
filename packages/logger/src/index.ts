@@ -28,6 +28,22 @@ export function resolveLogLevel(level: string | undefined): string {
   return normalized && VALID_LEVELS.has(normalized) ? normalized : "info";
 }
 
+/** Sanitizes request objects by stripping query strings, raw Node requests, and query dictionaries to prevent PHI leakage in request logs (COMPLIANCE_AND_PHI §4). */
+export function serializeRequest<T extends Record<string, unknown>>(req: T): T {
+  if (!req || typeof req !== "object") {
+    return req;
+  }
+  const result: Record<string, unknown> = { ...req };
+  if (typeof result.url === "string") {
+    const rawUrl = result.url;
+    result.url = rawUrl.split("?")[0] ?? rawUrl;
+  }
+  // Strip raw Node IncomingMessage and query dictionary so query string PHI is never leaked to logs
+  delete result.raw;
+  delete result.query;
+  return result as T;
+}
+
 /** Builds pino options for the given environment (defaults to the process env via @asc/config). */
 export function buildLoggerOptions(
   env: { NODE_ENV?: string; LOG_LEVEL?: string } = getProcessEnv(),
@@ -43,6 +59,7 @@ export function buildLoggerOptions(
     serializers: {
       err: pino.stdSerializers.err,
       error: pino.stdSerializers.err,
+      req: serializeRequest,
     },
     // Development only: human-readable output. Staging/production: JSON to stdout.
     ...(isDev && {

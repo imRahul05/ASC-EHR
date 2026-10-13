@@ -1,8 +1,10 @@
 import cors from "@fastify/cors";
 import Fastify from "fastify";
+import type { createOnBehalfClient } from "@asc/api-client/server";
 import type { AuditClient } from "@asc/audit";
 import type { IdentityPort, TenantResolver } from "@asc/authz";
 import { loggerOptions } from "@asc/logger";
+import { formatZodError, isZodError } from "@asc/validation";
 import { registerAuthentication } from "./auth/authn.js";
 import { createDenier } from "./auth/denied.js";
 import { registerDefaultDeny } from "./auth/default-deny.js";
@@ -34,6 +36,8 @@ interface AppOptions {
   readonly production: boolean;
   /** `MEDPLUM_BASE_URL`: where `request.medplum` calls, as the signed-in user. Unset: those routes answer 503. */
   readonly medplumBaseUrl?: string | undefined;
+  /** Test override for creating the Medplum client on behalf of a user. */
+  readonly createMedplumClient?: typeof createOnBehalfClient | undefined;
 }
 
 export async function buildApp({
@@ -45,6 +49,7 @@ export async function buildApp({
   catalogVersion,
   production,
   medplumBaseUrl,
+  createMedplumClient,
 }: AppOptions) {
   assertIdentityAllowed(identity, production);
   const app = Fastify({
@@ -52,6 +57,14 @@ export async function buildApp({
     // Client-supplied IDs are accepted only if well-formed (see resolveRequestId).
     genReqId: (req) => resolveRequestId(req.headers),
   });
+
+  app.setErrorHandler((error, _request, reply) => {
+    if (isZodError(error)) {
+      return reply.code(400).send(formatZodError(error));
+    }
+    return reply.send(error);
+  });
+
   registerDefaultDeny(app); // before any route or plugin that registers routes
   const deny = createDenier({ audit, catalogVersion });
 
@@ -83,7 +96,10 @@ export async function buildApp({
     userRateLimit: { max: rateLimit.userMax, windowMs: rateLimit.windowMs },
   });
   registerAuthorization(app, createGuards(deny));
-  registerMedplum(app, { baseUrl: medplumBaseUrl });
+  registerMedplum(app, {
+    baseUrl: medplumBaseUrl,
+    ...(createMedplumClient === undefined ? {} : { createClient: createMedplumClient }),
+  });
 
   registerRoutes(app);
 

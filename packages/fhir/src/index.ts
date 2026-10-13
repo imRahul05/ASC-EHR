@@ -14,3 +14,5 @@ export * from "./builders/patient.js";
 export * from "./builders/appointment.js";
 export * from "./builders/provenance.js";
 export * from "./builders/task.js";
+export * from "./builders/coverage.js";
+export * from "./builders/related-person.js";

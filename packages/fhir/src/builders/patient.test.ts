@@ -23,6 +23,46 @@ describe("buildPatient", () => {
     ]);
   });
 
+  it("adds telecom and address when given", () => {
+    const patient = buildPatient({
+      ...base,
+      telecom: [
+        { system: "phone", value: "(555) 123-4567" },
+        { system: "email", value: "test@example.com" },
+      ],
+      address: [
+        {
+          line: ["123 Main St", "Apt 4B"],
+          city: "Metropolis",
+          state: "NY",
+          postalCode: "10001",
+          country: "USA",
+        },
+        {},
+      ],
+    });
+    expect(patient.telecom).toEqual([
+      { system: "phone", value: "(555) 123-4567" },
+      { system: "email", value: "test@example.com" },
+    ]);
+    expect(patient.address).toEqual([
+      {
+        line: ["123 Main St", "Apt 4B"],
+        city: "Metropolis",
+        state: "NY",
+        postalCode: "10001",
+        country: "USA",
+      },
+      {},
+    ]);
+  });
+
+  it("omits telecom and address when empty arrays are given", () => {
+    const patient = buildPatient({ ...base, telecom: [], address: [] });
+    expect(patient.telecom).toBeUndefined();
+    expect(patient.address).toBeUndefined();
+  });
+
   it("uses the base it is given for identifier systems", () => {
     const patient = buildPatient({ ...base, mrn: "M-1" }, createFhirUrls("https://fhir.example.test/x/"));
     expect(patient.identifier?.[0]?.system).toBe("https://fhir.example.test/x/identifier/mrn");

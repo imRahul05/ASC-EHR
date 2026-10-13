@@ -32,12 +32,18 @@ importers:
       '@asc/authz':
         specifier: workspace:*
         version: link:../../packages/authz
+      '@asc/clinical-rules':
+        specifier: workspace:*
+        version: link:../../packages/clinical-rules
       '@asc/config':
         specifier: workspace:*
         version: link:../../packages/config
       '@asc/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@asc/fhir':
+        specifier: workspace:*
+        version: link:../../packages/fhir
       '@asc/logger':
         specifier: workspace:*
         version: link:../../packages/logger

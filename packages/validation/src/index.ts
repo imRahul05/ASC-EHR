@@ -32,3 +32,11 @@ export * from "./schedule.js";
 
 // Principal, grants, role templates and GET /me (authorization contracts)
 export * from "./authz.js";
+
+// Patient intake, registration, and duplicate search (Phase P14)
+export * from "./patients/coverage.js";
+export * from "./patients/register.js";
+export * from "./patients/search.js";
+
+// Validation error formatting and guards (LM-001)
+export * from "./errors.js";
