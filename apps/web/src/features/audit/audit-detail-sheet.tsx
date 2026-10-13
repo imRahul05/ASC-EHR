@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { formatDateTime } from "@asc/clinical-rules/time";
-import type { AuditEvent } from "@asc/types";
+import type { ClinicalTimelineEvent } from "@asc/types";
 import { Button, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@asc/ui";
 import { ExternalLink } from "@asc/ui/icons";
 
 interface AuditDetailSheetProps {
-  readonly event: AuditEvent | null;
+  readonly event: ClinicalTimelineEvent | null;
   readonly onClose: () => void;
 }
 

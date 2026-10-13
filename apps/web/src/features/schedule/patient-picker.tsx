@@ -4,7 +4,7 @@ import { useDeferredValue, useState } from "react";
 import { usePatient, useSearchPatients } from "@asc/api-client/react";
 import { Button, cn, Input, Skeleton } from "@asc/ui";
 import { BadgeCheck, CircleAlert, Search, X } from "@asc/ui/icons";
-import { buildSearchPayload } from "../patients/patient-search-input";
+import { buildSearchPayload } from "@asc/validation/patients/search";
 import { useAuthStore } from "../../lib/stores/auth.store";
 
 interface PatientPickerProps {

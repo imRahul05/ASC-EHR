@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { patientSearchQuerySchema } from "./search.js";
+import { buildSearchPayload, patientSearchQuerySchema } from "./search.js";
 
 describe("patientSearchQuerySchema", () => {
   it("parses valid query parameters", () => {
@@ -41,5 +41,27 @@ describe("patientSearchQuerySchema", () => {
   it("rejects mrn with spaces", () => {
     const result = patientSearchQuerySchema.safeParse({ mrn: "MRN 123" });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("buildSearchPayload", () => {
+  it("disambiguates valid ISO dates into dob", () => {
+    const payload = buildSearchPayload("1985-04-12", "fac-1");
+    expect(payload).toEqual({ dob: "1985-04-12", facilityId: "fac-1" });
+  });
+
+  it("disambiguates MRN strings into mrn", () => {
+    const payload = buildSearchPayload("MRN-204313", "fac-1");
+    expect(payload).toEqual({ mrn: "MRN-204313", facilityId: "fac-1" });
+  });
+
+  it("disambiguates alphabetic strings into patient name", () => {
+    const payload = buildSearchPayload("Jane Doe", "fac-1");
+    expect(payload).toEqual({ name: "Jane Doe", facilityId: "fac-1" });
+  });
+
+  it("handles null or undefined facilityId properly", () => {
+    const payload = buildSearchPayload("Smith", null);
+    expect(payload).toEqual({ name: "Smith", facilityId: undefined });
   });
 });

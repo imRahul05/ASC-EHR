@@ -55,7 +55,7 @@ export const STAGE_BADGE_META: Readonly<
   },
 };
 
-const ROOM_STATUS_META: Readonly<
+export const ROOM_STATUS_META: Readonly<
   Record<
     RoomStatus,
     { readonly label: string; readonly tone: string }

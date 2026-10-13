@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useAuditLog } from "@asc/api-client/react";
 import { formatDateTime } from "@asc/clinical-rules/time";
-import type { AuditEvent, AuditQuery } from "@asc/types";
+import type { ClinicalTimelineEvent, AuditQuery } from "@asc/types";
 import { Badge, Button, DataTable, EmptyState, ErrorState, FormField, OptionSelect, PageHeader, type DataTableColumn } from "@asc/ui";
 import { CircleCheck, CircleX, FilterX, ScrollText, ShieldX, type LucideIcon } from "@asc/ui/icons";
 import { AuditDetailSheet } from "./audit-detail-sheet";
@@ -61,13 +61,13 @@ const FILTERS: readonly { readonly key: FilterKey; readonly label: string; reado
   },
 ];
 
-const OUTCOME: Readonly<Record<AuditEvent["outcome"], { readonly icon: LucideIcon; readonly className: string }>> = {
+const OUTCOME: Readonly<Record<ClinicalTimelineEvent["outcome"], { readonly icon: LucideIcon; readonly className: string }>> = {
   success: { icon: CircleCheck, className: "text-success" },
   denied: { icon: ShieldX, className: "text-warning" },
   failure: { icon: CircleX, className: "text-destructive" },
 };
 
-const COLUMNS: readonly DataTableColumn<AuditEvent>[] = [
+const COLUMNS: readonly DataTableColumn<ClinicalTimelineEvent>[] = [
   { id: "at", header: "Time", cell: (row) => <span className="whitespace-nowrap tabular-nums">{formatDateTime(row.at)}</span> },
   {
     id: "actor",
@@ -107,7 +107,7 @@ const COLUMNS: readonly DataTableColumn<AuditEvent>[] = [
 /** `/audit` — filterable audit trail (who did what to which resource, when). Details carry ids/codes only — no PHI. */
 export function AuditLog() {
   const [filters, setFilters] = useState<Filters>({});
-  const [selected, setSelected] = useState<AuditEvent | null>(null);
+  const [selected, setSelected] = useState<ClinicalTimelineEvent | null>(null);
   const query: AuditQuery = filters as AuditQuery;
   const log = useAuditLog(query);
   const active = Object.values(filters).some(Boolean);

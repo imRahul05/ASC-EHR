@@ -1,7 +1,7 @@
 import { medHoldCheck, nextPhase, PHASE_LABEL, timeOutGate } from "@asc/clinical-rules";
 import type {
   AuditActor,
-  AuditEvent,
+  ClinicalTimelineEvent,
   CaseDetail,
   CasePhase,
   PatientListItem,
@@ -59,9 +59,9 @@ export function userIdFrom(request: Request): string | undefined {
 export function audit(
   actor: AuditActor,
   action: string,
-  entity: AuditEvent["entity"],
+  entity: ClinicalTimelineEvent["entity"],
   summary: string,
-  outcome: AuditEvent["outcome"] = "success",
+  outcome: ClinicalTimelineEvent["outcome"] = "success",
 ): void {
   const { id, name, role } = actor;
   state.audit = [

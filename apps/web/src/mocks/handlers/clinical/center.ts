@@ -2,7 +2,7 @@ import { isPhaseAtLeast, STOPPED_PHASES, toIsoDate } from "@asc/clinical-rules";
 import { API_ROUTE_PATTERNS as P } from "@asc/config/api";
 import type {
   AdminOverview,
-  AuditEvent,
+  ClinicalTimelineEvent,
   CodingQueueItem,
   DashboardSummary,
   MyCare,
@@ -156,7 +156,7 @@ export const centerHandlers = [
   http.get(apiUrl(P.audit), async ({ request }) => {
     await latency();
     const params = new URL(request.url).searchParams;
-    const filters: readonly ((event: AuditEvent) => boolean)[] = [
+    const filters: readonly ((event: ClinicalTimelineEvent) => boolean)[] = [
       (event) => !params.get("action") || event.action.startsWith(params.get("action") ?? ""),
       (event) => !params.get("role") || event.actor.role === params.get("role"),
       (event) => !params.get("entityType") || event.entity.type === params.get("entityType"),

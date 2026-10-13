@@ -1,7 +1,7 @@
 import { API_ROUTES } from "@asc/config/api";
 import type {
   AdminOverview,
-  AuditEvent,
+  ClinicalTimelineEvent,
   AuditQuery,
   CodingQueueItem,
   DashboardSummary,
@@ -38,7 +38,7 @@ export function getQualityMetrics(): Promise<QualityMetrics> {
 }
 
 /** Audit log, newest first. */
-export function getAuditLog(query: AuditQuery = {}): Promise<readonly AuditEvent[]> {
+export function getAuditLog(query: AuditQuery = {}): Promise<readonly ClinicalTimelineEvent[]> {
   return http.get(API_ROUTES.audit, { query: toQuery(query) });
 }
 

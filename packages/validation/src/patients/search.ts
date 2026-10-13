@@ -35,3 +35,27 @@ export const patientSearchBodySchema = patientSearchQuerySchema;
 export type PatientSearchQuery = z.infer<typeof patientSearchQuerySchema>;
 export type PatientSearchInput = z.input<typeof patientSearchSchema>;
 export type PatientSearchBodyInput = z.input<typeof patientSearchBodySchema>;
+
+/**
+ * Disambiguates a raw search term into DOB (YYYY-MM-DD), MRN, or patient name.
+ * Scoped to an optional facility ID.
+ */
+export function buildSearchPayload(
+  term: string,
+  facilityId?: string | null,
+): PatientSearchBodyInput {
+  const trimmed = term.trim();
+  const isDob = ISO_DATE.test(trimmed);
+  const isMrn =
+    /^(MRN-)?[A-Z0-9.-]+$/i.test(trimmed) &&
+    !/\s/.test(trimmed) &&
+    /[0-9]/.test(trimmed);
+
+  if (isDob) {
+    return { dob: trimmed, facilityId: facilityId ?? undefined };
+  }
+  if (isMrn) {
+    return { mrn: trimmed, facilityId: facilityId ?? undefined };
+  }
+  return { name: trimmed, facilityId: facilityId ?? undefined };
+}

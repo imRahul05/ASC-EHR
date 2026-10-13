@@ -1,9 +1,5 @@
-import type { CasePhase, RoomStatus, WhiteboardCard } from "@asc/types";
+import type { CasePhase, WhiteboardCard } from "@asc/types";
 import {
-  Activity,
-  Ban,
-  CircleDashed,
-  RefreshCw,
   ShieldAlert,
   TriangleAlert,
   UserX,
@@ -45,12 +41,7 @@ export const FLAG_META: Readonly<Record<Flag, { readonly label: string; readonly
   eligibility: { label: "Eligibility", icon: ShieldAlert, tone: "text-info bg-info/10" },
 };
 
-export const ROOM_STATUS_META: Readonly<Record<RoomStatus, { readonly label: string; readonly icon: LucideIcon; readonly tone: string }>> = {
-  in_use: { label: "Occupied", icon: Activity, tone: "bg-phase-procedure text-phase-procedure-foreground" },
-  turnover: { label: "Turnover", icon: RefreshCw, tone: "bg-warning/10 text-warning" },
-  idle: { label: "Idle", icon: CircleDashed, tone: "bg-muted text-muted-foreground" },
-  blocked: { label: "Blocked", icon: Ban, tone: "bg-destructive/10 text-destructive" },
-};
+export { ROOM_STATUS_META } from "@asc/ui";
 
 /** `room-2` → `Room 2` (fallback when the room list has no name). */
 export function roomLabel(roomId: string): string {

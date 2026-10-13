@@ -877,7 +877,7 @@ export interface AuditActor {
   readonly role: ParticipantRole | "PATIENT" | "SYSTEM";
 }
 
-export interface AuditEvent {
+export interface ClinicalTimelineEvent {
   readonly id: string;
   readonly at: IsoDateTime;
   readonly actor: AuditActor;
@@ -889,6 +889,11 @@ export interface AuditEvent {
   readonly outcome: "success" | "denied" | "failure";
   readonly agentExecutionId?: string;
 }
+
+/**
+ * @deprecated Use `ClinicalTimelineEvent` to avoid collision with `@asc/audit` AuditEvent.
+ */
+export type AuditEvent = ClinicalTimelineEvent;
 
 export interface QualityPoint {
   readonly date: IsoDate;
@@ -1258,7 +1263,7 @@ export interface AuditQuery {
   readonly role?: AuditActor["role"];
   readonly entityType?: string;
   readonly entityId?: string;
-  readonly outcome?: AuditEvent["outcome"];
+  readonly outcome?: ClinicalTimelineEvent["outcome"];
 }
 
 export interface UpdatePrepItemPayload {

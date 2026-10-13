@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useAuditLog, useReferrals } from "@asc/api-client/react";
 import { formatDate, formatDateTime } from "@asc/clinical-rules/time";
-import type { AuditEvent, Patient } from "@asc/types";
+import type { ClinicalTimelineEvent, Patient } from "@asc/types";
 import { EmptyState, ErrorState, LoadingSkeleton, SectionCard, Timeline, type TimelineItem } from "@asc/ui";
 import { FileText, History, ScrollText, UserPlus } from "@asc/ui/icons";
 
@@ -11,7 +11,7 @@ interface ChartDocumentsProps {
   readonly patient: Patient;
 }
 
-function timelineItem(event: AuditEvent): TimelineItem {
+function timelineItem(event: ClinicalTimelineEvent): TimelineItem {
   return {
     id: event.id,
     at: event.at,
