@@ -235,6 +235,19 @@ describe("Hard Gate 1 (arrived ➔ preop)", () => {
     expect(reason).toBeDefined();
     expect(reason?.message).toContain("cannot be waived");
   });
+
+  it("falls back to default message when details is empty or whitespace", () => {
+    const checks: readonly ReadinessCheck[] = [
+      check("identity", "failed", { details: "   " }),
+      check("consent", "satisfied"),
+      check("hp", "satisfied"),
+    ];
+
+    const result = evaluateGate1(checks);
+    expect(result.ok).toBe(false);
+    const reason = result.reasons.find((r) => r.code === "GATE1_IDENTITY");
+    expect(reason?.message).toBe("Identity verification is not satisfied.");
+  });
 });
 
 describe("Hard Gate 2 (preop ➔ in_room)", () => {
@@ -336,6 +349,15 @@ describe("Scope Hang-Time Lock (equipment)", () => {
     const result = evaluateScopeHangTime("invalid-date", procedureTime);
     expect(result.ok).toBe(false);
     expect(result.reasons[0]?.code).toBe("INVALID_TIMESTAMP");
+  });
+
+  it("rejects reprocessing time in the future relative to procedure time per LM-021", () => {
+    const procedureMs = new Date(procedureTime).getTime();
+    const futureReprocessed = new Date(procedureMs + 3600 * 1000).toISOString();
+    const result = evaluateScopeHangTime(futureReprocessed, procedureTime);
+    expect(result.ok).toBe(false);
+    expect(result.reasons[0]?.code).toBe("INVALID_TIMESTAMP");
+    expect(result.reasons[0]?.message).toContain("cannot be after procedure timestamp");
   });
 });
 

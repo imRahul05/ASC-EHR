@@ -188,7 +188,7 @@ export function evaluateGate1(checks: readonly ReadinessCheck[]): RuleResult {
       ? "Identity check cannot be waived or overridden."
       : identityOk
         ? ""
-        : identity.details ?? "Identity verification is not satisfied.";
+        : identity.details?.trim() || "Identity verification is not satisfied.";
 
   // consent cannot be waived; must be satisfied
   const consentWaived = consent?.status === "waived";
@@ -199,7 +199,7 @@ export function evaluateGate1(checks: readonly ReadinessCheck[]): RuleResult {
       ? "Consent cannot be waived or overridden."
       : consentOk
         ? ""
-        : consent.details ?? "Informed consent is not satisfied.";
+        : consent.details?.trim() || "Informed consent is not satisfied.";
 
   // hp can be satisfied or waived
   const hpOk = isCheckSatisfiedOrWaived(hp);
@@ -207,7 +207,7 @@ export function evaluateGate1(checks: readonly ReadinessCheck[]): RuleResult {
     ? "H&P assessment is missing."
     : hpOk
       ? ""
-      : hp.details ?? "H&P assessment within 30 days is not satisfied.";
+      : hp.details?.trim() || "H&P assessment within 30 days is not satisfied.";
 
   return fromChecks([
     {
@@ -258,7 +258,7 @@ export function evaluateGate2(checks: readonly ReadinessCheck[]): RuleResult {
         ? "Anesthesia clearance is missing."
         : anesthesiaOk
           ? ""
-          : anesthesia.details ?? `Anesthesia clearance is ${anesthesia.status}.`,
+          : anesthesia.details?.trim() || `Anesthesia clearance is ${anesthesia.status}.`,
     },
     {
       code: "GATE2_ANTICOAGULATION",
@@ -268,7 +268,7 @@ export function evaluateGate2(checks: readonly ReadinessCheck[]): RuleResult {
         ? "Anticoagulation hold verification is missing."
         : anticoagulationOk
           ? ""
-          : anticoagulation.details ?? `Anticoagulation hold is ${anticoagulation.status}.`,
+          : anticoagulation.details?.trim() || `Anticoagulation hold is ${anticoagulation.status}.`,
     },
     {
       code: "GATE2_EQUIPMENT",
@@ -278,7 +278,7 @@ export function evaluateGate2(checks: readonly ReadinessCheck[]): RuleResult {
         ? "Equipment readiness check is missing."
         : equipmentOk
           ? ""
-          : equipment.details ?? `Equipment readiness is ${equipment.status}.`,
+          : equipment.details?.trim() || `Equipment readiness is ${equipment.status}.`,
     },
     {
       code: "GATE2_ESCORT",
@@ -288,7 +288,7 @@ export function evaluateGate2(checks: readonly ReadinessCheck[]): RuleResult {
         ? "Responsible adult escort confirmation is missing."
         : escortOk
           ? ""
-          : escort.details ?? `Responsible escort check is ${escort.status}.`,
+          : escort.details?.trim() || `Responsible escort check is ${escort.status}.`,
     },
   ]);
 }
@@ -309,6 +309,11 @@ export function evaluateScopeHangTime(reprocessedAt: string, procedureTime: stri
 
   if (Number.isNaN(reprocessedMs) || Number.isNaN(procedureMs)) {
     return fail("INVALID_TIMESTAMP", "Invalid timestamp provided for scope hang-time evaluation.");
+  }
+
+  // A scope cannot be reprocessed after the procedure (invariant LM-021: validate relations between inputs).
+  if (procedureMs < reprocessedMs) {
+    return fail("INVALID_TIMESTAMP", "Scope reprocessing timestamp cannot be after procedure timestamp.");
   }
 
   const elapsedHours = (procedureMs - reprocessedMs) / (1000 * 60 * 60);
