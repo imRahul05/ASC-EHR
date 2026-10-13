@@ -9,7 +9,8 @@
     "./phases": "./src/phases.ts",
     "./readiness": "./src/readiness.ts",
     "./time": "./src/time.ts",
-    "./patients/duplicate-match": "./src/patients/duplicate-match.ts"
+    "./patients/duplicate-match": "./src/patients/duplicate-match.ts",
+    "./scheduling/conflicts": "./src/scheduling/conflicts.ts"
   },
   "scripts": {
     "lint": "eslint --max-warnings 0",

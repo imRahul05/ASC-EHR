@@ -12,3 +12,4 @@ export * from "./scores";
 export * from "./surveillance";
 export * from "./time";
 export * from "./patients/duplicate-match";
+export * from "./scheduling/conflicts";
