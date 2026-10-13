@@ -171,4 +171,34 @@ describe("buildReadinessObservation", () => {
     });
     expect(obsPending.effectiveDateTime).toBe("2026-10-12T00:00:00Z");
   });
+
+  it("throws on invalid effectiveDateTime or invalid waivedAt", () => {
+    expect(() =>
+      buildReadinessObservation({
+        facilityId: "fac-1",
+        encounterId: "enc-1",
+        patientId: "pat-1",
+        effectiveDateTime: "not-a-valid-date",
+        check: { name: "equipment", status: "satisfied", label: "Equipment" },
+      }),
+    ).toThrow("invalid effectiveDateTime");
+
+    expect(() =>
+      buildReadinessObservation({
+        facilityId: "fac-1",
+        encounterId: "enc-1",
+        patientId: "pat-1",
+        check: { name: "equipment", status: "waived", label: "Equipment", waivedAt: "2026-99-99" },
+      }),
+    ).toThrow("invalid waivedAt");
+
+    expect(() =>
+      caseReadinessExtension({
+        name: "equipment",
+        status: "waived",
+        label: "Equipment",
+        waivedAt: "invalid-iso-date",
+      }),
+    ).toThrow("invalid waivedAt");
+  });
 });
