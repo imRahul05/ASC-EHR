@@ -46,4 +46,15 @@ describe("resolveWorkspaces", () => {
     const withEmpty = [...DEFINITIONS, { key: "none", label: "None", requiresAny: [] }];
     expect(resolveWorkspaces(auditor, withEmpty, { facilityId: "Z" }).map((w) => w.key)).toEqual(["audit"]);
   });
+
+  it("resolves workspaces via requiresRoleAny when role matches at the facility", () => {
+    const preopNurse = staffPrincipal(buildGrants([{ roleKey: "preop-nurse", facilityId: "A" }], roleRegistry));
+    const defsWithRoles = [
+      { key: "custom-nurse", label: "Custom Nurse", requiresAny: ["pacu.document"], requiresRoleAny: ["preop-nurse"], home: "/special" },
+    ];
+    // preop-nurse has no pacu.document, but matches requiresRoleAny at facility A
+    expect(resolveWorkspaces(preopNurse, defsWithRoles, { facilityId: "A" }).map((w) => w.key)).toEqual(["custom-nurse"]);
+    // At facility B where they have no grant, it fails closed
+    expect(resolveWorkspaces(preopNurse, defsWithRoles, { facilityId: "B" })).toEqual([]);
+  });
 });

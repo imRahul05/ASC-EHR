@@ -1,4 +1,5 @@
 import { grantedFacilityIds } from "@asc/authz/can";
+import { roleRegistry } from "@asc/authz/roles";
 import { describe, expect, it } from "vitest";
 import { checkCapability } from "@/hooks/use-can";
 import { DASHBOARDS } from "@/features/dashboard/dashboard-config";
@@ -71,3 +72,46 @@ describe("a tech added by configuration alone", () => {
     }
   });
 });
+
+describe("specialized nursing roles resolve to nursing workspace", () => {
+  function nursePrincipal(roleKey: "preop-nurse" | "circulating-nurse" | "pacu-nurse") {
+    const template = roleRegistry.get(roleKey);
+    if (!template) throw new Error(`Role template ${roleKey} not found`);
+    return {
+      id: `user-${roleKey}`,
+      tenantId: "tenant-default",
+      loginId: `${roleKey}@ascehr.demo`,
+      kind: "user" as const,
+      grants: [
+        {
+          id: `grant-${roleKey}`,
+          facilityId: "fac-metro",
+          roleKeys: [roleKey],
+          capabilities: template.capabilities,
+        },
+      ],
+    };
+  }
+
+  it("resolves preop-nurse to the nursing workspace", () => {
+    const principal = nursePrincipal("preop-nurse");
+    const ws = workspacesFor(principal, "fac-metro").map((w) => w.key);
+    expect(ws).toContain("nursing");
+    expect(ws[0]).toBe("nursing");
+  });
+
+  it("resolves circulating-nurse to nursing workspace as primary", () => {
+    const principal = nursePrincipal("circulating-nurse");
+    const ws = workspacesFor(principal, "fac-metro").map((w) => w.key);
+    expect(ws).toContain("nursing");
+    expect(ws[0]).toBe("nursing");
+  });
+
+  it("resolves pacu-nurse to the nursing workspace", () => {
+    const principal = nursePrincipal("pacu-nurse");
+    const ws = workspacesFor(principal, "fac-metro").map((w) => w.key);
+    expect(ws).toContain("nursing");
+    expect(ws[0]).toBe("nursing");
+  });
+});
+
