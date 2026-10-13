@@ -21,7 +21,7 @@ export const patientAddressSchema = z.object({
   country: z.string().trim().max(50).optional(),
 });
 
-import { patientInsuranceSchema } from "./coverage.js";
+import { patientInsuranceSchema } from "@asc/validation/patients/coverage";
 
 export const patientEscortSchema = z.object({
   name: z.string().trim().min(1, "Escort name is required").max(150),
