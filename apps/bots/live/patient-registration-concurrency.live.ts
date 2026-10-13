@@ -1,6 +1,5 @@
 import { createOnBehalfClient, forFacility } from "@asc/api-client/server";
 import { buildCoverage, buildPatient, buildRelatedPerson, createTransaction, fhirUrls } from "@asc/fhir";
-import type { Bundle } from "@medplum/fhirtypes";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { liveContext, seedOutput } from "./harness.js";
@@ -84,21 +83,23 @@ describe("Medplum 5.1.42 Patient Registration Concurrency & Idempotency", () => 
       writerB.transaction(txB.build()),
     ]);
 
-    // Check responses
-    const successfulResponses: Bundle[] = [];
-    if (resA.status === "fulfilled") successfulResponses.push(resA.value);
-    if (resB.status === "fulfilled") successfulResponses.push(resB.value);
+    // Both requests must complete without crashing
+    expect(resA.status).toBe("fulfilled");
+    expect(resB.status).toBe("fulfilled");
 
-    expect(successfulResponses.length).toBeGreaterThan(0);
+    if (resA.status === "fulfilled" && resB.status === "fulfilled") {
+      const statusA = resA.value.entry?.[0]?.response?.status;
+      const statusB = resB.value.entry?.[0]?.response?.status;
+      const locA = resA.value.entry?.[0]?.response?.location;
+      const locB = resB.value.entry?.[0]?.response?.location;
 
-    for (const bundle of successfulResponses) {
-      const entry = bundle.entry?.[0];
-      const status = entry?.response?.status;
-      const location = entry?.response?.location;
-      // Medplum returns either 201 Created or 200 OK (matched existing)
-      expect(["200", "201"]).toContain(status);
-      if (location !== undefined) {
-        const patientId = location.replace(/^Patient\//, "");
+      // Medplum 5.1.42: one creates (201), the other resolves to existing (200)
+      expect([statusA, statusB].sort()).toEqual(["200", "201"]);
+      // Both resolve to the exact same patient resource location
+      expect(locA).toBe(locB);
+
+      if (locA !== undefined) {
+        const patientId = locA.replace(/^Patient\//, "");
         if (!createdPatients.includes(patientId)) createdPatients.push(patientId);
       }
     }
@@ -114,7 +115,7 @@ describe("Medplum 5.1.42 Patient Registration Concurrency & Idempotency", () => 
     }
   });
 
-  it("idempotently completes secondary resources if initial registration was interrupted", async () => {
+  it("idempotently completes secondary resources if initial registration was interrupted and safely handles new insurance", async () => {
     const client = createOnBehalfClient({ baseUrl: ctx.baseUrl, accessToken: tokenA });
     const writer = forFacility(client, facilityId);
 
@@ -146,7 +147,7 @@ describe("Medplum 5.1.42 Patient Registration Concurrency & Idempotency", () => 
     expect(initialCoverages.length).toBe(0);
     expect(initialRelatedPersons.length).toBe(0);
 
-    // Step 2 (Retry): Secondary caller or retried request checks for patient and completes secondary resources
+    // Recovery Attempt 1: Secondary resources are missing -> created safely
     const txRetry = createTransaction({ facilityId });
     txRetry.add("patient", patientResource, { ifNoneExist: conditionalQuery });
     const bundleRetry = await writer.transaction(txRetry.build());
@@ -157,32 +158,79 @@ describe("Medplum 5.1.42 Patient Registration Concurrency & Idempotency", () => 
     expect(patientEntryRetry?.response?.location).toBe(patientLocation);
 
     // Attach missing secondary resources in step 2
-    const txSecondary = createTransaction({ facilityId });
-    const coverage = buildCoverage({
+    const txSecondary1 = createTransaction({ facilityId });
+    const coverage1 = buildCoverage({
       patientId,
       facilityId,
       payorId: facilityId,
       subscriberId: "MEM-RECOVERY-123",
     });
-    const escort = buildRelatedPerson({
+    const escort1 = buildRelatedPerson({
       patientId,
       facilityId,
       name: { family: "RecoveryTest", given: ["John"] },
       relationship: "sponsor",
       telecom: [{ system: "phone", value: "555-0199" }],
     });
-    txSecondary.add("coverage", coverage);
-    txSecondary.add("escort", escort);
-    const secondaryBundle = await writer.transaction(txSecondary.build());
-    expect(secondaryBundle.entry?.length).toBe(2);
-    expect(secondaryBundle.entry?.[0]?.response?.status).toBe("201");
-    expect(secondaryBundle.entry?.[1]?.response?.status).toBe("201");
+    txSecondary1.add("coverage", coverage1);
+    txSecondary1.add("escort", escort1);
+    const secondaryBundle1 = await writer.transaction(txSecondary1.build());
+    expect(secondaryBundle1.entry?.length).toBe(2);
+    expect(secondaryBundle1.entry?.[0]?.response?.status).toBe("201");
+    expect(secondaryBundle1.entry?.[1]?.response?.status).toBe("201");
 
     // Verify secondary resources are now safely attached to the patient
+    const postRetryCoverages = await ctx.admin.searchResources("Coverage", { patient: `Patient/${patientId}` });
+    const postRetryEscorts = await ctx.admin.searchResources("RelatedPerson", { patient: `Patient/${patientId}` });
+    expect(postRetryCoverages.length).toBe(1);
+    expect(postRetryEscorts.length).toBe(1);
+    expect(postRetryCoverages[0]?.subscriberId).toBe("MEM-RECOVERY-123");
+
+    // Recovery Attempt 2 (Idempotent retry with IDENTICAL data):
+    // Should match existing Coverage (MEM-RECOVERY-123 + facilityId) and Escort (John + 555-0199)
+    // and create ZERO duplicates
+    const existingCoverages2 = await ctx.admin.searchResources("Coverage", { patient: `Patient/${patientId}` });
+    const existingEscorts2 = await ctx.admin.searchResources("RelatedPerson", { patient: `Patient/${patientId}` });
+
+    const matchedCoverage2 = existingCoverages2.find(
+      (c) => c.subscriberId === "MEM-RECOVERY-123" && c.payor?.some((p) => p.reference?.endsWith(facilityId)),
+    );
+    const matchedEscort2 = existingEscorts2.find(
+      (r) => r.name?.[0]?.family === "RecoveryTest" && r.telecom?.some((t) => t.value === "555-0199"),
+    );
+    expect(matchedCoverage2).toBeDefined();
+    expect(matchedEscort2).toBeDefined();
+
+    // Since both matched, secondaryTx has 0 resources to add
+    // Medplum database state remains exactly 1 Coverage and 1 Escort
+    const coveragesAfterDupRetry = await ctx.admin.searchResources("Coverage", { patient: `Patient/${patientId}` });
+    expect(coveragesAfterDupRetry.length).toBe(1);
+
+    // Recovery Attempt 3 (Retry requesting DIFFERENT insurance):
+    // Strict matching ensures existing MEM-RECOVERY-123 is NOT treated as a match for MEM-NEW-456!
+    const existingCoverages3 = await ctx.admin.searchResources("Coverage", { patient: `Patient/${patientId}` });
+    const matchedCoverage3 = existingCoverages3.find(
+      (c) => c.subscriberId === "MEM-NEW-456" && c.payor?.some((p) => p.reference?.endsWith(facilityId)),
+    );
+    expect(matchedCoverage3).toBeUndefined(); // Strict check: no false positive match!
+
+    // Because it did NOT match, create the new insurance
+    const txSecondary3 = createTransaction({ facilityId });
+    const coverage3 = buildCoverage({
+      patientId,
+      facilityId,
+      payorId: facilityId,
+      subscriberId: "MEM-NEW-456",
+    });
+    txSecondary3.add("coverage", coverage3);
+    const secondaryBundle3 = await writer.transaction(txSecondary3.build());
+    expect(secondaryBundle3.entry?.length).toBe(1);
+    expect(secondaryBundle3.entry?.[0]?.response?.status).toBe("201");
+
+    // Final state: exactly 2 distinct coverages attached to this patient
     const finalCoverages = await ctx.admin.searchResources("Coverage", { patient: `Patient/${patientId}` });
-    const finalRelatedPersons = await ctx.admin.searchResources("RelatedPerson", { patient: `Patient/${patientId}` });
-    expect(finalCoverages.length).toBe(1);
-    expect(finalRelatedPersons.length).toBe(1);
-    expect(finalCoverages[0]?.subscriberId).toBe("MEM-RECOVERY-123");
+    expect(finalCoverages.length).toBe(2);
+    const memberIds = finalCoverages.map((c) => c.subscriberId).sort();
+    expect(memberIds).toEqual(["MEM-NEW-456", "MEM-RECOVERY-123"]);
   });
 });

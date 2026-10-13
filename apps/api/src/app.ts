@@ -17,6 +17,7 @@ import { registerMedplum } from "./plugins/medplum.js";
 import { registerRateLimit, registerSecurityHeaders } from "./plugins/security.js";
 import { registerRoutes } from "./routes/index.js";
 import type { FacilityRegistrationLock } from "@asc/types";
+import { createInMemoryRegistrationLock } from "./routes/patients.js";
 
 interface AppOptions {
   /** Exact browser origins allowed cross-origin (from `resolveCorsOrigins`). Empty = none. */
@@ -118,6 +119,8 @@ export async function buildApp({
         return withPostgresFacilityLock(tenantDb, resolvedTenantId, facilityId, operation);
       },
     });
+  } else {
+    app.decorate("facilityRegistrationLock", createInMemoryRegistrationLock());
   }
 
   registerRoutes(app);

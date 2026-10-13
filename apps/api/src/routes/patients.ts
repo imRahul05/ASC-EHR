@@ -59,6 +59,56 @@ declare module "fastify" {
 
 const defaultFallbackLock = createInMemoryRegistrationLock();
 
+interface NetworkErrorLike {
+  name?: string;
+  message?: string;
+  code?: string;
+  cause?: NetworkErrorLike;
+}
+
+function isNetworkErrorLike(err: unknown): err is NetworkErrorLike {
+  return typeof err === "object" && err !== null;
+}
+
+export function isAmbiguousNetworkError(err: unknown): boolean {
+  if (!isNetworkErrorLike(err)) {
+    return false;
+  }
+  const name = err.name ?? "";
+  const msg = (err.message ?? "").toLowerCase();
+  const code = err.code ?? "";
+
+  if (name === "AbortError" || name === "TimeoutError") {
+    return true;
+  }
+
+  const networkCodes = [
+    "ECONNRESET",
+    "ETIMEDOUT",
+    "ECONNREFUSED",
+    "EAI_AGAIN",
+    "ENOTFOUND",
+    "UND_ERR_CONNECT_TIMEOUT",
+    "UND_ERR_SOCKET",
+    "UND_ERR_HEADERS_TIMEOUT",
+    "UND_ERR_BODY_TIMEOUT",
+    "ERR_STREAM_PREMATURE_CLOSE",
+  ];
+  if (networkCodes.includes(code)) {
+    return true;
+  }
+
+  if (msg.includes("fetch failed") || msg.includes("network error") || msg.includes("socket hang up")) {
+    return true;
+  }
+
+  if (err.cause !== undefined) {
+    return isAmbiguousNetworkError(err.cause);
+  }
+
+  return false;
+}
+
 export async function withFacilityRegistrationLock<T>(
   facilityId: string,
   operation: () => Promise<T>,
@@ -95,19 +145,37 @@ async function completeOrRecoverRegistration(
     }),
   ]);
 
-  let resolvedCoverage: WithId<Coverage> | undefined = existingCoverages.find(
-    (c) =>
-      body.insurance !== undefined &&
-      (c.subscriberId === body.insurance.memberId ||
-        c.payor?.some((p) => p.reference?.endsWith(body.insurance?.payerId ?? ""))),
-  ) ?? existingCoverages[0];
+  let resolvedCoverage: WithId<Coverage> | undefined =
+    body.insurance !== undefined
+      ? existingCoverages.find((c) => {
+          const matchMember = c.subscriberId?.trim() === body.insurance?.memberId?.trim();
+          const matchPayor =
+            body.insurance?.payerId === undefined ||
+            c.payor?.some((p) => {
+              const ref = p.reference ?? "";
+              return (
+                ref === `Organization/${body.insurance?.payerId}` ||
+                ref.endsWith(`/${body.insurance?.payerId}`) ||
+                ref === body.insurance?.payerId
+              );
+            });
+          return matchMember && (matchPayor ?? false);
+        })
+      : undefined;
 
-  let resolvedEscort: WithId<RelatedPerson> | undefined = existingRelatedPersons.find(
-    (r) =>
-      body.escort !== undefined &&
-      (r.name?.[0]?.text === body.escort.name ||
-        r.name?.[0]?.family === body.escort.name),
-  ) ?? existingRelatedPersons[0];
+  let resolvedEscort: WithId<RelatedPerson> | undefined =
+    body.escort !== undefined
+      ? existingRelatedPersons.find((r) => {
+          const reqName = body.escort?.name?.trim().toLowerCase();
+          const matchName =
+            r.name?.[0]?.text?.trim().toLowerCase() === reqName ||
+            r.name?.[0]?.family?.trim().toLowerCase() === reqName;
+          const matchPhone =
+            body.escort?.phone === undefined ||
+            r.telecom?.some((t) => t.system === "phone" && t.value?.trim() === body.escort?.phone?.trim());
+          return matchName && matchPhone;
+        })
+      : undefined;
 
   const secondaryTx = createTransaction({ facilityId });
   const confirmedPatientRef = { reference: `Patient/${existingPatient.id}` };
@@ -281,7 +349,7 @@ export function patientsRoutes(app: FastifyInstance): Promise<void> {
         return reply;
       }
 
-      const registrationLock = app.facilityRegistrationLock ?? createInMemoryRegistrationLock();
+      const registrationLock = app.facilityRegistrationLock ?? defaultFallbackLock;
 
       return registrationLock.withLock(
         facilityId,
@@ -554,18 +622,25 @@ export function patientsRoutes(app: FastifyInstance): Promise<void> {
                 { err: secError, patientId: createdPatient.id, facilityId },
                 "secondary resource transaction failed during patient registration",
               );
-              // Best-effort compensation: remove the newly created Patient record so partial state is not left
-              try {
-                await request.medplum.deleteResource("Patient", createdPatient.id);
-                request.log.info(
-                  { patientId: createdPatient.id, facilityId },
-                  "compensated failed registration by deleting incomplete patient record",
-                );
-              } catch (rollbackErr) {
+              if (isAmbiguousNetworkError(secError)) {
                 request.log.warn(
-                  { err: rollbackErr, patientId: createdPatient.id, facilityId },
-                  "failed to delete incomplete patient during compensation; idempotent retry will recover",
+                  { err: secError, patientId: createdPatient.id, facilityId },
+                  "secondary resource transaction failed due to ambiguous network error; skipping compensation delete to prevent orphaned child resources; patient record preserved for idempotent recovery",
                 );
+              } else {
+                // Definitive failure: best-effort compensation removes incomplete Patient record
+                try {
+                  await request.medplum.deleteResource("Patient", createdPatient.id);
+                  request.log.info(
+                    { patientId: createdPatient.id, facilityId },
+                    "compensated failed registration by deleting incomplete patient record",
+                  );
+                } catch (rollbackErr) {
+                  request.log.warn(
+                    { err: rollbackErr, patientId: createdPatient.id, facilityId },
+                    "failed to delete incomplete patient during compensation; idempotent retry will recover",
+                  );
+                }
               }
               throw secError;
             }

@@ -1,7 +1,7 @@
 import { forFacility } from "@asc/api-client/server";
 import { facilityGrant, staffPrincipal } from "@asc/authz/testing";
 import { allOk, ClientStorage, MemoryStorage, ReadablePromise, type SearchRequest, type WithId } from "@medplum/core";
-import type { Bundle, ExtractResource, OperationOutcome, Patient, Resource, ResourceType } from "@medplum/fhirtypes";
+import type { Bundle, Coverage, ExtractResource, OperationOutcome, Patient, RelatedPerson, Resource, ResourceType } from "@medplum/fhirtypes";
 import { MockClient as BaseMockClient } from "@medplum/mock";
 import { fhirUrls } from "@asc/fhir";
 import { afterEach, describe, expect, it } from "vitest";
@@ -1481,6 +1481,228 @@ describe("Patients routes", () => {
         await instance1.app.close();
         await instance2.app.close();
       }
+    });
+
+    it("recovery matching creates new coverage and escort when existing resources do not match requested details", async () => {
+      const mockMedplum = new MockClient();
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["front-desk"], ["patient.register", "patient.read"])],
+        "fd-strict-match",
+      );
+      built.identity.addToken("token-strict-match", principal);
+
+      // Initial registration creates Patient with Coverage A and Escort A
+      const initialRes = await built.app.inject({
+        method: "POST",
+        url: "/patients/register",
+        headers: bearer("token-strict-match"),
+        payload: {
+          facilityId: "fac-a",
+          name: { family: "MatchFamily", given: ["Strict"] },
+          dateOfBirth: "1991-01-01",
+          gender: "female",
+          phone: "(555) 111-2222",
+          mrn: "MRN-STRICT-MATCH",
+          insurance: {
+            payerId: "payor-alpha",
+            memberId: "MEM-ALPHA",
+          },
+          escort: {
+            name: "Alpha Escort",
+            relationship: "sponsor",
+            phone: "(555) 111-2222",
+          },
+        },
+      });
+
+      expect(initialRes.statusCode).toBe(201);
+      const initialJson = initialRes.json<{
+        patient: WithId<Patient>;
+        coverage?: WithId<Coverage>;
+        escort?: WithId<RelatedPerson>;
+      }>();
+      expect(initialJson.coverage?.subscriberId).toBe("MEM-ALPHA");
+      expect(initialJson.escort?.name?.[0]?.text).toBe("Alpha Escort");
+
+      // Now, retry with same MRN and same patient identity, but requesting Coverage B and Escort B
+      // Without strict matching, the system would falsely return Coverage A and Escort A
+      const retryRes = await built.app.inject({
+        method: "POST",
+        url: "/patients/register",
+        headers: bearer("token-strict-match"),
+        payload: {
+          facilityId: "fac-a",
+          name: { family: "MatchFamily", given: ["Strict"] },
+          dateOfBirth: "1991-01-01",
+          gender: "female",
+          phone: "(555) 111-2222",
+          mrn: "MRN-STRICT-MATCH",
+          retry: true,
+          insurance: {
+            payerId: "payor-beta",
+            memberId: "MEM-BETA",
+          },
+          escort: {
+            name: "Beta Escort",
+            relationship: "sponsor",
+            phone: "(555) 333-4444",
+          },
+        },
+      });
+
+      expect(retryRes.statusCode).toBe(200);
+      const retryJson = retryRes.json<{
+        patient: WithId<Patient>;
+        coverage?: WithId<Coverage>;
+        escort?: WithId<RelatedPerson>;
+      }>();
+
+      // Coverage B and Escort B must be created and returned, not falsely re-using A
+      expect(retryJson.coverage?.subscriberId).toBe("MEM-BETA");
+      expect(retryJson.coverage?.payor?.[0]?.reference).toBe("Organization/payor-beta");
+      expect(retryJson.escort?.name?.[0]?.text).toBe("Beta Escort");
+
+      // Verify Medplum storage now contains both distinct coverages and escorts
+      const allCoverages = await mockMedplum.searchResources("Coverage");
+      const allEscorts = await mockMedplum.searchResources("RelatedPerson");
+      expect(allCoverages.length).toBe(2);
+      expect(allEscorts.length).toBe(2);
+      expect(allCoverages.map((c) => c.subscriberId).sort()).toEqual(["MEM-ALPHA", "MEM-BETA"]);
+    });
+
+    it("skips compensation delete on ambiguous network error preserving patient for retry", async () => {
+      const mockMedplum = new MockClient();
+
+      let batchCallCount = 0;
+      let simulateNetworkError = true;
+      const originalExecuteBatch = mockMedplum.executeBatch.bind(mockMedplum);
+      mockMedplum.executeBatch = async (bundle) => {
+        batchCallCount++;
+        // Simulate network timeout / fetch failed during secondary transaction (Step 2)
+        if (simulateNetworkError && batchCallCount === 2) {
+          const networkErr = new TypeError("fetch failed");
+          Object.assign(networkErr, { code: "ETIMEDOUT" });
+          throw networkErr;
+        }
+        return originalExecuteBatch(bundle);
+      };
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["front-desk"], ["patient.register", "patient.read"])],
+        "fd-net-timeout",
+      );
+      built.identity.addToken("token-net-timeout", principal);
+
+      const payload = {
+        facilityId: "fac-a",
+        name: { family: "NetworkTimeout", given: ["Evan"] },
+        dateOfBirth: "1983-03-03",
+        gender: "male",
+        phone: "(555) 444-5555",
+        mrn: "MRN-NET-TIMEOUT",
+        insurance: {
+          payerId: "payor-timeout",
+          memberId: "MEM-TIMEOUT-123",
+        },
+      };
+
+      const failRes = await built.app.inject({
+        method: "POST",
+        url: "/patients/register",
+        headers: bearer("token-net-timeout"),
+        payload,
+      });
+
+      expect(failRes.statusCode).toBe(500);
+
+      // Verify patient record was NOT deleted because of ambiguous network failure
+      const patients = await mockMedplum.searchResources("Patient");
+      const matchedPatient = patients.find((p) => p.name?.[0]?.family === "NetworkTimeout");
+      expect(matchedPatient).toBeDefined();
+
+      // Now network recovers: retrying with retry: true safely recovers and attaches coverage
+      simulateNetworkError = false;
+      const retryRes = await built.app.inject({
+        method: "POST",
+        url: "/patients/register",
+        headers: bearer("token-net-timeout"),
+        payload: {
+          ...payload,
+          retry: true,
+        },
+      });
+
+      expect(retryRes.statusCode).toBe(200);
+      const retryJson = retryRes.json<{
+        patient: WithId<Patient>;
+        coverage?: WithId<Coverage>;
+      }>();
+      expect(retryJson.patient.id).toBe(matchedPatient?.id);
+      expect(retryJson.coverage?.subscriberId).toBe("MEM-TIMEOUT-123");
+
+      // Verify no duplicate patient was created
+      const allPatientsAfterRetry = await mockMedplum.searchResources("Patient");
+      const allMatched = allPatientsAfterRetry.filter((p) => p.name?.[0]?.family === "NetworkTimeout");
+      expect(allMatched.length).toBe(1);
+    });
+
+    it("fallback in-memory lock serializes concurrent registration requests when no lock is explicitly provided", async () => {
+      const mockMedplum = new MockClient();
+
+      // buildTestApp without facilityRegistrationLock -> uses decorated fallback lock
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["front-desk"], ["patient.register", "patient.read"])],
+        "fd-fallback-lock",
+      );
+      built.identity.addToken("token-fallback-lock", principal);
+
+      const payload = {
+        facilityId: "fac-a",
+        name: { family: "FallbackLockFamily", given: ["George"] },
+        dateOfBirth: "1975-07-07",
+        gender: "male",
+        phone: "(555) 888-9999",
+      };
+
+      const [res1, res2] = await Promise.all([
+        built.app.inject({
+          method: "POST",
+          url: "/patients/register",
+          headers: bearer("token-fallback-lock"),
+          payload,
+        }),
+        built.app.inject({
+          method: "POST",
+          url: "/patients/register",
+          headers: bearer("token-fallback-lock"),
+          payload,
+        }),
+      ]);
+
+      const statuses = [res1.statusCode, res2.statusCode].sort((a, b) => a - b);
+      expect(statuses).toEqual([201, 409]);
+
+      const conflictRes = res1.statusCode === 409 ? res1 : res2;
+      expect(conflictRes.json<{ code: string }>().code).toBe("duplicate_patient_detected");
+
+      const allPatients = await mockMedplum.searchResources("Patient");
+      const matched = allPatients.filter((p) => p.name?.[0]?.family === "FallbackLockFamily");
+      expect(matched.length).toBe(1);
     });
   });
 });
