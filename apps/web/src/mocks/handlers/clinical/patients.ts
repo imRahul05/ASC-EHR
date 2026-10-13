@@ -8,8 +8,11 @@ import type {
   EligibilityResult,
   Patient,
   PatientListItem,
+  RegisterPatientResult,
   UpdateEscortPayload,
 } from "@asc/types";
+import { registerPatientSchema } from "@asc/validation/patients/register";
+import type { PatientSearchBodyInput } from "@asc/validation/patients/search";
 import { http, HttpResponse } from "msw";
 import { actorFrom, addWorkItem, audit, completeWorkItems, db, patientListItem } from "../../db/store";
 import { newId } from "../../db/util";
@@ -35,7 +38,7 @@ function createPatientRecord(payload: CreatePatientPayload): Patient {
   const index = state.patients.size + 1;
   const patient: Patient = {
     id: newId("pat"),
-    mrn: `MRN-${204_310 + index * 17 + 3}`,
+    mrn: payload.mrn ?? `MRN-${204_310 + index * 17 + 3}`,
     firstName: payload.firstName,
     lastName: payload.lastName,
     dateOfBirth: payload.dateOfBirth,
@@ -82,6 +85,150 @@ export const patientHandlers = [
   http.get(apiUrl(P.patients), async ({ request }) => {
     await latency();
     return HttpResponse.json(searchPatients(new URL(request.url).searchParams.get("q") ?? ""));
+  }),
+
+  http.post(apiUrl(P.patientsSearch), async ({ request }) => {
+    await latency();
+    const query = await body<PatientSearchBodyInput>(request);
+    let items = [...db().patients.keys()]
+      .map(patientListItem)
+      .filter((item): item is PatientListItem => item !== null);
+
+    if (query.mrn && query.mrn.trim() !== "") {
+      const needle = query.mrn.trim().toLowerCase();
+      items = items.filter((item) => item.mrn.toLowerCase().includes(needle));
+    }
+    if (query.name && query.name.trim() !== "") {
+      const needle = query.name.trim().toLowerCase();
+      items = items.filter((item) => item.displayName.toLowerCase().includes(needle));
+    }
+    const dob = query.birthdate ?? query.dob;
+    if (dob && dob.trim() !== "") {
+      items = items.filter((item) => item.dateOfBirth === dob.trim());
+    }
+    const limit = query.limit ?? 20;
+    return HttpResponse.json(items.slice(0, limit));
+  }),
+
+  http.post(apiUrl(P.patientsRegister), async ({ request }) => {
+    await latency();
+    const raw = await body<unknown>(request);
+    const parsed = registerPatientSchema.safeParse(raw);
+    if (!parsed.success) {
+      return apiError(400, "BAD_REQUEST", "Invalid registration payload");
+    }
+    const data = parsed.data;
+
+    // Exact MRN conflict check
+    if (data.mrn && data.mrn.trim() !== "") {
+      const existing = [...db().patients.values()].find(
+        (p) => p.mrn.toLowerCase() === data.mrn!.trim().toLowerCase(),
+      );
+      if (existing) {
+        return HttpResponse.json(
+          {
+            code: "duplicate_mrn_conflict",
+            message: "A patient with this MRN already exists at this facility.",
+            duplicateMatch: {
+              hasMatch: true,
+              highestConfidence: "exact_identifier",
+              matches: [
+                {
+                  patientId: existing.id,
+                  confidence: "exact_identifier",
+                  score: 1.0,
+                  reasons: [`Exact MRN match: ${data.mrn}`],
+                },
+              ],
+            },
+          },
+          { status: 409 },
+        );
+      }
+    }
+
+    // Demographic duplicate check if not confirmed
+    if (!data.confirmDuplicate) {
+      const givenName = (Array.isArray(data.name.given) ? data.name.given[0] : data.name.given) ?? "";
+      const familyName = data.name.family;
+      const dob = data.dateOfBirth;
+
+      const duplicate = [...db().patients.values()].find(
+        (p) =>
+          p.lastName.toLowerCase() === familyName.toLowerCase() &&
+          p.firstName.toLowerCase() === givenName.toLowerCase() &&
+          p.dateOfBirth === dob,
+      );
+
+      if (duplicate) {
+        return HttpResponse.json(
+          {
+            code: "duplicate_patient_detected",
+            message: "Potential duplicate patient detected.",
+            duplicateMatch: {
+              hasMatch: true,
+              highestConfidence: "high",
+              matches: [
+                {
+                  patientId: duplicate.id,
+                  confidence: "high",
+                  score: 0.9,
+                  reasons: ["Matching first name, last name, and date of birth"],
+                },
+              ],
+            },
+          },
+          { status: 409 },
+        );
+      }
+    }
+
+    // Create patient
+    const givenName = (Array.isArray(data.name.given) ? data.name.given[0] : data.name.given) ?? "";
+    const newPatient = createPatientRecord({
+      mrn: data.mrn?.trim() || undefined,
+      firstName: givenName,
+      lastName: data.name.family,
+      dateOfBirth: data.dateOfBirth,
+      sex: data.gender === "female" ? "F" : data.gender === "male" ? "M" : "X",
+      phone: data.phone,
+      email: data.email || undefined,
+      address: data.address?.line?.[0]
+        ? {
+            line: data.address.line[0] ?? "",
+            city: data.address.city ?? "",
+            state: data.address.state ?? "",
+            postalCode: data.address.postalCode ?? "",
+          }
+        : undefined,
+      coverage: data.insurance
+        ? {
+            payer: data.insurance.payerId,
+            planName: data.insurance.planName ?? "Standard Plan",
+            memberId: data.insurance.memberId,
+            groupNumber: data.insurance.groupNumber,
+            subscriberRelationship: data.insurance.relationship ?? "self",
+          }
+        : undefined,
+      escort: data.escort
+        ? {
+            name: data.escort.name,
+            relationship: data.escort.relationship,
+            phone: data.escort.phone,
+            confirmed: false,
+          }
+        : undefined,
+    });
+
+    audit(actorFrom(request), "patient.register", { type: "Patient", id: newPatient.id }, `Registered patient ${newPatient.mrn}`);
+
+    const result: RegisterPatientResult = {
+      patient: newPatient,
+      coverage: newPatient.coverage ?? undefined,
+      escort: newPatient.escort ?? undefined,
+    };
+
+    return HttpResponse.json(result, { status: 201 });
   }),
 
   http.post(apiUrl(P.patientDuplicateCheck), async ({ request }) => {
