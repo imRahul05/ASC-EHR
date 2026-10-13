@@ -29,7 +29,7 @@ const MINUTE_MS = 60_000;
  * TV mode covers the app chrome with a full-screen, large-type board for wall displays.
  */
 export function WhiteboardBoard() {
-  const query = useWhiteboard();
+  const query = useWhiteboard({ refetchInterval: 5_000 });
   const [tv, setTv] = useState(false);
   const now = useNow();
 
@@ -77,7 +77,7 @@ export function WhiteboardBoard() {
         }
       />
 
-      <RoomStatusStrip rooms={rooms} cards={cards} tv={tv} />
+      <RoomStatusStrip rooms={rooms} cards={cards} tv={tv} elapsed={elapsed} />
 
       <div className={cn("flex flex-wrap gap-4 text-muted-foreground", tv ? "text-base" : "text-xs")}>
         <span className="inline-flex items-center gap-1.5">
