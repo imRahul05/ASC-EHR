@@ -131,49 +131,48 @@ async function completeOrRecoverRegistration(
   duplicateMatch: DuplicateMatchResult | undefined,
   reply: FastifyReply,
 ): Promise<FastifyReply> {
-  const facilityAccountRef = `Organization/${facilityId}`;
-
   // Query existing secondary resources associated with this patient
   const [existingCoverages, existingRelatedPersons] = await Promise.all([
     request.medplum.searchResources("Coverage", {
       patient: `Patient/${existingPatient.id}`,
-      _account: facilityAccountRef,
     }),
     request.medplum.searchResources("RelatedPerson", {
       patient: `Patient/${existingPatient.id}`,
-      _account: facilityAccountRef,
     }),
   ]);
 
+  const targetMemberId = body.insurance?.memberId?.trim();
+  const targetPayerId = body.insurance?.payerId?.trim();
+
   let resolvedCoverage: WithId<Coverage> | undefined =
-    body.insurance !== undefined
+    targetMemberId !== undefined && targetPayerId !== undefined
       ? existingCoverages.find((c) => {
-          const matchMember = c.subscriberId?.trim() === body.insurance?.memberId?.trim();
-          const matchPayor =
-            body.insurance?.payerId === undefined ||
-            c.payor?.some((p) => {
-              const ref = p.reference ?? "";
-              return (
-                ref === `Organization/${body.insurance?.payerId}` ||
-                ref.endsWith(`/${body.insurance?.payerId}`) ||
-                ref === body.insurance?.payerId
-              );
-            });
-          return matchMember && (matchPayor ?? false);
+          const matchMember = c.subscriberId?.trim() === targetMemberId;
+          const matchPayor = c.payor?.some((p) => {
+            const ref = p.reference ?? "";
+            return (
+              ref === `Organization/${targetPayerId}` ||
+              ref.endsWith(`/${targetPayerId}`) ||
+              ref === targetPayerId
+            );
+          });
+          return Boolean(matchMember && matchPayor);
         })
       : undefined;
 
+  const targetEscortName = body.escort?.name?.trim().toLowerCase();
+  const targetEscortPhone = body.escort?.phone?.trim();
+
   let resolvedEscort: WithId<RelatedPerson> | undefined =
-    body.escort !== undefined
+    targetEscortName !== undefined && targetEscortPhone !== undefined
       ? existingRelatedPersons.find((r) => {
-          const reqName = body.escort?.name?.trim().toLowerCase();
           const matchName =
-            r.name?.[0]?.text?.trim().toLowerCase() === reqName ||
-            r.name?.[0]?.family?.trim().toLowerCase() === reqName;
-          const matchPhone =
-            body.escort?.phone === undefined ||
-            r.telecom?.some((t) => t.system === "phone" && t.value?.trim() === body.escort?.phone?.trim());
-          return matchName && matchPhone;
+            r.name?.[0]?.text?.trim().toLowerCase() === targetEscortName ||
+            r.name?.[0]?.family?.trim().toLowerCase() === targetEscortName;
+          const matchPhone = r.telecom?.some(
+            (t) => t.system === "phone" && t.value?.trim() === targetEscortPhone,
+          );
+          return Boolean(matchName && matchPhone);
         })
       : undefined;
 
@@ -267,9 +266,6 @@ async function handlePatientSearch(
     _count: String(query.limit ?? 20),
   };
 
-  if (facilityId !== undefined) {
-    searchParams["_account"] = `Organization/${facilityId}`;
-  }
 
   if (query.mrn !== undefined && query.mrn !== "") {
     searchParams["identifier"] = query.mrn;
@@ -357,15 +353,15 @@ export function patientsRoutes(app: FastifyInstance): Promise<void> {
           const facilityAccountRef = `Organization/${facilityId}`;
           const writer = forFacility(request.medplum, facilityId);
 
-          // Query Medplum for duplicate candidates by family name, birthdate, or MRN scoped to facility
+          // Query Medplum for duplicate candidates by family name, birthdate, or MRN.
+          // Note: _account is not a valid FHIR search parameter on Patient; facility scoping is enforced
+          // via AccessPolicy compartment rules and explicit meta.accounts filtering below.
           const candidateSearches: Promise<Patient[]>[] = [
             request.medplum.searchResources("Patient", {
-              _account: facilityAccountRef,
               name: body.name.family,
               _count: "50",
             }),
             request.medplum.searchResources("Patient", {
-              _account: facilityAccountRef,
               birthdate: body.dateOfBirth,
               _count: "50",
             }),
@@ -374,7 +370,6 @@ export function patientsRoutes(app: FastifyInstance): Promise<void> {
           if (body.mrn !== undefined && body.mrn !== "") {
             candidateSearches.push(
               request.medplum.searchResources("Patient", {
-                _account: facilityAccountRef,
                 identifier: body.mrn,
                 _count: "10",
               }),
@@ -628,17 +623,35 @@ export function patientsRoutes(app: FastifyInstance): Promise<void> {
                   "secondary resource transaction failed due to ambiguous network error; skipping compensation delete to prevent orphaned child resources; patient record preserved for idempotent recovery",
                 );
               } else {
-                // Definitive failure: best-effort compensation removes incomplete Patient record
+                // Definitive failure: best-effort compensation removes incomplete Patient and child records
                 try {
+                  const [childCoverages, childEscorts] = await Promise.all([
+                    request.medplum
+                      .searchResources("Coverage", { patient: `Patient/${createdPatient.id}` })
+                      .catch(() => []),
+                    request.medplum
+                      .searchResources("RelatedPerson", { patient: `Patient/${createdPatient.id}` })
+                      .catch(() => []),
+                  ]);
+                  for (const c of childCoverages) {
+                    if (c.id !== undefined) {
+                      await request.medplum.deleteResource("Coverage", c.id).catch(() => {});
+                    }
+                  }
+                  for (const rp of childEscorts) {
+                    if (rp.id !== undefined) {
+                      await request.medplum.deleteResource("RelatedPerson", rp.id).catch(() => {});
+                    }
+                  }
                   await request.medplum.deleteResource("Patient", createdPatient.id);
                   request.log.info(
                     { patientId: createdPatient.id, facilityId },
-                    "compensated failed registration by deleting incomplete patient record",
+                    "compensated failed registration by deleting child resources and incomplete patient record",
                   );
                 } catch (rollbackErr) {
                   request.log.warn(
                     { err: rollbackErr, patientId: createdPatient.id, facilityId },
-                    "failed to delete incomplete patient during compensation; idempotent retry will recover",
+                    "failed to delete incomplete patient or child resources during compensation; idempotent retry will recover",
                   );
                 }
               }

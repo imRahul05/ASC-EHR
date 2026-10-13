@@ -1,4 +1,6 @@
-import { forFacility } from "@asc/api-client/server";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { createOnBehalfClient, forFacility } from "@asc/api-client/server";
 import { facilityGrant, staffPrincipal } from "@asc/authz/testing";
 import { allOk, ClientStorage, MemoryStorage, ReadablePromise, type SearchRequest, type WithId } from "@medplum/core";
 import type { Bundle, Coverage, ExtractResource, OperationOutcome, Patient, RelatedPerson, Resource, ResourceType } from "@medplum/fhirtypes";
@@ -131,6 +133,54 @@ afterEach(async () => {
 });
 
 const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
+
+interface LiveMedplumContext {
+  token: string;
+  facilityId: string;
+}
+
+async function getLiveMedplumContext(): Promise<LiveMedplumContext | undefined> {
+  try {
+    const health = await fetch("http://localhost:8203/healthcheck", { signal: AbortSignal.timeout(1000) });
+    if (!health.ok) return undefined;
+
+    const candidatePaths = [
+      path.resolve(process.cwd(), "apps/bots/.seed-output.json"),
+      path.resolve(process.cwd(), "../bots/.seed-output.json"),
+      path.resolve(process.cwd(), "../../apps/bots/.seed-output.json"),
+    ];
+    let seedData: { users?: Record<string, { email?: string; password?: string }>; facilityId?: string } | undefined;
+    for (const p of candidatePaths) {
+      if (existsSync(p)) {
+        seedData = JSON.parse(readFileSync(p, "utf8")) as typeof seedData;
+        break;
+      }
+    }
+    const email = seedData?.users?.["front-desk"]?.email;
+    const password = seedData?.users?.["front-desk"]?.password;
+    const facilityId = seedData?.facilityId;
+    if (!email || !password || !facilityId) return undefined;
+
+    const verifier = "live_test_verifier_seed_auth_flow";
+    const login = await fetch("http://localhost:8203/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, password, scope: "openid", codeChallenge: verifier, codeChallengeMethod: "plain" }),
+    });
+    const { code } = (await login.json()) as { code?: string };
+    if (!code) return undefined;
+    const tokenRes = await fetch("http://localhost:8203/oauth2/token", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ grant_type: "authorization_code", code, code_verifier: verifier }),
+    });
+    const tokenJson = (await tokenRes.json()) as { access_token?: string };
+    if (!tokenJson.access_token) return undefined;
+    return { token: tokenJson.access_token, facilityId };
+  } catch {
+    return undefined;
+  }
+}
 
 describe("Patients routes", () => {
   describe("GET /patients/search", () => {
@@ -1703,6 +1753,129 @@ describe("Patients routes", () => {
       const allPatients = await mockMedplum.searchResources("Patient");
       const matched = allPatients.filter((p) => p.name?.[0]?.family === "FallbackLockFamily");
       expect(matched.length).toBe(1);
+    });
+
+    it("exercises actual POST /patients/register recovery endpoint against live Medplum 5.1.42 when available", async () => {
+      const liveContext = await getLiveMedplumContext();
+      if (liveContext === undefined) {
+        // Hermetic CI environment without local Medplum running
+        return;
+      }
+
+      const { token: liveToken, facilityId: liveFacilityId } = liveContext;
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant(liveFacilityId, ["front-desk"], ["patient.register", "patient.read"])],
+        "live-fd-user",
+      );
+      built.identity.addToken(liveToken, principal);
+
+      const testUnique = `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+      const testMrn = `LIVE-RETRY-${testUnique}`;
+      const payload = {
+        facilityId: liveFacilityId,
+        name: { family: `LiveFam${testUnique}`, given: ["Alice"] },
+        dateOfBirth: "1988-08-08",
+        gender: "female",
+        phone: "(555) 777-1234",
+        mrn: testMrn,
+        insurance: {
+          payerId: liveFacilityId,
+          memberId: "MEM-LIVE-1",
+        },
+        escort: {
+          name: "Bob Escort",
+          relationship: "spouse",
+          phone: "(555) 777-5678",
+        },
+      };
+
+      let createdPatientId: string | undefined;
+
+      try {
+        // Step 1: Initial registration via real Fastify route against live Medplum
+        const res1 = await built.app.inject({
+          method: "POST",
+          url: "/patients/register",
+          headers: bearer(liveToken),
+          payload,
+        });
+
+        expect(res1.statusCode).toBe(201);
+        const json1 = res1.json<{
+          patient: WithId<Patient>;
+          coverage?: WithId<Coverage>;
+          escort?: WithId<RelatedPerson>;
+        }>();
+        expect(json1.patient.id).toBeDefined();
+        createdPatientId = json1.patient.id;
+        expect(json1.coverage?.subscriberId).toBe("MEM-LIVE-1");
+        expect(json1.escort?.name?.[0]?.text).toBe("Bob Escort");
+
+        // Step 2: Retry with retry: true and IDENTICAL data: invokes completeOrRecoverRegistration
+        // Must return HTTP 200 and reuse existing patient and secondary resources without creating duplicates
+        const resRetry = await built.app.inject({
+          method: "POST",
+          url: "/patients/register",
+          headers: bearer(liveToken),
+          payload: {
+            ...payload,
+            retry: true,
+          },
+        });
+
+        expect(resRetry.statusCode).toBe(200);
+        const jsonRetry = resRetry.json<{
+          patient: WithId<Patient>;
+          coverage?: WithId<Coverage>;
+          escort?: WithId<RelatedPerson>;
+        }>();
+        expect(jsonRetry.patient.id).toBe(json1.patient.id);
+        expect(jsonRetry.coverage?.id).toBe(json1.coverage?.id);
+        expect(jsonRetry.escort?.id).toBe(json1.escort?.id);
+
+        // Step 3: Retry requesting NEW/DIFFERENT insurance (strict matching):
+        // Must attach the new Coverage to the patient without duplicating the patient
+        const resRetryNewIns = await built.app.inject({
+          method: "POST",
+          url: "/patients/register",
+          headers: bearer(liveToken),
+          payload: {
+            ...payload,
+            retry: true,
+            insurance: {
+              payerId: liveFacilityId,
+              memberId: "MEM-LIVE-2",
+            },
+          },
+        });
+
+        expect(resRetryNewIns.statusCode).toBe(200);
+        const jsonRetryNewIns = resRetryNewIns.json<{
+          patient: WithId<Patient>;
+          coverage?: WithId<Coverage>;
+          escort?: WithId<RelatedPerson>;
+        }>();
+        expect(jsonRetryNewIns.patient.id).toBe(json1.patient.id);
+        expect(jsonRetryNewIns.coverage?.subscriberId).toBe("MEM-LIVE-2");
+        expect(jsonRetryNewIns.coverage?.id).not.toBe(json1.coverage?.id);
+      } finally {
+        if (createdPatientId !== undefined) {
+          const client = createOnBehalfClient({ baseUrl: "http://localhost:8203/", accessToken: liveToken });
+          const coverages = await client.searchResources("Coverage", { patient: `Patient/${createdPatientId}` }).catch(() => []);
+          for (const c of coverages) {
+            if (c.id !== undefined) await client.deleteResource("Coverage", c.id).catch(() => {});
+          }
+          const escorts = await client.searchResources("RelatedPerson", { patient: `Patient/${createdPatientId}` }).catch(() => []);
+          for (const r of escorts) {
+            if (r.id !== undefined) await client.deleteResource("RelatedPerson", r.id).catch(() => {});
+          }
+          await client.deleteResource("Patient", createdPatientId).catch(() => {});
+        }
+      }
     });
   });
 });

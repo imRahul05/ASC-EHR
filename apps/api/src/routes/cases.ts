@@ -49,7 +49,6 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
       // Fetch existing appointments for the same day and facility
       const existingAppointments = await request.medplum.searchResources("Appointment", {
         date: scheduledDate,
-        _account: facilityAccountRef,
         _count: "250",
       });
 
