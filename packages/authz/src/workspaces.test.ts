@@ -49,7 +49,7 @@ describe("resolveWorkspaces", () => {
 
   it("resolves workspaces via requiresRoleAny when role matches at the facility", () => {
     const preopNurse = staffPrincipal(buildGrants([{ roleKey: "preop-nurse", facilityId: "A" }], roleRegistry));
-    const defsWithRoles = [
+    const defsWithRoles: readonly (WorkspaceDefinition & { home: string })[] = [
       { key: "custom-nurse", label: "Custom Nurse", requiresAny: ["pacu.document"], requiresRoleAny: ["preop-nurse"], home: "/special" },
     ];
     // preop-nurse has no pacu.document, but matches requiresRoleAny at facility A
