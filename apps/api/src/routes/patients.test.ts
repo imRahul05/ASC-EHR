@@ -7,6 +7,7 @@ import { fhirUrls } from "@asc/fhir";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { buildTestApp } from "../testing/test-app.js";
+import { createInMemoryRegistrationLock } from "./patients.js";
 
 type MedplumQuery = Parameters<BaseMockClient["search"]>[1];
 type MedplumOptions = Parameters<BaseMockClient["search"]>[2];
@@ -52,6 +53,7 @@ class MockClient extends BaseMockClient {
     let accountFilter: string | undefined;
     let identifierFilter: string | undefined;
     let birthdateFilter: string | undefined;
+    let patientFilter: string | undefined;
     let cleanQuery = query;
     if (
       query !== undefined &&
@@ -76,6 +78,11 @@ class MockClient extends BaseMockClient {
         birthdateFilter = rawBirthdate;
         delete copy["birthdate"];
       }
+      const rawPatient = copy["patient"];
+      if (typeof rawPatient === "string") {
+        patientFilter = rawPatient;
+        delete copy["patient"];
+      }
       cleanQuery = copy;
     }
     const bundlePromise = super.search(resourceType, cleanQuery, options).then((bundle) => {
@@ -95,6 +102,14 @@ class MockClient extends BaseMockClient {
         filteredEntries = filteredEntries?.filter((e) => {
           const p = e.resource as Patient | undefined;
           return p?.birthDate === birthdateFilter;
+        });
+      }
+      if (patientFilter !== undefined) {
+        filteredEntries = filteredEntries?.filter((e) => {
+          const res = e.resource as Record<string, unknown> | undefined;
+          const benRef = (res?.beneficiary as { reference?: string } | undefined)?.reference;
+          const patRef = (res?.patient as { reference?: string } | undefined)?.reference;
+          return benRef === patientFilter || patRef === patientFilter;
         });
       }
       return {
@@ -1226,6 +1241,246 @@ describe("Patients routes", () => {
         },
       });
       expect(res2.statusCode).toBe(201);
+    });
+
+    it("idempotently recovers incomplete registrations by safely attaching missing secondary resources and returning HTTP 200", async () => {
+      const mockMedplum = new MockClient();
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["front-desk"], ["patient.register", "patient.read"])],
+        "fd-idempotent",
+      );
+      built.identity.addToken("token-idempotent", principal);
+
+      // Simulate a previously failed registration where Step 1 succeeded (Patient saved) but Step 2 failed
+      const seededPatient = await forFacility(mockMedplum, "fac-a").create({
+        resourceType: "Patient",
+        name: [{ family: "Incomplete", given: ["Bob"] }],
+        birthDate: "1985-05-15",
+        gender: "male",
+        identifier: [{ system: fhirUrls.identifierSystem("mrn"), value: "MRN-INCOMPLETE-RETRY" }],
+      });
+
+      const retryPayload = {
+        facilityId: "fac-a",
+        name: { family: "Incomplete", given: ["Bob"] },
+        dateOfBirth: "1985-05-15",
+        gender: "male",
+        phone: "(555) 888-0000",
+        mrn: "MRN-INCOMPLETE-RETRY",
+        retry: true,
+        insurance: {
+          payerId: "payor-bluecross",
+          memberId: "BC-98765",
+          planName: "PPO Standard",
+          relationship: "self",
+        },
+        escort: {
+          name: "Mary Incomplete",
+          phone: "(555) 888-1111",
+          relationship: "spouse",
+        },
+      };
+
+      // Retry request should succeed with 200 OK and complete the registration
+      const retryRes = await built.app.inject({
+        method: "POST",
+        url: "/patients/register",
+        headers: bearer("token-idempotent"),
+        payload: retryPayload,
+      });
+
+      expect(retryRes.statusCode).toBe(200);
+      const json = retryRes.json<{
+        patient: { id: string };
+        coverage?: { id: string; subscriberId?: string };
+        escort?: { id: string; name?: [{ text?: string }] };
+      }>();
+
+      expect(json.patient.id).toBe(seededPatient.id);
+      expect(json.coverage).toBeDefined();
+      expect(json.coverage?.subscriberId).toBe("BC-98765");
+      expect(json.escort).toBeDefined();
+      expect(json.escort?.name?.[0]?.text).toBe("Mary Incomplete");
+
+      // Verify that calling retry again on the now-completed patient returns 200 without creating duplicates
+      const secondRetry = await built.app.inject({
+        method: "POST",
+        url: "/patients/register",
+        headers: bearer("token-idempotent"),
+        payload: retryPayload,
+      });
+      expect(secondRetry.statusCode).toBe(200);
+
+      const allCoverages = await mockMedplum.searchResources("Coverage");
+      expect(allCoverages.length).toBe(1);
+      const allEscorts = await mockMedplum.searchResources("RelatedPerson");
+      expect(allEscorts.length).toBe(1);
+    });
+
+    it("rejects retry with 409 duplicate_mrn_conflict if MRN matches an existing patient with different demographics", async () => {
+      const mockMedplum = new MockClient();
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["front-desk"], ["patient.register"])],
+        "fd-clash",
+      );
+      built.identity.addToken("token-clash", principal);
+
+      await forFacility(mockMedplum, "fac-a").create({
+        resourceType: "Patient",
+        name: [{ family: "OriginalFamily", given: ["Alice"] }],
+        birthDate: "1970-01-01",
+        identifier: [{ system: fhirUrls.identifierSystem("mrn"), value: "MRN-COLLISION" }],
+      });
+
+      const res = await built.app.inject({
+        method: "POST",
+        url: "/patients/register",
+        headers: bearer("token-clash"),
+        payload: {
+          facilityId: "fac-a",
+          name: { family: "ImposterFamily", given: ["Alice"] },
+          dateOfBirth: "1990-12-31",
+          gender: "female",
+          phone: "(555) 999-1234",
+          mrn: "MRN-COLLISION",
+          retry: true,
+          insurance: {
+            payerId: "payor-1",
+            memberId: "MEM-123",
+          },
+        },
+      });
+
+      expect(res.statusCode).toBe(409);
+      const json = res.json<{ code: string }>();
+      expect(json.code).toBe("duplicate_mrn_conflict");
+
+      const coverages = await mockMedplum.searchResources("Coverage");
+      expect(coverages.length).toBe(0);
+    });
+
+    it("compensates Step 2 failure by deleting newly created Patient record", async () => {
+      const mockMedplum = new MockClient();
+
+      // Configure MockClient so the secondary transaction fails
+      const originalExecuteBatch = mockMedplum.executeBatch.bind(mockMedplum);
+      let batchCallCount = 0;
+      mockMedplum.executeBatch = async (bundle) => {
+        batchCallCount++;
+        if (batchCallCount === 2) {
+          throw new Error("Simulated secondary transaction failure");
+        }
+        return originalExecuteBatch(bundle);
+      };
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["front-desk"], ["patient.register"])],
+        "fd-compensate",
+      );
+      built.identity.addToken("token-compensate", principal);
+
+      const res = await built.app.inject({
+        method: "POST",
+        url: "/patients/register",
+        headers: bearer("token-compensate"),
+        payload: {
+          facilityId: "fac-a",
+          name: { family: "CompensateMe", given: ["Charlie"] },
+          dateOfBirth: "1988-08-08",
+          gender: "male",
+          phone: "(555) 777-1111",
+          mrn: "MRN-COMPENSATE",
+          insurance: {
+            payerId: "payor-broken",
+            memberId: "MEM-FAIL",
+          },
+        },
+      });
+
+      expect(res.statusCode).toBe(500);
+
+      // Verify compensation delete removed the patient record from Medplum
+      const patients = await mockMedplum.searchResources("Patient");
+      const matched = patients.filter((p) => p.name?.[0]?.family === "CompensateMe");
+      expect(matched.length).toBe(0);
+    });
+
+    it("protects against demographic-only duplicates across independent API instances when shared lock is configured", async () => {
+      const mockMedplum = new MockClient();
+      const sharedLock = createInMemoryRegistrationLock();
+
+      const instance1 = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+        facilityRegistrationLock: sharedLock,
+      });
+
+      const instance2 = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+        facilityRegistrationLock: sharedLock,
+      });
+
+      try {
+        const principal = staffPrincipal(
+          [facilityGrant("fac-a", ["front-desk"], ["patient.register", "patient.read"])],
+          "fd-shared-lock",
+        );
+        instance1.identity.addToken("token-shared", principal);
+        instance2.identity.addToken("token-shared", principal);
+
+        const payload = {
+          facilityId: "fac-a",
+          name: { family: "SharedDemographic", given: ["Daniel"] },
+          dateOfBirth: "1994-04-14",
+          gender: "male",
+          phone: "(555) 234-5678",
+        };
+
+        const [res1, res2] = await Promise.all([
+          instance1.app.inject({
+            method: "POST",
+            url: "/patients/register",
+            headers: bearer("token-shared"),
+            payload,
+          }),
+          instance2.app.inject({
+            method: "POST",
+            url: "/patients/register",
+            headers: bearer("token-shared"),
+            payload,
+          }),
+        ]);
+
+        const statuses = [res1.statusCode, res2.statusCode].sort((a, b) => a - b);
+        expect(statuses).toEqual([201, 409]);
+
+        const conflictRes = res1.statusCode === 409 ? res1 : res2;
+        expect(conflictRes.json<{ code: string }>().code).toBe("duplicate_patient_detected");
+
+        // Exactly 1 Patient created in storage
+        const allPatients = await mockMedplum.searchResources("Patient");
+        const matched = allPatients.filter((p) => p.name?.[0]?.family === "SharedDemographic");
+        expect(matched.length).toBe(1);
+      } finally {
+        await instance1.app.close();
+        await instance2.app.close();
+      }
     });
   });
 });

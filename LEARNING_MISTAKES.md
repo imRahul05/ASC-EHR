@@ -299,17 +299,22 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **Guarded by:** `packages/validation/src/cases/book.test.ts`, `packages/clinical-rules/src/scheduling/conflicts.test.ts`, `packages/fhir/src/builders/service-request.test.ts`, `packages/fhir/src/builders/common.test.ts`, `apps/api/src/routes/cases.test.ts`.
 
 ### LM-030 — Neutralize registration TOCTOU race conditions, prevent FHIR transaction secondary resource leakage, and respect multi-instance concurrency boundaries
-- **Seen:** 2 · 2026-10-13 · Patient Registration Concurrency Review (`apps/api`)
+- **Seen:** 3 · 2026-10-13 · Patient Registration Concurrency Review & Live Medplum Validation (`apps/api`, `packages/db`, `apps/bots`)
 - **What went wrong:**
   1. In `POST /patients/register`, duplicate detection read candidate patients from Medplum via `searchResources`, evaluated duplicate matching in memory, and then committed the new Patient without concurrency controls or conditional create parameters, allowing simultaneous requests to create duplicate `Patient` records.
   2. Adding an in-memory `Map` lock (`withFacilityRegistrationLock`) serialized concurrent requests within a single Node.js process, but did not protect registrations across multiple independent API instances/containers.
   3. Adding `ifNoneExist` on the `Patient` entry inside a combined transaction bundle (`[Patient, Coverage, RelatedPerson]`) caused a critical secondary resource leak: in FHIR R4, when `ifNoneExist` matches an existing patient, the server returns HTTP 200, resolves placeholder references to the existing patient, and creates the child `Coverage` and `RelatedPerson` resources before Fastify checks `entryStatus === "200"` and returns 409. This permanently polluted existing patient records with orphan coverage and escort details.
+  4. Two-step writes (Step 1 `Patient`, Step 2 `Coverage`/`RelatedPerson`) could leave incomplete registrations if Step 2 failed or timed out: the Patient remained in Medplum, while subsequent retries with the same MRN were locked out with 409 duplicate conflicts.
+  5. Demographic-only registration races across independent API instances without MRN bypassed single-instance in-memory locks unless serialized by shared distributed locking.
 - **Rule:**
-  1. Separate conditional parent creation from secondary child resource creation: conditionally create `Patient` first in Step 1. If `entryStatus` is 200/304, abort immediately with HTTP 409 `duplicate_mrn_conflict` without ever writing secondary resources. Only commit `Coverage` and `RelatedPerson` in Step 2 after confirming `entryStatus === "201"`.
-  2. Recognize multi-instance concurrency boundaries: in-memory locks protect single-instance TOCTOU. Across multiple API instances, identifier collisions (MRN) are guaranteed atomic by Medplum's database conditional create (now leak-free with two-step writes). Multi-instance demographic-only deduplication without identifiers requires a shared coordinator (Postgres advisory lock via `@asc/db` or Redis).
-  3. Ensure in-flight locks handle errors gracefully using `try ... finally` and `previous.catch(() => {})` so that failed or aborted requests never hang or deadlock subsequent operations in the queue.
-- **How to check:** `pnpm --filter api test` (`src/routes/patients.test.ts`, `src/routes/patients-lock.test.ts`).
-- **Guarded by:** `apps/api/src/routes/patients.test.ts` (concurrency & multi-instance regression suites), `apps/api/src/routes/patients-lock.test.ts`.
+  1. Separate conditional parent creation from secondary child resource creation: conditionally create `Patient` first in Step 1 (`ifNoneExist`). If `entryStatus` is 200/304, check if the request is an authorized retry (`body.retry === true` or header `x-idempotent-retry: "true"`); if so and demographics match, idempotently attach missing secondary resources and return HTTP 200. Otherwise, abort immediately with HTTP 409 `duplicate_mrn_conflict` without ever writing secondary resources. Only commit `Coverage` and `RelatedPerson` in Step 2 after confirming `entryStatus === "201"`.
+  2. Implement immediate compensation rollback: if Step 2 fails during a new registration, immediately issue a compensating `deleteResource("Patient", patientId)` to prevent partial registration state from lingering in Medplum.
+  3. Shared distributed locking for multi-instance demographic deduplication: use PostgreSQL transaction-scoped advisory locks (`withPostgresFacilityLock` via `@asc/db` with `pg_advisory_xact_lock(hashtext('facility-registration'), hashtext(facilityId))`) when `DATABASE_RUNTIME_URL` is configured, falling back to instance-scoped in-memory locks.
+  4. Ensure in-flight locks handle errors gracefully using `try ... finally` and `previous.catch(() => {})` so that failed or aborted requests never hang or deadlock subsequent operations in the queue.
+  5. Include all secondary clinical resources in role data templates (e.g. `RelatedPerson` in `frontDesk` data) so transaction writes are authorized by Medplum access policies.
+- **How to check:** `pnpm --filter api test`, `pnpm --filter db test`, `pnpm --filter bots test:medplum live/patient-registration-concurrency.live.ts`.
+- **Guarded by:** `apps/api/src/routes/patients.test.ts` (concurrency, rollback, recovery & multi-instance regression suites), `packages/db/src/__tests__/lock.test.ts`, `apps/bots/live/patient-registration-concurrency.live.ts`.
+
 
 
 

@@ -3,6 +3,7 @@ import Fastify from "fastify";
 import type { createOnBehalfClient } from "@asc/api-client/server";
 import type { AuditClient } from "@asc/audit";
 import type { IdentityPort, TenantResolver } from "@asc/authz";
+import { type TenantDb, withPostgresFacilityLock } from "@asc/db";
 import { loggerOptions } from "@asc/logger";
 import { formatZodError, isZodError } from "@asc/validation";
 import { registerAuthentication } from "./auth/authn.js";
@@ -15,6 +16,7 @@ import { resolveRequestId } from "./lib/request-id.js";
 import { registerMedplum } from "./plugins/medplum.js";
 import { registerRateLimit, registerSecurityHeaders } from "./plugins/security.js";
 import { registerRoutes } from "./routes/index.js";
+import type { FacilityRegistrationLock } from "@asc/types";
 
 interface AppOptions {
   /** Exact browser origins allowed cross-origin (from `resolveCorsOrigins`). Empty = none. */
@@ -38,6 +40,10 @@ interface AppOptions {
   readonly medplumBaseUrl?: string | undefined;
   /** Test override for creating the Medplum client on behalf of a user. */
   readonly createMedplumClient?: typeof createOnBehalfClient | undefined;
+  /** Runtime tenant database connection for audit and Postgres concurrency locks. */
+  readonly tenantDb?: TenantDb | undefined;
+  /** Custom facility registration lock override (for tests). */
+  readonly facilityRegistrationLock?: FacilityRegistrationLock | undefined;
 }
 
 export async function buildApp({
@@ -50,6 +56,8 @@ export async function buildApp({
   production,
   medplumBaseUrl,
   createMedplumClient,
+  tenantDb,
+  facilityRegistrationLock,
 }: AppOptions) {
   assertIdentityAllowed(identity, production);
   const app = Fastify({
@@ -100,6 +108,17 @@ export async function buildApp({
     baseUrl: medplumBaseUrl,
     ...(createMedplumClient === undefined ? {} : { createClient: createMedplumClient }),
   });
+
+  if (facilityRegistrationLock !== undefined) {
+    app.decorate("facilityRegistrationLock", facilityRegistrationLock);
+  } else if (tenantDb !== undefined) {
+    app.decorate("facilityRegistrationLock", {
+      async withLock<T>(facilityId: string, operation: () => Promise<T>, tenantId?: string): Promise<T> {
+        const resolvedTenantId = tenantId ?? "00000000-0000-0000-0000-000000000000";
+        return withPostgresFacilityLock(tenantDb, resolvedTenantId, facilityId, operation);
+      },
+    });
+  }
 
   registerRoutes(app);
 
