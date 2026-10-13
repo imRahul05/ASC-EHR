@@ -73,3 +73,4 @@ export * from "./components/guide/welcome-dialog";
 export * from "./components/guide/tour-checklist";
 export * from "./components/guide/help-sheet";
 export * from "./components/guide/hint-strip";
+export * from "./components/clinical/whiteboard-tile";
