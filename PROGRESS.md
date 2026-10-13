@@ -21,8 +21,7 @@
 |---|---|
 | Current wave | 2 |
 | In progress | — |
-| In review | P14b (Registration UI & Stub Bot) |
-| Ready to start | P08 (Terminology & Profiles), P09 (UI Clinical Kit), P12 (Worklists on Task) · also ready: P00b, P01, P06, P10 |
+| Ready to start | P15 (Scheduling + Whiteboard), P08 (Terminology & Profiles), P09 (UI Clinical Kit), P12 (Worklists on Task) · also ready: P00b, P01, P06, P10 |
 | Blocked | P13 soft-blocked on Q-MS1 (fallback allowed) |
 | Go-live target | November 15, 2026 (Software Freeze) / January 2027 (Facility Opening) |
 
@@ -60,8 +59,8 @@
 | P12 | EP-A / EP-E | Worklists on Task | ready | P05, P07 | | | | | |
 | P13 | EP-G | Record engine port | pending | P09, Q-MS1 | | | | | |
 | P14a | EP-B | Registration: intake contracts, duplicate engine & API routes | done | P05 | Antigravity | `feat/patient-registration-and-duplicate-match` | [#75](https://github.com/imRahul05/ASC-EHR/pull/75) | 2026-10-12 | 2026-10-13 |
-| P14b | EP-B | Registration: eligibility stub bot, UI components & web pages | review | P14a, P09 | Antigravity | `feat/patient-registration-ui-and-eligibility` | [#77](https://github.com/imRahul05/ASC-EHR/pull/77) | 2026-10-13 | 2026-10-13 |
-| P15 | EP-C | Scheduling + whiteboard | pending | P14b, P07, P10 | | | | | |
+| P14b | EP-B | Registration: eligibility stub bot, UI components & web pages | done | P14a, P09 | Antigravity | `feat/patient-registration-ui-and-eligibility` | [#77](https://github.com/imRahul05/ASC-EHR/pull/77) | 2026-10-13 | 2026-10-13 |
+| P15 | EP-C | Scheduling + whiteboard | ready | P14b, P07, P10 | | | | | |
 | P16 | EP-E | H&P + med-hold | pending | P11, P13, P10, P07 | | | | | |
 | P17 | EP-E | Pre-op + consent | pending | P11, P15 | | | | | |
 | P18 | EP-F | Procedure capture | pending | P15, P10 | | | | | |
@@ -174,8 +173,8 @@ Full lists: [implementation plan §6](docs/plan/implementation-plan.md#6-cross-p
 
 1. **Sprint 1 Clinical Kick-Off & Active Targets**:
    - **P07** Clinical Hard Gates & Nursing Roles (`EP-E`): **Completed** ([#73](https://github.com/imRahul05/ASC-EHR/pull/73)).
-   - **P14a/b** Referral Intake & Registration (`EP-B`): Patient registration, search, and eligibility stubs unblocked by P05 and ready for clinical intake (P14a completed [#75](https://github.com/imRahul05/ASC-EHR/pull/75); P14b ready).
-   - **P15** Scheduling & Whiteboard (`EP-C`): Operating room scheduling and case whiteboard flow unblocked by P07 (**Active Upcoming Clinical Target**).
+   - **P14a/b** Referral Intake & Registration (`EP-B`): Patient registration, search, and eligibility stubs **Completed** (P14a [#75], P14b [#77]).
+   - **P15** Scheduling & Whiteboard (`EP-C`): Operating room scheduling and case whiteboard flow unblocked by P14 and P07 (**Active Upcoming Clinical Target**).
    - **P08** Terminology + FSH Profiles (`EP-A` / `EP-G`): GI clinical concepts, code systems, ValueSets (unblocked by P02, P03).
    - **P09** `@asc/ui` Clinical Kit (`EP-A`): Core clinical presentational components, app shell, patient banner.
    - **P12** Worklists on Task (`EP-A` / `EP-E`): Work queues backed by FHIR Task unblocked by P05 and P07.
