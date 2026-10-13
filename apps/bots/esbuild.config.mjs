@@ -11,6 +11,7 @@ import { readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
+const botsDir = fileURLToPath(new URL("./", import.meta.url));
 const srcDir = fileURLToPath(new URL("src/", import.meta.url));
 const outDir = fileURLToPath(new URL("dist/", import.meta.url));
 
@@ -22,6 +23,7 @@ if (entryPoints.length === 0) {
   process.stdout.write("bots: no bots in src/ yet, nothing to build\n");
 } else {
   await build({
+    absWorkingDir: botsDir,
     entryPoints,
     outdir: outDir,
     bundle: true,
@@ -31,4 +33,5 @@ if (entryPoints.length === 0) {
     sourcemap: true,
     logLevel: "info",
   });
+  process.stdout.write(`bots: built ${entryPoints.length} bot(s)\n`);
 }

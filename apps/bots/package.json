@@ -16,6 +16,7 @@
     "@asc/api-client": "workspace:*",
     "@asc/authz": "workspace:*",
     "@asc/config": "workspace:*",
+    "@asc/fhir": "workspace:*",
     "@medplum/core": "5.1.42"
   },
   "devDependencies": {
