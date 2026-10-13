@@ -309,48 +309,23 @@ export function patientsRoutes(app: FastifyInstance): Promise<void> {
           address,
         });
 
-        const tx = createTransaction({ facilityId });
-        const patientRef = tx.ref<Patient>("patient");
         const mrnSystem = fhirUrls.identifierSystem("mrn");
         const ifNoneExist =
           body.mrn !== undefined && body.mrn.trim() !== ""
             ? `identifier=${encodeURIComponent(`${mrnSystem}|${body.mrn.trim()}`)}`
             : undefined;
-        tx.add("patient", patientResource, ifNoneExist !== undefined ? { ifNoneExist } : undefined);
 
-        let hasCoverage = false;
-        if (body.insurance !== undefined) {
-          hasCoverage = true;
-          const coverageResource = buildCoverage({
-            facilityId,
-            patientRef,
-            payorId: body.insurance.payerId,
-            subscriberId: body.insurance.memberId,
-            planName: body.insurance.planName,
-            groupNumber: body.insurance.groupNumber,
-            relationship: body.insurance.relationship,
-          });
-          tx.add("coverage", coverageResource);
-        }
-
-        let hasEscort = false;
-        if (body.escort !== undefined) {
-          hasEscort = true;
-          const escortResource = buildRelatedPerson({
-            facilityId,
-            patientRef,
-            relationship: body.escort.relationship,
-            name: body.escort.name,
-            telecom: [{ system: "phone", value: body.escort.phone }],
-          });
-          tx.add("escort", escortResource);
-        }
-
-        const bundle = tx.build();
         const writer = forFacility(request.medplum, facilityId);
-        const responseBundle = await writer.transaction(bundle);
 
-        const patientEntry = responseBundle.entry?.[0];
+        // Step 1: Conditionally create the Patient resource first.
+        // Secondary resources (Coverage, RelatedPerson) MUST NOT be committed in the same bundle
+        // because FHIR transaction semantics resolve conditional create matches (HTTP 200) to the
+        // existing patient and proceed to create child resources, leaking orphan records when Fastify returns 409.
+        const patientTx = createTransaction({ facilityId });
+        patientTx.add("patient", patientResource, ifNoneExist !== undefined ? { ifNoneExist } : undefined);
+        const patientResponseBundle = await writer.transaction(patientTx.build());
+
+        const patientEntry = patientResponseBundle.entry?.[0];
         const entryStatus = patientEntry?.response?.status;
         if (entryStatus === "200" || entryStatus?.startsWith("200") || entryStatus === "304") {
           return reply.code(409).send({
@@ -364,16 +339,48 @@ export function patientsRoutes(app: FastifyInstance): Promise<void> {
           throw new Error("Transaction succeeded but patient was not returned");
         }
 
+        // Step 2: Now that Patient creation is confirmed (HTTP 201), commit secondary resources
+        // linked to the newly created Patient ID.
         let createdCoverage: WithId<Coverage> | undefined;
-        let nextIdx = 1;
-        if (hasCoverage) {
-          createdCoverage = responseBundle.entry?.[nextIdx]?.resource as WithId<Coverage> | undefined;
-          nextIdx++;
-        }
-
         let createdEscort: WithId<RelatedPerson> | undefined;
-        if (hasEscort) {
-          createdEscort = responseBundle.entry?.[nextIdx]?.resource as WithId<RelatedPerson> | undefined;
+
+        if (body.insurance !== undefined || body.escort !== undefined) {
+          const secondaryTx = createTransaction({ facilityId });
+          const confirmedPatientRef = { reference: `Patient/${createdPatient.id}` };
+
+          if (body.insurance !== undefined) {
+            const coverageResource = buildCoverage({
+              facilityId,
+              patientRef: confirmedPatientRef,
+              payorId: body.insurance.payerId,
+              subscriberId: body.insurance.memberId,
+              planName: body.insurance.planName,
+              groupNumber: body.insurance.groupNumber,
+              relationship: body.insurance.relationship,
+            });
+            secondaryTx.add("coverage", coverageResource);
+          }
+
+          if (body.escort !== undefined) {
+            const escortResource = buildRelatedPerson({
+              facilityId,
+              patientRef: confirmedPatientRef,
+              relationship: body.escort.relationship,
+              name: body.escort.name,
+              telecom: [{ system: "phone", value: body.escort.phone }],
+            });
+            secondaryTx.add("escort", escortResource);
+          }
+
+          const secondaryResponse = await writer.transaction(secondaryTx.build());
+          let secIdx = 0;
+          if (body.insurance !== undefined) {
+            createdCoverage = secondaryResponse.entry?.[secIdx]?.resource as WithId<Coverage> | undefined;
+            secIdx++;
+          }
+          if (body.escort !== undefined) {
+            createdEscort = secondaryResponse.entry?.[secIdx]?.resource as WithId<RelatedPerson> | undefined;
+          }
         }
 
         request.log.info({ patientId: createdPatient.id, facilityId }, "patient registered successfully");

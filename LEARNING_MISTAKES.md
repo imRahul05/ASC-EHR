@@ -298,17 +298,18 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **How to check:** `pnpm turbo run lint check-types test` across `@asc/validation`, `@asc/clinical-rules`, `@asc/fhir`, and `apps/api`.
 - **Guarded by:** `packages/validation/src/cases/book.test.ts`, `packages/clinical-rules/src/scheduling/conflicts.test.ts`, `packages/fhir/src/builders/service-request.test.ts`, `packages/fhir/src/builders/common.test.ts`, `apps/api/src/routes/cases.test.ts`.
 
-### LM-030 — Neutralize registration TOCTOU race conditions with in-flight facility synchronization and FHIR conditional create
-- **Seen:** 1 · 2026-10-13 · Patient Registration Race Condition Investigation (`apps/api`)
+### LM-030 — Neutralize registration TOCTOU race conditions, prevent FHIR transaction secondary resource leakage, and respect multi-instance concurrency boundaries
+- **Seen:** 2 · 2026-10-13 · Patient Registration Concurrency Review (`apps/api`)
 - **What went wrong:**
-  1. In `POST /patients/register`, duplicate detection read candidate patients from Medplum via `searchResources`, evaluated duplicate matching in memory, and then committed the new Patient in a separate transaction without any concurrency controls or conditional create parameters.
-  2. Two concurrent registration requests for the same patient (e.g. double-click or simultaneous intake) both queried Medplum before either transaction committed, both observed 0 candidates, both passed duplicate checks, and both created duplicate `Patient` records in Medplum with different UUIDs.
+  1. In `POST /patients/register`, duplicate detection read candidate patients from Medplum via `searchResources`, evaluated duplicate matching in memory, and then committed the new Patient without concurrency controls or conditional create parameters, allowing simultaneous requests to create duplicate `Patient` records.
+  2. Adding an in-memory `Map` lock (`withFacilityRegistrationLock`) serialized concurrent requests within a single Node.js process, but did not protect registrations across multiple independent API instances/containers.
+  3. Adding `ifNoneExist` on the `Patient` entry inside a combined transaction bundle (`[Patient, Coverage, RelatedPerson]`) caused a critical secondary resource leak: in FHIR R4, when `ifNoneExist` matches an existing patient, the server returns HTTP 200, resolves placeholder references to the existing patient, and creates the child `Coverage` and `RelatedPerson` resources before Fastify checks `entryStatus === "200"` and returns 409. This permanently polluted existing patient records with orphan coverage and escort details.
 - **Rule:**
-  1. Critical sections that check-and-create resources must serialize in-flight requests per facility using an in-flight queue lock (`withFacilityRegistrationLock(facilityId, ...)`). Requests targeting different facilities execute concurrently without blocking.
-  2. Always use defense-in-depth: pass FHIR conditional create options (`ifNoneExist: identifier=<system>|<mrn>`) on transaction entries where an exact identifier is present, and check `responseBundle.entry[0].response.status` (returning HTTP 409 `duplicate_mrn_conflict` if `status` is 200/304).
+  1. Separate conditional parent creation from secondary child resource creation: conditionally create `Patient` first in Step 1. If `entryStatus` is 200/304, abort immediately with HTTP 409 `duplicate_mrn_conflict` without ever writing secondary resources. Only commit `Coverage` and `RelatedPerson` in Step 2 after confirming `entryStatus === "201"`.
+  2. Recognize multi-instance concurrency boundaries: in-memory locks protect single-instance TOCTOU. Across multiple API instances, identifier collisions (MRN) are guaranteed atomic by Medplum's database conditional create (now leak-free with two-step writes). Multi-instance demographic-only deduplication without identifiers requires a shared coordinator (Postgres advisory lock via `@asc/db` or Redis).
   3. Ensure in-flight locks handle errors gracefully using `try ... finally` and `previous.catch(() => {})` so that failed or aborted requests never hang or deadlock subsequent operations in the queue.
 - **How to check:** `pnpm --filter api test` (`src/routes/patients.test.ts`, `src/routes/patients-lock.test.ts`).
-- **Guarded by:** `apps/api/src/routes/patients.test.ts` (concurrency suite), `apps/api/src/routes/patients-lock.test.ts`.
+- **Guarded by:** `apps/api/src/routes/patients.test.ts` (concurrency & multi-instance regression suites), `apps/api/src/routes/patients-lock.test.ts`.
 
 
 
