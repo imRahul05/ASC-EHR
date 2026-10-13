@@ -34,6 +34,7 @@ const PROCEDURE_INTENTS: Readonly<Record<ProcedureIntent, string>> = {
   screening: "Screening",
   surveillance: "Surveillance",
   diagnostic: "Diagnostic",
+  therapeutic: "Therapeutic",
 };
 
 const PHASE_BY_CODE: ReadonlyMap<string, CasePhase> = new Map(
@@ -71,7 +72,7 @@ export function buildProcedureIntentCodeSystem(urls: FhirUrls = fhirUrls): CodeS
     status: "active",
     content: "complete",
     caseSensitive: true,
-    description: "Why a procedure is done: screening, surveillance or diagnostic.",
+    description: "Why a procedure is done: screening, surveillance, diagnostic or therapeutic.",
     concept: Object.entries(PROCEDURE_INTENTS).map(([code, display]) => ({ code, display })),
   };
 }
