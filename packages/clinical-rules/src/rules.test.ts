@@ -167,6 +167,18 @@ describe("readiness checks and waivers", () => {
       { name: "escort", status: "pending", label: "Escort pending" },
     ];
     expect(computeOverallReadiness(withPending)).toBe("pending");
+
+    const withIllegalIdentityWaiver: ReadinessCheck[] = [
+      { name: "identity", status: "waived", label: "ID waived", waiverReason: "Emergency arrival" },
+      { name: "consent", status: "satisfied", label: "Consent signed" },
+    ];
+    expect(computeOverallReadiness(withIllegalIdentityWaiver)).toBe("blocked");
+
+    const withIllegalConsentWaiver: ReadinessCheck[] = [
+      { name: "identity", status: "satisfied", label: "ID verified" },
+      { name: "consent", status: "waived", label: "Consent waived", waiverReason: "Urgent" },
+    ];
+    expect(computeOverallReadiness(withIllegalConsentWaiver)).toBe("blocked");
   });
 });
 
