@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { facilityMeta, fhirId, instant, isoDate, reference, text } from "./common.js";
+import { facilityMeta, fhirId, instant, isoDate, narrativeText, reference, text } from "./common.js";
 
 describe("fhirId and reference", () => {
   it("accepts what Medplum issues and builds a literal reference", () => {
@@ -60,3 +60,21 @@ describe("text", () => {
     expect(() => text("x".repeat(11), "n", 10)).toThrow("invalid n");
   });
 });
+
+describe("narrativeText", () => {
+  it("allows standard multiline text with tabs and newlines", () => {
+    expect(narrativeText("Screening colonoscopy.\nSedation required.", "notes")).toBe(
+      "Screening colonoscopy.\nSedation required.",
+    );
+    expect(narrativeText("Colo\r\nProcedure\tNotes", "notes")).toBe("Colo\r\nProcedure\tNotes");
+  });
+
+  it("rejects blank, over-long, and prohibited control characters", () => {
+    for (const bad of ["", "   ", "x".repeat(501), "bad\x00char", "bad\x1bchar"]) {
+      expect(() => narrativeText(bad, "notes")).toThrow("invalid notes");
+    }
+    expect(narrativeText("x".repeat(50), "notes", 50)).toHaveLength(50);
+    expect(() => narrativeText("x".repeat(51), "notes", 50)).toThrow("invalid notes");
+  });
+});
+

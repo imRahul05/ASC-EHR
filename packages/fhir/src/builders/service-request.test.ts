@@ -56,6 +56,12 @@ describe("buildServiceRequest", () => {
       { system: CPT_CODE_SYSTEM, code: "45380" },
       { system: CPT_CODE_SYSTEM, code: "45385" },
     ]);
+
+    const multiline = buildServiceRequest({
+      ...base,
+      notes: "Screening colonoscopy.\nSedation required.",
+    });
+    expect(multiline.note?.[0]?.text).toBe("Screening colonoscopy.\nSedation required.");
   });
 
   it("supports custom FHIR canonical base URLs", () => {

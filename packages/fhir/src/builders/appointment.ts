@@ -1,5 +1,5 @@
 import type { Appointment, Location, Patient, Practitioner } from "@medplum/fhirtypes";
-import { facilityMeta, instant, reference, text } from "@asc/fhir/builders/common";
+import { facilityMeta, instant, narrativeText, reference } from "@asc/fhir/builders/common";
 
 type Participant = NonNullable<Appointment["participant"]>[number];
 
@@ -59,6 +59,6 @@ export function buildAppointment(input: AppointmentInput): Appointment {
     start,
     end,
     participant,
-    ...(input.description === undefined ? {} : { description: text(input.description, "appointment description") }),
+    ...(input.description === undefined ? {} : { description: narrativeText(input.description, "appointment description") }),
   };
 }

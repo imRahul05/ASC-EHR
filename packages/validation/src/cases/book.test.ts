@@ -96,9 +96,33 @@ describe("bookCaseSchema", () => {
     expect(bookCaseSchema.safeParse({ ...validPayload, durationMinutes: 45.5 }).success).toBe(false);
   });
 
-  it("rejects empty room ID and primary procedure code", () => {
+  it("rejects empty or non-FHIR room ID and primary procedure code", () => {
     expect(bookCaseSchema.safeParse({ ...validPayload, roomId: "" }).success).toBe(false);
+    expect(bookCaseSchema.safeParse({ ...validPayload, roomId: "OR #1" }).success).toBe(false);
+    expect(bookCaseSchema.safeParse({ ...validPayload, roomId: "room/1" }).success).toBe(false);
+    expect(bookCaseSchema.safeParse({ ...validPayload, roomId: "room 1" }).success).toBe(false);
     expect(bookCaseSchema.safeParse({ ...validPayload, primaryProcedureCode: "" }).success).toBe(false);
+  });
+
+  it("transforms empty or whitespace notes to undefined and accepts multiline notes", () => {
+    const emptyResult = bookCaseSchema.safeParse({ ...validPayload, notes: "" });
+    expect(emptyResult.success).toBe(true);
+    if (emptyResult.success) {
+      expect(emptyResult.data.notes).toBeUndefined();
+    }
+
+    const whitespaceResult = bookCaseSchema.safeParse({ ...validPayload, notes: "   " });
+    expect(whitespaceResult.success).toBe(true);
+    if (whitespaceResult.success) {
+      expect(whitespaceResult.data.notes).toBeUndefined();
+    }
+
+    const multiline = "Screening colonoscopy.\nSedation required.";
+    const multilineResult = bookCaseSchema.safeParse({ ...validPayload, notes: multiline });
+    expect(multilineResult.success).toBe(true);
+    if (multilineResult.success) {
+      expect(multilineResult.data.notes).toBe(multiline);
+    }
   });
 
   it("rejects notes exceeding 500 characters", () => {

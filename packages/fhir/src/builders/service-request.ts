@@ -1,6 +1,6 @@
 import type { Coding, Encounter, Patient, Practitioner, ServiceRequest } from "@medplum/fhirtypes";
 import type { ProcedureIntent } from "@asc/types";
-import { facilityMeta, instant, reference, text } from "@asc/fhir/builders/common";
+import { facilityMeta, instant, narrativeText, reference, text } from "@asc/fhir/builders/common";
 import { isProcedureIntent } from "@asc/fhir/case-phase";
 import { procedureIntentExtension } from "@asc/fhir/extensions";
 import { type FhirUrls, fhirUrls } from "@asc/fhir/urls";
@@ -57,6 +57,6 @@ export function buildServiceRequest(input: ServiceRequestInput, urls: FhirUrls =
     ...(authoredOn === undefined ? {} : { authoredOn }),
     ...(input.notes === undefined
       ? {}
-      : { note: [{ text: text(input.notes, "service request notes", 500) }] }),
+      : { note: [{ text: narrativeText(input.notes, "service request notes", 500) }] }),
   };
 }

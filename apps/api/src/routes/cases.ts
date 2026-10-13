@@ -1,5 +1,4 @@
 import { forFacility } from "@asc/api-client/server";
-import { grantedFacilityIds } from "@asc/authz";
 import {
   evaluateScheduleConflict,
   type ScheduleSlot,
@@ -22,25 +21,6 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import { capabilityAtResource } from "../auth/route-auth.js";
 
-function resolveFacilityId(
-  request: FastifyRequest,
-  preferredFacilityId?: string,
-  allowDefaultFallback = false,
-): string | undefined {
-  if (preferredFacilityId !== undefined && preferredFacilityId.trim() !== "") {
-    return preferredFacilityId.trim();
-  }
-  const headerValue = request.headers["x-facility-id"];
-  if (typeof headerValue === "string" && headerValue.trim() !== "") {
-    return headerValue.trim();
-  }
-  if (allowDefaultFallback && request.principal !== undefined) {
-    const granted = grantedFacilityIds(request.principal);
-    if (granted.length > 0) return granted[0];
-  }
-  return undefined;
-}
-
 export function casesRoutes(app: FastifyInstance): Promise<void> {
   // POST /cases — Book a surgical case into an operating room (Phase P15a)
   app.post(
@@ -57,14 +37,7 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
       }
 
       const body: BookCaseInput = parsed.data;
-      const facilityId = resolveFacilityId(request, body.facilityId, false);
-
-      if (facilityId === undefined) {
-        return reply.code(400).send({
-          code: "bad_request",
-          message: "Facility ID is required to book a case.",
-        });
-      }
+      const facilityId = body.facilityId.trim();
 
       if (!(await app.guards.requireCapabilityAt(request, reply, "schedule.manage", facilityId))) {
         return reply;
@@ -77,7 +50,7 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
       const existingAppointments = await request.medplum.searchResources("Appointment", {
         date: scheduledDate,
         _account: facilityAccountRef,
-        _count: "100",
+        _count: "250",
       });
 
       const facilityAppointments = existingAppointments.filter((appointment) =>
@@ -87,9 +60,10 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
       // Convert existing appointments into schedule slots for pure conflict evaluation
       const existingSlots: ScheduleSlot[] = facilityAppointments.map((appItem) => {
         const startMs = appItem.start ? Date.parse(appItem.start) : 0;
-        const endMs = appItem.end ? Date.parse(appItem.end) : 0;
+        const parsedEndMs = appItem.end ? Date.parse(appItem.end) : 0;
+        const endMs = startMs > 0 && parsedEndMs > startMs ? parsedEndMs : undefined;
         const durationMinutes =
-          startMs > 0 && endMs > startMs ? Math.round((endMs - startMs) / 60_000) : 45;
+          endMs !== undefined ? Math.round((endMs - startMs) / 60_000) : 45;
 
         const roomParticipant = appItem.participant?.find((p) =>
           p.actor?.reference?.startsWith("Location/"),
@@ -179,7 +153,7 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
               ...patient,
               meta: {
                 ...patient.meta,
-                accounts: [{ reference: facilityAccountRef }],
+                accounts: updatedAccounts,
               },
             });
           }
@@ -191,6 +165,7 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
       }
 
       const endInstant = new Date(candidateEndMs).toISOString();
+      const notes = body.notes?.trim() ? body.notes.trim() : undefined;
 
       // Build atomic FHIR transaction bundle
       const tx = createTransaction({ facilityId });
@@ -205,7 +180,7 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
         roomId: body.roomId,
         physicianId: body.primaryPhysicianId,
         anesthesiologistId: body.anesthesiologistId,
-        description: body.notes,
+        description: notes,
       });
       tx.add("appointment", appointmentResource);
 
@@ -230,7 +205,7 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
           primaryProcedureCode: body.primaryProcedureCode,
           secondaryProcedureCodes: body.secondaryProcedureCodes,
           requesterId: body.primaryPhysicianId,
-          notes: body.notes,
+          notes,
           authoredOn: new Date().toISOString(),
         }),
         encounter: encounterRef,
@@ -241,13 +216,23 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
       const writer = forFacility(request.medplum, facilityId);
       const responseBundle = await writer.transaction(bundle);
 
+      const parseIdFromLocation = (loc?: string): string | undefined => {
+        if (!loc) return undefined;
+        const parts = loc.split("/");
+        return parts.length >= 2 ? parts[1] : undefined;
+      };
+
       const createdAppointment = responseBundle.entry?.[0]?.resource as WithId<Appointment> | undefined;
       const appointmentId =
-        createdAppointment?.id ?? responseBundle.entry?.[0]?.response?.location?.split("/")[1] ?? "";
+        createdAppointment?.id ?? parseIdFromLocation(responseBundle.entry?.[0]?.response?.location);
 
       const createdEncounter = responseBundle.entry?.[1]?.resource as WithId<Encounter> | undefined;
       const encounterId =
-        createdEncounter?.id ?? responseBundle.entry?.[1]?.response?.location?.split("/")[1] ?? "";
+        createdEncounter?.id ?? parseIdFromLocation(responseBundle.entry?.[1]?.response?.location);
+
+      if (!appointmentId || !encounterId) {
+        throw new Error("Transaction succeeded but appointment or encounter ID could not be resolved");
+      }
 
       // Structured PHI-safe audit logging (IDs, room, timestamps only)
       request.log.info(

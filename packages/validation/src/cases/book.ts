@@ -24,8 +24,10 @@ export const bookCaseSchema = z.object({
   roomId: z
     .string()
     .trim()
-    .min(1, "Room ID is required")
-    .max(64, "Room ID must not exceed 64 characters"),
+    .regex(
+      FHIR_ID,
+      "Room ID must be a valid FHIR identifier (1-64 alphanumeric characters, dots or hyphens)",
+    ),
   scheduledAt: z
     .string()
     .trim()
@@ -66,6 +68,7 @@ export const bookCaseSchema = z.object({
     .string()
     .trim()
     .max(500, "Notes cannot exceed 500 characters")
+    .transform((v) => (v.length > 0 ? v : undefined))
     .optional(),
 });
 

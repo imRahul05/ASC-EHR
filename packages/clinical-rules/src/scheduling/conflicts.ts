@@ -23,7 +23,13 @@ export const ANESTHESIA_DOUBLE_BOOKED_MESSAGE = "Anesthesia provider is booked i
 function isCancelledOrNoShow(status?: string): boolean {
   if (status === undefined) return false;
   const normalized = status.trim().toLowerCase();
-  return normalized === "cancelled" || normalized === "no_show" || normalized === "no-show";
+  return (
+    normalized === "cancelled" ||
+    normalized === "no_show" ||
+    normalized === "no-show" ||
+    normalized === "noshow" ||
+    normalized === "entered-in-error"
+  );
 }
 
 /**
@@ -36,7 +42,9 @@ export function evaluateScheduleConflict(
   existingCases: readonly ScheduleSlot[],
 ): RuleResult {
   const candidateEndMs =
-    candidateCase.endMs ?? candidateCase.startMs + candidateCase.durationMinutes * 60 * 1000;
+    candidateCase.endMs !== undefined && candidateCase.endMs > candidateCase.startMs
+      ? candidateCase.endMs
+      : candidateCase.startMs + candidateCase.durationMinutes * 60 * 1000;
 
   const reasons: RuleReason[] = [];
   const seenCodes = new Set<string>();
@@ -58,7 +66,9 @@ export function evaluateScheduleConflict(
     }
 
     const existingEndMs =
-      existing.endMs ?? existing.startMs + existing.durationMinutes * 60 * 1000;
+      existing.endMs !== undefined && existing.endMs > existing.startMs
+        ? existing.endMs
+        : existing.startMs + existing.durationMinutes * 60 * 1000;
 
     const overlaps =
       candidateCase.startMs < existingEndMs && candidateEndMs > existing.startMs;

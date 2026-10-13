@@ -50,3 +50,12 @@ export function text(value: string, field: string, max = 200): string {
   if (value.trim().length === 0 || value.length > max || /\p{Cc}/u.test(value)) throw new Error(`invalid ${field}`);
   return value;
 }
+
+/** A non-blank, bounded narrative text that permits standard whitespace (tab, newline, carriage return) but rejects other control characters. */
+export function narrativeText(value: string, field: string, max = 500): string {
+  if (value.trim().length === 0 || value.length > max || /[^\t\r\n\P{Cc}]/u.test(value)) {
+    throw new Error(`invalid ${field}`);
+  }
+  return value;
+}
+

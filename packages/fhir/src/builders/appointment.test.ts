@@ -20,6 +20,9 @@ describe("buildAppointment", () => {
     const appointment = buildAppointment({ ...base, roomId: "room-1", practitionerIds: ["doc-1", "crna-1"], description: "Colonoscopy" });
     expect(appointment.participant?.map((participant) => participant.actor?.reference)).toEqual(["Patient/pat-1", "Location/room-1", "Practitioner/doc-1", "Practitioner/crna-1"]);
     expect(appointment.description).toBe("Colonoscopy");
+
+    const multiline = buildAppointment({ ...base, description: "Colonoscopy.\nSedation required." });
+    expect(multiline.description).toBe("Colonoscopy.\nSedation required.");
   });
 
   it("adds physicianId and anesthesiologistId with participation types", () => {

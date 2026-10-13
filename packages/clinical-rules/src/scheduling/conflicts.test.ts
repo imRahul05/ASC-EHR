@@ -210,14 +210,51 @@ describe("evaluateScheduleConflict", () => {
       status: "no-show",
     };
 
+    const noShowNormative: ScheduleSlot = {
+      id: "noshow-3",
+      roomId: "room-1",
+      startMs: T0,
+      durationMinutes: 45,
+      primaryPhysicianId: "doc-1",
+      anesthesiologistId: "crna-1",
+      status: "noshow",
+    };
+
+    const enteredInError: ScheduleSlot = {
+      id: "error-1",
+      roomId: "room-1",
+      startMs: T0,
+      durationMinutes: 45,
+      primaryPhysicianId: "doc-1",
+      anesthesiologistId: "crna-1",
+      status: "entered-in-error",
+    };
+
     const result = evaluateScheduleConflict(baseCandidate, [
       cancelledCase,
       noShowCase,
       noShowHyphen,
+      noShowNormative,
+      enteredInError,
     ]);
 
     expect(result.ok).toBe(true);
     expect(result.reasons).toEqual([]);
+  });
+
+  it("detects conflict when existing.endMs is missing, undefined, or 0 by falling back to duration", () => {
+    const existingZeroEnd: ScheduleSlot = {
+      id: "existing-zero-end",
+      roomId: "room-1",
+      startMs: T0 + 10 * MIN,
+      durationMinutes: 45,
+      endMs: 0,
+      primaryPhysicianId: "doc-other",
+    };
+
+    const result = evaluateScheduleConflict(baseCandidate, [existingZeroEnd]);
+    expect(result.ok).toBe(false);
+    expect(result.reasons[0]?.code).toBe(ROOM_DOUBLE_BOOKED_CODE);
   });
 
   it("ignores self case id when checking for conflicts", () => {

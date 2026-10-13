@@ -404,5 +404,142 @@ describe("Cases routes", () => {
 
       expect(response.statusCode).toBe(201);
     });
+
+    it("returns 409 conflict when anesthesiologist is booked in another room", async () => {
+      const mockMedplum = new MockClient();
+
+      const scheduledAt = futureInstant(144);
+      const startMs = Date.parse(scheduledAt);
+      const endMs = startMs + 45 * 60 * 1000;
+
+      // Seed existing appointment with crna-1 in room-2
+      await forFacility(mockMedplum, "fac-a").create({
+        resourceType: "Appointment",
+        status: "booked",
+        start: new Date(startMs).toISOString(),
+        end: new Date(endMs).toISOString(),
+        participant: [
+          { actor: { reference: "Patient/pat-1" }, status: "accepted" },
+          { actor: { reference: "Location/room-2" }, status: "accepted" },
+          { actor: { reference: "Practitioner/doc-other" }, status: "accepted", type: [{ coding: [{ code: "PPRF" }] }] },
+          { actor: { reference: "Practitioner/crna-1" }, status: "accepted", type: [{ coding: [{ code: "SPRF" }] }] },
+        ],
+      });
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal([facilityGrant("fac-a", ["front-desk"], ["schedule.manage"])], "fd-anesthesia");
+      built.identity.addToken("token-anesthesia", principal);
+
+      // Attempt to book crna-1 in room-1 at the same time
+      const response = await built.app.inject({
+        method: "POST",
+        url: "/cases",
+        headers: bearer("token-anesthesia"),
+        payload: {
+          facilityId: "fac-a",
+          patientId: "pat-2",
+          roomId: "room-1",
+          scheduledAt,
+          durationMinutes: 45,
+          primaryPhysicianId: "doc-dr-jones",
+          anesthesiologistId: "crna-1",
+          procedureIntent: "screening",
+          primaryProcedureCode: "45378",
+        },
+      });
+
+      expect(response.statusCode).toBe(409);
+      const json = response.json();
+      expect(json.code).toBe("conflict");
+      expect(json.reasons).toContainEqual({
+        code: "ANESTHESIA_DOUBLE_BOOKED",
+        message: "Anesthesia provider is booked in another room during this time window",
+      });
+    });
+
+    it("handles empty notes '' and multiline notes without 500 errors", async () => {
+      const mockMedplum = new MockClient();
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal([facilityGrant("fac-a", ["front-desk"], ["schedule.manage"])], "fd-notes");
+      built.identity.addToken("token-notes", principal);
+
+      // 1. Empty string notes
+      const resEmpty = await built.app.inject({
+        method: "POST",
+        url: "/cases",
+        headers: bearer("token-notes"),
+        payload: {
+          facilityId: "fac-a",
+          patientId: "pat-1",
+          roomId: "room-1",
+          scheduledAt: futureInstant(168),
+          durationMinutes: 30,
+          primaryPhysicianId: "doc-1",
+          procedureIntent: "screening",
+          primaryProcedureCode: "45378",
+          notes: "",
+        },
+      });
+      expect(resEmpty.statusCode).toBe(201);
+
+      // 2. Multiline notes with newline
+      const resMultiline = await built.app.inject({
+        method: "POST",
+        url: "/cases",
+        headers: bearer("token-notes"),
+        payload: {
+          facilityId: "fac-a",
+          patientId: "pat-2",
+          roomId: "room-2",
+          scheduledAt: futureInstant(192),
+          durationMinutes: 45,
+          primaryPhysicianId: "doc-1",
+          procedureIntent: "diagnostic",
+          primaryProcedureCode: "43239",
+          notes: "Screening colonoscopy.\nSedation required.",
+        },
+      });
+      expect(resMultiline.statusCode).toBe(201);
+    });
+
+    it("returns 400 when roomId contains non-FHIR characters", async () => {
+      const mockMedplum = new MockClient();
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal([facilityGrant("fac-a", ["front-desk"], ["schedule.manage"])], "fd-room-bad");
+      built.identity.addToken("token-room-bad", principal);
+
+      const response = await built.app.inject({
+        method: "POST",
+        url: "/cases",
+        headers: bearer("token-room-bad"),
+        payload: {
+          facilityId: "fac-a",
+          patientId: "pat-1",
+          roomId: "OR #1",
+          scheduledAt: futureInstant(216),
+          durationMinutes: 45,
+          primaryPhysicianId: "doc-1",
+          procedureIntent: "screening",
+          primaryProcedureCode: "45378",
+        },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().code).toBe("invalid_payload");
+    });
   });
 });
