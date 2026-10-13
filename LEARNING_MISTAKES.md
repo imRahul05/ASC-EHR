@@ -54,6 +54,7 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 22. No PHI in URL query parameters (send in POST body and sanitize logged URLs); exact identifier duplicates cannot be waived with confirmDuplicate; validate FHIR IDs at the schema boundary. (LM-026)
 23. Non-waivable clinical checks must strictly block waivers; validate chronological order in paired timestamps; prevent workspace capability leakage. (LM-027)
 24. Exact MRN conflicts must lock registration override buttons; empty intake sections must be sanitized to undefined; mock Base UI Dialog portals in static test environments. (LM-028)
+25. Atomic case booking bundles: commit Appointment, Encounter, and ServiceRequest in a single FHIR transaction bundle with facility meta accounts; pure conflict engine excludes cancelled and no-show slots and returns explicit conflict codes (ROOM_DOUBLE_BOOKED, PHYSICIAN_DOUBLE_BOOKED, ANESTHESIA_DOUBLE_BOOKED). (LM-029)
 
 ---
 
@@ -274,4 +275,18 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
   3. In Node/SSR test environments using `renderToStaticMarkup`, mock `@asc/ui` Dialog primitives (`Dialog`, `DialogContent`, `DialogHeader`, `DialogTitle`, `DialogDescription`, `DialogFooter`) inline to render children directly without `DialogPortal`.
 - **How to check:** `pnpm --filter web test` (`duplicate-match-dialog.test.tsx`, `registration-form.test.tsx`).
 - **Guarded by:** `apps/web/src/features/patients/duplicate-match-dialog.test.tsx`, `apps/web/src/features/patients/registration-form.test.tsx`.
+
+### LM-029 — Atomic case booking bundles, facility scoping, and pure scheduling conflict detection
+- **Seen:** 1 · 2026-10-13 · Phase P15a (`feat/case-scheduling-contracts-and-api`)
+- **What went wrong:**
+  1. Scheduling cases requires writing `Appointment`, `Encounter`, and `ServiceRequest`. Performing sequential individual writes risks partial failures leaving orphaned appointments without encounters or service requests.
+  2. Conflict detection could falsely clash on cancelled or no-show procedures if stopped statuses are not excluded from interval calculations.
+  3. Direct Medplum writes in routes without `forFacility(client, facilityId)` fail access policy enforcement by missing `meta.accounts` stamping.
+- **Rule:**
+  1. All booking resources (`Appointment` with `status: "booked"`, `Encounter` with `status: "planned", stage: "scheduled"`, and `ServiceRequest` with procedure intent and CPT codes) must be committed atomically in a single FHIR `transaction` bundle via `createTransaction` and `forFacility(request.medplum, facilityId).transaction(bundle)`.
+  2. Pure conflict evaluation (`evaluateScheduleConflict`) must use half-open interval checks (`candidate.startMs < existing.endMs && candidate.endMs > existing.startMs`), exclude cancelled (`cancelled`) and no-show (`no_show`, `no-show`) slots, and return specific conflict codes: `ROOM_DOUBLE_BOOKED`, `PHYSICIAN_DOUBLE_BOOKED`, and `ANESTHESIA_DOUBLE_BOOKED`.
+  3. All facility writes must go through `forFacility` to stamp `meta.accounts: [{ reference: "Organization/<facilityId>" }]`.
+  4. Audit logs must strictly contain non-identifying IDs, room strings, and timestamps; never log patient demographics or procedure indication text.
+- **How to check:** `pnpm turbo run lint check-types test` across `@asc/validation`, `@asc/clinical-rules`, `@asc/fhir`, and `apps/api`.
+- **Guarded by:** `packages/validation/src/cases/book.test.ts`, `packages/clinical-rules/src/scheduling/conflicts.test.ts`, `packages/fhir/src/builders/service-request.test.ts`, `apps/api/src/routes/cases.test.ts`.
 
