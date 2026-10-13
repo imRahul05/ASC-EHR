@@ -115,6 +115,17 @@ describe("phases and stages", () => {
     expect(nextPhase("CONFIRMED")).toBe("ARRIVED");
     expect(nextPhase("CLOSED")).toBeNull();
   });
+
+  it("supports cross-transitions between legacy CasePhase and CaseStage seamlessly", () => {
+    // Transition from legacy phase to new stage
+    expect(transitionAllowed("ARRIVED", "preop").ok).toBe(true);
+    expect(transitionAllowed("PRE_OP", "in_room").ok).toBe(true);
+    expect(transitionAllowed("SCHEDULED", "procedure_start").ok).toBe(false);
+
+    // Transition from new stage to legacy phase
+    expect(transitionAllowed("arrived", "PRE_OP").ok).toBe(true);
+    expect(transitionAllowed("in_room", "IN_PROCEDURE").ok).toBe(true);
+  });
 });
 
 describe("readiness checks and waivers", () => {

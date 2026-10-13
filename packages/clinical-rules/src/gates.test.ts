@@ -409,4 +409,21 @@ describe("transitionGate integration", () => {
     expect(failingResult.ok).toBe(false);
     expect(failingResult.reasons.some((r) => r.code === "GATE2_EQUIPMENT")).toBe(true);
   });
+
+  it("permits legacy case with only phase defined to transition to a CaseStage", () => {
+    const legacyDetail = mockCaseDetail({
+      phase: "ARRIVED",
+      stage: undefined,
+      readinessChecks: [
+        check("identity", "satisfied"),
+        check("consent", "satisfied"),
+        check("hp", "satisfied"),
+      ],
+    });
+    // Remove stage property to simulate legacy case
+    const legacyCase = { ...legacyDetail.case, stage: undefined };
+    const detail = { ...legacyDetail, case: legacyCase };
+
+    expect(transitionGate(detail, "preop").ok).toBe(true);
+  });
 });
