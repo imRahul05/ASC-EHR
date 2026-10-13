@@ -1127,8 +1127,8 @@ export interface BookCasePayload {
   readonly scheduledStart: IsoDateTime;
   readonly durationMin: number;
   readonly surgeonId: string;
-  readonly anesthesiaId: string;
-  readonly nurseId: string;
+  readonly anesthesiaId?: string;
+  readonly nurseId?: string;
   readonly referralId?: string;
 }
 

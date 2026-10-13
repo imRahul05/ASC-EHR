@@ -97,6 +97,7 @@ export function BookCaseSheet({ open, onOpenChange, defaults }: BookCaseSheetPro
         )}
         {admin.data && !waitingForReferral && (
           <BookCaseForm
+            key={`${defaults.roomId ?? ""}-${defaults.startTime ?? ""}-${defaults.date ?? ""}-${defaults.patientId ?? ""}-${defaults.referralId ?? ""}`}
             staff={admin.data.staff}
             defaults={defaults}
             referralHints={referral.data ? bookingHintsFromReferral(referral.data) : null}
@@ -136,13 +137,14 @@ export function BookCaseForm({
   const activeSurgeons = (staffByRole.SURGEON ?? []).filter((m) => m.active);
   const activeAnesthesiologists = (staffByRole.ANESTHESIOLOGIST ?? []).filter((m) => m.active);
 
-  const defaultSurgeon = activeSurgeons[0]?.id || "doc-vance";
-  const defaultAnesthesia = activeAnesthesiologists[0]?.id || "anes-chen";
+  const defaultSurgeon = activeSurgeons[0]?.id ?? "";
+  const defaultAnesthesia = "";
 
   const {
     control,
     register,
     handleSubmit,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm<BookCaseFormData>({
     resolver: zodResolver(bookCaseFormSchema),
@@ -176,6 +178,18 @@ export function BookCaseForm({
         const conflictMsg = error.message || "Operating room or physician has a conflicting schedule during this time.";
         setApiConflict(conflictMsg);
         toast.error("Schedule conflict", { description: conflictMsg });
+
+        if (error.reasons) {
+          for (const reason of error.reasons) {
+            if (reason.code === "ROOM_DOUBLE_BOOKED") {
+              setError("roomId", { type: "server", message: reason.message });
+            } else if (reason.code === "PHYSICIAN_DOUBLE_BOOKED") {
+              setError("primaryPhysicianId", { type: "server", message: reason.message });
+            } else if (reason.code === "ANESTHESIA_DOUBLE_BOOKED") {
+              setError("anesthesiologistId", { type: "server", message: reason.message });
+            }
+          }
+        }
         return;
       }
       toast.error(error instanceof ApiError ? error.message : "Could not book the case.");

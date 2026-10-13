@@ -22,13 +22,32 @@ class MockClient extends BaseMockClient {
   ): ReadablePromise<Bundle<WithId<ExtractResource<RT>>>> {
     let accountFilter: string | undefined;
     let dateFilter: string | undefined;
+    let dateRangeFilter: { ge?: number; le?: number } | undefined;
     let cleanQuery = query;
 
-    if (
+    if (Array.isArray(query)) {
+      let ge: number | undefined;
+      let le: number | undefined;
+      const cleanArray: string[][] = [];
+      for (const entry of query) {
+        if (Array.isArray(entry) && entry[0] === "date" && typeof entry[1] === "string") {
+          const val = entry[1];
+          if (val.startsWith("ge")) ge = Date.parse(val.slice(2));
+          if (val.startsWith("le")) le = Date.parse(val.slice(2));
+        } else if (Array.isArray(entry) && entry[0] === "_account" && typeof entry[1] === "string") {
+          accountFilter = entry[1];
+        } else if (Array.isArray(entry)) {
+          cleanArray.push(entry);
+        }
+      }
+      if (ge !== undefined || le !== undefined) {
+        dateRangeFilter = { ge, le };
+      }
+      cleanQuery = cleanArray;
+    } else if (
       query !== undefined &&
       typeof query === "object" &&
       !(query instanceof URLSearchParams) &&
-      !Array.isArray(query) &&
       !("resourceType" in query)
     ) {
       const copy: Record<string, string | number | boolean | undefined> = { ...query };
@@ -56,6 +75,16 @@ class MockClient extends BaseMockClient {
         filteredEntries = filteredEntries?.filter((e) => {
           const appItem = e.resource as Appointment | undefined;
           return appItem?.start?.startsWith(dateFilter);
+        });
+      }
+      if (dateRangeFilter !== undefined) {
+        filteredEntries = filteredEntries?.filter((e) => {
+          const appItem = e.resource as Appointment | undefined;
+          if (!appItem?.start) return false;
+          const startMs = Date.parse(appItem.start);
+          if (dateRangeFilter?.ge !== undefined && startMs < dateRangeFilter.ge) return false;
+          if (dateRangeFilter?.le !== undefined && startMs > dateRangeFilter.le) return false;
+          return true;
         });
       }
       return {
@@ -623,6 +652,57 @@ describe("Cases routes", () => {
       });
 
       expect(response.statusCode).toBe(201);
+    });
+
+    it("detects room conflict across UTC date boundary when case spans into next UTC day", async () => {
+      const mockMedplum = new MockClient();
+      // 20:00 EDT (UTC-4) = 00:00 UTC next day
+      const existingStart = "2026-10-26T00:15:00.000Z";
+      const existingEnd = "2026-10-26T01:00:00.000Z";
+
+      await forFacility(mockMedplum, "fac-a").create<Appointment>({
+        resourceType: "Appointment",
+        status: "booked",
+        start: existingStart,
+        end: existingEnd,
+        participant: [
+          { actor: { reference: "Location/room-1" }, status: "accepted" },
+          { actor: { reference: "Practitioner/doc-dr-jones" }, status: "accepted" },
+        ],
+      });
+
+      const built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["front-desk"], ["schedule.manage"])],
+        "fd-fac-a",
+      );
+      built.identity.addToken("token-fd-fac-a", principal);
+
+      // Candidate at 00:30 UTC next day (overlapping the existing case)
+      const response = await built.app.inject({
+        method: "POST",
+        url: "/cases",
+        headers: bearer("token-fd-fac-a"),
+        payload: {
+          facilityId: "fac-a",
+          patientId: "pat-utc-test",
+          roomId: "room-1",
+          scheduledAt: "2026-10-26T00:30:00.000Z",
+          durationMinutes: 45,
+          primaryPhysicianId: "doc-dr-smith",
+          procedureIntent: "screening",
+          primaryProcedureCode: "45378",
+        },
+      });
+
+      expect(response.statusCode).toBe(409);
+      const json = response.json();
+      expect(json.code).toBe("conflict");
+      expect(json.reasons?.[0]?.code).toBe("ROOM_DOUBLE_BOOKED");
     });
   });
 });

@@ -21,8 +21,8 @@ interface ConflictProbe {
 const PROBES: readonly ConflictProbe[] = [
   { kind: "room", label: "Room", clashes: (c, p) => c.roomId === p.roomId },
   { kind: "surgeon", label: "Surgeon", clashes: (c, p) => c.team.surgeon.id === p.surgeonId },
-  { kind: "anesthesia", label: "Anesthesia provider", clashes: (c, p) => c.team.anesthesia.id === p.anesthesiaId },
-  { kind: "nurse", label: "Nurse", clashes: (c, p) => c.team.nurse.id === p.nurseId },
+  { kind: "anesthesia", label: "Anesthesia provider", clashes: (c, p) => Boolean(p.anesthesiaId && c.team.anesthesia.id === p.anesthesiaId) },
+  { kind: "nurse", label: "Nurse", clashes: (c, p) => Boolean(p.nurseId && c.team.nurse.id === p.nurseId) },
   { kind: "patient", label: "Patient", clashes: (c, p) => c.patientId === p.patientId },
 ];
 

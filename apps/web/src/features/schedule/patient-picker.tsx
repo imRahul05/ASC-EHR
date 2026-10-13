@@ -26,14 +26,15 @@ export function PatientPicker({ id, value, onChange, invalid }: PatientPickerPro
   const deferredTerm = useDeferredValue(q.trim());
 
   const searchPayload = buildSearchPayload(deferredTerm, facilityId);
+  const isQueryLongEnough = deferredTerm.length >= 2;
   const searchQuery = useSearchPatients(searchPayload, {
-    enabled: deferredTerm.length > 0,
+    enabled: isQueryLongEnough,
   });
 
   if (value) return <SelectedPatient patientId={value} onClear={() => onChange("")} />;
 
   const rows = (searchQuery.data ?? []).slice(0, RESULT_LIMIT);
-  const isSearching = deferredTerm.length > 0 && searchQuery.isFetching;
+  const isSearching = isQueryLongEnough && searchQuery.isFetching;
 
   return (
     <div className="space-y-2">
@@ -50,7 +51,10 @@ export function PatientPicker({ id, value, onChange, invalid }: PatientPickerPro
           data-testid="book-case-patient-search"
         />
       </div>
-      {deferredTerm.length > 0 && (
+      {deferredTerm.length === 1 && (
+        <p className="px-1 text-xs text-muted-foreground">Type at least 2 characters to search…</p>
+      )}
+      {isQueryLongEnough && (
         <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border" aria-label="Matching patients">
           {isSearching &&
             Array.from({ length: 3 }, (_, index) => (

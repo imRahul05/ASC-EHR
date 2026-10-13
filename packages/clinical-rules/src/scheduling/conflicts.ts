@@ -89,8 +89,8 @@ export function evaluateScheduleConflict(
 
     // Anesthesia conflict
     if (
-      candidateCase.anesthesiologistId !== undefined &&
-      existing.anesthesiologistId !== undefined &&
+      Boolean(candidateCase.anesthesiologistId) &&
+      Boolean(existing.anesthesiologistId) &&
       candidateCase.anesthesiologistId === existing.anesthesiologistId
     ) {
       recordConflict(ANESTHESIA_DOUBLE_BOOKED_CODE, ANESTHESIA_DOUBLE_BOOKED_MESSAGE);

@@ -56,6 +56,7 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 24. Exact MRN conflicts must lock registration override buttons; empty intake sections must be sanitized to undefined; mock Base UI Dialog portals in static test environments. (LM-028)
 25. Atomic case booking bundles: commit Appointment, Encounter, and ServiceRequest in a single FHIR transaction bundle with facility meta accounts; use narrativeText for clinical notes allowing newlines; validate roomId with FHIR_ID regex; pure conflict engine excludes cancelled and noshow slots (including normative FHIR "noshow" and "entered-in-error") and safely falls back on missing endMs; query up to 250 daily appointments; fail fast if transaction response IDs are unresolved. (LM-029)
 26. Neutralize registration TOCTOU race conditions: serialize in-flight duplicate-check-and-write critical sections per facility using an in-flight queue lock, use FHIR conditional create (ifNoneExist) for MRN, and verify transaction response status to reject duplicate creation with HTTP 409. (LM-030)
+27. Scheduling & UI controls: OptionSelect uses explicit nullish check for empty string values; appointment conflict queries use bounded 24h windows (string[][] QueryTypes in Medplum) instead of single-day UTC slices; mock handlers fail fast rather than reassigning patient IDs; Whiteboard in-use room tiles match active procedure phases only; add 30-min grace period and calendar rollover validation for case scheduling. (LM-031)
 
 ---
 
@@ -321,6 +322,19 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **How to check:** `pnpm --filter api test`, `pnpm --filter db test`, `pnpm --filter bots test:medplum live/patient-registration-concurrency.live.ts`.
 - **Guarded by:** `apps/api/src/routes/patients.test.ts` (concurrency, rollback, recovery & live Medplum suites), `packages/db/src/__tests__/lock.test.ts`, `apps/bots/live/patient-registration-concurrency.live.ts`.
 
-
-
-
+### LM-031 — Explicit nullish checks for optional option selects, UTC boundary-aware appointment queries, fail-fast mocks, and active room phase matching
+- **Seen:** 3 · 2026-10-14 · PR #79 review (`feat/case-scheduling-ui-and-whiteboard`, Phase P15b)
+- **What went wrong:**
+  1. In `OptionSelect`, `onValueChange={(next) => { if (next) onValueChange(next) }}` evaluated `""` as falsy, preventing coordinators from selecting "None / Not assigned" (`value: ""`) once an optional provider (anesthesiologist) was chosen.
+  2. In `POST /cases`, appointments were queried using a single 10-char UTC slice `scheduledAt.slice(0, 10)`, causing US-timezone afternoon/evening cases across UTC midnight to query the wrong day, silently bypassing conflict detection.
+  3. In dev MSW mock handler `apps/web/src/mocks/handlers/clinical/cases.ts`, when a requested `patientId` did not exist, the handler silently grabbed the first patient in the mock database (`[...state.patients.values()][0]`) and booked procedures under their chart instead of returning 404/400.
+  4. In `RoomStatusStrip`, when a room had `status === "in_use"` without an explicit `currentCaseId`, the strip selected the first case with matching `roomId`, rendering morning discharged/completed cases instead of the active procedure case.
+  5. Schedulers adding same-day immediate add-on cases within minutes of the procedure or during clock skew were blocked by strict future-only validation (`time > Date.now()`), and month rollover dates like Feb 31 (`2026-02-31`) silently converted to March in JavaScript `Date.parse()`.
+- **Rule:**
+  1. `OptionSelect` must use an explicit nullish check: `if (next !== null && next !== undefined) onValueChange(next)`.
+  2. Query existing appointments using a bounded 24-48h window covering local clinic hours (`["date", "ge..."]`, `["date", "le..."]` using Medplum `QueryTypes` `string[][]`), never a raw 10-char UTC date slice.
+  3. Never reassign missing patient IDs to another patient in mock or production handlers; fail fast immediately with `notFound("Patient")`.
+  4. When falling back to find an active case for an in-use room, restrict matching to active procedure phases (`["in_procedure", "in_room", "procedure_start", "procedure_end", "ready_for_procedure", "in_progress"]`).
+  5. Allow a 30-minute grace window for clock skew / immediate add-on cases, and strictly validate calendar dates (`isValidCalendarDate`) to prevent silent month rollover.
+- **How to check:** `pnpm turbo run lint check-types test`.
+- **Guarded by:** `packages/ui/src/components/form/option-select.tsx`, `packages/validation/src/cases/book.test.ts`, `apps/api/src/routes/cases.test.ts`, `apps/web/src/features/whiteboard/room-status-strip.tsx`.

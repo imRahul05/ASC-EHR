@@ -12,6 +12,20 @@ export const procedureIntentSchema = z.enum([
 
 export type ProcedureIntentInput = z.infer<typeof procedureIntentSchema>;
 
+/** 30-minute grace window for clock skew and immediate same-day add-on cases */
+export const PAST_DATE_GRACE_MS = 30 * 60_000;
+
+function isValidCalendarDate(dateStr: string): boolean {
+  const parts = dateStr.split("-");
+  if (parts.length !== 3) return false;
+  const year = Number(parts[0]);
+  const month = Number(parts[1]);
+  const day = Number(parts[2]);
+  if (!year || !month || !day) return false;
+  const d = new Date(Date.UTC(year, month - 1, day));
+  return d.getUTCFullYear() === year && d.getUTCMonth() === month - 1 && d.getUTCDate() === day;
+}
+
 export const bookCaseSchema = z.object({
   facilityId: z
     .string()
@@ -34,12 +48,14 @@ export const bookCaseSchema = z.object({
     .regex(INSTANT_REGEX, "Scheduled date/time must be an ISO 8601 instant with timezone (e.g. 2026-10-14T09:00:00Z)")
     .refine((val) => {
       const time = Date.parse(val);
-      return !Number.isNaN(time);
+      if (Number.isNaN(time)) return false;
+      const datePart = val.slice(0, 10);
+      return isValidCalendarDate(datePart);
     }, "Scheduled date/time must be a valid calendar date and time")
     .refine((val) => {
       const time = Date.parse(val);
-      return time > Date.now();
-    }, "Scheduled date/time must be a future date and time"),
+      return time > Date.now() - PAST_DATE_GRACE_MS;
+    }, "Scheduled date/time cannot be in the past (more than 30 minutes ago)"),
   durationMinutes: z
     .number()
     .int("Duration must be an integer")
@@ -89,7 +105,10 @@ export const bookCaseFormSchema = z
       .string()
       .trim()
       .regex(FHIR_ID, "Room ID must be a valid FHIR identifier"),
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Select a valid calendar date"),
+    date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Select a valid calendar date (YYYY-MM-DD)")
+      .refine(isValidCalendarDate, "Date must be a valid calendar date"),
     startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Select a valid 24-hour start time (HH:MM)"),
     durationMinutes: z
       .number()
@@ -125,10 +144,10 @@ export const bookCaseFormSchema = z
   .refine(
     (data) => {
       const time = Date.parse(`${data.date}T${data.startTime}:00`);
-      return !Number.isNaN(time) && time > Date.now();
+      return !Number.isNaN(time) && time > Date.now() - PAST_DATE_GRACE_MS;
     },
     {
-      message: "Scheduled date and time must be a future date and time",
+      message: "Scheduled date and time cannot be in the past (more than 30 minutes ago)",
       path: ["startTime"],
     },
   );

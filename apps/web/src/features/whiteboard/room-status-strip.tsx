@@ -16,6 +16,30 @@ const ASC_ROOMS: readonly { readonly id: string; readonly name: string }[] = [
   { id: "room-4", name: "Room 4" },
 ];
 
+const ACTIVE_ROOM_PHASES = new Set([
+  "in_procedure",
+  "in_room",
+  "procedure_start",
+  "procedure_end",
+  "ready_for_procedure",
+  "in_progress",
+]);
+
+function findRoomCase(room: Room, cards: readonly WhiteboardCard[]): WhiteboardCard | undefined {
+  if (room.currentCaseId) {
+    const directMatch = cards.find((card) => card.caseId === room.currentCaseId);
+    if (directMatch) return directMatch;
+  }
+
+  if (room.status === "in_use") {
+    return cards.find(
+      (card) => card.roomId === room.id && ACTIVE_ROOM_PHASES.has(card.phase.toLowerCase()),
+    );
+  }
+
+  return undefined;
+}
+
 /**
  * Live room tiles for all ASC procedure suites (room-1 through room-4).
  * Rendered with WhiteboardTile enforcing strict PHI compliance (Patient Initials + Case Number ONLY).
@@ -30,9 +54,7 @@ export function RoomStatusStrip({ rooms, cards, tv, elapsed }: RoomStatusStripPr
     <section aria-label="Procedure rooms status" data-testid="whiteboard-rooms">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {allRooms.map((room) => {
-          const current = cards.find(
-            (card) => card.caseId === room.currentCaseId || (room.status === "in_use" && card.roomId === room.id),
-          );
+          const current = findRoomCase(room, cards);
 
           const tileCase: WhiteboardTileCase | null = current
             ? {

@@ -44,13 +44,16 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
       }
 
       const facilityAccountRef = `Organization/${facilityId}`;
-      const scheduledDate = body.scheduledAt.slice(0, 10);
+      const candidateStartMs = Date.parse(body.scheduledAt);
+      const windowStartIso = new Date(candidateStartMs - 24 * 60 * 60_000).toISOString();
+      const windowEndIso = new Date(candidateStartMs + 24 * 60 * 60_000).toISOString();
 
-      // Fetch existing appointments for the same day and facility
-      const existingAppointments = await request.medplum.searchResources("Appointment", {
-        date: scheduledDate,
-        _count: "250",
-      });
+      // Fetch existing appointments covering the local facility window (+/- 24h around scheduled time)
+      const existingAppointments = await request.medplum.searchResources("Appointment", [
+        ["date", `ge${windowStartIso}`],
+        ["date", `le${windowEndIso}`],
+        ["_count", "250"],
+      ]);
 
       const facilityAppointments = existingAppointments.filter((appointment) =>
         appointment.meta?.accounts?.some((account) => account.reference === facilityAccountRef),
@@ -104,7 +107,6 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
         };
       });
 
-      const candidateStartMs = Date.parse(body.scheduledAt);
       const durationMinutes = body.durationMinutes;
       const candidateEndMs = candidateStartMs + durationMinutes * 60_000;
 

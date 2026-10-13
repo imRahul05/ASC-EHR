@@ -105,9 +105,9 @@ describe("BookCaseForm & BookCaseSheet", () => {
     expect(html).toContain('data-testid="book-case-notes"');
     expect(html).toContain('data-testid="book-case-submit"');
 
-    // Physicians and staff options populated
+    // Physician populated by default; anesthesia select is present
     expect(html).toContain("Dr. Arthur Vance");
-    expect(html).toContain("Dr. Elena Rostova");
+    expect(html).toContain('data-testid="book-case-anesthesia"');
 
     // Standard GI CPT default is rendered in the trigger
     expect(html).toContain("45378");

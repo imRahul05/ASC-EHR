@@ -124,10 +124,7 @@ export const caseHandlers = [
     const state = db();
     const raw = (await request.json().catch(() => ({}))) as Record<string, string | number | undefined>;
     const patientId = String(raw.patientId ?? "");
-    let patient = state.patients.get(patientId);
-    if (!patient) {
-      patient = [...state.patients.values()][0];
-    }
+    const patient = state.patients.get(patientId);
     if (!patient) return notFound("Patient");
 
     const surgeonId = String(raw.primaryPhysicianId ?? raw.surgeonId ?? "");
@@ -137,10 +134,10 @@ export const caseHandlers = [
     const staff = (id: string) => STAFF_LIST.find((member) => member.id === id);
     const staffByRole = Object.groupBy(STAFF_LIST, (m) => m.role);
     const surgeon = staff(surgeonId) ?? staffByRole.SURGEON?.[0];
-    const anesthesia = staff(anesthesiaId) ?? staffByRole.ANESTHESIOLOGIST?.[0];
-    const nurse = staff(nurseId) ?? staffByRole.NURSE?.[0];
+    if (!surgeon) return apiError(400, "VALIDATION_FAILED", "Choose a valid surgeon.");
 
-    if (!surgeon || !anesthesia || !nurse) return apiError(400, "VALIDATION_FAILED", "Choose a surgeon, anesthesia provider and nurse.");
+    const anesthesia = anesthesiaId ? staff(anesthesiaId) : undefined;
+    const nurse = nurseId ? staff(nurseId) : undefined;
 
     const scheduledStart = String(raw.scheduledAt ?? raw.scheduledStart ?? new Date().toISOString());
     const durationMin = Number(raw.durationMinutes ?? raw.durationMin ?? 45);
@@ -158,8 +155,8 @@ export const caseHandlers = [
       scheduledStart,
       durationMin,
       surgeonId: surgeon.id,
-      anesthesiaId: anesthesia.id,
-      nurseId: nurse.id,
+      anesthesiaId: anesthesia?.id,
+      nurseId: nurse?.id,
     };
 
     const conflicts = findScheduleConflicts([...state.cases.values()], conflictPayload);
@@ -188,7 +185,11 @@ export const caseHandlers = [
       roomId,
       scheduledStart,
       durationMin,
-      team: { surgeon: staffRef(surgeon), anesthesia: staffRef(anesthesia), nurse: staffRef(nurse) },
+      team: {
+        surgeon: staffRef(surgeon),
+        anesthesia: staffRef(anesthesia ?? staffByRole.ANESTHESIOLOGIST?.[0] ?? surgeon),
+        nurse: staffRef(nurse ?? staffByRole.NURSE?.[0] ?? surgeon),
+      },
       phase: "SCHEDULED",
       timestamps: { SCHEDULED: new Date().toISOString() },
       readiness: {

@@ -76,12 +76,27 @@ describe("bookCaseSchema", () => {
     expect(bookCaseSchema.safeParse({ ...validPayload, anesthesiologistId: "crna#1" }).success).toBe(false);
   });
 
-  it("rejects scheduledAt in the past", () => {
+  it("rejects scheduledAt outside the 30-minute grace window", () => {
     const pastDate = new Date(Date.now() - 3600 * 1000).toISOString();
     const result = bookCaseSchema.safeParse({ ...validPayload, scheduledAt: pastDate });
     expect(result.success).toBe(false);
     if (result.success) return;
-    expect(result.error.issues.some((issue) => issue.message.includes("future"))).toBe(true);
+    expect(result.error.issues.some((issue) => issue.message.includes("past"))).toBe(true);
+  });
+
+  it("permits scheduledAt within the 30-minute grace window for immediate add-on cases", () => {
+    const graceDate = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const result = bookCaseSchema.safeParse({ ...validPayload, scheduledAt: graceDate });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects invalid calendar dates preventing month rollover", () => {
+    expect(
+      bookCaseSchema.safeParse({ ...validPayload, scheduledAt: "2026-02-31T10:00:00Z" }).success,
+    ).toBe(false);
+    expect(
+      bookCaseSchema.safeParse({ ...validPayload, scheduledAt: "2026-04-31T10:00:00Z" }).success,
+    ).toBe(false);
   });
 
   it("rejects scheduledAt missing timezone or malformed", () => {
@@ -188,5 +203,20 @@ describe("bookCaseSchema", () => {
       primaryProcedureCode: "43239",
     };
     expect(bookCaseFormSchema.safeParse(pastFormData).success).toBe(false);
+  });
+
+  it("rejects invalid calendar date in bookCaseFormSchema (e.g. Feb 31)", () => {
+    const invalidDateFormData = {
+      facilityId: "fac-1",
+      patientId: "pat-101",
+      roomId: "room-2",
+      date: "2026-02-31",
+      startTime: "08:00",
+      durationMinutes: 45,
+      primaryPhysicianId: "doc-1",
+      procedureIntent: "diagnostic" as const,
+      primaryProcedureCode: "43239",
+    };
+    expect(bookCaseFormSchema.safeParse(invalidDateFormData).success).toBe(false);
   });
 });
