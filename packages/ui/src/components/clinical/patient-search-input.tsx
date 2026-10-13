@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import type { PatientListItem } from "@asc/types";
 import { Search, Loader2 } from "../../icons";
 import { cn } from "../../lib/utils";
@@ -37,8 +37,17 @@ export function PatientSearchInput({
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const baseId = useId();
   const listboxId = `${baseId}-listbox`;
+
+  useEffect(() => {
+    return () => {
+      if (blurTimeoutRef.current !== null) {
+        clearTimeout(blurTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const safeActiveIndex =
     results.length === 0 ? -1 : Math.max(-1, Math.min(activeIndex, results.length - 1));
@@ -95,6 +104,7 @@ export function PatientSearchInput({
           ref={inputRef}
           type="search"
           role="combobox"
+          aria-label={placeholder}
           aria-expanded={showDropdown}
           aria-controls={listboxId}
           aria-autocomplete="list"
@@ -113,7 +123,10 @@ export function PatientSearchInput({
           }}
           onBlur={() => {
             // Short delay to allow click on dropdown option
-            setTimeout(() => setIsOpen(false), 200);
+            if (blurTimeoutRef.current !== null) {
+              clearTimeout(blurTimeoutRef.current);
+            }
+            blurTimeoutRef.current = setTimeout(() => setIsOpen(false), 200);
           }}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}

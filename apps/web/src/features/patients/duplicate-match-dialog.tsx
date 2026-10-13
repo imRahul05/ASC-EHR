@@ -191,6 +191,7 @@ export function DuplicateMatchDialog({
                     <Link
                       href={`/patients/${candidatePatientId}`}
                       target="_blank"
+                      rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
                       data-testid="duplicate-candidate-link"
                     >

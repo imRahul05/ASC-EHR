@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { registerPatientSchema } from "@asc/validation/patients/register";
-import { RegistrationForm } from "./registration-form";
+import { RegistrationForm, prepareRegistrationPayload } from "./registration-form";
 
 vi.mock("../../lib/stores/auth.store", () => ({
   useAuthStore: (selector: (s: { facilityId: string | null }) => unknown) =>
@@ -84,6 +84,89 @@ describe("RegistrationForm", () => {
       if (result.success) {
         expect(result.data.address).toBeUndefined();
       }
+    });
+  });
+
+  describe("prepareRegistrationPayload", () => {
+    const baseInput = {
+      facilityId: "fac-1",
+      name: { family: "Doe", given: ["Jane"] },
+      dateOfBirth: "1980-05-10",
+      gender: "female" as const,
+      phone: "555-555-5555",
+      address: { line: [""], city: "", state: "", postalCode: "", country: "USA" },
+      insurance: {
+        payerId: "PAYER-01",
+        memberId: "MEM-12345",
+        relationship: "self" as const,
+      },
+      escort: {
+        name: "John Doe",
+        phone: "555-444-3333",
+        relationship: "spouse",
+      },
+    };
+
+    it("sanitizes empty address fields to undefined", () => {
+      const payload = prepareRegistrationPayload(baseInput, "fac-1", {
+        hasInsurance: false,
+        hasEscort: false,
+      });
+
+      expect(payload.address).toBeUndefined();
+      expect(payload.insurance).toBeUndefined();
+      expect(payload.escort).toBeUndefined();
+      expect(payload.confirmDuplicate).toBe(false);
+    });
+
+    it("includes populated address without blank fields", () => {
+      const payload = prepareRegistrationPayload(
+        {
+          ...baseInput,
+          address: {
+            line: ["123 Medical Center Dr"],
+            city: "Metropolis",
+            state: "NY",
+            postalCode: "10001",
+            country: "USA",
+          },
+        },
+        "fac-1",
+        {
+          hasInsurance: false,
+          hasEscort: false,
+        },
+      );
+
+      expect(payload.address).toEqual({
+        line: ["123 Medical Center Dr"],
+        city: "Metropolis",
+        state: "NY",
+        postalCode: "10001",
+        country: "USA",
+      });
+    });
+
+    it("preserves insurance and escort when toggled on and confirmDuplicate is true", () => {
+      const payload = prepareRegistrationPayload(baseInput, "fac-1", {
+        hasInsurance: true,
+        hasEscort: true,
+        confirmDuplicateOverride: true,
+      });
+
+      expect(payload.insurance).toEqual({
+        payerId: "PAYER-01",
+        memberId: "MEM-12345",
+        relationship: "self",
+        planName: undefined,
+        groupNumber: undefined,
+      });
+      expect(payload.escort).toEqual({
+        name: "John Doe",
+        phone: "555-444-3333",
+        relationship: "spouse",
+      });
+      expect(payload.confirmDuplicate).toBe(true);
     });
   });
 });

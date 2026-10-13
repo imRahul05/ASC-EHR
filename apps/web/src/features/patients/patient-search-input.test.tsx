@@ -42,6 +42,7 @@ describe("PatientSearchInput", () => {
 
     expect(html).toContain('role="combobox"');
     expect(html).toContain('aria-autocomplete="list"');
+    expect(html).toContain('aria-label="Search patients by name, MRN, or DOB…"');
     expect(html).toContain('placeholder="Search patients by name, MRN, or DOB…"');
   });
 
@@ -57,5 +58,34 @@ describe("PatientSearchInput", () => {
     );
 
     expect(html).toContain('role="combobox"');
+  });
+
+  describe("buildSearchPayload", () => {
+    it("disambiguates DOB format YYYY-MM-DD", async () => {
+      const { buildSearchPayload } = await import("./patient-search-input");
+      const payload = buildSearchPayload("1985-04-12", "fac-123");
+      expect(payload).toEqual({
+        dob: "1985-04-12",
+        facilityId: "fac-123",
+      });
+    });
+
+    it("disambiguates MRN alphanumeric format", async () => {
+      const { buildSearchPayload } = await import("./patient-search-input");
+      const payload = buildSearchPayload("MRN-204313", "fac-123");
+      expect(payload).toEqual({
+        mrn: "MRN-204313",
+        facilityId: "fac-123",
+      });
+    });
+
+    it("defaults to patient name search for text terms", async () => {
+      const { buildSearchPayload } = await import("./patient-search-input");
+      const payload = buildSearchPayload("Jane Doe", "fac-123");
+      expect(payload).toEqual({
+        name: "Jane Doe",
+        facilityId: "fac-123",
+      });
+    });
   });
 });

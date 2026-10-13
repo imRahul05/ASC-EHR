@@ -61,6 +61,89 @@ const RELATIONSHIP_OPTIONS = [
   { value: "other", label: "Other" },
 ] as const;
 
+/**
+ * Sanitizes and normalizes intake form input before submitting to the API.
+ * Blank addresses are stripped to undefined (avoiding empty [{}] payloads),
+ * and optional toggled sections (insurance, escort) are excluded if inactive.
+ */
+export function prepareRegistrationPayload(
+  data: RegisterPatientInput,
+  facilityId: string,
+  options: {
+    hasInsurance: boolean;
+    hasEscort: boolean;
+    confirmDuplicateOverride?: boolean;
+  },
+): RegisterPatientInput {
+  // Sanitize address: if all fields blank, do NOT send empty object [{}]
+  const line0 = data.address?.line?.[0]?.trim();
+  const city = data.address?.city?.trim();
+  const state = data.address?.state?.trim();
+  const postalCode = data.address?.postalCode?.trim();
+  const country = data.address?.country?.trim();
+
+  const hasAddressFields = Boolean(line0 || city || state || postalCode);
+  const address = hasAddressFields
+    ? {
+        ...(line0 ? { line: [line0] } : {}),
+        ...(city ? { city } : {}),
+        ...(state ? { state } : {}),
+        ...(postalCode ? { postalCode } : {}),
+        ...(country ? { country } : {}),
+      }
+    : undefined;
+
+  // Sanitize insurance
+  let insurance = undefined;
+  if (
+    options.hasInsurance &&
+    data.insurance &&
+    data.insurance.payerId?.trim() &&
+    data.insurance.memberId?.trim()
+  ) {
+    insurance = {
+      payerId: data.insurance.payerId.trim(),
+      planName: data.insurance.planName?.trim() || undefined,
+      memberId: data.insurance.memberId.trim(),
+      groupNumber: data.insurance.groupNumber?.trim() || undefined,
+      relationship: data.insurance.relationship,
+    };
+  }
+
+  // Sanitize escort
+  let escort = undefined;
+  if (
+    options.hasEscort &&
+    data.escort &&
+    data.escort.name?.trim() &&
+    data.escort.phone?.trim() &&
+    data.escort.relationship?.trim()
+  ) {
+    escort = {
+      name: data.escort.name.trim(),
+      relationship: data.escort.relationship.trim(),
+      phone: data.escort.phone.trim(),
+    };
+  }
+
+  return {
+    facilityId,
+    name: {
+      family: data.name.family.trim(),
+      given: [data.name.given[0]?.trim() ?? ""],
+    },
+    dateOfBirth: data.dateOfBirth,
+    gender: data.gender,
+    phone: data.phone.trim(),
+    email: data.email?.trim() || undefined,
+    mrn: data.mrn?.trim() || undefined,
+    address,
+    insurance,
+    escort,
+    confirmDuplicate: options.confirmDuplicateOverride ?? false,
+  };
+}
+
 export function RegistrationForm({ onSuccess, defaultFacilityId }: RegistrationFormProps) {
   const activeFacilityId = useAuthStore((s) => s.facilityId);
   const facilityId = defaultFacilityId ?? activeFacilityId ?? undefined;
@@ -94,75 +177,12 @@ export function RegistrationForm({ onSuccess, defaultFacilityId }: RegistrationF
   const preparePayload = (
     data: RegisterPatientInput,
     confirmDuplicateOverride = false,
-  ): RegisterPatientInput => {
-    // Sanitize address: if all fields blank, do NOT send empty object [{}]
-    const line0 = data.address?.line?.[0]?.trim();
-    const city = data.address?.city?.trim();
-    const state = data.address?.state?.trim();
-    const postalCode = data.address?.postalCode?.trim();
-    const country = data.address?.country?.trim();
-
-    const hasAddressFields = Boolean(line0 || city || state || postalCode);
-    const address = hasAddressFields
-      ? {
-          ...(line0 ? { line: [line0] } : {}),
-          ...(city ? { city } : {}),
-          ...(state ? { state } : {}),
-          ...(postalCode ? { postalCode } : {}),
-          ...(country ? { country } : {}),
-        }
-      : undefined;
-
-    // Sanitize insurance
-    let insurance = undefined;
-    if (
-      uiState.hasInsurance &&
-      data.insurance &&
-      data.insurance.payerId?.trim() &&
-      data.insurance.memberId?.trim()
-    ) {
-      insurance = {
-        payerId: data.insurance.payerId.trim(),
-        planName: data.insurance.planName?.trim() || undefined,
-        memberId: data.insurance.memberId.trim(),
-        groupNumber: data.insurance.groupNumber?.trim() || undefined,
-        relationship: data.insurance.relationship,
-      };
-    }
-
-    // Sanitize escort
-    let escort = undefined;
-    if (
-      uiState.hasEscort &&
-      data.escort &&
-      data.escort.name?.trim() &&
-      data.escort.phone?.trim() &&
-      data.escort.relationship?.trim()
-    ) {
-      escort = {
-        name: data.escort.name.trim(),
-        relationship: data.escort.relationship.trim(),
-        phone: data.escort.phone.trim(),
-      };
-    }
-
-    return {
-      facilityId,
-      name: {
-        family: data.name.family.trim(),
-        given: [data.name.given[0]?.trim() ?? ""],
-      },
-      dateOfBirth: data.dateOfBirth,
-      gender: data.gender,
-      phone: data.phone.trim(),
-      email: data.email?.trim() || undefined,
-      mrn: data.mrn?.trim() || undefined,
-      address,
-      insurance,
-      escort,
-      confirmDuplicate: confirmDuplicateOverride,
-    };
-  };
+  ): RegisterPatientInput =>
+    prepareRegistrationPayload(data, facilityId ?? "", {
+      hasInsurance: uiState.hasInsurance,
+      hasEscort: uiState.hasEscort,
+      confirmDuplicateOverride,
+    });
 
   const executeRegistration = async (payload: RegisterPatientInput) => {
     clearErrors("root");
@@ -434,6 +454,7 @@ export function RegistrationForm({ onSuccess, defaultFacilityId }: RegistrationF
               </div>
               <Switch
                 id="reg-has-insurance"
+                aria-label="Capture insurance coverage"
                 checked={uiState.hasInsurance}
                 onCheckedChange={(checked) =>
                   setUiState((prev) => ({ ...prev, hasInsurance: checked }))
@@ -538,6 +559,7 @@ export function RegistrationForm({ onSuccess, defaultFacilityId }: RegistrationF
               </div>
               <Switch
                 id="reg-has-escort"
+                aria-label="Record escort details"
                 checked={uiState.hasEscort}
                 onCheckedChange={(checked) =>
                   setUiState((prev) => ({ ...prev, hasEscort: checked }))
