@@ -1074,6 +1074,32 @@ export interface DuplicateCheckResult {
   readonly matches: readonly DuplicateMatch[];
 }
 
+export interface RegisteredCoverageResource {
+  readonly id?: string;
+  readonly resourceType?: string;
+  readonly status?: string;
+}
+
+export interface RegisteredEscortResource {
+  readonly id?: string;
+  readonly resourceType?: string;
+  readonly relationship?: string;
+}
+
+export interface RegisterPatientResult {
+  readonly patient: Patient | {
+    readonly id: string;
+    readonly resourceType?: string;
+    readonly identifier?: readonly { readonly system?: string; readonly value?: string }[];
+    readonly name?: readonly { readonly family?: string; readonly given?: readonly string[] }[];
+    readonly birthDate?: string;
+    readonly gender?: string;
+  };
+  readonly coverage?: Coverage | RegisteredCoverageResource;
+  readonly escort?: Escort | RegisteredEscortResource;
+  readonly duplicateMatch?: DuplicateMatchResult;
+}
+
 export interface ConvertReferralPayload {
   /** Link to an existing patient, or create one from the given fields. */
   readonly patientId?: string;
