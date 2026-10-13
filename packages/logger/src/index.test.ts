@@ -130,6 +130,28 @@ describe("serializers", () => {
     log.error({ err: e }, "failed");
     expect(JSON.stringify(lines()[0])).not.toContain("1970");
   });
+
+  it("sanitizes query parameters from req.url and strips raw/query to prevent query string PHI leakage", () => {
+    const { log, lines } = capture();
+    log.info(
+      {
+        req: {
+          method: "GET",
+          url: "/patients/search?facilityId=fac-a&name=ConfidentialName&dob=1980-01-01",
+          query: { facilityId: "fac-a", name: "ConfidentialName", dob: "1980-01-01" },
+          raw: { url: "/patients/search?facilityId=fac-a&name=ConfidentialName&dob=1980-01-01" },
+        },
+      },
+      "request",
+    );
+    const line = lines()[0];
+    const req = line?.req as Record<string, unknown> | undefined;
+    expect(req?.url).toBe("/patients/search");
+    expect(req?.query).toBeUndefined();
+    expect(req?.raw).toBeUndefined();
+    expect(JSON.stringify(line)).not.toContain("ConfidentialName");
+    expect(JSON.stringify(line)).not.toContain("1980-01-01");
+  });
 });
 
 describe("options", () => {

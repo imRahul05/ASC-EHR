@@ -135,4 +135,20 @@ describe("registerPatientSchema", () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it("rejects facilityId with invalid FHIR identifier format", () => {
+    const result = registerPatientSchema.safeParse({
+      ...validPayload,
+      facilityId: "fac_with_underscore",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects mrn with whitespace or control characters", () => {
+    const result = registerPatientSchema.safeParse({
+      ...validPayload,
+      mrn: "MRN with spaces",
+    });
+    expect(result.success).toBe(false);
+  });
 });

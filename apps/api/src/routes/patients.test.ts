@@ -1,7 +1,7 @@
 import { forFacility } from "@asc/api-client/server";
 import { facilityGrant, staffPrincipal } from "@asc/authz/testing";
 import { ClientStorage, MemoryStorage, ReadablePromise, type WithId } from "@medplum/core";
-import type { Bundle, ExtractResource, ResourceType } from "@medplum/fhirtypes";
+import type { Bundle, ExtractResource, Patient, ResourceType } from "@medplum/fhirtypes";
 import { MockClient as BaseMockClient } from "@medplum/mock";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -21,6 +21,8 @@ class MockClient extends BaseMockClient {
     options?: MedplumOptions,
   ): ReadablePromise<Bundle<WithId<ExtractResource<RT>>>> {
     let accountFilter: string | undefined;
+    let identifierFilter: string | undefined;
+    let birthdateFilter: string | undefined;
     let cleanQuery = query;
     if (
       query !== undefined &&
@@ -35,13 +37,37 @@ class MockClient extends BaseMockClient {
         accountFilter = rawAccount;
         delete copy["_account"];
       }
+      const rawIdentifier = copy["identifier"];
+      if (typeof rawIdentifier === "string") {
+        identifierFilter = rawIdentifier;
+        delete copy["identifier"];
+      }
+      const rawBirthdate = copy["birthdate"];
+      if (typeof rawBirthdate === "string") {
+        birthdateFilter = rawBirthdate;
+        delete copy["birthdate"];
+      }
       cleanQuery = copy;
     }
     const bundlePromise = super.search(resourceType, cleanQuery, options).then((bundle) => {
-      if (accountFilter === undefined) return bundle;
-      const filteredEntries = bundle.entry?.filter((e) =>
-        e.resource?.meta?.accounts?.some((a) => a.reference === accountFilter),
-      );
+      let filteredEntries = bundle.entry;
+      if (accountFilter !== undefined) {
+        filteredEntries = filteredEntries?.filter((e) =>
+          e.resource?.meta?.accounts?.some((a) => a.reference === accountFilter),
+        );
+      }
+      if (identifierFilter !== undefined) {
+        filteredEntries = filteredEntries?.filter((e) => {
+          const p = e.resource as Patient | undefined;
+          return p?.identifier?.some((id) => id.value === identifierFilter);
+        });
+      }
+      if (birthdateFilter !== undefined) {
+        filteredEntries = filteredEntries?.filter((e) => {
+          const p = e.resource as Patient | undefined;
+          return p?.birthDate === birthdateFilter;
+        });
+      }
       return {
         ...bundle,
         total: filteredEntries?.length ?? 0,
@@ -179,6 +205,95 @@ describe("Patients routes", () => {
       expect(json.patients).toHaveLength(1);
       expect(json.patients[0].name?.[0]?.given?.[0]).toBe("Alice");
       expect(json.patients[0].meta?.accounts?.[0]?.reference).toBe("Organization/fac-a");
+    });
+  });
+
+  describe("POST /patients/search", () => {
+    it("returns 401 when unauthenticated", async () => {
+      built = await buildTestApp({ medplumBaseUrl: "http://localhost:8203/" });
+      const response = await built.app.inject({
+        method: "POST",
+        url: "/patients/search",
+        payload: { name: "Smith" },
+      });
+      expect(response.statusCode).toBe(401);
+    });
+
+    it("returns 403 when caller lacks patient.read", async () => {
+      const mockMedplum = new MockClient();
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal([facilityGrant("fac-a", ["rn"], ["case.read"])], "user-no-read");
+      built.identity.addToken("token-no-read", principal);
+
+      const response = await built.app.inject({
+        method: "POST",
+        url: "/patients/search",
+        headers: bearer("token-no-read"),
+        payload: { facilityId: "fac-a", name: "Smith" },
+      });
+
+      expect(response.statusCode).toBe(403);
+    });
+
+    it("returns matching patients when demographics are passed in request body (PHI-safe)", async () => {
+      const mockMedplum = new MockClient();
+      await forFacility(mockMedplum, "fac-a").create({
+        resourceType: "Patient",
+        name: [{ family: "PostSearch", given: ["Bob"] }],
+        birthDate: "1985-05-15",
+      });
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal([facilityGrant("fac-a", ["intake"], ["patient.read"])], "intake-post");
+      built.identity.addToken("token-intake-post", principal);
+
+      const response = await built.app.inject({
+        method: "POST",
+        url: "/patients/search",
+        headers: bearer("token-intake-post"),
+        payload: {
+          facilityId: "fac-a",
+          name: "PostSearch",
+          dob: "1985-05-15",
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const json = response.json();
+      expect(json.total).toBe(1);
+      expect(json.patients[0].name?.[0]?.family).toBe("PostSearch");
+    });
+
+    it("returns 400 when search payload is malformed", async () => {
+      const mockMedplum = new MockClient();
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal([facilityGrant("fac-a", ["intake"], ["patient.read"])], "intake-malformed");
+      built.identity.addToken("token-intake-malformed", principal);
+
+      const response = await built.app.inject({
+        method: "POST",
+        url: "/patients/search",
+        headers: bearer("token-intake-malformed"),
+        payload: {
+          dob: "not-a-valid-date",
+        },
+      });
+
+      expect(response.statusCode).toBe(400);
+      const json = response.json();
+      expect(json.code).toBe("invalid_payload");
     });
   });
 
@@ -476,6 +591,107 @@ describe("Patients routes", () => {
       expect(json.patient.id).toBeDefined();
       expect(json.duplicateMatch?.hasMatch).toBe(false);
     });
+
+    it("blocks registration with 409 duplicate_mrn_conflict when exact MRN matches, even if confirmDuplicate is true", async () => {
+      const mockMedplum = new MockClient();
+      await forFacility(mockMedplum, "fac-a").create({
+        resourceType: "Patient",
+        name: [{ family: "Existing", given: ["Bob"] }],
+        birthDate: "1980-01-01",
+        identifier: [
+          { system: "https://fhir.wybit.io/asc/identifier/mrn", value: "MRN-EXACT-99" },
+        ],
+      });
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal([facilityGrant("fac-a", ["front-desk"], ["patient.register"])], "fd-mrn");
+      built.identity.addToken("token-fd-mrn", principal);
+
+      const payload = {
+        facilityId: "fac-a",
+        name: { family: "DifferentLastName", given: ["DifferentGiven"] },
+        dateOfBirth: "1995-10-20",
+        gender: "male",
+        phone: "(555) 000-1111",
+        mrn: "MRN-EXACT-99",
+        confirmDuplicate: true, // Attempting to override duplicate check
+      };
+
+      const response = await built.app.inject({
+        method: "POST",
+        url: "/patients/register",
+        headers: bearer("token-fd-mrn"),
+        payload,
+      });
+
+      expect(response.statusCode).toBe(409);
+      const json = response.json();
+      expect(json.code).toBe("duplicate_mrn_conflict");
+      expect(json.duplicateMatch?.highestConfidence).toBe("exact_identifier");
+    });
+
+    it("returns 400 with invalid_payload code when registration payload fails schema validation", async () => {
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+      });
+
+      const principal = staffPrincipal([facilityGrant("fac-a", ["front-desk"], ["patient.register"])], "fd-val");
+      built.identity.addToken("token-fd-val", principal);
+
+      const response = await built.app.inject({
+        method: "POST",
+        url: "/patients/register",
+        headers: bearer("token-fd-val"),
+        payload: {
+          facilityId: "fac-a",
+          name: { family: "", given: [] },
+          dateOfBirth: "not-a-date",
+          gender: "invalid_gender",
+          phone: "123",
+        },
+      });
+
+      expect(response.statusCode).toBe(400);
+      const json = response.json();
+      expect(json.code).toBe("invalid_payload");
+      expect(json.message).toBe("Invalid request payload.");
+      expect(json.details).toBeDefined();
+    });
+
+    it("omits patient.address when address object has only empty or missing properties", async () => {
+      const mockMedplum = new MockClient();
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal([facilityGrant("fac-a", ["front-desk"], ["patient.register"])], "fd-addr");
+      built.identity.addToken("token-fd-addr", principal);
+
+      const payload = {
+        facilityId: "fac-a",
+        name: { family: "NoAddress", given: ["Patient"] },
+        dateOfBirth: "1988-02-02",
+        gender: "other",
+        phone: "(555) 111-2222",
+        address: {},
+      };
+
+      const response = await built.app.inject({
+        method: "POST",
+        url: "/patients/register",
+        headers: bearer("token-fd-addr"),
+        payload,
+      });
+
+      expect(response.statusCode).toBe(201);
+      const json = response.json();
+      expect(json.patient.address).toBeUndefined();
+    });
   });
 
   describe("PHI Hygiene (LM-018 / LM-024)", () => {
@@ -510,6 +726,25 @@ describe("Patients routes", () => {
       expect(eventsJson).not.toContain(canaryName);
       expect(eventsJson).not.toContain(canaryPhone);
       expect(eventsJson).not.toContain(canaryDob);
+    });
+
+    it("sanitizes query parameters from request logs so query string PHI is never logged", async () => {
+      const mockMedplum = new MockClient();
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal([facilityGrant("fac-a", ["intake"], ["patient.read"])], "intake-san");
+      built.identity.addToken("token-san", principal);
+
+      const response = await built.app.inject({
+        method: "GET",
+        url: "/patients/search?facilityId=fac-a&name=SENSITIVE_PATIENT_NAME&dob=1990-01-01",
+        headers: bearer("token-san"),
+      });
+
+      expect(response.statusCode).toBe(200);
     });
   });
 });

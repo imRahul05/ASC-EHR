@@ -32,4 +32,14 @@ describe("patientSearchQuerySchema", () => {
     const result = patientSearchQuerySchema.safeParse({ dob: "not-a-date" });
     expect(result.success).toBe(false);
   });
+
+  it("rejects invalid facilityId format", () => {
+    const result = patientSearchQuerySchema.safeParse({ facilityId: "fac_bad" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects mrn with spaces", () => {
+    const result = patientSearchQuerySchema.safeParse({ mrn: "MRN 123" });
+    expect(result.success).toBe(false);
+  });
 });

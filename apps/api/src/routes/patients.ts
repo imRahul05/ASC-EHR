@@ -11,7 +11,12 @@ import {
   buildRelatedPerson,
   createTransaction,
 } from "@asc/fhir";
-import { patientSearchQuerySchema, registerPatientSchema } from "@asc/validation";
+import {
+  formatZodError,
+  patientSearchQuerySchema,
+  registerPatientSchema,
+  type PatientSearchQuery,
+} from "@asc/validation";
 import type { WithId } from "@medplum/core";
 import type { Coverage, Patient, RelatedPerson } from "@medplum/fhirtypes";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
@@ -37,53 +42,78 @@ function resolveFacilityId(
   return undefined;
 }
 
+async function handlePatientSearch(
+  app: FastifyInstance,
+  request: FastifyRequest,
+  reply: FastifyReply,
+  query: PatientSearchQuery,
+): Promise<FastifyReply> {
+  const facilityId = resolveFacilityId(request, query.facilityId, true);
+
+  if (!(await app.guards.requireCapabilityAt(request, reply, "patient.read", facilityId))) {
+    return reply;
+  }
+
+  const searchParams: Record<string, string> = {
+    _count: String(query.limit ?? 20),
+  };
+
+  if (facilityId !== undefined) {
+    searchParams["_account"] = `Organization/${facilityId}`;
+  }
+
+  if (query.mrn !== undefined && query.mrn !== "") {
+    searchParams["identifier"] = query.mrn;
+  }
+  if (query.name !== undefined && query.name !== "") {
+    searchParams["name"] = query.name;
+  }
+  const dob = query.birthdate ?? query.dob;
+  if (dob !== undefined && dob !== "") {
+    searchParams["birthdate"] = dob;
+  }
+
+  const patients = await request.medplum.searchResources("Patient", searchParams);
+
+  const facilityPatients =
+    facilityId === undefined
+      ? patients
+      : patients.filter((p) =>
+          p.meta?.accounts?.some((a) => a.reference === `Organization/${facilityId}`),
+        );
+
+  request.log.info({ facilityId, resultCount: facilityPatients.length }, "patients search completed");
+
+  return reply.code(200).send({
+    total: facilityPatients.length,
+    patients: facilityPatients,
+  });
+}
+
 export function patientsRoutes(app: FastifyInstance): Promise<void> {
-  // GET /patients/search
+  // POST /patients/search (PHI-safe demographic search via POST body per COMPLIANCE_AND_PHI §4)
+  app.post(
+    API_ROUTE_PATTERNS.patientsSearch,
+    { config: capabilityAtResource("patient.read") },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const parsed = patientSearchQuerySchema.safeParse(request.body ?? {});
+      if (!parsed.success) {
+        return reply.code(400).send(formatZodError(parsed.error));
+      }
+      return handlePatientSearch(app, request, reply, parsed.data);
+    },
+  );
+
+  // GET /patients/search (preserved for backward compatibility with query params sanitized by logger)
   app.get(
     API_ROUTE_PATTERNS.patientsSearch,
     { config: capabilityAtResource("patient.read") },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const query = patientSearchQuerySchema.parse(request.query);
-      const facilityId = resolveFacilityId(request, query.facilityId, true);
-
-      if (!(await app.guards.requireCapabilityAt(request, reply, "patient.read", facilityId))) {
-        return reply;
+      const parsed = patientSearchQuerySchema.safeParse(request.query);
+      if (!parsed.success) {
+        return reply.code(400).send(formatZodError(parsed.error));
       }
-
-      const searchParams: Record<string, string> = {
-        _count: String(query.limit ?? 20),
-      };
-
-      if (facilityId !== undefined) {
-        searchParams["_account"] = `Organization/${facilityId}`;
-      }
-
-      if (query.mrn !== undefined && query.mrn !== "") {
-        searchParams["identifier"] = query.mrn;
-      }
-      if (query.name !== undefined && query.name !== "") {
-        searchParams["name"] = query.name;
-      }
-      const dob = query.birthdate ?? query.dob;
-      if (dob !== undefined && dob !== "") {
-        searchParams["birthdate"] = dob;
-      }
-
-      const patients = await request.medplum.searchResources("Patient", searchParams);
-
-      const facilityPatients =
-        facilityId === undefined
-          ? patients
-          : patients.filter((p) =>
-              p.meta?.accounts?.some((a) => a.reference === `Organization/${facilityId}`),
-            );
-
-      request.log.info({ facilityId, resultCount: facilityPatients.length }, "patients search completed");
-
-      return reply.code(200).send({
-        total: facilityPatients.length,
-        patients: facilityPatients,
-      });
+      return handlePatientSearch(app, request, reply, parsed.data);
     },
   );
 
@@ -92,7 +122,11 @@ export function patientsRoutes(app: FastifyInstance): Promise<void> {
     API_ROUTE_PATTERNS.patientsRegister,
     { config: capabilityAtResource("patient.register") },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const body = registerPatientSchema.parse(request.body);
+      const parsed = registerPatientSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send(formatZodError(parsed.error));
+      }
+      const body = parsed.data;
       const facilityId = resolveFacilityId(request, body.facilityId, false);
 
       if (facilityId === undefined) {
@@ -172,16 +206,22 @@ export function patientsRoutes(app: FastifyInstance): Promise<void> {
         candidateSummaries,
       );
 
-      const isHighDuplicate =
-        duplicateResult.hasMatch &&
-        (duplicateResult.highestConfidence === "exact_identifier" || duplicateResult.highestConfidence === "high");
+      if (duplicateResult.hasMatch) {
+        if (duplicateResult.highestConfidence === "exact_identifier") {
+          return reply.code(409).send({
+            code: "duplicate_mrn_conflict",
+            message: "A patient with this MRN already exists at this facility.",
+            duplicateMatch: duplicateResult,
+          });
+        }
 
-      if (isHighDuplicate && !body.confirmDuplicate) {
-        return reply.code(409).send({
-          code: "duplicate_patient_detected",
-          message: "Potential duplicate patient detected.",
-          duplicateMatch: duplicateResult,
-        });
+        if (duplicateResult.highestConfidence === "high" && !body.confirmDuplicate) {
+          return reply.code(409).send({
+            code: "duplicate_patient_detected",
+            message: "Potential duplicate patient detected.",
+            duplicateMatch: duplicateResult,
+          });
+        }
       }
 
       const telecom: { system: "phone" | "email"; value: string }[] = [];
@@ -192,8 +232,16 @@ export function patientsRoutes(app: FastifyInstance): Promise<void> {
         telecom.push({ system: "email", value: body.email.trim() });
       }
 
+      const hasAddress =
+        body.address !== undefined &&
+        ((body.address.line !== undefined && body.address.line.length > 0) ||
+          (body.address.city !== undefined && body.address.city.trim() !== "") ||
+          (body.address.state !== undefined && body.address.state.trim() !== "") ||
+          (body.address.postalCode !== undefined && body.address.postalCode.trim() !== "") ||
+          (body.address.country !== undefined && body.address.country.trim() !== ""));
+
       const address =
-        body.address !== undefined
+        hasAddress && body.address !== undefined
           ? [
               {
                 ...(body.address.line !== undefined && body.address.line.length > 0

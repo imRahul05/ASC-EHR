@@ -51,6 +51,7 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 19. Never commit a password, not even a "dev-only" one: secret scanners (GitGuardian on every PR) flag it and every machine shares a known value. Generate local credentials per machine into a git-ignored folder, commit templates with placeholders, and add a test that fails on a literal password. A secret that reached a pushed commit stays flagged until history is rewritten or the incident is dismissed. (LM-019)
 20. Compose defaults must not weaken security silently: an empty Redis `--requirepass` means no authentication, the short bind-mount syntax creates a directory where a missing file should be, and `${VAR:?}` fails unrelated commands because compose resolves every service. Keep parse-safe empty defaults and make the container itself refuse to start; use the long bind syntax with `create_host_path: false`; verify each with a real `docker compose` run, not by reading. (LM-020)
 21. A builder validates relations between inputs, and an exemption keeps the rest of its rule: when two inputs form a range (start/end), check their order, not only each value; when a type is exempt from a check (shared directory data needs no facility tag), a value it does carry must still be valid. Reproduce a review claim with a throwaway test first: two of three claims on PR #56 were real, one (a trailing `-` in a regex class) was not. (LM-021)
+22. No PHI in URL query parameters (send in POST body and sanitize logged URLs); exact identifier duplicates cannot be waived with confirmDuplicate; validate FHIR IDs at the schema boundary. (LM-026)
 
 ---
 
@@ -232,3 +233,10 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **Rule:** Every `MedplumClient` / `MockClient` is built through the `@asc/api-client` factories, which require `baseUrl` from `@asc/config` (no default) and pass memory storage; tokens are never persisted in browser storage. Apps never call `new MedplumClient` (lint rule).
 - **How to check:** `pnpm --filter @asc/api-client test` (factories refuse a missing `baseUrl`); the lint rule bans `new MedplumClient` in apps.
 - **Guarded by:** those tests and the P04 lint rule.
+
+### LM-026 — No PHI in URL query parameters; exact identifier duplicates are non-overridable; validate FHIR IDs at schema boundary
+- **Seen:** 1 · 2026-10-13 · PR #75 (P14 review)
+- **What went wrong:** `GET /patients/search` accepted patient name, birth date, and MRN in query parameters, causing Fastify to log raw PHI in `req.url`. Exact MRN duplicates could be waived with `confirmDuplicate: true`. `payerId` and `facilityId` allowed characters outside the FHIR ID regex (`/^[A-Za-z0-9.-]{1,64}$/`), crashing builders with unhandled 500s. Uncaught ZodErrors returned HTTP 500 instead of 400.
+- **Rule:** Search endpoints accepting demographics must use `POST` with a JSON body; request loggers must sanitize query parameters from `req.url`. Exact identifier (MRN) conflicts are non-waivable (unconditional 409 conflict); `confirmDuplicate` is strictly for demographic collisions. Validate FHIR IDs at the boundary schema with `/^[A-Za-z0-9.-]{1,64}$/`. Register a global `errorHandler` for ZodErrors returning HTTP 400 with standard `ApiErrorPayload`.
+- **How to check:** `pnpm --filter api test` (PHI hygiene tests, exact MRN conflict tests, and validation 400 tests); inspect request logs for absence of query strings.
+- **Guarded by:** `apps/api/src/routes/patients.test.ts`, `@asc/logger/src/index.test.ts`.

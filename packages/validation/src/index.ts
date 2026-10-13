@@ -37,3 +37,6 @@ export * from "./authz.js";
 export * from "./patients/coverage.js";
 export * from "./patients/register.js";
 export * from "./patients/search.js";
+
+// Validation error formatting and guards (LM-001)
+export * from "./errors.js";

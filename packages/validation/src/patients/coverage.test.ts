@@ -26,7 +26,14 @@ describe("coverage validation schema", () => {
         payerId: "",
         memberId: "MEM-123",
       }),
-    ).toThrow("Payer ID is required");
+    ).toThrow("Payer ID must be a valid FHIR identifier");
+
+    expect(() =>
+      coverageSchema.parse({
+        payerId: "payer_with_underscore",
+        memberId: "MEM-123",
+      }),
+    ).toThrow("Payer ID must be a valid FHIR identifier");
 
     expect(() =>
       coverageSchema.parse({

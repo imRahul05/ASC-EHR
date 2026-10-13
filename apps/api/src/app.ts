@@ -4,6 +4,7 @@ import type { createOnBehalfClient } from "@asc/api-client/server";
 import type { AuditClient } from "@asc/audit";
 import type { IdentityPort, TenantResolver } from "@asc/authz";
 import { loggerOptions } from "@asc/logger";
+import { formatZodError, isZodError } from "@asc/validation";
 import { registerAuthentication } from "./auth/authn.js";
 import { createDenier } from "./auth/denied.js";
 import { registerDefaultDeny } from "./auth/default-deny.js";
@@ -56,6 +57,14 @@ export async function buildApp({
     // Client-supplied IDs are accepted only if well-formed (see resolveRequestId).
     genReqId: (req) => resolveRequestId(req.headers),
   });
+
+  app.setErrorHandler((error, _request, reply) => {
+    if (isZodError(error)) {
+      return reply.code(400).send(formatZodError(error));
+    }
+    return reply.send(error);
+  });
+
   registerDefaultDeny(app); // before any route or plugin that registers routes
   const deny = createDenier({ audit, catalogVersion });
 

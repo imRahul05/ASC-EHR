@@ -29,8 +29,15 @@ export const patientEscortSchema = z.object({
   relationship: z.string().trim().min(1, "Escort relationship is required").max(100),
 });
 
+const FHIR_ID = /^[A-Za-z0-9.-]{1,64}$/;
+const MRN_REGEX = /^[^\s\p{Cc}]{1,64}$/u;
+
 export const registerPatientSchema = z.object({
-  facilityId: z.string().trim().min(1, "Facility ID is required").optional(),
+  facilityId: z
+    .string()
+    .trim()
+    .regex(FHIR_ID, "Facility ID must be a valid FHIR identifier (1-64 alphanumeric characters, dots or hyphens)")
+    .optional(),
   name: patientNameSchema,
   dateOfBirth: z
     .string()
@@ -43,7 +50,11 @@ export const registerPatientSchema = z.object({
   phone: z.string().trim().regex(PHONE, "Enter a reachable phone number"),
   email: z.string().trim().email("Enter a valid email address").optional().or(z.literal("")),
   address: patientAddressSchema.optional(),
-  mrn: z.string().trim().max(50).optional(),
+  mrn: z
+    .string()
+    .trim()
+    .regex(MRN_REGEX, "MRN must not contain whitespace or control characters and be max 64 characters")
+    .optional(),
   insurance: patientInsuranceSchema.optional(),
   escort: patientEscortSchema.optional(),
   confirmDuplicate: z.boolean().optional(),
