@@ -30,6 +30,8 @@ export const patientSearchQuerySchema = z.object({
 });
 
 export const patientSearchSchema = patientSearchQuerySchema;
+export const patientSearchBodySchema = patientSearchQuerySchema;
 
 export type PatientSearchQuery = z.infer<typeof patientSearchQuerySchema>;
-export type PatientSearchInput = z.infer<typeof patientSearchSchema>;
+export type PatientSearchInput = z.input<typeof patientSearchSchema>;
+export type PatientSearchBodyInput = z.input<typeof patientSearchBodySchema>;

@@ -198,7 +198,11 @@ export const centerHandlers = [
     await latency();
     const q = (new URL(request.url).searchParams.get("q") ?? "").trim().toLowerCase();
     const cases = [...db().cases.values()]
-      .filter((item) => [item.caseNumber, item.patient.displayName, item.procedureLabel].some((value) => value.toLowerCase().includes(q)))
+      .filter((item) =>
+        [item.caseNumber, item.patientId, item.patient.displayName, item.procedureLabel].some((value) =>
+          value.toLowerCase().includes(q)
+        )
+      )
       .sort((a, b) => Date.parse(b.scheduledStart) - Date.parse(a.scheduledStart))
       .slice(0, SEARCH_LIMIT);
     const results: SearchResults = { patients: searchPatients(q).slice(0, SEARCH_LIMIT), cases };

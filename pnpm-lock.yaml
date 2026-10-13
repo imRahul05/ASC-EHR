@@ -141,6 +141,9 @@ importers:
       '@asc/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@asc/fhir':
+        specifier: workspace:*
+        version: link:../../packages/fhir
       '@medplum/core':
         specifier: 5.1.42
         version: 5.1.42

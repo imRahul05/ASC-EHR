@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { usePatients } from "@asc/api-client/react";
@@ -12,13 +11,14 @@ import {
   EligibilityChip,
   EmptyState,
   ErrorState,
-  Input,
   OfflineBanner,
   PageHeader,
   StaleBadge,
   type DataTableColumn,
 } from "@asc/ui";
-import { Search, UserPlus, UsersRound } from "@asc/ui/icons";
+import { UserPlus, UsersRound } from "@asc/ui/icons";
+import { useAuthStore } from "../../lib/stores/auth.store";
+import { PatientSearchInput } from "./patient-search-input";
 
 const COLUMNS: readonly DataTableColumn<PatientListItem>[] = [
   {
@@ -74,10 +74,9 @@ const COLUMNS: readonly DataTableColumn<PatientListItem>[] = [
 /** `/patients` — searchable patient index; row opens the chart (id-only URL). */
 export function PatientList() {
   const router = useRouter();
-  const [q, setQ] = useState("");
-  const query = usePatients({ q });
+  const facilityId = useAuthStore((s) => s.facilityId);
+  const query = usePatients({ facilityId: facilityId ?? undefined });
   const rows = query.data ?? [];
-  const searching = q.trim() !== "";
 
   return (
     <div className="space-y-5" data-testid="patient-list">
@@ -95,14 +94,9 @@ export function PatientList() {
 
       <div className="flex items-center gap-3">
         <div className="relative w-full max-w-md">
-          <Search aria-hidden className="pointer-events-none absolute top-2 left-2.5 size-4 text-muted-foreground" />
-          <Input
-            type="search"
-            value={q}
-            onChange={(event) => setQ(event.target.value)}
-            placeholder="Search patients"
-            aria-label="Search patients"
-            className="pl-8"
+          <PatientSearchInput
+            placeholder="Search patients by name, MRN, or DOB…"
+            onSelectPatient={(patient) => router.push(`/patients/${patient.id}`)}
             data-testid="patients-search"
           />
         </div>
@@ -127,8 +121,8 @@ export function PatientList() {
           empty={
             <EmptyState
               icon={UsersRound}
-              title={searching ? "No patients match your search" : "No patients yet"}
-              description={searching ? "Check the spelling or search by MRN / DOB — or register a new patient." : "Register the first patient or convert a referral."}
+              title="No patients yet"
+              description="Register the first patient or convert a referral."
               action={
                 <Button render={<Link href="/patients/new" />} nativeButton={false} variant="outline" size="sm">
                   <UserPlus aria-hidden /> Register patient

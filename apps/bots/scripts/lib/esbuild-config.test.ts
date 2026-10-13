@@ -11,6 +11,6 @@ describe("esbuild.config.mjs", () => {
   it("builds from any working directory, not only apps/bots", () => {
     const elsewhere = mkdtempSync(join(tmpdir(), "asc-esbuild-"));
     const output = execFileSync(process.execPath, [CONFIG], { cwd: elsewhere, encoding: "utf8" });
-    expect(output).toContain("no bots in src/ yet");
+    expect(output).toMatch(/no bots in src\/ yet|bots: built \d+ bot\(s\)/);
   });
 });

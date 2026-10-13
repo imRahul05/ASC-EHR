@@ -20,10 +20,10 @@ const COLUMNS: readonly DataTableColumn<ProcedureCase>[] = [
   { id: "phase", header: "Phase", cell: (row) => <PhaseChip phase={row.phase} /> },
 ];
 
-/** Cases tab: every case for this patient (search is by name, filtered to the id). */
+/** Cases tab: every case for this patient (queried by surrogate patient.id to avoid demographic PHI in query string). */
 export function ChartCases({ patient }: ChartCasesProps) {
   const router = useRouter();
-  const query = useSearch(`${patient.firstName} ${patient.lastName}`);
+  const query = useSearch(patient.id);
   const rows = (query.data?.cases ?? []).filter((item) => item.patientId === patient.id);
 
   if (query.isError && !query.data) {

@@ -27,8 +27,14 @@ describe("buildTask", () => {
     });
   });
 
-  it("carries when it was created and when it is due", () => {
-    const task = buildTask({ ...base, authoredOn: "2026-10-08T09:00:00Z", dueBy: "2026-10-09T09:00:00Z" });
+  it("carries when it was created, when it is due, and optional priority", () => {
+    const task = buildTask({
+      ...base,
+      priority: "routine",
+      authoredOn: "2026-10-08T09:00:00Z",
+      dueBy: "2026-10-09T09:00:00Z",
+    });
+    expect(task.priority).toBe("routine");
     expect(task.authoredOn).toBe("2026-10-08T09:00:00Z");
     expect(task.restriction).toEqual({ period: { end: "2026-10-09T09:00:00Z" } });
   });

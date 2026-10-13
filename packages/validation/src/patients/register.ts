@@ -21,7 +21,7 @@ export const patientAddressSchema = z.object({
   country: z.string().trim().max(50).optional(),
 });
 
-import { patientInsuranceSchema } from "./coverage.js";
+import { patientInsuranceSchema } from "@asc/validation/patients/coverage";
 
 export const patientEscortSchema = z.object({
   name: z.string().trim().min(1, "Escort name is required").max(150),
@@ -65,3 +65,4 @@ export type PatientGenderInput = z.infer<typeof patientGenderSchema>;
 export type PatientAddressInput = z.infer<typeof patientAddressSchema>;
 export type PatientEscortInput = z.infer<typeof patientEscortSchema>;
 export type RegisterPatientInput = z.infer<typeof registerPatientSchema>;
+export type RegisterPatientFormInput = z.input<typeof registerPatientSchema>;

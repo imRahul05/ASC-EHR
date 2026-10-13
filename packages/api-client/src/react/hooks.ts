@@ -41,6 +41,7 @@ import {
   reconcilePathology,
   recordBbps,
   recordPathologyResult,
+  registerPatient,
   resetDemo,
   resolveGapChip,
   saveAldrete,
@@ -48,6 +49,7 @@ import {
   savePreOp,
   saveVitals,
   searchAll,
+  searchPatients,
   sendResultLetter,
   setSurveillance,
   signConsent,
@@ -75,6 +77,7 @@ import type {
   UpdateEscortPayload,
   UpdateNoteSectionPayload,
 } from "@asc/types";
+import type { PatientSearchBodyInput } from "@asc/validation/patients/search";
 import { useCaseCommand, useClinicalMutation } from "./mutation";
 import { queryKeys } from "./query-keys";
 
@@ -88,10 +91,29 @@ export function usePatients(query: PatientSearchQuery = {}) {
   return useQuery({ queryKey: queryKeys.patients.list(query), queryFn: () => listPatients(query), placeholderData: keepPreviousData });
 }
 
-export function usePatient(patientId: string) {
-  return useQuery({ queryKey: queryKeys.patients.detail(patientId), queryFn: () => getPatient(patientId) });
+export function useSearchPatients(
+  query: PatientSearchBodyInput = {},
+  options: { readonly enabled?: boolean } = {},
+) {
+  return useQuery({
+    queryKey: queryKeys.patients.search(query),
+    queryFn: () => searchPatients(query),
+    enabled: options.enabled ?? true,
+    placeholderData: keepPreviousData,
+  });
 }
 
+export const useSearchPatientsMutation = () => useClinicalMutation(searchPatients);
+
+export function usePatient(patientId: string, options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.patients.detail(patientId),
+    queryFn: () => getPatient(patientId),
+    enabled: options.enabled ?? (patientId !== ""),
+  });
+}
+
+export const useRegisterPatient = () => useClinicalMutation(registerPatient);
 export const useCreatePatient = () => useClinicalMutation(createPatient);
 export const useDuplicateCheck = () => useClinicalMutation(checkDuplicatePatient);
 export const useCheckEligibility = () => useClinicalMutation(checkEligibility);

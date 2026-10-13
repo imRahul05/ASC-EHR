@@ -15,6 +15,7 @@ export interface WorklistTaskInput {
   /** The Practitioner it is assigned to, if already assigned. */
   readonly ownerId?: string;
   readonly description?: string;
+  readonly priority?: "routine" | "urgent" | "asap" | "stat";
   readonly authoredOn?: string;
   readonly dueBy?: string;
 }
@@ -26,6 +27,7 @@ export function buildTask(input: WorklistTaskInput, urls: FhirUrls = fhirUrls): 
     meta: facilityMeta(input.facilityId),
     status: input.ownerId === undefined ? "requested" : "accepted",
     intent: "order",
+    ...(input.priority === undefined ? {} : { priority: input.priority }),
     code: { coding: [{ system: urls.codeSystem("task-type"), code: assertCanonicalName(input.type) }] },
     ...(input.patientId === undefined ? {} : { for: reference("Patient", input.patientId, "patient id") }),
     ...(input.encounterId === undefined ? {} : { focus: reference("Encounter", input.encounterId, "encounter id") }),

@@ -1003,6 +1003,7 @@ export interface MyCare {
 
 export interface PatientSearchQuery {
   readonly q?: string;
+  readonly facilityId?: string;
 }
 
 export interface CreatePatientPayload {
@@ -1012,6 +1013,7 @@ export interface CreatePatientPayload {
   readonly sex: Sex;
   readonly phone: string;
   readonly email?: string;
+  readonly mrn?: string;
   readonly address?: Address;
   readonly preferredLanguage?: string;
   readonly coverage?: Omit<Coverage, "id" | "eligibility">;
@@ -1072,6 +1074,32 @@ export interface DuplicateMatch {
 
 export interface DuplicateCheckResult {
   readonly matches: readonly DuplicateMatch[];
+}
+
+export interface RegisteredCoverageResource {
+  readonly id?: string;
+  readonly resourceType?: string;
+  readonly status?: string;
+}
+
+export interface RegisteredEscortResource {
+  readonly id?: string;
+  readonly resourceType?: string;
+  readonly relationship?: string;
+}
+
+export interface RegisterPatientResult {
+  readonly patient: Patient | {
+    readonly id: string;
+    readonly resourceType?: string;
+    readonly identifier?: readonly { readonly system?: string; readonly value?: string }[];
+    readonly name?: readonly { readonly family?: string; readonly given?: readonly string[] }[];
+    readonly birthDate?: string;
+    readonly gender?: string;
+  };
+  readonly coverage?: Coverage | RegisteredCoverageResource;
+  readonly escort?: Escort | RegisteredEscortResource;
+  readonly duplicateMatch?: DuplicateMatchResult;
 }
 
 export interface ConvertReferralPayload {

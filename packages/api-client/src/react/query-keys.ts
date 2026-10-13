@@ -1,4 +1,5 @@
 import type { AuditQuery, IsoDate, PatientSearchQuery, WorklistQuery } from "@asc/types";
+import type { PatientSearchBodyInput } from "@asc/validation/patients/search";
 
 /**
  * TanStack Query key factory — the only place query keys are spelled.
@@ -13,6 +14,7 @@ export const queryKeys = {
   patients: {
     all: ["patients"] as const,
     list: (query: PatientSearchQuery = {}) => ["patients", "list", query] as const,
+    search: (query: PatientSearchBodyInput = {}) => ["patients", "search", query] as const,
     detail: (patientId: string) => ["patients", "detail", patientId] as const,
   },
   referrals: {

@@ -61,6 +61,7 @@ export * from "./components/clinical/room-time-grid";
 export * from "./components/clinical/stale-badge";
 export * from "./components/clinical/offline-banner";
 export * from "./components/clinical/eligibility-chip";
+export * from "./components/clinical/patient-search-input";
 export * from "./hooks/use-online-status";
 // Owner C (procedure room & AI note): timers, pipeline progress, room tap targets, offline queue pill
 export * from "./components/clinical/elapsed-time";

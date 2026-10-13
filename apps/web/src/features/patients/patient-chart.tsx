@@ -83,8 +83,8 @@ function PatientChartView({ patientId }: PatientChartProps) {
         escort={patient.escort}
         meta={[patient.coverage?.payer ?? "Self-pay", <EligibilityChip key="elig" status={patient.coverage?.eligibility?.status} />]}
         actions={
-          <Button render={<Link href={`/schedule?book=1&patient=${patient.id}`} />} nativeButton={false} size="sm" data-testid="chart-book-case">
-            <CalendarPlus aria-hidden /> Book case
+          <Button render={<Link href={`/schedule?patientId=${patient.id}`} />} nativeButton={false} size="sm" data-testid="chart-schedule-procedure">
+            <CalendarPlus aria-hidden /> + Schedule Procedure
           </Button>
         }
       />
