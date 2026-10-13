@@ -1,8 +1,11 @@
 import { grantedFacilityIds } from "@asc/authz/can";
+import { buildGrants } from "@asc/authz/grants";
 import { roleRegistry } from "@asc/authz/roles";
+import type { StaffPrincipal } from "@asc/types";
 import { describe, expect, it } from "vitest";
 import { checkCapability } from "@/hooks/use-can";
 import { DASHBOARDS } from "@/features/dashboard/dashboard-config";
+import { DEMO_TENANT } from "@/mocks/data/identities";
 import { meFor } from "@/mocks/handlers/me";
 import { ROUTE_ACCESS } from "./route-access";
 import { WORKSPACES, workspacesFor } from "./workspaces";
@@ -74,22 +77,14 @@ describe("a tech added by configuration alone", () => {
 });
 
 describe("specialized nursing roles resolve to nursing workspace", () => {
-  function nursePrincipal(roleKey: "preop-nurse" | "circulating-nurse" | "pacu-nurse") {
-    const template = roleRegistry.get(roleKey);
-    if (!template) throw new Error(`Role template ${roleKey} not found`);
+  function nursePrincipal(roleKey: "preop-nurse" | "circulating-nurse" | "pacu-nurse"): StaffPrincipal {
+    const grants = buildGrants([{ roleKey, facilityId: "fac-metro" }], roleRegistry);
     return {
       id: `user-${roleKey}`,
-      tenantId: "tenant-default",
-      loginId: `${roleKey}@ascehr.demo`,
-      kind: "user" as const,
-      grants: [
-        {
-          id: `grant-${roleKey}`,
-          facilityId: "fac-metro",
-          roleKeys: [roleKey],
-          capabilities: template.capabilities,
-        },
-      ],
+      tenant: DEMO_TENANT,
+      kind: "staff",
+      membershipId: `membership-${roleKey}`,
+      grants,
     };
   }
 
