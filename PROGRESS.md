@@ -20,8 +20,8 @@
 | Updated | 2026-10-13 |
 |---|---|
 | Current wave | 2 |
-| In progress | — |
-| Ready to start | P14b (Registration UI & Stub Bot), P08 (Terminology & Profiles), P09 (UI Clinical Kit), P12 (Worklists on Task) · also ready: P00b, P01, P06, P10 |
+| In progress | P14b (Registration UI & Stub Bot) |
+| Ready to start | P08 (Terminology & Profiles), P09 (UI Clinical Kit), P12 (Worklists on Task) · also ready: P00b, P01, P06, P10 |
 | Blocked | P13 soft-blocked on Q-MS1 (fallback allowed) |
 | Go-live target | November 15, 2026 (Software Freeze) / January 2027 (Facility Opening) |
 
@@ -59,7 +59,7 @@
 | P12 | EP-A / EP-E | Worklists on Task | ready | P05, P07 | | | | | |
 | P13 | EP-G | Record engine port | pending | P09, Q-MS1 | | | | | |
 | P14a | EP-B | Registration: intake contracts, duplicate engine & API routes | done | P05 | Antigravity | `feat/patient-registration-and-duplicate-match` | [#75](https://github.com/imRahul05/ASC-EHR/pull/75) | 2026-10-12 | 2026-10-13 |
-| P14b | EP-B | Registration: eligibility stub bot, UI components & web pages | ready | P14a, P09 | | | | | |
+| P14b | EP-B | Registration: eligibility stub bot, UI components & web pages | in-progress | P14a, P09 | Antigravity | `feat/patient-registration-ui-and-eligibility` | | 2026-10-13 | |
 | P15 | EP-C | Scheduling + whiteboard | pending | P14b, P07, P10 | | | | | |
 | P16 | EP-E | H&P + med-hold | pending | P11, P13, P10, P07 | | | | | |
 | P17 | EP-E | Pre-op + consent | pending | P11, P15 | | | | | |
