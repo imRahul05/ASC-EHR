@@ -252,7 +252,7 @@ export interface Referral {
 // ─── Procedure case ─────────────────────────────────────────────────────────
 
 export type ProcedureCode = "COLONOSCOPY" | "EGD" | "EGD_COLONOSCOPY" | "FLEX_SIG";
-export type ProcedureIntent = "screening" | "surveillance" | "diagnostic";
+export type ProcedureIntent = "screening" | "surveillance" | "diagnostic" | "therapeutic";
 export type AsaClass = 1 | 2 | 3 | 4;
 export type Mallampati = 1 | 2 | 3 | 4;
 

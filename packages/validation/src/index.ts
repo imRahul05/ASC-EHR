@@ -28,7 +28,16 @@ export * from "./api-error.js";
 
 // Front desk: patient registration and case booking forms
 export * from "./patient.js";
-export * from "./schedule.js";
+export {
+  bookCaseSchema as legacyBookCaseSchema,
+  procedureIntentSchema as legacyProcedureIntentSchema,
+  procedureCodeSchema,
+  CASE_DURATIONS_MIN,
+  localDateTimeToIso,
+  bookCasePayloadFrom,
+  type BookCaseFormData,
+} from "./schedule.js";
+export * from "./cases/book.js";
 
 // Principal, grants, role templates and GET /me (authorization contracts)
 export * from "./authz.js";

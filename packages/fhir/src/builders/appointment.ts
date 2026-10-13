@@ -1,5 +1,5 @@
 import type { Appointment, Location, Patient, Practitioner } from "@medplum/fhirtypes";
-import { facilityMeta, instant, reference, text } from "@asc/fhir/builders/common";
+import { facilityMeta, instant, narrativeText, reference } from "@asc/fhir/builders/common";
 
 type Participant = NonNullable<Appointment["participant"]>[number];
 
@@ -11,6 +11,8 @@ export interface AppointmentInput {
   readonly end: string;
   /** The room (a Location) the case is booked into. */
   readonly roomId?: string;
+  readonly physicianId?: string;
+  readonly anesthesiologistId?: string;
   readonly practitionerIds?: readonly string[];
   readonly description?: string;
 }
@@ -20,10 +22,35 @@ export function buildAppointment(input: AppointmentInput): Appointment {
   const start = instant(input.start, "appointment start");
   const end = instant(input.end, "appointment end");
   if (Date.parse(end) <= Date.parse(start)) throw new Error("invalid appointment time range");
+
+  const practitioners: Participant[] = [];
+  if (input.physicianId !== undefined) {
+    practitioners.push({
+      actor: reference<Practitioner>("Practitioner", input.physicianId, "physician id"),
+      status: "accepted",
+      type: [{ coding: [{ system: "http://terminology.hl7.org/CodeSystem/v3-ParticipationType", code: "PPRF", display: "primary performer" }] }],
+    });
+  }
+  if (input.anesthesiologistId !== undefined) {
+    practitioners.push({
+      actor: reference<Practitioner>("Practitioner", input.anesthesiologistId, "anesthesiologist id"),
+      status: "accepted",
+      type: [{ coding: [{ system: "http://terminology.hl7.org/CodeSystem/v3-ParticipationType", code: "SPRF", display: "secondary performer" }] }],
+    });
+  }
+  if (input.practitionerIds !== undefined) {
+    for (const id of input.practitionerIds) {
+      practitioners.push({
+        actor: reference<Practitioner>("Practitioner", id, "practitioner id"),
+        status: "accepted",
+      });
+    }
+  }
+
   const participant: Participant[] = [
     { actor: reference<Patient>("Patient", input.patientId, "patient id"), status: "accepted" },
     ...(input.roomId === undefined ? [] : [{ actor: reference<Location>("Location", input.roomId, "room id"), status: "accepted" as const }]),
-    ...(input.practitionerIds ?? []).map((id) => ({ actor: reference<Practitioner>("Practitioner", id, "practitioner id"), status: "accepted" as const })),
+    ...practitioners,
   ];
   return {
     resourceType: "Appointment",
@@ -32,6 +59,6 @@ export function buildAppointment(input: AppointmentInput): Appointment {
     start,
     end,
     participant,
-    ...(input.description === undefined ? {} : { description: text(input.description, "appointment description") }),
+    ...(input.description === undefined ? {} : { description: narrativeText(input.description, "appointment description") }),
   };
 }

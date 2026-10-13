@@ -38,6 +38,7 @@ async function start(): Promise<void> {
     catalogVersion: env.GIT_SHA ?? "unknown",
     production,
     medplumBaseUrl: env.MEDPLUM_BASE_URL,
+    tenantDb: database,
   });
 
   let shuttingDown = false;

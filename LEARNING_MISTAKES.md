@@ -54,6 +54,8 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 22. No PHI in URL query parameters (send in POST body and sanitize logged URLs); exact identifier duplicates cannot be waived with confirmDuplicate; validate FHIR IDs at the schema boundary. (LM-026)
 23. Non-waivable clinical checks must strictly block waivers; validate chronological order in paired timestamps; prevent workspace capability leakage. (LM-027)
 24. Exact MRN conflicts must lock registration override buttons; empty intake sections must be sanitized to undefined; mock Base UI Dialog portals in static test environments. (LM-028)
+25. Atomic case booking bundles: commit Appointment, Encounter, and ServiceRequest in a single FHIR transaction bundle with facility meta accounts; use narrativeText for clinical notes allowing newlines; validate roomId with FHIR_ID regex; pure conflict engine excludes cancelled and noshow slots (including normative FHIR "noshow" and "entered-in-error") and safely falls back on missing endMs; query up to 250 daily appointments; fail fast if transaction response IDs are unresolved. (LM-029)
+26. Neutralize registration TOCTOU race conditions: serialize in-flight duplicate-check-and-write critical sections per facility using an in-flight queue lock, use FHIR conditional create (ifNoneExist) for MRN, and verify transaction response status to reject duplicate creation with HTTP 409. (LM-030)
 
 ---
 
@@ -274,4 +276,51 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
   3. In Node/SSR test environments using `renderToStaticMarkup`, mock `@asc/ui` Dialog primitives (`Dialog`, `DialogContent`, `DialogHeader`, `DialogTitle`, `DialogDescription`, `DialogFooter`) inline to render children directly without `DialogPortal`.
 - **How to check:** `pnpm --filter web test` (`duplicate-match-dialog.test.tsx`, `registration-form.test.tsx`).
 - **Guarded by:** `apps/web/src/features/patients/duplicate-match-dialog.test.tsx`, `apps/web/src/features/patients/registration-form.test.tsx`.
+
+### LM-029 — Atomic case booking bundles, facility scoping, and pure scheduling conflict detection
+- **Seen:** 1 · 2026-10-13 · Phase P15a (`feat/case-scheduling-contracts-and-api`, PR #78 review)
+- **What went wrong:**
+  1. Scheduling cases requires writing `Appointment`, `Encounter`, and `ServiceRequest`. Performing sequential individual writes risks partial failures leaving orphaned appointments without encounters or service requests.
+  2. Conflict detection could falsely clash on cancelled or no-show procedures if stopped statuses are not excluded from interval calculations (normative FHIR R4 status is single-word `"noshow"` and `"entered-in-error"`).
+  3. Direct Medplum writes in routes without `forFacility(client, facilityId)` fail access policy enforcement by missing `meta.accounts` stamping; catching `$set-accounts` errors must preserve existing accounts in `updatedAccounts` rather than truncating them to only the current facility.
+  4. Standard `text(v)` in FHIR builders forbids all control characters including `\n`, crashing on multiline clinical notes or empty `notes: ""` strings with unhandled HTTP 500 errors.
+  5. Missing `appItem.end` resulted in `endMs: 0`, and nullish coalescing `0 ?? fallback` evaluated to `0`, bypassing conflict evaluation entirely.
+  6. Transaction response ID parsing falling back to empty string `""` allowed invalid return shapes; and non-FHIR `roomId` strings bypassed schema validation to crash inside builder functions.
+- **Rule:**
+  1. All booking resources (`Appointment` with `status: "booked"`, `Encounter` with `status: "planned", stage: "scheduled"`, and `ServiceRequest` with procedure intent and CPT codes) must be committed atomically in a single FHIR `transaction` bundle via `createTransaction` and `forFacility(request.medplum, facilityId).transaction(bundle)`.
+  2. Pure conflict evaluation (`evaluateScheduleConflict`) must use half-open interval checks (`candidate.startMs < existing.endMs && candidate.endMs > existing.startMs`), exclude cancelled (`cancelled`), no-show (`no_show`, `no-show`, and normative FHIR `"noshow"`), and `"entered-in-error"` slots, safely fall back on missing/zero `endMs` using duration, and return specific conflict codes: `ROOM_DOUBLE_BOOKED`, `PHYSICIAN_DOUBLE_BOOKED`, and `ANESTHESIA_DOUBLE_BOOKED`.
+  3. Use `narrativeText()` for clinical notes and descriptions to allow standard multiline whitespace (`\n`, `\r`, `\t`) while rejecting prohibited control characters; transform empty or whitespace strings to `undefined` in schemas.
+  4. Validate `roomId` with `FHIR_ID` regex at the schema boundary (LM-026).
+  5. Search appointments with `_count: "250"` to ensure high-volume daily schedules are fully evaluated for conflicts.
+  6. Assert that created transaction response IDs are defined and fail fast with an explicit error instead of falling back to `""`.
+  7. All facility writes must go through `forFacility` to stamp `meta.accounts: [{ reference: "Organization/<facilityId>" }]`.
+  8. Audit logs must strictly contain non-identifying IDs, room strings, and timestamps; never log patient demographics or procedure indication text.
+- **How to check:** `pnpm turbo run lint check-types test` across `@asc/validation`, `@asc/clinical-rules`, `@asc/fhir`, and `apps/api`.
+- **Guarded by:** `packages/validation/src/cases/book.test.ts`, `packages/clinical-rules/src/scheduling/conflicts.test.ts`, `packages/fhir/src/builders/service-request.test.ts`, `packages/fhir/src/builders/common.test.ts`, `apps/api/src/routes/cases.test.ts`.
+
+### LM-030 — Neutralize registration TOCTOU race conditions, prevent FHIR transaction secondary resource leakage, and respect multi-instance concurrency boundaries
+- **Seen:** 4 · 2026-10-13 · Patient Registration Concurrency, Compensation & Live Medplum Validation (`apps/api`, `packages/db`, `apps/bots`)
+- **What went wrong:**
+  1. In `POST /patients/register`, duplicate detection read candidate patients from Medplum via `searchResources`, evaluated duplicate matching in memory, and then committed the new Patient without concurrency controls or conditional create parameters, allowing simultaneous requests to create duplicate `Patient` records.
+  2. Adding an in-memory `Map` lock (`withFacilityRegistrationLock`) serialized concurrent requests within a single Node.js process, but did not protect registrations across multiple independent API instances/containers.
+  3. Adding `ifNoneExist` on the `Patient` entry inside a combined transaction bundle (`[Patient, Coverage, RelatedPerson]`) caused a critical secondary resource leak: in FHIR R4, when `ifNoneExist` matches an existing patient, the server returns HTTP 200, resolves placeholder references to the existing patient, and creates the child `Coverage` and `RelatedPerson` resources before Fastify checks `entryStatus === "200"` and returns 409. This permanently polluted existing patient records with orphan coverage and escort details.
+  4. Two-step writes (Step 1 `Patient`, Step 2 `Coverage`/`RelatedPerson`) could leave incomplete registrations if Step 2 failed or timed out: the Patient remained in Medplum, while subsequent retries with the same MRN were locked out with 409 duplicate conflicts.
+  5. Demographic-only registration races across independent API instances without MRN bypassed single-instance in-memory locks unless serialized by shared distributed locking.
+  6. If an in-memory fallback lock is instantiated inside the route handler (`app.facilityRegistrationLock ?? createInMemoryRegistrationLock()`), every request creates a new `Map`, defeating serialization when no lock was explicitly pre-decorated.
+  7. Falling back to `existingCoverages[0]` or `existingRelatedPersons[0]` during idempotent recovery falsely treats unrelated existing resources as matches, silently discarding new insurance or escort details requested in the payload. Likewise, allowing optional-field fallbacks (`payerId === undefined` or `phone === undefined`) allows false-positive matches across different payers or contacts.
+  8. Unconditional compensation-delete (`deleteResource("Patient", id)`) after Step 2 failure is dangerous on ambiguous network errors (timeouts, connection resets, fetch aborts): Medplum may have already committed the child resources, so deleting the patient orphans child records in Medplum and breaks recovery. Furthermore, on definitive errors, deleting `Patient` before child resources leaves dangling orphaned child records behind if any were committed.
+  9. Passing `_account` in search parameters (`searchResources("Patient", { _account })`, `searchResources("Coverage", { _account })`, `searchResources("Appointment", { _account })`) crashes against Medplum 5.1.42 with `HTTP 400 OperationOutcome: Unknown search parameter: _account` because `_account` is not a standard FHIR search parameter on these resources. Mocks that silently stripped `_account` masked this bug until live execution.
+- **Rule:**
+  1. Separate conditional parent creation from secondary child resource creation: conditionally create `Patient` first in Step 1 (`ifNoneExist`). If `entryStatus` is 200/304, check if the request is an authorized retry (`body.retry === true` or header `x-idempotent-retry: "true"`); if so and demographics match, idempotently attach missing secondary resources and return HTTP 200. Otherwise, abort immediately with HTTP 409 `duplicate_mrn_conflict` without ever writing secondary resources. Only commit `Coverage` and `RelatedPerson` in Step 2 after confirming `entryStatus === "201"`.
+  2. Implement compensation rollback with network error awareness and child-first cleanup: if Step 2 fails, check `isAmbiguousNetworkError`. On ambiguous network failures (timeouts, network dropouts), skip delete and preserve the patient record for idempotent recovery. On definitive failures, search and delete child `Coverage` and `RelatedPerson` resources first before issuing a compensating `deleteResource("Patient", patientId)`.
+  3. Strict recovery matching: during recovery, `Coverage` matches only if `subscriberId` matches `insurance.memberId` AND `payor` strictly matches `insurance.payerId`; `RelatedPerson` matches only if `name` matches `escort.name` AND `telecom` strictly matches `escort.phone`. Never allow optional-field loopholes or `existing[0]` fallbacks; create missing resources if no exact match exists.
+  4. Never pass `_account` as a search parameter on resources that do not define it (`Patient`, `Coverage`, `RelatedPerson`, `Appointment`). Facility isolation is enforced by Medplum's AccessPolicy compartment rules (`%facility`) at the data layer and in-memory post-filtering on `meta.accounts`.
+  5. Shared distributed locking for multi-instance demographic deduplication: use PostgreSQL transaction-scoped advisory locks (`withPostgresFacilityLock` via `@asc/db` with `pg_advisory_xact_lock(hashtext('facility-registration'), hashtext(facilityId))`) when `DATABASE_RUNTIME_URL` is configured, falling back to instance-scoped in-memory locks.
+  6. Fallback in-memory locks must be module-scoped (`defaultFallbackLock`) and decorated in `buildApp` so un-decorated callers never create per-request locks.
+  7. Exercise actual API route handlers against live Medplum: integration tests must call the real endpoint handler (`POST /patients/register` with `retry: true`) via `app.inject` or HTTP caller to verify end-to-end recovery against the live FHIR server, not only raw database transactions.
+- **How to check:** `pnpm --filter api test`, `pnpm --filter db test`, `pnpm --filter bots test:medplum live/patient-registration-concurrency.live.ts`.
+- **Guarded by:** `apps/api/src/routes/patients.test.ts` (concurrency, rollback, recovery & live Medplum suites), `packages/db/src/__tests__/lock.test.ts`, `apps/bots/live/patient-registration-concurrency.live.ts`.
+
+
+
 

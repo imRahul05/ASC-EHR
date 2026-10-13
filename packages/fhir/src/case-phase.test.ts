@@ -40,7 +40,7 @@ describe("case phase codes", () => {
   });
 
   it("recognises exactly the procedure intents", () => {
-    for (const intent of ["screening", "surveillance", "diagnostic"]) expect(isProcedureIntent(intent)).toBe(true);
+    for (const intent of ["screening", "surveillance", "diagnostic", "therapeutic"]) expect(isProcedureIntent(intent)).toBe(true);
     for (const other of ["", "Screening", "constructor", "toString", "__proto__"]) expect(isProcedureIntent(other)).toBe(false);
   });
 });
@@ -53,10 +53,10 @@ describe("CodeSystems", () => {
     expect(system.concept?.every((concept) => (concept.display ?? "").length > 0)).toBe(true);
   });
 
-  it("describes the three procedure intents", () => {
+  it("describes the four procedure intents", () => {
     const system = buildProcedureIntentCodeSystem();
     expect(system.url).toBe("https://fhir.wybit.io/asc/CodeSystem/procedure-intent");
-    expect(system.concept?.map((concept) => concept.code)).toEqual(["screening", "surveillance", "diagnostic"]);
+    expect(system.concept?.map((concept) => concept.code)).toEqual(["screening", "surveillance", "diagnostic", "therapeutic"]);
   });
 
   it("follows a different base", () => {

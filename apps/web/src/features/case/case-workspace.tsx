@@ -24,7 +24,7 @@ interface CaseWorkspaceProps {
   readonly caseId: string;
 }
 
-const INTENT_LABEL = { screening: "Screening", surveillance: "Surveillance", diagnostic: "Diagnostic" } as const;
+const INTENT_LABEL = { screening: "Screening", surveillance: "Surveillance", diagnostic: "Diagnostic", therapeutic: "Therapeutic" } as const;
 
 /**
  * Case workspace shell: patient banner, phase stepper, gate panel with the "advance phase" action,

@@ -458,6 +458,10 @@ exports[`compiled policies > front-desk compiles to a stable AccessPolicy 1`] = 
       "resourceType": "PractitionerRole",
     },
     {
+      "criteria": "RelatedPerson?_compartment=%facility",
+      "resourceType": "RelatedPerson",
+    },
+    {
       "criteria": "ServiceRequest?_compartment=%facility",
       "resourceType": "ServiceRequest",
     },

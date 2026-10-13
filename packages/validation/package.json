@@ -18,6 +18,7 @@
     "./patients/coverage": "./src/patients/coverage.ts",
     "./patients/register": "./src/patients/register.ts",
     "./patients/search": "./src/patients/search.ts",
+    "./cases/book": "./src/cases/book.ts",
     "./errors": "./src/errors.ts"
   },
   "scripts": {

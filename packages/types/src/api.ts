@@ -16,3 +16,8 @@ export interface ApiErrorDetails {
   readonly details?: Record<string, string>;
   readonly duplicateMatch?: DuplicateMatchResult;
 }
+
+/** Concurrency control interface for serializing facility operations across instances. */
+export interface FacilityRegistrationLock {
+  withLock<T>(facilityId: string, operation: () => Promise<T>, tenantId?: string): Promise<T>;
+}

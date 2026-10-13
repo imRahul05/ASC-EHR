@@ -23,6 +23,7 @@ export const frontDesk: RoleTemplate = {
   data: [
     rw("Patient"),
     rw("Coverage"),
+    rw("RelatedPerson"),
     rw("Appointment"),
     rw("Encounter"),
     ...REFERENCE_READ,

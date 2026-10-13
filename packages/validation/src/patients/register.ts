@@ -58,6 +58,7 @@ export const registerPatientSchema = z.object({
   insurance: patientInsuranceSchema.optional(),
   escort: patientEscortSchema.optional(),
   confirmDuplicate: z.boolean().optional(),
+  retry: z.boolean().optional(),
 });
 
 export type PatientNameInput = z.infer<typeof patientNameSchema>;
