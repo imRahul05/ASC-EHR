@@ -273,7 +273,9 @@ export const caseHandlers = [
       return gateFailed(result);
     }
     setPhase(caseId, to, actor, reason);
-    if (to === "READY_FOR_PROCEDURE") completeWorkItems((item) => item.caseId === caseId && item.type === "med_hold_review");
+    if (to === "READY_FOR_PROCEDURE" || to === "in_room") {
+      completeWorkItems((item) => item.caseId === caseId && item.type === "med_hold_review");
+    }
     autoAdvance(caseId, actor);
     return detailResponse(caseId);
   }),

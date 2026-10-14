@@ -22,11 +22,17 @@ export function apiError(
 
 export const notFound = (what: string) => apiError(404, `${what.toUpperCase()}_NOT_FOUND`, `${what} not found`);
 
-/** 422 GATE_FAILED with every failing reason (`details`: reason code → message). */
-export function gateFailed(result: RuleResult, status = 422) {
+/** 409 GATE_FAILED with every failing reason (`details`: reason code → message, and structured `reasons` array). */
+export function gateFailed(result: RuleResult, status = 409) {
   const details = Object.fromEntries(result.reasons.map((reason) => [reason.code, reason.message]));
   const code = result.reasons[0]?.code === "TRANSITION_NOT_ALLOWED" ? "TRANSITION_NOT_ALLOWED" : "GATE_FAILED";
-  return apiError(code === "TRANSITION_NOT_ALLOWED" ? 409 : status, code, result.reasons[0]?.message ?? "Rule check failed", details);
+  return apiError(
+    status,
+    code,
+    result.reasons[0]?.message ?? "Rule check failed",
+    details,
+    result.reasons,
+  );
 }
 
 /** Realistic latency (150–400 ms). */

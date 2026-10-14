@@ -1134,7 +1134,7 @@ export interface BookCasePayload {
 }
 
 export interface TransitionCasePayload {
-  readonly to: CasePhase;
+  readonly to: CasePhase | CaseStage;
   readonly reason?: string;
 }
 

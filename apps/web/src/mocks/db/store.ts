@@ -1,9 +1,10 @@
-import { medHoldCheck, nextPhase, PHASE_LABEL, timeOutGate } from "@asc/clinical-rules";
+import { isCaseStage, medHoldCheck, nextPhase, PHASE_LABEL, stageFromPhase, timeOutGate } from "@asc/clinical-rules";
 import type {
   AuditActor,
   ClinicalTimelineEvent,
   CaseDetail,
   CasePhase,
+  CaseStage,
   PatientListItem,
   ProcedureCase,
   Room,
@@ -119,16 +120,44 @@ export function refreshReadiness(caseId: string): void {
   });
 }
 
-export function setPhase(caseId: string, phase: CasePhase, actor: AuditActor, reason?: string): void {
+const STAGE_TO_PHASE: Readonly<Record<CaseStage, CasePhase>> = {
+  requested: "SCHEDULED",
+  scheduled: "SCHEDULED",
+  confirmed: "CONFIRMED",
+  arrived: "ARRIVED",
+  preop: "PRE_OP",
+  in_room: "READY_FOR_PROCEDURE",
+  procedure_start: "IN_PROCEDURE",
+  procedure_end: "IN_PROCEDURE",
+  pacu: "RECOVERY",
+  discharged: "DISCHARGED",
+  cancelled: "CANCELLED",
+  no_show: "NO_SHOW",
+};
+
+export function phaseFromStage(stage: CaseStage): CasePhase {
+  return STAGE_TO_PHASE[stage];
+}
+
+export function setPhase(caseId: string, target: CasePhase | CaseStage, actor: AuditActor, reason?: string): void {
   const current = state.cases.get(caseId);
   if (!current) return;
+
+  const targetStage: CaseStage = isCaseStage(target) ? target : stageFromPhase(target);
+  const targetPhase: CasePhase = isCaseStage(target) ? phaseFromStage(target) : target;
+  const now = new Date().toISOString();
+
   state.cases.set(caseId, {
     ...current,
-    phase,
-    timestamps: { ...current.timestamps, [phase]: new Date().toISOString() },
-    ...(reason && (phase === "CANCELLED" || phase === "NO_SHOW") ? { cancelReason: reason } : {}),
+    phase: targetPhase,
+    stage: targetStage,
+    timestamps: { ...current.timestamps, [targetPhase]: now },
+    stageTimestamps: { ...current.stageTimestamps, [targetStage]: now },
+    ...(reason && (targetPhase === "CANCELLED" || targetPhase === "NO_SHOW") ? { cancelReason: reason } : {}),
   });
-  audit(actor, "case.transition", { type: "ProcedureCase", id: caseId }, `${current.caseNumber} ${PHASE_LABEL[current.phase]} → ${PHASE_LABEL[phase]}`);
+  const fromLabel = PHASE_LABEL[current.phase] ?? current.phase;
+  const toLabel = isCaseStage(target) ? target : (PHASE_LABEL[target] ?? target);
+  audit(actor, "case.transition", { type: "ProcedureCase", id: caseId }, `${current.caseNumber} ${fromLabel} → ${toLabel}`);
 }
 
 /** Post-procedure phases advance on their own when the underlying work is done (sign → code → export). */
