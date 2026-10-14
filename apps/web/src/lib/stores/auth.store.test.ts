@@ -1,7 +1,7 @@
 import type { AuthSession } from "@asc/types";
 import type { MeResponse } from "@asc/validation/authz";
 import { beforeEach, describe, expect, it } from "vitest";
-import { useAuthStore } from "./auth.store";
+import { resolveActiveFacility, useAuthStore } from "./auth.store";
 
 const session: AuthSession = {
   token: "t",
@@ -58,6 +58,14 @@ describe("auth store", () => {
     expect(useAuthStore.getState().workspaceKey).toBeNull();
   });
 
+  it("does not reset picked workspace if re-selecting the current facility", () => {
+    useAuthStore.getState().setSession(session, me);
+    useAuthStore.getState().selectWorkspace("physician");
+    expect(useAuthStore.getState().workspaceKey).toBe("physician");
+    useAuthStore.getState().selectFacility("A");
+    expect(useAuthStore.getState().workspaceKey).toBe("physician");
+  });
+
   it("has no current facility for an all-site principal, and ignores selection when signed out", () => {
     useAuthStore.getState().selectFacility("A");
     expect(useAuthStore.getState().facilityId).toBeNull();
@@ -82,6 +90,50 @@ describe("auth store", () => {
       facilityId: null,
       sessionStartedAt: null,
     });
+  });
+
+  it("resolves active facility for an all-site user when facilities contains an entry (the breakage case)", () => {
+    const admin: MeResponse = {
+      principal: { ...me.principal, grants: [{ scope: "all", roleKeys: ["admin"], capabilities: ["admin.users"] }] },
+      facilities: [{ id: "org-1", name: "Metro GI ASC" }],
+    };
+    useAuthStore.getState().setSession(session, admin);
+    expect(useAuthStore.getState().facilityId).toBe("org-1");
+  });
+
+  it("retains valid chosen facility when setSession is called again", () => {
+    useAuthStore.getState().setSession(session, me);
+    useAuthStore.getState().selectFacility("B");
+    expect(useAuthStore.getState().facilityId).toBe("B");
+    useAuthStore.getState().setSession(session, me);
+    expect(useAuthStore.getState().facilityId).toBe("B");
+  });
+
+  it("resolves facilityId to null when facilities list is empty", () => {
+    const noFacilities: MeResponse = {
+      principal: me.principal,
+      facilities: [],
+    };
+    useAuthStore.getState().setSession(session, noFacilities);
+    expect(useAuthStore.getState().facilityId).toBeNull();
+  });
+});
+
+describe("resolveActiveFacility", () => {
+  it("resolves to persisted facility if valid", () => {
+    expect(resolveActiveFacility([{ id: "org-1", name: "Metro" }, { id: "org-2", name: "Valley" }], "org-2")).toBe("org-2");
+  });
+
+  it("resolves to defaultFacilityId if persisted is invalid/missing", () => {
+    expect(resolveActiveFacility([{ id: "org-1", name: "Metro" }, { id: "org-2", name: "Valley" }], "org-99", "org-2")).toBe("org-2");
+  });
+
+  it("resolves to first facility if neither persisted nor default are valid", () => {
+    expect(resolveActiveFacility([{ id: "org-1", name: "Metro" }])).toBe("org-1");
+  });
+
+  it("resolves to null when facilities is empty", () => {
+    expect(resolveActiveFacility([])).toBeNull();
   });
 });
 

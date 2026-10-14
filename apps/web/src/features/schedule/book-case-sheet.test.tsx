@@ -41,9 +41,12 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
-vi.mock("../../lib/stores/auth.store", () => ({
-  useAuthStore: (selector: (s: { facilityId: string | null }) => string | null) =>
-    selector({ facilityId: mockFacilityId }),
+vi.mock("../../hooks/use-active-facility", () => ({
+  useActiveFacility: () => ({
+    facilityId: mockFacilityId,
+    facility: mockFacilityId ? { id: mockFacilityId, name: "Metro GI Center" } : null,
+    hasFacility: mockFacilityId !== null,
+  }),
 }));
 
 vi.mock("@asc/api-client/react", () => ({

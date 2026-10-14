@@ -1,7 +1,20 @@
-import { grantedFacilityIds } from "@asc/authz/can";
 import type { AuthSession, Principal } from "@asc/types";
 import type { MeResponse } from "@asc/validation/authz";
 import { create } from "zustand";
+
+export function resolveActiveFacility(
+  facilities: readonly { readonly id: string; readonly name: string }[],
+  persistedId?: string | null,
+  defaultFacilityId?: string | null
+): string | null {
+  const validIds = facilities.map((f) => f.id);
+  // 1. Validated persisted / last-used facility (if still valid for this user)
+  if (persistedId && validIds.includes(persistedId)) return persistedId;
+  // 2. Server-specified default facility from /me
+  if (defaultFacilityId && validIds.includes(defaultFacilityId)) return defaultFacilityId;
+  // 3. Single facility (Day 1) or primary index
+  return validIds[0] ?? null;
+}
 
 interface AuthState {
   /** Current session, held in memory only — never persisted (no tokens or PHI in browser storage). */
@@ -10,9 +23,9 @@ interface AuthState {
   readonly idToken: string | null;
   /** Who the server says this is, with per-facility grants. UI checks use it for convenience; the API enforces. */
   readonly principal: Principal | null;
-  /** Display names for the facilities the principal holds grants at. */
+  /** Accessible work locations from me.facilities (grants define capabilities; me.facilities defines locations). */
   readonly facilities: MeResponse["facilities"];
-  /** The facility checks run against. Null for principals with only all-site grants. */
+  /** The facility checks run against. Resolved from me.facilities. */
   readonly facilityId: string | null;
   /** Workspace the user picked; the effective one is resolved from capabilities (use-workspace). */
   readonly workspaceKey: string | null;
@@ -20,7 +33,7 @@ interface AuthState {
   readonly sessionStartedAt: number | null;
   readonly setSession: (session: AuthSession, me: MeResponse, sessionStartedAt?: number) => void;
   readonly setIdToken: (idToken: string | null) => void;
-  /** Ignored unless the principal holds a grant at that facility. Resets the picked workspace. */
+  /** Ignored unless the facility is in me.facilities. Resets the picked workspace. */
   readonly selectFacility: (facilityId: string) => void;
   readonly selectWorkspace: (workspaceKey: string | null) => void;
   readonly clearSession: () => void;
@@ -44,13 +57,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       sessionStartedAt: sessionStartedAt ?? get().sessionStartedAt ?? Date.now(),
       principal: me.principal,
       facilities: me.facilities,
-      facilityId: grantedFacilityIds(me.principal)[0] ?? null,
+      facilityId: resolveActiveFacility(me.facilities, get().facilityId),
       workspaceKey: null,
     }),
   setIdToken: (idToken) => set({ idToken }),
   selectFacility: (facilityId) => {
-    const { principal } = get();
-    if (principal !== null && grantedFacilityIds(principal).includes(facilityId)) set({ facilityId, workspaceKey: null });
+    if (get().facilityId !== facilityId && get().facilities.some((f) => f.id === facilityId)) {
+      set({ facilityId, workspaceKey: null });
+    }
   },
   selectWorkspace: (workspaceKey) => set({ workspaceKey }),
   clearSession: () => set(SIGNED_OUT),
