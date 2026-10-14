@@ -1,10 +1,17 @@
+import { grantedFacilityIds } from "@asc/authz";
 import { API_ROUTE_PATTERNS } from "@asc/config";
 import type { FacilitySchedulingLock } from "@asc/types";
-import { bookCaseSchema, formatZodError, type BookCaseInput } from "@asc/validation";
+import {
+  bookCaseSchema,
+  formatZodError,
+  transitionCaseSchema,
+  type BookCaseInput,
+} from "@asc/validation";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import { capabilityAtResource } from "../auth/route-auth.js";
 import { bookCase, createInMemorySchedulingLock } from "../services/case-booking-service.js";
+import { getCaseDetail, transitionCase } from "../services/case-read-service.js";
 
 export { classifyMedplumReadError } from "../services/medplum-error-classifier.js";
 export { createInMemorySchedulingLock } from "../services/case-booking-service.js";
@@ -13,6 +20,36 @@ declare module "fastify" {
   interface FastifyInstance {
     facilitySchedulingLock?: FacilitySchedulingLock;
   }
+}
+
+interface CaseRouteParams {
+  readonly caseId: string;
+}
+
+interface CaseQuery {
+  readonly facilityId?: string;
+}
+
+function resolveFacilityId(
+  request: FastifyRequest<{ Querystring: CaseQuery }>,
+  preferredFacilityId?: string,
+): string | undefined {
+  if (preferredFacilityId !== undefined && preferredFacilityId.trim() !== "") {
+    return preferredFacilityId.trim();
+  }
+  const queryVal = request.query?.facilityId;
+  if (typeof queryVal === "string" && queryVal.trim() !== "") {
+    return queryVal.trim();
+  }
+  const headerValue = request.headers["x-facility-id"];
+  if (typeof headerValue === "string" && headerValue.trim() !== "") {
+    return headerValue.trim();
+  }
+  if (request.principal !== undefined) {
+    const granted = grantedFacilityIds(request.principal);
+    if (granted.length > 0) return granted[0];
+  }
+  return undefined;
 }
 
 const defaultFallbackLock = createInMemorySchedulingLock();
@@ -75,6 +112,97 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
               ...("reasons" in result ? { reasons: result.reasons } : {}),
             },
       );
+    },
+  );
+
+  // GET /cases/:caseId — Fully hydrated Case Workspace detail bundle
+  app.get<{ Params: CaseRouteParams; Querystring: CaseQuery }>(
+    API_ROUTE_PATTERNS.case,
+    { config: capabilityAtResource("case.read") },
+    async (request: FastifyRequest<{ Params: CaseRouteParams; Querystring: CaseQuery }>, reply: FastifyReply) => {
+      const { caseId } = request.params;
+      const facilityId = resolveFacilityId(request);
+
+      if (!facilityId) {
+        return reply.code(400).send({
+          code: "facility_required",
+          message: "Facility context is required to view a case",
+        });
+      }
+
+      if (!(await app.guards.requireCapabilityAt(request, reply, "case.read", facilityId))) {
+        return reply;
+      }
+
+      const detail = await getCaseDetail({
+        medplum: request.medplum,
+        facilityId,
+        caseId,
+      });
+
+      if (!detail) {
+        return reply.code(404).send({
+          code: "not_found",
+          message: `Case ${caseId} not found`,
+        });
+      }
+
+      return reply.code(200).send(detail);
+    },
+  );
+
+  // POST /cases/:caseId/transition — Validates and executes physical stage transitions
+  app.post<{ Params: CaseRouteParams; Querystring: CaseQuery }>(
+    API_ROUTE_PATTERNS.caseTransition,
+    { config: capabilityAtResource("case.advance") },
+    async (request: FastifyRequest<{ Params: CaseRouteParams; Querystring: CaseQuery }>, reply: FastifyReply) => {
+      const { caseId } = request.params;
+      const facilityId = resolveFacilityId(request);
+
+      if (!facilityId) {
+        return reply.code(400).send({
+          code: "facility_required",
+          message: "Facility context is required to transition a case",
+        });
+      }
+
+      if (!(await app.guards.requireCapabilityAt(request, reply, "case.advance", facilityId))) {
+        return reply;
+      }
+
+      const parsed = transitionCaseSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({
+          code: "invalid_payload",
+          message: "Invalid case transition payload",
+          details: formatZodError(parsed.error),
+        });
+      }
+
+      const result = await transitionCase({
+        medplum: request.medplum,
+        facilityId,
+        caseId,
+        input: parsed.data,
+        logger: request.log,
+      });
+
+      if (result.status === 404) {
+        return reply.code(404).send({
+          code: result.code,
+          message: result.message,
+        });
+      }
+
+      if (result.status === 409) {
+        return reply.code(409).send({
+          code: result.code,
+          message: result.message,
+          reasons: result.reasons,
+        });
+      }
+
+      return reply.code(200).send(result.data);
     },
   );
 

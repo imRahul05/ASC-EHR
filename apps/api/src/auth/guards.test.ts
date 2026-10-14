@@ -149,7 +149,7 @@ describe("resource routes: the facility belongs to a loaded resource", () => {
   async function setupResources(): Promise<{ built: Built; handlerCalls: string[] }> {
     const b = await setup();
     const handlerCalls: string[] = [];
-    b.app.get<{ Params: { caseId: string } }>("/cases/:caseId", { config: capabilityAtResource("case.read") }, async (request, reply) => {
+    b.app.get<{ Params: { caseId: string } }>("/canary-cases/:caseId", { config: capabilityAtResource("case.read") }, async (request, reply) => {
       handlerCalls.push(request.params.caseId);
       const found = Object.hasOwn(CASES, request.params.caseId) ? CASES[request.params.caseId as keyof typeof CASES] : undefined;
       if (found === undefined) return reply.code(404).send(NOT_FOUND);
@@ -158,20 +158,20 @@ describe("resource routes: the facility belongs to a loaded resource", () => {
       return { id: request.params.caseId, patientName: found.patientName };
     });
     // A buggy handler that forgets the facility check.
-    b.app.get("/cases-unchecked/:caseId", { config: capabilityAtResource("case.read") }, () => ({ patientName: "CANARY-PATIENT" }));
+    b.app.get("/canary-cases-unchecked/:caseId", { config: capabilityAtResource("case.read") }, () => ({ patientName: "CANARY-PATIENT" }));
     return { built: b, handlerCalls };
   }
 
   it("serves a resource at a facility the caller has the capability at", async () => {
     const { built: b } = await setupResources();
-    const response = await b.app.inject({ method: "GET", url: "/cases/case-a1", headers: bearer("rn-at-a") });
+    const response = await b.app.inject({ method: "GET", url: "/canary-cases/case-a1", headers: bearer("rn-at-a") });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ id: "case-a1" });
   });
 
   it("refuses a resource at another facility with 403 (gate 3) and never returns its data", async () => {
     const { built: b } = await setupResources();
-    const response = await b.app.inject({ method: "GET", url: "/cases/case-b1", headers: bearer("rn-at-a") });
+    const response = await b.app.inject({ method: "GET", url: "/canary-cases/case-b1", headers: bearer("rn-at-a") });
     expect(response.statusCode).toBe(403);
     expect(response.body).not.toContain("CANARY-PATIENT");
     expect(b.audit.events[0]).toMatchObject({ gate: 3, facilityId: "B", details: { reason: "wrong-facility", capability: "case.read" } });
@@ -179,8 +179,8 @@ describe("resource routes: the facility belongs to a loaded resource", () => {
 
   it("answers 404, never data, for a resource id that belongs to another tenant, same as an unknown id", async () => {
     const { built: b } = await setupResources();
-    const other = await b.app.inject({ method: "GET", url: "/cases/case-x1", headers: bearer("rn-at-a") });
-    const unknown = await b.app.inject({ method: "GET", url: "/cases/does-not-exist", headers: bearer("rn-at-a") });
+    const other = await b.app.inject({ method: "GET", url: "/canary-cases/case-x1", headers: bearer("rn-at-a") });
+    const unknown = await b.app.inject({ method: "GET", url: "/canary-cases/does-not-exist", headers: bearer("rn-at-a") });
     expect(other.statusCode).toBe(404);
     expect(other.json()).toEqual(NOT_FOUND);
     expect(other.body).toBe(unknown.body);
@@ -190,14 +190,14 @@ describe("resource routes: the facility belongs to a loaded resource", () => {
 
   it("refuses a caller who holds the capability nowhere before the handler runs", async () => {
     const { built: b, handlerCalls } = await setupResources();
-    const response = await b.app.inject({ method: "GET", url: "/cases/case-a1", headers: bearer("no-case-read") });
+    const response = await b.app.inject({ method: "GET", url: "/canary-cases/case-a1", headers: bearer("no-case-read") });
     expect(response.statusCode).toBe(403);
     expect(handlerCalls).toHaveLength(0);
   });
 
   it("turns a handler that skipped the facility check into a 500 with no data", async () => {
     const { built: b } = await setupResources();
-    const response = await b.app.inject({ method: "GET", url: "/cases-unchecked/case-b1", headers: bearer("rn-at-a") });
+    const response = await b.app.inject({ method: "GET", url: "/canary-cases-unchecked/case-b1", headers: bearer("rn-at-a") });
     expect(response.statusCode).toBe(500);
     expect(response.body).not.toContain("CANARY-PATIENT");
   });
