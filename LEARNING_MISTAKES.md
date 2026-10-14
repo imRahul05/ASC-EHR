@@ -340,21 +340,27 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **How to check:** `pnpm turbo run lint check-types test`.
 - **Guarded by:** `packages/ui/src/components/form/option-select.tsx`, `packages/validation/src/cases/book.test.ts`, `apps/api/src/routes/cases.test.ts`, `apps/web/src/features/whiteboard/room-status-strip.tsx`.
 
-### LM-032 — Distributed scheduling serialization, zero side-effect authorization, facility timezone pinning, and TV kiosk privacy
-- **Seen:** 5 · 2026-10-14 · PR #79 Comprehensive Engineering Remediation (`feat/case-scheduling-ui-and-whiteboard`)
+### LM-032 — Distributed scheduling serialization, durable idempotency, facility timezone/DST safety, and server-side TV kiosk privacy
+- **Seen:** 8 · 2026-10-14 · PR #79 Comprehensive Engineering Remediation (`feat/case-scheduling-ui-and-whiteboard`)
 - **What went wrong:**
-  1. Concurrent booking requests for the same room or physician suffered from TOCTOU race conditions across multi-instance API deployments without cross-process serialization.
+  1. Concurrent booking requests for the same room or physician suffered from TOCTOU race conditions across multi-instance API deployments without cross-process serialization. Falling back to an in-memory lock in production without explicit configuration masked missing distributed locks.
   2. The booking route attempted silent `$set-accounts` mutations on the Patient resource, mutating patient facility associations as a side-effect and masking missing or unauthorized patient contexts.
-  3. Date/time pickers and day board timelines relied on browser-local `Date` methods (`date.getHours()`, `new Date("YYYY-MM-DDTHH:mm")`), creating timezone skew, date rollover bugs across midnight, and incorrect calendar slot positioning when user machines were in a different timezone from the clinical facility.
-  4. Whiteboard cards in public TV kiosk mode rendered interactive links (`<Link href="/cases/${id}">`) and clinical flags (e.g. allergies, anticoagulants), exposing navigability and clinical data on unattended wall displays.
+  3. Date/time pickers and day board timelines relied on browser-local `Date` methods (`date.getHours()`, `new Date("YYYY-MM-DDTHH:mm")`), creating timezone skew, date rollover bugs across midnight, and incorrect calendar slot positioning when user machines were in a different timezone from the clinical facility. Furthermore, DST spring-forward nonexistent local times and fall-back repeated times were silently accepted or miscalculated.
+  4. Whiteboard cards in public TV kiosk mode rendered interactive links (`<Link href="/cases/${id}">`) and clinical flags (e.g. allergies, anticoagulants), and the API returned full procedure and clinician labels over the wire, exposing clinical data on unattended wall displays.
   5. Procedure suite tiles rendered cases whose clinical phases were not active room-occupying phases (e.g. pre-op or discharged cases).
+  6. Retry matching based on arbitrary fields `(patientId, roomId, scheduledAt)` was conflated with distinct intentional bookings, and recovery fabricated encounter IDs from appointment IDs on partial writes.
+  7. Blanket try/catch blocks classified all upstream errors as 404 "not found", masking upstream service outages (502/503/timeouts) and auth failures (401/403).
+  8. Unvalidated room IDs (e.g. "OR-99") and inactive practitioners were accepted for booking without validation against the facility's active directory.
 - **Rule:**
-  1. Serialize concurrent booking conflict checks using PostgreSQL transaction advisory locks (`withPostgresFacilityLock` under namespace `'facility-scheduling'`).
+  1. Enforce distributed locking: `buildApp` must fail fast at startup if `production: true` and distributed locking (`tenantDb` or `facilitySchedulingLock`) is missing. Distributed locking wrappers must require and pass authenticated `tenantId` to PostgreSQL advisory locks (`withPostgresFacilityLock` under namespace `'facility-scheduling'`). Prove concurrency safety with multi-instance tests across independent Fastify instances sharing the lock.
   2. Treat patient verification as strictly read-only: fail fast with 404 if the patient is not found, or 403 if the patient lacks account association with the booking facility. Never perform implicit account associations during booking.
-  3. Pin all calendar calculations, time extractions, and ISO conversions to the facility timezone (`facilityDateTimeToIso`, `isoToFacilityTime`, `futureIsoDate`, `parseIsoDateToUtcNoon`).
-  4. In TV kiosk mode, render non-interactive `<div>` containers instead of links, and omit all clinical flags and notes.
+  3. Pin all calendar calculations, time extractions, and ISO conversions to the canonical facility timezone (`facilityDateTimeToIso`, `isoToFacilityTime`, `futureIsoDate`, `parseIsoDateToUtcNoon`). Strictly reject nonexistent DST spring-forward local times, and require explicit disambiguation (`earlier` | `later` | `reject`) for ambiguous fall-back times. Deduplicate time conversion functions across packages.
+  4. Server-side Whiteboard TV kiosk response policy: `GET /whiteboard?mode=tv` must strip `procedureLabel`, `flags`, and `surgeonInitials` on the server so sensitive clinical indications never travel over the network to wall displays. Client components must un-link case navigation and hide flag chips in TV mode.
   5. Gate procedure suite tile assignments with `isRoomOccupyingPhase(phase)`.
-  6. Support durable booking idempotency returning HTTP 200 with existing appointment and encounter identifiers on client retry.
+  6. Durable booking idempotency: support explicit `idempotencyKey` persisted across `Appointment`, `Encounter`, and `ServiceRequest` under system `https://fhir.wybit.io/asc/identifier/booking-idempotency-key`. On retry, return actual linked IDs; return 409 `idempotency_key_conflict` if reused for a different patient/facility; fail safely with 500 `incomplete_transaction` on partial transactions without fabricating IDs.
+  7. Strict upstream error classification: use `classifyMedplumReadError` to classify upstream read errors into 404 (`not_found`), 403 (`forbidden`), 503 (`upstream_service_unavailable`), and 500 (`internal_error`), failing closed without writing resources.
+  8. Domain validation: validate room IDs against `ASC_ROOM_IDS = ["room-1", "room-2", "room-3", "room-4"]` and verify primary physician and anesthesiologist existence and active status (`active !== false`).
 - **How to check:** `pnpm turbo run check-types lint test build`.
-- **Guarded by:** `apps/api/src/routes/cases.test.ts`, `apps/web/src/features/whiteboard/whiteboard-board.test.tsx`, `packages/clinical-rules/src/time.test.ts`.
+- **Guarded by:** `apps/api/src/routes/cases.test.ts`, `apps/api/src/routes/cases-lock.test.ts`, `apps/api/src/routes/whiteboard.test.ts`, `apps/web/src/features/whiteboard/whiteboard-board.test.tsx`, `packages/clinical-rules/src/time.test.ts`, `packages/fhir/src/builders/appointment.test.ts`.
+
 
