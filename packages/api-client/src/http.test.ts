@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, buildUrl, http } from "./http";
+import { ApiError, buildUrl, http, setFacilityId } from "./http";
 
 function stubFetch(response: Response | Error) {
   const fn = vi.fn((_input: string, _init?: RequestInit) =>
@@ -24,6 +24,23 @@ describe("http", () => {
     const fetchMock = stubFetch(Response.json({}));
     await http.post("/auth/login", { email: "a@b.c" });
     expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ email: "a@b.c" }));
+  });
+
+  it("injects x-facility-id header when setFacilityId is configured", async () => {
+    setFacilityId("fac-omega");
+    const fetchMock = stubFetch(Response.json({ ok: true }));
+    await http.get("/schedule");
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({
+      "x-facility-id": "fac-omega",
+    });
+    setFacilityId(null);
+  });
+
+  it("omits x-facility-id header when facilityId is null", async () => {
+    setFacilityId(null);
+    const fetchMock = stubFetch(Response.json({ ok: true }));
+    await http.get("/schedule");
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).not.toHaveProperty("x-facility-id");
   });
 
   it("maps an error body to ApiError", async () => {
