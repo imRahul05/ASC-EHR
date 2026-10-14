@@ -12,7 +12,7 @@ import {
   minutesBetween,
   todayIsoDate,
   toIsoDate,
-} from "./time.js";
+} from "./time";
 
 describe("Clinical Time & Facility Timezone", () => {
   describe("facilityDateTimeToIso", () => {

@@ -45,6 +45,7 @@ import {
   GI_CPT_PROCEDURE_OPTIONS,
   INTENT_OPTIONS,
   ROOM_OPTIONS,
+  defaultDurationForCpt,
 } from "./schedule-options";
 import { useAuthStore } from "../../lib/stores/auth.store";
 
@@ -130,6 +131,7 @@ export function BookCaseForm({
   const book = useBookCase();
   const facilityId = useAuthStore((s) => s.facilityId) ?? "";
   const [apiConflict, setApiConflict] = useState<string | null>(initialConflict ?? null);
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
 
   const defaultDate = defaults.date ?? defaultFutureDate();
   const defaultStartTime = defaults.startTime ?? DEFAULT_START_TIME;
@@ -147,6 +149,7 @@ export function BookCaseForm({
     register,
     handleSubmit,
     setError,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<BookCaseFormData>({
     resolver: zodResolver(bookCaseFormSchema),
@@ -156,12 +159,14 @@ export function BookCaseForm({
       roomId: defaults.roomId ?? DEFAULT_ROOM_ID,
       date: defaultDate,
       startTime: defaultStartTime,
-      durationMinutes: 45,
+      durationMinutes: defaultDurationForCpt(DEFAULT_PRIMARY_PROCEDURE),
       procedureIntent: intent,
       primaryProcedureCode: DEFAULT_PRIMARY_PROCEDURE,
       primaryPhysicianId: defaultSurgeon,
       anesthesiologistId: defaultAnesthesia,
       notes: referralHints?.indication ?? "",
+      idempotencyKey,
+      referralId: defaults.referralId ?? "",
     },
   });
 
@@ -318,7 +323,10 @@ export function BookCaseForm({
                 id="book-procedure"
                 options={GI_CPT_PROCEDURE_OPTIONS}
                 value={field.value}
-                onValueChange={field.onChange}
+                onValueChange={(val) => {
+                  field.onChange(val);
+                  setValue("durationMinutes", defaultDurationForCpt(val), { shouldValidate: true });
+                }}
                 data-testid="book-case-procedure"
               />
             )}

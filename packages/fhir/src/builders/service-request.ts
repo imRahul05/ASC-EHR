@@ -19,6 +19,7 @@ export interface ServiceRequestInput {
   readonly notes?: string;
   readonly authoredOn?: string;
   readonly idempotencyKey?: string;
+  readonly basedOnId?: string;
 }
 
 /**
@@ -63,5 +64,8 @@ export function buildServiceRequest(input: ServiceRequestInput, urls: FhirUrls =
     ...(input.notes === undefined
       ? {}
       : { note: [{ text: narrativeText(input.notes, "service request notes", 500) }] }),
+    ...(input.basedOnId === undefined
+      ? {}
+      : { basedOn: [reference<ServiceRequest>("ServiceRequest", input.basedOnId, "based on referral id")] }),
   };
 }

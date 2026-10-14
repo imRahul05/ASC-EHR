@@ -1,5 +1,10 @@
 import type { CasePhase, CaseStage, PhaseGroup, RuleResult } from "@asc/types";
-import { fail, OK } from "./result";
+
+const OK: RuleResult = { ok: true, reasons: [] };
+
+function fail(code: string, message: string): RuleResult {
+  return { ok: false, reasons: [{ code, message }] };
+}
 
 export type { CaseStage } from "@asc/types";
 

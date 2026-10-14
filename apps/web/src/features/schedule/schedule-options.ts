@@ -25,6 +25,22 @@ export const GI_CPT_PROCEDURE_OPTIONS: readonly SelectOption<string>[] = [
   { value: "45330", label: "45330 · Flexible Sigmoidoscopy", hint: "Diagnostic flexible sigmoidoscopy" },
 ];
 
+/** Default scheduled duration in minutes keyed by primary procedure CPT code. */
+export const DEFAULT_DURATION_BY_CPT: Readonly<Record<string, number>> = {
+  "45378": 45,
+  "43239": 30,
+  "45385": 45,
+  "45380": 45,
+  "43235": 30,
+  "45330": 30,
+};
+
+export function defaultDurationForCpt(cptCode?: string): number {
+  if (!cptCode) return 45;
+  return DEFAULT_DURATION_BY_CPT[cptCode] ?? 45;
+}
+
+
 export const INTENT_OPTIONS: readonly SegmentedOption<ProcedureIntentInput>[] = [
   { value: "screening", label: "Screening" },
   { value: "surveillance", label: "Surveillance" },

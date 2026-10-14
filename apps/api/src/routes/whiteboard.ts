@@ -1,4 +1,5 @@
 import { grantedFacilityIds } from "@asc/authz";
+import { isRoomOccupyingPhase } from "@asc/clinical-rules/phases";
 import { facilityDateTimeToIso, todayIsoDate } from "@asc/clinical-rules/time";
 import { API_ROUTE_PATTERNS } from "@asc/config";
 import { casePhaseFromCode } from "@asc/fhir/case-phase";
@@ -14,6 +15,60 @@ const DEFAULT_ROOMS: readonly Room[] = [
   { id: "room-3", name: "Room 3", status: "idle" },
   { id: "room-4", name: "Room 4", status: "idle" },
 ];
+
+const TURNOVER_WINDOW_MS = 15 * 60_000;
+
+function computeRoomStatuses(cards: readonly WhiteboardCard[]): Room[] {
+  const now = Date.now();
+  return DEFAULT_ROOMS.map((room) => {
+    // 1. Check for active case currently occupying the procedure suite
+    const activeCard = cards.find(
+      (c) => c.roomId === room.id && isRoomOccupyingPhase(c.phase),
+    );
+    if (activeCard) {
+      return {
+        id: room.id,
+        name: room.name,
+        status: "in_use",
+        currentCaseId: activeCard.caseId,
+      };
+    }
+
+    // 2. Check for recent exit from procedure room into recovery/discharge within 15-minute turnover window
+    const turnoverCard = cards.find((c) => {
+      if (c.roomId !== room.id) return false;
+      const normalizedPhase = c.phase.toLowerCase();
+      const isPostRoomPhase =
+        normalizedPhase === "recovery" ||
+        normalizedPhase === "pacu" ||
+        normalizedPhase === "ready_for_discharge" ||
+        normalizedPhase === "discharged";
+      if (!isPostRoomPhase) return false;
+      if (!c.phaseEnteredAt) return true;
+      const enteredTime = Date.parse(c.phaseEnteredAt);
+      if (Number.isNaN(enteredTime)) return false;
+      const elapsed = now - enteredTime;
+      return elapsed >= 0 && elapsed < TURNOVER_WINDOW_MS;
+    });
+
+    if (turnoverCard) {
+      return {
+        id: room.id,
+        name: room.name,
+        status: "turnover",
+        currentCaseId: turnoverCard.caseId,
+      };
+    }
+
+    return {
+      id: room.id,
+      name: room.name,
+      status: "idle",
+      currentCaseId: undefined,
+    };
+  });
+}
+
 
 function resolveFacilityId(
   request: FastifyRequest,
@@ -80,6 +135,39 @@ function extractPractitionerInitials(display?: string, ref?: string): string {
     return id.slice(0, 2).toUpperCase();
   }
   return "";
+}
+
+function extractCardFlags(
+  encounter?: Encounter,
+): readonly ("allergy" | "anticoagulant" | "escort_missing" | "eligibility")[] {
+  if (!encounter) return [];
+  const flags: ("allergy" | "anticoagulant" | "escort_missing" | "eligibility")[] = [];
+  const flagExts = encounter.extension?.filter(
+    (e) => e.url?.includes("case-flag") || e.url?.endsWith("/flag"),
+  );
+  if (flagExts) {
+    for (const ext of flagExts) {
+      const code = ext.valueCode ?? ext.valueCoding?.code;
+      if (
+        code === "allergy" ||
+        code === "anticoagulant" ||
+        code === "escort_missing" ||
+        code === "eligibility"
+      ) {
+        if (!flags.includes(code)) flags.push(code);
+      }
+    }
+  }
+  return flags;
+}
+
+function formatCanonicalCaseNumber(rawNumber?: string, fallbackId?: string): string {
+  if (rawNumber && rawNumber.trim()) {
+    const trimmed = rawNumber.trim();
+    return trimmed.startsWith("CASE-") ? trimmed : `CASE-${trimmed}`;
+  }
+  const cleanId = (fallbackId ?? "000000").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  return `CASE-${cleanId.slice(0, 6)}`;
 }
 
 function resolveCasePhase(encounter?: Encounter): CasePhase {
@@ -255,9 +343,10 @@ export function whiteboardRoutes(app: FastifyInstance): Promise<void> {
         const caseNumberIdentifier = linkedEncounter?.identifier?.find((id) =>
           id.system?.includes("case-number"),
         );
-        const caseNumber =
-          caseNumberIdentifier?.value ??
-          `CASE-${(linkedEncounter?.id ?? appItem.id ?? "000000").slice(0, 6).toUpperCase()}`;
+        const caseNumber = formatCanonicalCaseNumber(
+          caseNumberIdentifier?.value,
+          linkedEncounter?.id ?? appItem.id,
+        );
 
         const card: WhiteboardCard = {
           caseId,
@@ -269,15 +358,17 @@ export function whiteboardRoutes(app: FastifyInstance): Promise<void> {
           scheduledStart: appItem.start ?? new Date().toISOString(),
           phaseEnteredAt: linkedEncounter?.period?.start ?? appItem.start,
           surgeonInitials: isTvMode ? "" : surgeonInitials,
-          flags: isTvMode ? [] : [],
+          flags: isTvMode ? [] : extractCardFlags(linkedEncounter),
         };
 
         cards.push(card);
       }
 
+      const rooms = computeRoomStatuses(cards);
+
       const board: WhiteboardBoard = {
         generatedAt: new Date().toISOString(),
-        rooms: DEFAULT_ROOMS,
+        rooms,
         cards,
       };
 

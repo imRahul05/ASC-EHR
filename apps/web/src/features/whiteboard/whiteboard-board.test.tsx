@@ -194,5 +194,13 @@ describe("WhiteboardBoard & WhiteboardTile", () => {
       expect(html).toContain("J.D.");
       expect(html).toContain("CASE-101");
     });
+
+    it("initializes synchronously in TV kiosk mode when initialTv=true", () => {
+      const html = renderToStaticMarkup(<WhiteboardBoard initialTv={true} />);
+
+      expect(html).toContain('data-tv="true"');
+      expect(html).toContain("Exit TV mode");
+      expect(html).not.toContain('href="/cases');
+    });
   });
 });

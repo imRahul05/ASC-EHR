@@ -470,6 +470,7 @@ export async function bookCase(options: BookCaseOptions): Promise<CaseBookingRes
           notes,
           authoredOn: new Date().toISOString(),
           idempotencyKey,
+          basedOnId: body.referralId,
         }),
         encounter: encounterRef,
       };

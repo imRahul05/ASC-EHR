@@ -1,6 +1,7 @@
 import { forFacility } from "@asc/api-client/server";
 import { facilityGrant, staffPrincipal } from "@asc/authz/testing";
 import { caseStageExtension } from "@asc/fhir";
+import type { WhiteboardBoard } from "@asc/types";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { buildTestApp } from "../testing/test-app.js";
@@ -181,10 +182,10 @@ describe("Whiteboard routes", () => {
       });
 
       expect(response.statusCode).toBe(200);
-      const json = response.json();
+      const json = response.json<WhiteboardBoard>();
       expect(json.cards.length).toBe(1);
-      expect(json.cards[0].caseId).toBe("appt-today");
-      expect(json.cards[0].initials).toBe("A.C.");
+      expect(json.cards[0]?.caseId).toBe("appt-today");
+      expect(json.cards[0]?.initials).toBe("A.C.");
     });
 
     it("maps dynamic clinical phase from linked Encounter extensions and status", async () => {
@@ -232,12 +233,128 @@ describe("Whiteboard routes", () => {
       });
 
       expect(response.statusCode).toBe(200);
-      const json = response.json();
+      const json = response.json<WhiteboardBoard>();
       expect(json.cards.length).toBe(1);
       const card = json.cards[0];
-      expect(card.caseId).toBe("enc-pacu");
-      expect(card.phase).toBe("RECOVERY");
-      expect(card.initials).toBe("B.M.");
+      expect(card?.caseId).toBe("enc-pacu");
+      expect(card?.phase).toBe("RECOVERY");
+      expect(card?.initials).toBe("B.M.");
+
+      const room2 = json.rooms.find((r) => r.id === "room-2");
+      expect(room2?.status).toBe("turnover");
+      expect(room2?.currentCaseId).toBe("enc-pacu");
+      const room1 = json.rooms.find((r) => r.id === "room-1");
+      expect(room1?.status).toBe("idle");
+    });
+
+    it("dynamically reflects room status as in_use when a procedure is actively occupying the suite and extracts flags", async () => {
+      const mockMedplum = new MockClient();
+      const facilityId = "fac-a";
+      const today = new Date().toISOString();
+
+      await forFacility(mockMedplum, facilityId).create({
+        resourceType: "Appointment",
+        id: "appt-active-or",
+        status: "booked",
+        start: today,
+        end: new Date(Date.now() + 45 * 60_000).toISOString(),
+        participant: [
+          { actor: { reference: "Location/room-1" }, status: "accepted" },
+          { actor: { reference: "Patient/pat-procedure", display: "Alice Smith" }, status: "accepted" },
+        ],
+      });
+
+      await forFacility(mockMedplum, facilityId).create({
+        resourceType: "Encounter",
+        id: "enc-procedure",
+        status: "in-progress",
+        class: { system: "http://terminology.hl7.org/CodeSystem/v3-ActCode", code: "AMB" },
+        appointment: [{ reference: "Appointment/appt-active-or" }],
+        extension: [
+          caseStageExtension("procedure_start"),
+          { url: "http://asc.local/fhir/StructureDefinition/case-flag", valueCode: "allergy" },
+          { url: "http://asc.local/fhir/StructureDefinition/case-flag", valueCode: "anticoagulant" },
+        ],
+      });
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant(facilityId, ["clinical-staff"], ["schedule.read"])],
+        "user-clinician",
+      );
+      built.identity.addToken("token-clinician", principal);
+
+      const response = await built.app.inject({
+        method: "GET",
+        url: "/whiteboard?mode=clinical",
+        headers: bearer("token-clinician"),
+      });
+
+      expect(response.statusCode).toBe(200);
+      const json = response.json<WhiteboardBoard>();
+      expect(json.cards.length).toBe(1);
+      const card = json.cards[0];
+      expect(card?.phase).toBe("IN_PROCEDURE");
+      expect(card?.flags).toEqual(["allergy", "anticoagulant"]);
+
+      const room1 = json.rooms.find((r) => r.id === "room-1");
+      expect(room1?.status).toBe("in_use");
+      expect(room1?.currentCaseId).toBe("enc-procedure");
+    });
+
+    it("formats and preserves canonical case numbers with CASE- prefix", async () => {
+      const mockMedplum = new MockClient();
+      const facilityId = "fac-a";
+      const today = new Date().toISOString();
+
+      await forFacility(mockMedplum, facilityId).create({
+        resourceType: "Appointment",
+        id: "appt-canon-num",
+        status: "booked",
+        start: today,
+        end: new Date(Date.now() + 30 * 60_000).toISOString(),
+        participant: [
+          { actor: { reference: "Location/room-3" }, status: "accepted" },
+          { actor: { reference: "Patient/pat-test-1", display: "Charlie Day" }, status: "accepted" },
+        ],
+      });
+
+      await forFacility(mockMedplum, facilityId).create({
+        resourceType: "Encounter",
+        id: "enc-canon-num",
+        status: "in-progress",
+        class: { system: "http://terminology.hl7.org/CodeSystem/v3-ActCode", code: "AMB" },
+        appointment: [{ reference: "Appointment/appt-canon-num" }],
+        identifier: [
+          { system: "https://fhir.wybit.io/asc/identifier/case-number", value: "CASE-2026-0042" },
+        ],
+      });
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant(facilityId, ["clinical-staff"], ["schedule.read"])],
+        "user-clinician",
+      );
+      built.identity.addToken("token-clinician", principal);
+
+      const response = await built.app.inject({
+        method: "GET",
+        url: "/whiteboard?mode=tv",
+        headers: bearer("token-clinician"),
+      });
+
+      expect(response.statusCode).toBe(200);
+      const json = response.json<WhiteboardBoard>();
+      expect(json.cards.length).toBe(1);
+      expect(json.cards[0]?.caseNumber).toBe("CASE-2026-0042");
     });
   });
 });

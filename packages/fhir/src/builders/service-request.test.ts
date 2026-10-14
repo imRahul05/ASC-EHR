@@ -66,10 +66,12 @@ describe("buildServiceRequest", () => {
     const withKey = buildServiceRequest({
       ...base,
       idempotencyKey: "idem-key-sr-1",
+      basedOnId: "ref-sr-1",
     });
     expect(withKey.identifier).toEqual([
       { system: "https://fhir.wybit.io/asc/identifier/booking-idempotency-key", value: "idem-key-sr-1" },
     ]);
+    expect(withKey.basedOn).toEqual([{ reference: "ServiceRequest/ref-sr-1" }]);
   });
 
   it("supports custom FHIR canonical base URLs", () => {
@@ -90,6 +92,7 @@ describe("buildServiceRequest", () => {
     expect(() => buildServiceRequest({ ...base, secondaryProcedureCodes: [""] })).toThrow("invalid secondary procedure code");
     expect(() => buildServiceRequest({ ...base, encounterId: "bad enc" })).toThrow("invalid encounter id");
     expect(() => buildServiceRequest({ ...base, requesterId: "bad doc" })).toThrow("invalid requester id");
+    expect(() => buildServiceRequest({ ...base, basedOnId: "bad ref" })).toThrow("invalid based on referral id");
     expect(() => buildServiceRequest({ ...base, authoredOn: "invalid-time" })).toThrow("invalid authored on");
     expect(() => buildServiceRequest({ ...base, notes: "   " })).toThrow("invalid service request notes");
     expect(() => buildServiceRequest({ ...base, notes: "x".repeat(501) })).toThrow("invalid service request notes");

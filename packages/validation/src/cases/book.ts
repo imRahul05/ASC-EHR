@@ -92,6 +92,11 @@ export const bookCaseSchema = z.object({
     .min(1, "Idempotency key must not be empty")
     .max(128, "Idempotency key must not exceed 128 characters")
     .optional(),
+  referralId: z
+    .string()
+    .trim()
+    .regex(FHIR_ID, "Referral ID must be a valid FHIR identifier")
+    .optional(),
 });
 
 export type BookCaseInput = z.infer<typeof bookCaseSchema>;
@@ -166,6 +171,12 @@ export const bookCaseFormSchema = z
       .min(1, "Idempotency key must not be empty")
       .max(128, "Idempotency key must not exceed 128 characters")
       .optional(),
+    referralId: z
+      .string()
+      .trim()
+      .regex(FHIR_ID, "Referral ID must be a valid FHIR identifier")
+      .optional()
+      .or(z.literal("")),
   })
   .refine(
     (data) => {
@@ -209,6 +220,10 @@ export function bookCaseInputFrom(
     idempotencyKey:
       formData.idempotencyKey && formData.idempotencyKey.trim().length > 0
         ? formData.idempotencyKey.trim()
+        : undefined,
+    referralId:
+      formData.referralId && formData.referralId.trim().length > 0
+        ? formData.referralId.trim()
         : undefined,
   };
 }

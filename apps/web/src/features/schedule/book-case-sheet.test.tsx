@@ -203,4 +203,27 @@ describe("BookCaseForm & BookCaseSheet", () => {
     expect(html).toContain('disabled=""');
     mockFacilityId = "fac-metro";
   });
+
+  it("propagates referralId and idempotencyKey through bookCaseInputFrom", () => {
+    const formData: BookCaseFormData = {
+      facilityId: "fac-metro",
+      patientId: "pat-999",
+      roomId: "room-3",
+      date: "2026-11-01",
+      startTime: "10:30",
+      durationMinutes: 45,
+      procedureIntent: "screening",
+      primaryProcedureCode: "45378",
+      primaryPhysicianId: "doc-vance",
+      referralId: "ref-456",
+      idempotencyKey: "test-idem-key-123",
+    };
+
+    const parsed = bookCaseFormSchema.safeParse(formData);
+    expect(parsed.success).toBe(true);
+
+    const input = bookCaseInputFrom(formData);
+    expect(input.referralId).toBe("ref-456");
+    expect(input.idempotencyKey).toBe("test-idem-key-123");
+  });
 });

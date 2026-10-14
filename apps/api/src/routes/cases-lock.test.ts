@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { forFacility } from "@asc/api-client/server";
 import { facilityGrant, FakeIdentityPort, staffPrincipal, TEST_TENANT } from "@asc/authz/testing";
 import { StaticTenantResolver, type IdentityPort } from "@asc/authz";
-import type { TenantDb } from "@asc/db";
+import { createTenantDb, withPostgresFacilityLock, type TenantDb } from "@asc/db";
 
 import { buildApp } from "../app.js";
 import { buildTestApp, memoryAudit } from "../testing/test-app.js";
@@ -239,5 +239,39 @@ describe("Cases distributed locking", () => {
       await instance1.app.close();
       await instance2.app.close();
     }
+  });
+
+  const testDbUrl = process.env.TEST_DATABASE_URL;
+
+  describe.skipIf(!testDbUrl)("PostgreSQL facility scheduling lock cross-connection serialization", () => {
+    it("two independent connections serialize execution with withPostgresFacilityLock", async () => {
+      const tenantDb = createTenantDb({ url: testDbUrl!, max: 5 });
+      const executionOrder: string[] = [];
+      const facilityId = "fac-real-pg";
+      const tenantId = "11111111-1111-1111-1111-111111111111";
+
+      try {
+        const op1 = withPostgresFacilityLock(tenantDb, tenantId, facilityId, async () => {
+          executionOrder.push("op1:start");
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          executionOrder.push("op1:end");
+          return "res1";
+        });
+
+        const op2 = withPostgresFacilityLock(tenantDb, tenantId, facilityId, async () => {
+          await Promise.resolve();
+          executionOrder.push("op2:start");
+          executionOrder.push("op2:end");
+          return "res2";
+        });
+
+        const [r1, r2] = await Promise.all([op1, op2]);
+        expect(r1).toBe("res1");
+        expect(r2).toBe("res2");
+        expect(executionOrder).toEqual(["op1:start", "op1:end", "op2:start", "op2:end"]);
+      } finally {
+        await tenantDb.close();
+      }
+    });
   });
 });

@@ -1130,6 +1130,7 @@ export interface BookCasePayload {
   readonly anesthesiaId?: string;
   readonly nurseId?: string;
   readonly referralId?: string;
+  readonly idempotencyKey?: string;
 }
 
 export interface TransitionCasePayload {

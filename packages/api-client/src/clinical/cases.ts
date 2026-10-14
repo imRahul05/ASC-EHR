@@ -38,7 +38,8 @@ export function checkScheduleConflicts(payload: BookCasePayload): Promise<Confli
 
 /** Books a case into an operating room (POST /cases). Rejects 409 conflict with structured reasons in `details` and `reasons`. */
 export function bookCase(payload: BookCaseInput | BookCasePayload): Promise<BookCaseResponse> {
-  return http.post(API_ROUTES.cases, payload);
+  const headers = payload.idempotencyKey ? { "x-idempotency-key": payload.idempotencyKey } : undefined;
+  return http.post(API_ROUTES.cases, payload, { headers });
 }
 
 // ─── Case workspace ─────────────────────────────────────────────────────────
