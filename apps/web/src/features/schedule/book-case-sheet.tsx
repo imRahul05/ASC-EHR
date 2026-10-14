@@ -47,7 +47,7 @@ import {
   ROOM_OPTIONS,
   defaultDurationForCpt,
 } from "./schedule-options";
-import { useAuthStore } from "../../lib/stores/auth.store";
+import { useActiveFacility } from "../../hooks/use-active-facility";
 
 interface BookCaseSheetProps {
   readonly open: boolean;
@@ -71,6 +71,7 @@ function defaultFutureDate(): string {
 export function BookCaseSheet({ open, onOpenChange, defaults }: BookCaseSheetProps) {
   const admin = useAdminOverview();
   const referral = useReferral(defaults.referralId ?? null);
+  const { facilityId } = useActiveFacility();
   const waitingForReferral = defaults.referralId !== undefined && referral.isPending;
 
   return (
@@ -100,7 +101,7 @@ export function BookCaseSheet({ open, onOpenChange, defaults }: BookCaseSheetPro
         )}
         {admin.data && !waitingForReferral && (
           <BookCaseForm
-            key={`${defaults.roomId ?? ""}-${defaults.startTime ?? ""}-${defaults.date ?? ""}-${defaults.patientId ?? ""}-${defaults.referralId ?? ""}`}
+            key={`${facilityId ?? ""}-${defaults.roomId ?? ""}-${defaults.startTime ?? ""}-${defaults.date ?? ""}-${defaults.patientId ?? ""}-${defaults.referralId ?? ""}`}
             staff={admin.data.staff}
             defaults={defaults}
             referralHints={referral.data ? bookingHintsFromReferral(referral.data) : null}
@@ -129,7 +130,8 @@ export function BookCaseForm({
 }: BookCaseFormProps) {
   const router = useRouter();
   const book = useBookCase();
-  const facilityId = useAuthStore((s) => s.facilityId) ?? "";
+  const { facilityId: activeFacilityId, hasFacility } = useActiveFacility();
+  const facilityId = activeFacilityId ?? "";
   const [apiConflict, setApiConflict] = useState<string | null>(initialConflict ?? null);
   const [idempotencyKey] = useState(() => crypto.randomUUID());
 
@@ -228,7 +230,7 @@ export function BookCaseForm({
     >
       <div className="flex-1 space-y-5 overflow-y-auto p-4">
         {/* Missing facility context banner */}
-        {!facilityId && (
+        {!hasFacility && (
           <div
             role="alert"
             className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-destructive"
@@ -441,7 +443,7 @@ export function BookCaseForm({
         </Button>
         <Button
           type="submit"
-          disabled={!facilityId || isSubmitting || book.isPending}
+          disabled={!hasFacility || isSubmitting || book.isPending}
           data-testid="book-case-submit"
         >
           {(isSubmitting || book.isPending) && <Loader2 aria-hidden className="animate-spin" />}
