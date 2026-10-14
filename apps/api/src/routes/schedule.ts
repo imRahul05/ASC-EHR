@@ -1,5 +1,5 @@
 import { grantedFacilityIds } from "@asc/authz";
-import { todayIsoDate } from "@asc/clinical-rules/time";
+import { facilityDateTimeToIso, todayIsoDate } from "@asc/clinical-rules/time";
 import { API_ROUTE_PATTERNS } from "@asc/config";
 import type {
   ProcedureCase,
@@ -61,8 +61,8 @@ export function scheduleRoutes(app: FastifyInstance): Promise<void> {
         return reply;
       }
 
-      const startOfDayIso = `${date}T00:00:00.000Z`;
-      const endOfDayIso = `${date}T23:59:59.999Z`;
+      const startOfDayIso = facilityDateTimeToIso(date, "00:00");
+      const endOfDayIso = facilityDateTimeToIso(date, "23:59");
       const facilityAccountRef = `Organization/${facilityId}`;
 
       const [appointments, encounters] = await Promise.all([
@@ -116,13 +116,17 @@ export function scheduleRoutes(app: FastifyInstance): Promise<void> {
       if (missingPatientIds.size > 0) {
         try {
           const patientIdList = Array.from(missingPatientIds);
-          const patients = await request.medplum.searchResources("Patient", [
-            ["_id", patientIdList.join(",")],
-            ["_count", String(patientIdList.length)],
-          ]);
-          for (const patient of patients) {
-            if (patient.id) {
-              patientMap.set(patient.id, patient);
+          const chunkSize = 50;
+          for (let i = 0; i < patientIdList.length; i += chunkSize) {
+            const chunk = patientIdList.slice(i, i + chunkSize);
+            const patients = await request.medplum.searchResources("Patient", [
+              ["_id", chunk.join(",")],
+              ["_count", String(chunk.length)],
+            ]);
+            for (const patient of patients) {
+              if (patient.id) {
+                patientMap.set(patient.id, patient);
+              }
             }
           }
         } catch {

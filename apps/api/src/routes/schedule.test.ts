@@ -203,5 +203,65 @@ describe("Schedule routes", () => {
       const body = JSON.parse(response.body) as { code: string };
       expect(body.code).toBe("invalid_query");
     });
+
+    it("returns 400 when query contains a calendar-invalid date (e.g. Feb 31)", async () => {
+      const mockMedplum = new MockClient();
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["surgeon"], ["schedule.read"])],
+        "surgeon-user-4",
+      );
+      built.identity.addToken("token-surgeon-4", principal);
+
+      const response = await built.app.inject({
+        method: "GET",
+        url: "/schedule",
+        headers: bearer("token-surgeon-4"),
+        query: { facilityId: "fac-a", date: "2026-02-31" },
+      });
+
+      expect(response.statusCode).toBe(400);
+      const body = JSON.parse(response.body) as { code: string };
+      expect(body.code).toBe("invalid_query");
+    });
+
+    it("filters out appointments belonging to another facility", async () => {
+      const mockMedplum = new MockClient();
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const otherClient = forFacility(mockMedplum, "fac-other");
+      await otherClient.create({
+        resourceType: "Appointment",
+        status: "booked",
+        participant: [{ status: "accepted" }],
+        start: "2026-10-14T09:00:00.000Z",
+        end: "2026-10-14T09:45:00.000Z",
+        description: "Foreign procedure",
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["surgeon"], ["schedule.read"])],
+        "surgeon-user-5",
+      );
+      built.identity.addToken("token-surgeon-5", principal);
+
+      const response = await built.app.inject({
+        method: "GET",
+        url: "/schedule",
+        headers: bearer("token-surgeon-5"),
+        query: { facilityId: "fac-a", date: "2026-10-14" },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const schedule = JSON.parse(response.body) as ScheduleDay;
+      expect(schedule.cases).toEqual([]);
+    });
   });
 });

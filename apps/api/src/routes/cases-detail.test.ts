@@ -248,5 +248,173 @@ describe("Case Workspace and Transition routes", () => {
       const reloaded: Encounter = await mockMedplum.readResource("Encounter", "case-gate1-ok");
       expect(reloaded.status).toBe("in-progress");
     });
+
+    it("returns 400 when target stage is unrecognized", async () => {
+      const mockMedplum = new MockClient();
+      built = await setupApp(mockMedplum);
+      const res = await built.app.inject({
+        method: "POST",
+        url: "/cases/case-123/transition",
+        headers: { ...bearer(tokenAdvance), "x-facility-id": facilityId },
+        payload: { to: "nonexistent_stage" },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json()).toMatchObject({ code: "invalid_payload" });
+    });
+
+    it("returns 404 when case belongs to another facility (multi-tenant boundary)", async () => {
+      const mockMedplum = new MockClient();
+      const otherClient = forFacility(mockMedplum, "fac-other");
+
+      const patient: Patient = await otherClient.create({
+        resourceType: "Patient",
+        name: [{ family: "Secret", given: ["Foreign"] }],
+      });
+
+      const encounter: Encounter = await otherClient.create({
+        resourceType: "Encounter",
+        id: "case-foreign-1",
+        status: "arrived",
+        class: { code: "AMB" },
+        subject: { reference: `Patient/${patient.id}` },
+        extension: [caseStageExtension("arrived")],
+      });
+
+      built = await setupApp(mockMedplum);
+      const res = await built.app.inject({
+        method: "POST",
+        url: `/cases/${encounter.id}/transition`,
+        headers: { ...bearer(tokenAdvance), "x-facility-id": facilityId },
+        payload: { to: "preop" },
+      });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it("returns 409 GATE_FAILED when Gate 2 checks are unsatisfied on transition to in_room", async () => {
+      const mockMedplum = new MockClient();
+      const facilityClient = forFacility(mockMedplum, facilityId);
+
+      const patient: Patient = await facilityClient.create({
+        resourceType: "Patient",
+        name: [{ family: "Gates", given: ["Bill"] }],
+        birthDate: "1960-01-01",
+      });
+
+      const encounter: Encounter = await facilityClient.create({
+        resourceType: "Encounter",
+        id: "case-gate2-fail",
+        status: "in-progress",
+        class: { code: "AMB" },
+        subject: { reference: `Patient/${patient.id}` },
+        extension: [caseStageExtension("preop")],
+      });
+
+      built = await setupApp(mockMedplum);
+      const res = await built.app.inject({
+        method: "POST",
+        url: `/cases/${encounter.id}/transition`,
+        headers: { ...bearer(tokenAdvance), "x-facility-id": facilityId },
+        payload: { to: "in_room" },
+      });
+
+      expect(res.statusCode).toBe(409);
+      const body = JSON.parse(res.body) as { code: string; reasons: { code: string }[] };
+      expect(body.code).toBe("GATE_FAILED");
+      expect(body.reasons.some((r) => r.code === "GATE2_ANESTHESIA")).toBe(true);
+    });
+
+    it("returns 200 and transitions to in_room when Gate 2 checks are satisfied", async () => {
+      const mockMedplum = new MockClient();
+      const facilityClient = forFacility(mockMedplum, facilityId);
+
+      const patient: Patient = await facilityClient.create({
+        resourceType: "Patient",
+        name: [{ family: "Gates", given: ["Melinda"] }],
+        birthDate: "1964-01-01",
+      });
+
+      const gate2Checks: ReadinessCheck[] = [
+        { name: "anesthesia_clearance", label: "Anesthesia clearance", status: "satisfied" },
+        { name: "anticoagulation", label: "Anticoagulation", status: "satisfied" },
+        { name: "equipment", label: "Scope disinfection", status: "satisfied" },
+        { name: "escort", label: "Escort confirmed", status: "satisfied" },
+      ];
+
+      const encounter: Encounter = await facilityClient.create({
+        resourceType: "Encounter",
+        id: "case-gate2-ok",
+        status: "in-progress",
+        class: { code: "AMB" },
+        subject: { reference: `Patient/${patient.id}` },
+        extension: [
+          caseStageExtension("preop"),
+          ...caseReadinessExtensions(gate2Checks),
+        ],
+      });
+
+      built = await setupApp(mockMedplum);
+      const res = await built.app.inject({
+        method: "POST",
+        url: `/cases/${encounter.id}/transition`,
+        headers: { ...bearer(tokenAdvance), "x-facility-id": facilityId },
+        payload: { to: "in_room" },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const data = res.json();
+      expect(data.case.id).toBe(encounter.id);
+      expect(data.case.stage).toBe("in_room");
+      expect(data.case.phase).toBe("READY_FOR_PROCEDURE");
+    });
+
+    it("returns 200 and transitions correctly when target is a CasePhase enum ('PRE_OP')", async () => {
+      const mockMedplum = new MockClient();
+      const facilityClient = forFacility(mockMedplum, facilityId);
+
+      const patient: Patient = await facilityClient.create({
+        resourceType: "Patient",
+        id: "pat-trans-phase-ok",
+        name: [{ family: "Taylor", given: ["Alex"] }],
+        birthDate: "1990-01-01",
+      });
+
+      const satisfiedChecks: ReadinessCheck[] = [
+        { name: "identity", label: "Patient identity", status: "satisfied" },
+        { name: "consent", label: "Informed consent", status: "satisfied" },
+        { name: "hp", label: "History & physical", status: "satisfied" },
+      ];
+
+      const encounter: Encounter = await facilityClient.create({
+        resourceType: "Encounter",
+        id: "case-phase-ok",
+        status: "arrived",
+        class: { code: "AMB" },
+        subject: { reference: `Patient/${patient.id}` },
+        period: { start: "2026-10-14T09:00:00.000Z" },
+        extension: [
+          caseStageExtension("arrived"),
+          ...caseReadinessExtensions(satisfiedChecks),
+        ],
+      });
+
+      built = await setupApp(mockMedplum);
+      const res = await built.app.inject({
+        method: "POST",
+        url: `/cases/${encounter.id}/transition`,
+        headers: { ...bearer(tokenAdvance), "x-facility-id": facilityId },
+        payload: { to: "PRE_OP" },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const data = res.json();
+      expect(data.case.id).toBe(encounter.id);
+      expect(data.case.stage).toBe("preop");
+      expect(data.case.phase).toBe("PRE_OP");
+
+      const reloaded: Encounter = await mockMedplum.readResource("Encounter", "case-phase-ok");
+      expect(reloaded.status).toBe("in-progress");
+      expect(reloaded.extension?.some((e) => e.url?.includes("case-stage"))).toBe(true);
+      expect(reloaded.extension?.some((e) => e.url?.includes("case-phase"))).toBe(true);
+    });
   });
 });
