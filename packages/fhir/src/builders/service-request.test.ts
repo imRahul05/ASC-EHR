@@ -62,6 +62,14 @@ describe("buildServiceRequest", () => {
       notes: "Screening colonoscopy.\nSedation required.",
     });
     expect(multiline.note?.[0]?.text).toBe("Screening colonoscopy.\nSedation required.");
+
+    const withKey = buildServiceRequest({
+      ...base,
+      idempotencyKey: "idem-key-sr-1",
+    });
+    expect(withKey.identifier).toEqual([
+      { system: "https://fhir.wybit.io/asc/identifier/booking-idempotency-key", value: "idem-key-sr-1" },
+    ]);
   });
 
   it("supports custom FHIR canonical base URLs", () => {

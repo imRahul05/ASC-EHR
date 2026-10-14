@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { caseNumberIdentifier, ecwPatientIdentifier, ecwPatientSystem, formatCaseNumber, mrnIdentifier } from "./identifiers.js";
+import { bookingIdempotencyIdentifier, caseNumberIdentifier, ecwPatientIdentifier, ecwPatientSystem, formatCaseNumber, mrnIdentifier } from "./identifiers.js";
 import { createFhirUrls } from "./urls.js";
 
 describe("eCW patient identifier", () => {
@@ -23,23 +23,29 @@ describe("eCW patient identifier", () => {
   });
 });
 
-describe("MRN and case number identifiers", () => {
+describe("MRN, case number, and booking idempotency identifiers", () => {
   it("use systems under the canonical base", () => {
     expect(mrnIdentifier("A100")).toEqual({ system: "https://fhir.wybit.io/asc/identifier/mrn", value: "A100" });
     expect(caseNumberIdentifier("ASC1-20261008-0001")).toEqual({
       system: "https://fhir.wybit.io/asc/identifier/case-number",
       value: "ASC1-20261008-0001",
     });
+    expect(bookingIdempotencyIdentifier("idem-key-1")).toEqual({
+      system: "https://fhir.wybit.io/asc/identifier/booking-idempotency-key",
+      value: "idem-key-1",
+    });
   });
 
   it("follow a different base when one is passed", () => {
     const urls = createFhirUrls("https://fhir.example.test/x/");
     expect(mrnIdentifier("A100", urls).system).toBe("https://fhir.example.test/x/identifier/mrn");
+    expect(bookingIdempotencyIdentifier("idem-key-1", urls).system).toBe("https://fhir.example.test/x/identifier/booking-idempotency-key");
   });
 
   it("reject blank or spaced values and never put the value in the error", () => {
     expect(() => mrnIdentifier("")).toThrow("invalid MRN");
     expect(() => caseNumberIdentifier("a b")).toThrow("invalid case number");
+    expect(() => bookingIdempotencyIdentifier("a b")).toThrow("invalid booking idempotency key");
     expect(() => mrnIdentifier("SECRET 1")).not.toThrow("SECRET");
   });
 });
