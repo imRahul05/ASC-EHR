@@ -14,20 +14,25 @@ import { capabilityAtResource } from "../auth/route-auth.js";
 import { buildProcedureCaseFromFhir } from "../services/case-mapper.js";
 import { computeRoomStatuses } from "./whiteboard.js";
 
+const FHIR_ID = /^[A-Za-z0-9.-]{1,64}$/;
+
 function resolveFacilityId(
   request: FastifyRequest,
   preferredFacilityId?: string,
 ): string | undefined {
   if (preferredFacilityId !== undefined && preferredFacilityId.trim() !== "") {
-    return preferredFacilityId.trim();
+    const trimmed = preferredFacilityId.trim();
+    return FHIR_ID.test(trimmed) ? trimmed : undefined;
   }
   const headerValue = request.headers["x-facility-id"];
   if (typeof headerValue === "string" && headerValue.trim() !== "") {
-    return headerValue.trim();
+    const trimmed = headerValue.trim();
+    return FHIR_ID.test(trimmed) ? trimmed : undefined;
   }
   if (request.principal !== undefined) {
     const granted = grantedFacilityIds(request.principal);
-    if (granted.length > 0) return granted[0];
+    const first = granted[0];
+    if (first !== undefined && FHIR_ID.test(first)) return first;
   }
   return undefined;
 }

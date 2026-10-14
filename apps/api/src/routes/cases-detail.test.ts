@@ -69,6 +69,18 @@ describe("Case Workspace and Transition routes", () => {
       expect(res.json()).toMatchObject({ code: "not_found" });
     });
 
+    it("returns 400 when caseId has invalid format", async () => {
+      const mockMedplum = new MockClient();
+      built = await setupApp(mockMedplum);
+      const res = await built.app.inject({
+        method: "GET",
+        url: "/cases/invalid%20case%20id",
+        headers: { ...bearer(tokenRead), "x-facility-id": facilityId },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json()).toMatchObject({ code: "invalid_case_id" });
+    });
+
     it("returns 200 with hydrated CaseDetail", async () => {
       const mockMedplum = new MockClient();
       const facilityClient = forFacility(mockMedplum, facilityId);
@@ -415,6 +427,78 @@ describe("Case Workspace and Transition routes", () => {
       expect(reloaded.status).toBe("in-progress");
       expect(reloaded.extension?.some((e) => e.url?.includes("case-stage"))).toBe(true);
       expect(reloaded.extension?.some((e) => e.url?.includes("case-phase"))).toBe(true);
+    });
+
+    it("returns 400 when caseId has invalid format", async () => {
+      const mockMedplum = new MockClient();
+      built = await setupApp(mockMedplum);
+      const res = await built.app.inject({
+        method: "POST",
+        url: "/cases/invalid%20case%20id/transition",
+        headers: { ...bearer(tokenAdvance), "x-facility-id": facilityId },
+        payload: { to: "preop" },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json()).toMatchObject({ code: "invalid_case_id" });
+    });
+
+    it("returns 400 when x-facility-id header is malformed", async () => {
+      const mockMedplum = new MockClient();
+      built = await setupApp(mockMedplum);
+      const res = await built.app.inject({
+        method: "POST",
+        url: "/cases/case-123/transition",
+        headers: { ...bearer(tokenAdvance), "x-facility-id": "bad facility id" },
+        payload: { to: "preop" },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json()).toMatchObject({ code: "facility_required" });
+    });
+
+    it("allows transition when encounter is authorized via serviceProvider reference", async () => {
+      const mockMedplum = new MockClient();
+
+      /* eslint-disable-next-line no-restricted-syntax -- testing legacy encounters without meta.accounts */
+      const patient: Patient = await mockMedplum.createResource({
+        resourceType: "Patient",
+        id: "pat-sp-test",
+        name: [{ family: "Davis", given: ["Morgan"] }],
+        birthDate: "1975-06-15",
+      });
+
+      const satisfiedChecks: ReadinessCheck[] = [
+        { name: "identity", label: "Patient identity", status: "satisfied" },
+        { name: "consent", label: "Informed consent", status: "satisfied" },
+        { name: "hp", label: "History & physical", status: "satisfied" },
+      ];
+
+      /* eslint-disable-next-line no-restricted-syntax -- testing legacy encounters without meta.accounts */
+      const encounter: Encounter = await mockMedplum.createResource({
+        resourceType: "Encounter",
+        id: "case-sp-test",
+        status: "arrived",
+        class: { code: "AMB" },
+        serviceProvider: { reference: `Organization/${facilityId}` },
+        subject: { reference: `Patient/${patient.id}` },
+        period: { start: "2026-10-14T09:00:00.000Z" },
+        extension: [
+          caseStageExtension("arrived"),
+          ...caseReadinessExtensions(satisfiedChecks),
+        ],
+      });
+
+      built = await setupApp(mockMedplum);
+      const res = await built.app.inject({
+        method: "POST",
+        url: `/cases/${encounter.id}/transition`,
+        headers: { ...bearer(tokenAdvance), "x-facility-id": facilityId },
+        payload: { to: "preop" },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const data = res.json();
+      expect(data.case.id).toBe(encounter.id);
+      expect(data.case.stage).toBe("preop");
     });
   });
 });

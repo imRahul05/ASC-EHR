@@ -189,9 +189,9 @@ export async function transitionCase(params: {
     };
   }
 
-  const hasFacilityAccount = rawEncounter.meta?.accounts?.some(
-    (acc) => acc.reference === facilityAccountRef,
-  );
+  const hasFacilityAccount =
+    rawEncounter.meta?.accounts?.some((acc) => acc.reference === facilityAccountRef) ||
+    rawEncounter.serviceProvider?.reference === facilityAccountRef;
   if (!hasFacilityAccount) {
     return {
       status: 404,

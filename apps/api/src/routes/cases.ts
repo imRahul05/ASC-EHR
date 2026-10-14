@@ -30,24 +30,30 @@ interface CaseQuery {
   readonly facilityId?: string;
 }
 
+const FHIR_ID = /^[A-Za-z0-9.-]{1,64}$/;
+
 function resolveFacilityId(
   request: FastifyRequest<{ Querystring: CaseQuery }>,
   preferredFacilityId?: string,
 ): string | undefined {
   if (preferredFacilityId !== undefined && preferredFacilityId.trim() !== "") {
-    return preferredFacilityId.trim();
+    const trimmed = preferredFacilityId.trim();
+    return FHIR_ID.test(trimmed) ? trimmed : undefined;
   }
   const queryVal = request.query?.facilityId;
   if (typeof queryVal === "string" && queryVal.trim() !== "") {
-    return queryVal.trim();
+    const trimmed = queryVal.trim();
+    return FHIR_ID.test(trimmed) ? trimmed : undefined;
   }
   const headerValue = request.headers["x-facility-id"];
   if (typeof headerValue === "string" && headerValue.trim() !== "") {
-    return headerValue.trim();
+    const trimmed = headerValue.trim();
+    return FHIR_ID.test(trimmed) ? trimmed : undefined;
   }
   if (request.principal !== undefined) {
     const granted = grantedFacilityIds(request.principal);
-    if (granted.length > 0) return granted[0];
+    const first = granted[0];
+    if (first !== undefined && FHIR_ID.test(first)) return first;
   }
   return undefined;
 }
@@ -130,6 +136,13 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
         });
       }
 
+      if (!FHIR_ID.test(caseId)) {
+        return reply.code(400).send({
+          code: "invalid_case_id",
+          message: "Invalid case ID format",
+        });
+      }
+
       if (!(await app.guards.requireCapabilityAt(request, reply, "case.read", facilityId))) {
         return reply;
       }
@@ -163,6 +176,13 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(400).send({
           code: "facility_required",
           message: "Facility context is required to transition a case",
+        });
+      }
+
+      if (!FHIR_ID.test(caseId)) {
+        return reply.code(400).send({
+          code: "invalid_case_id",
+          message: "Invalid case ID format",
         });
       }
 
