@@ -49,3 +49,10 @@ export function bookCasePayloadFrom(data: BookCaseFormData) {
     referralId: data.referralId,
   };
 }
+
+export const getScheduleQuerySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (expected YYYY-MM-DD)").optional(),
+  facilityId: z.string().trim().min(1).optional(),
+});
+
+export type GetScheduleQuery = z.infer<typeof getScheduleQuerySchema>;
