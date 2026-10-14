@@ -1,21 +1,23 @@
 # 08 — Identity, Access Control and Tenancy (Architecture)
 
-> **Status:** Proposed architecture (amended 2026-10-05); becomes accepted with the ADR ratification.
-> **Scope:** A modular identity, RBAC and facility-authorization core for the first hospital / ASC customer. Not "complete auth": follow-ups (step-up, SSO, break-glass, worker and stream auth) start at the gates listed in [P05 §6](../plan/phases/P05-auth-roles.md#6-gated-follow-ups-not-in-p05-start-no-later-than-the-gate).
-> **Tenancy Model:** Contracts and data are **tenant-ready** (`tenant_id`, `facility_id`, `meta.accounts`, `TenantResolver` port); one tenant runs. Multi-tenant routing, registry, provisioner and cross-tenant suites wait for Customer #2: [`future-multi-tenancy-architecture.md`](future-multi-tenancy-architecture.md). Sections below that describe several tenants (§4.2, §9, §11) are the target design for that stage.
+> **Status:** Accepted (amended 2026-10-14 via ADR [Single-Facility Day-1 Architecture](../decisions/2026-10-14-single-facility-progressive-mounting-and-mock-alignment.md))
+> **Scope:** A modular identity, RBAC and facility-authorization core for the single-specialty GI Ambulatory Surgery Center (CMS Place of Service 24).
+> **Tenancy Model (Day 1 vs Future):**
+> - **Day 1 (Single Facility):** The application runs against a single physical GI surgery center. Data rows and FHIR resources carry `facility_id` (and default `tenant_id`) from day one (`meta.accounts = [Organization/<facilityId>]`). The user's active `facilityId` is auto-resolved on login (no manual switcher). Direct parameterized queries replace connection-pinned RLS session variable hooks (`set_config('app.tenant_id')`) to optimize connection pool performance.
+> - **Phase 2 (Multi-Facility / Multi-Tenant Expansion):** When expanding to multiple physical sites, centralized scheduling, or multi-tenant SaaS, the implementation follows the preserved blueprint in [`future-multi-tenancy-architecture.md`](future-multi-tenancy-architecture.md).
 > **Implementation Plan:** [`P05 — Auth & Roles`](../plan/phases/P05-auth-roles.md), sub-phases P05a–P05j.
 > **Hosting:** Medplum runs **self-hosted from its open-source code** (upstream `medplum/medplum-server` Docker images) in our Azure subscription, with the hardening settings in P05h. The Medplum-hosted service is not used.
-> **Decision record:** [ADR — Medplum as identity and access platform](../decisions/2026-10-03-medplum-as-identity-and-access-platform.md) (proposed).
-> **Related:** [03 Target architecture §6 security](03-target-architecture.md) · [COMPLIANCE_AND_PHI](../COMPLIANCE_AND_PHI.md) · `LEARNING_MISTAKES.md` LM-004 (no tokens in browser storage).
+> **Decision records:** [ADR — Medplum as identity and access platform](../decisions/2026-10-03-medplum-as-identity-and-access-platform.md) · [ADR — Single-Facility Day-1 Architecture](../decisions/2026-10-14-single-facility-progressive-mounting-and-mock-alignment.md) (accepted 2026-10-14).
+> **Related:** [03 Target architecture §6 security](03-target-architecture.md) · [09 Clinical Safety & Stage-Readiness](09-clinical-safety-and-stage-readiness.md) · [COMPLIANCE_AND_PHI](../COMPLIANCE_AND_PHI.md).
 
 **Summary.** **Medplum** handles identity and data authorization, eliminating the need for Better Auth or Clerk.
 
-- **Hospital & Sites.** The hospital customer is a **Medplum Project**. Physical sites/rooms are **`Organization`** resources inside that Project.
+- **Surgery Center & Physical Sites.** The ASC customer is a **Medplum Project**. Physical sites/rooms are **`Organization`** resources inside that Project.
 - **Roles are data.** A role is a *role template* in `@asc/authz`. It contains capabilities and compiles to a parameterized `AccessPolicy` (`%facility`) that Medplum enforces on every FHIR read/write.
 - **Code never checks role names.** It only asks `can(principal, "note.sign", { facilityId })`. Adding or modifying roles is a configuration update, not a code rewrite.
-- **Tenant-Ready Data Layer:** App Postgres tables include `tenant_id uuid NOT NULL` and `facility_id text NULL` with Postgres RLS via `withTenant()`. FHIR resources attach `meta.accounts` pointing to the facility `Organization`.
-- **Ports:** `IdentityPort` (Medplum adapter) and `TenantResolver` (static adapter now, host-based later) keep providers and tenancy swappable.
-- **Deferred on purpose:** subdomain routing, tenant registry and multi-tenant provisioner wait for Customer #2.
+- **Tenant-Ready Data Layer:** App Postgres tables include `tenant_id uuid NOT NULL` and `facility_id text NULL`. FHIR resources attach `meta.accounts` pointing to the facility `Organization`.
+- **Ports:** `IdentityPort` (Medplum adapter) and `TenantResolver` (static single-facility adapter now, host-based later) keep providers and tenancy swappable.
+- **Deferred on purpose:** subdomain routing, tenant registry and multi-tenant provisioner wait for Phase 2 ([`future-multi-tenancy-architecture.md`](future-multi-tenancy-architecture.md)).
 
 Work that **does not need Medplum** can start now (P05a–P05g in §13). P05h–P05j wait for P02/P04.
 

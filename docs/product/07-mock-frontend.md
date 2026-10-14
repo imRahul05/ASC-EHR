@@ -1,12 +1,16 @@
 # 07 — Mock Frontend: End-to-End Clickable Workflow
 
-**Purpose:** a complete, production-looking web frontend for the GI ASC EHR that runs **with no backend**. Every
-screen talks to `@asc/api-client` exactly as production will; in dev, MSW (`apps/web/src/mocks`) answers from an
-in-memory demo database. When `apps/api` + Medplum land (P02–P05), only the MSW layer is removed.
+**Purpose:** A complete, production-grade web frontend for the GI ASC EHR that runs both against the **live API (`apps/api` + Medplum)** and in **standalone demo mode** via Mock Service Worker (MSW, `apps/web/src/mocks`).
+
+> **Progressive Mounting & Lockstep Mock Alignment (ADR 2026-10-14):**
+> 1. **Lockstep Maintenance:** MSW handlers are maintained in lockstep with mounted clinical routes. When an API endpoint is created or updated in `apps/api`, its mock handler in `apps/web/src/mocks` is updated in the same pull request.
+> 2. **Progressive Mounting:** Only routes whose backend interfaces are actively supported are mounted in the live App Router and navigation. Dormant Phase 2 screens (such as the consumer patient portal) remain preserved in `src/features/portal/` but are unmounted from the staff dashboard to eliminate unhandled 404s and bundle bloat.
+> 3. **Consistent Walkthroughs:** Running with `NEXT_PUBLIC_API_MOCKING=enabled` provides an end-to-end clinical walkthrough matching the active release phase without dead-end links or disabled buttons.
 
 Sources: [01 requirements](01-requirements.md) · [03 architecture](03-target-architecture.md) ·
 [04 flows](04-end-to-end-flows.md) · [06 MindScript integration](06-mindscript-integration.md) ·
-[MindScript How It Works](../MindScript-How-It-Works.md) · [UI guidelines](../agent/ui-guidelines.md).
+[MindScript How It Works](../MindScript-How-It-Works.md) · [UI guidelines](../agent/ui-guidelines.md) ·
+[ADR: Single-Facility Day-1 Architecture](../decisions/2026-10-14-single-facility-progressive-mounting-and-mock-alignment.md).
 
 All data is synthetic. No real patient data anywhere (fixtures, screenshots, seeds).
 
