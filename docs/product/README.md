@@ -5,24 +5,25 @@
 
 ## Read in this order
 
-| # | Document | Answers |
-|---|----------|---------|
-| 1 | [Requirements](01-requirements.md) | *What do we need?* Every module, per phase, with GI-specific acceptance criteria and non-functional requirements. |
-| 2 | [Build / Reuse / Medplum matrix](02-build-reuse-matrix.md) | *What already exists (MindScript), what Medplum gives us free, what we must build, and what we must NOT build.* |
-| 3 | [Target architecture](03-target-architecture.md) | *How it fits together:* system context, containers, FHIR data model, package layout, security, Azure deployment. |
-| 4 | [End-to-end flows](04-end-to-end-flows.md) | Mermaid flows for the whole patient journey and each critical sub-flow. |
-| 5 | [Delivery plan & open questions](05-delivery-plan.md) | Critical path to go-live, workstreams, risks, decisions still owed by physicians/business. |
-| 6 | [MindScript integration](06-mindscript-integration.md) | *What MindScript really is* (from the dev team's [How It Works](../MindScript-How-It-Works.md)), which earlier reuse claims were wrong, and how faxagnet, Integuru/eCW, Deepgram and MindScript code wire into this repo. |
-| 8 | [Identity, access control & multi-tenancy](08-identity-access-and-tenancy.md) | *Who can do what, in which hospital:* Medplum auth decision, tenant/facility model, RBAC via capabilities + role templates, realtime and service-to-service security, IAM phase plan. |
-| ▶ | [Implementation plan](../plan/implementation-plan.md) | *How we build it:* 27 short phases, dependency matrices, target file tree, package versions; live status in [`PROGRESS.md`](../../PROGRESS.md). |
-| A | [Feature traceability appendix](appendix-feature-traceability.md) | All 140 roadmap rows → phase, MindScript reuse, Medplum primitive, build type. |
-| ADR | [Adopt Medplum as clinical data platform](../decisions/2026-09-25-adopt-medplum-as-clinical-data-platform.md) | Proposed decision record. |
+| #   | Document                                                                                                      | Answers                                                                                                                                                                                                                   |
+| --- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | [Requirements](01-requirements.md)                                                                            | _What do we need?_ Every module, per phase, with GI-specific acceptance criteria and non-functional requirements.                                                                                                         |
+| 2   | [Build / Reuse / Medplum matrix](02-build-reuse-matrix.md)                                                    | _What already exists (MindScript), what Medplum gives us free, what we must build, and what we must NOT build._                                                                                                           |
+| 3   | [Target architecture](03-target-architecture.md)                                                              | _How it fits together:_ system context, containers, FHIR data model, package layout, security, Azure deployment.                                                                                                          |
+| 4   | [End-to-end flows](04-end-to-end-flows.md)                                                                    | Mermaid flows for the whole patient journey and each critical sub-flow.                                                                                                                                                   |
+| 5   | [Delivery plan & open questions](05-delivery-plan.md)                                                         | Critical path to go-live, workstreams, risks, decisions still owed by physicians/business.                                                                                                                                |
+| 6   | [MindScript integration](06-mindscript-integration.md)                                                        | _What MindScript really is_ (from the dev team's [How It Works](../MindScript-How-It-Works.md)), which earlier reuse claims were wrong, and how faxagnet, Integuru/eCW, Deepgram and MindScript code wire into this repo. |
+| 8   | [Identity, access control & multi-tenancy](08-identity-access-and-tenancy.md)                                 | _Who can do what, in which hospital:_ Medplum auth decision, tenant/facility model, RBAC via capabilities + role templates, realtime and service-to-service security, IAM phase plan.                                     |
+| 9   | [Clinical safety: Stage vs. Readiness & Hard Gates](09-clinical-safety-and-stage-readiness.md)                | _How cases progress safely:_ Decoupled stage & readiness model, Hard Gates 1/2/3, Scope Hang-Time lock (168h), non-waivable rules, and FHIR mapping.                                                                      |
+| ▶   | [Implementation plan](../plan/implementation-plan.md)                                                         | _How we build it:_ 27 short phases, dependency matrices, target file tree, package versions; live status in [`PROGRESS.md`](../../PROGRESS.md).                                                                           |
+| A   | [Feature traceability appendix](appendix-feature-traceability.md)                                             | All 140 roadmap rows → phase, MindScript reuse, Medplum primitive, build type.                                                                                                                                            |
+| ADR | [Adopt Medplum as clinical data platform](../decisions/2026-09-25-adopt-medplum-as-clinical-data-platform.md) | Proposed decision record.                                                                                                                                                                                                 |
 
 ## Executive summary
 
 **Product.** An AI-native EHR for a gastroenterology ambulatory surgery center (colonoscopy / EGD first). Phase 1 is the legal + operational minimum to open: scheduling, registration, H&P, nursing, procedure note, image capture, anesthesia (AIMS), PACU/discharge, specimen tracking, consents, coding + charge **hand-off**, security/audit.
 
-**The wedge.** Incumbents (gGastro, Provation) drive a navigation tree of forms. We generate structured documentation from clinician narration and confirmed data — *the interface is the AI*. That is the only part worth being original about. Everything underneath it is commodity healthcare plumbing.
+**The wedge.** Incumbents (gGastro, Provation) drive a navigation tree of forms. We generate structured documentation from clinician narration and confirmed data — _the interface is the AI_. That is the only part worth being original about. Everything underneath it is commodity healthcare plumbing.
 
 **The leverage.** Three sources cover most of the surface so we write only the wedge + GI-specific logic:
 
@@ -46,11 +47,11 @@ flowchart LR
 
 **Five decisions this doc recommends** (details in the linked sections):
 
-1. **Medplum self-hosted on Azure is the system of record** (FHIR R4). Our Fastify API becomes a thin *command* layer for GI domain logic; reads go straight to Medplum under the user's token. → [ADR](../decisions/2026-09-25-adopt-medplum-as-clinical-data-platform.md)
+1. **Medplum self-hosted on Azure is the system of record** (FHIR R4). Our Fastify API becomes a thin _command_ layer for GI domain logic; reads go straight to Medplum under the user's token. → [ADR](../decisions/2026-09-25-adopt-medplum-as-clinical-data-platform.md)
 2. **UI stays on `@asc/ui` (shadcn/Base UI)** using headless `@medplum/react-hooks` + `@medplum/core`. `@medplum/react` (Mantine) is allowed only in internal admin tooling; the Medplum App is our Phase-1 admin console.
 3. **Forms are data, not code.** H&P, nursing, time-out, Aldrete, consent, VTE, adverse event = FHIR `Questionnaire`s rendered by one renderer we build once; extraction to `Observation`s via Bots.
 4. **One worklist engine = FHIR `Task`.** Sign Queue, Recovery Queue (pathology), prep escalation, eligibility failures, outstanding specimens all are `Task`s auto-created/resolved by Bots.
-5. **Move three items into Phase 1** that the spec had left out or later: *scope reprocessing log*, *basic adverse-event reporting*, *auto-fax of referring letter* (the letter is generated anyway; MindScript fax pipeline exists).
+5. **Move three items into Phase 1** that the spec had left out or later: _scope reprocessing log_, _basic adverse-event reporting_, _auto-fax of referring letter_ (the letter is generated anyway; MindScript fax pipeline exists).
 
 **MindScript reality check (2026-09-27):** the dev-team overview changes several reuse assumptions — MindScript's "Recovery queue" is cancelled-appointment follow-up (not pathology), Sign Queue is unconfirmed, fax is a separate service (faxagnet), and an eCW bridge already exists. See [06](06-mindscript-integration.md).
 
