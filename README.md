@@ -17,34 +17,35 @@ Designed to govern the entire perioperative continuum from inbound fax referral 
 
 ## Delivery Status & Implementation Roadmap
 
-Every story and acceptance criterion in this repository traces directly to **Anurag Chatterjee's Master Build Specification** (`build_specification.md`) and **Requirements Document** (`requirements_document.md`).
+```mermaid
+flowchart LR
+    classDef done fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff,rx:6px,ry:6px
+    classDef active fill:#3b82f6,stroke:#1d4ed8,stroke-width:2px,color:#fff,rx:6px,ry:6px
+    classDef planned fill:#475569,stroke:#334155,stroke-width:2px,color:#94a3b8,rx:6px,ry:6px
 
-| Phase             | Master Epics               | Scope & Milestone Deliverables                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Target Horizon            | Status                                 |
-| ----------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | -------------------------------------- |
-| **Phase 1**       | **EP-A, EP-B, EP-C**       | **Foundation, Referral Intake & Registration, Scheduling & Whiteboard**<br>• Core configuration, RBAC, capabilities, durable HIPAA audit (`audit_events`)<br>• Isomorphic FHIR R4 builders (`@asc/fhir`) & Medplum 5.1.42 integration<br>• Patient registration, duplicate match engine, coverage intake (`P14a/b`)<br>• Case scheduling, conflict engine, booking API, double-checked idempotency (`P15a`)<br>• Whiteboard TV Kiosk with strict initials-only PHI redaction (`P15b` / PR #79)                                                                                                             | 6 weeks before opening    | **100% COMPLETE**<br>_(PR #79 merged)_ |
-| **Phase 2**       | **EP-D, EP-E**             | **Financial Clearance, Pre-Op Readiness & Hard Gate 1**<br>• **P15c**: Live Case Read, Schedule & Stage Transition Backend APIs (`GET /schedule`, `GET /cases/:id`, `POST /cases/:id/transition`)<br>• **P17**: Pre-op nursing, digital tablet consent (`SignaturePad` + signed PDF rendering), and Gate 1 enforcement (`arrived` ➔ `preop`)<br>• **P16**: Pre-procedure H&P review, 30-day update note, and anticoagulation drug-hold rules engine<br>• **P22a**: Financial clearance pipeline, 270/271 eligibility monitor, 278 auth revalidation, Good-Faith Estimates & patient payment                | 4 weeks before opening    | **CURRENT FOCUS / ACTIVE**             |
-| **Phase 3**       | **EP-F, EP-G, EP-H, EP-I** | **Day of Surgery, Clinical Documentation, Specimens & Scope Reprocessing**<br>• **EP-F**: Gate 2 multi-role timeout, continuous AIMS vital signs, intra-op room event log, PACU recovery (Aldrete score), Gate 3 discharge<br>• **EP-G**: Discrete findings (Paris classification), BBPS scoring, live cecal withdrawal timer, procedure note signing & immutability<br>• **EP-H**: Closed-loop pathology, container barcoding, 2-year open-specimen register, 1-hour critical result routing<br>• **EP-I**: Scope reprocessing log, serial barcode tracking, **168-hour hang-time lock (zero overrides)** | 2 weeks before opening    | **PLANNED**                            |
-| **Phase 4**       | **EP-J, EP-K**             | **Coding & Multiple Endoscopy Engine, Claims & Clearinghouse Cycle**<br>• **EP-J**: Derivation of CPT/ICD codes from structured findings, modifier PT/33 (screening ➔ therapeutic conversion), multiple endoscopy reduction rules, Gate 3 physician code approval<br>• **EP-K**: Native 837 claim export, 277CA acceptance tracking, 835 remittance posting, denial worklists & appeal management                                                                                                                                                                                                          | Opening week              | **PLANNED**                            |
-| **Phase 5**       | **EP-L**                   | **Quality, QAPI & Surveillance Recall Ladder**<br>• Adenoma Detection Rate (ADR) calculation, prep adequacy reporting, perforation & hospital transfer tracking<br>• CMS ASCQR export without manual abstraction<br>• Multi-year surveillance recall register with automated patient outreach ladder                                                                                                                                                                                                                                                                                                       | Within 30 days of opening | **BACKLOG**                            |
-| **Cross-Cutting** | **EP-M**                   | **AI Agent Layer with Strict Human-in-the-Loop Commit Boundary**<br>• Ships alongside automated epics (intake, clearance, scribe, coding suggestions)<br>• **Strict Boundary**: Agents propose; agents NEVER sign notes, approve codes, waive checks, or pass hard gates                                                                                                                                                                                                                                                                                                                                   | All phases                | **ACTIVE**                             |
+    subgraph Roadmap ["ASC OS Delivery Status · Overall Progress: ~28% (34 / 130 Stories)"]
+        direction LR
+        P1["<b>Phase 1: Intake & Scheduling</b><br/>EP-A · EP-B · EP-C<br/>✅ <b>100% COMPLETE</b>"]:::done
+        P2["<b>Phase 2: Financial & Pre-Op</b><br/>EP-D · EP-E<br/>🔄 <b>25% ACTIVE</b>"]:::active
+        P3["<b>Phase 3: Day of Surgery</b><br/>EP-F · EP-G · EP-H · EP-I<br/>⏳ <b>0% PLANNED</b>"]:::planned
+        P4["<b>Phase 4: Coding & Claims</b><br/>EP-J · EP-K<br/>⏳ <b>0% PLANNED</b>"]:::planned
+        P5["<b>Phase 5: QAPI & Recall</b><br/>EP-L<br/>📋 <b>0% BACKLOG</b>"]:::planned
 
-> [!IMPORTANT]
-> **Single Source of Truth:** Track granular sprint progression, daily commits, and blocking external lead-time escalations in [PROGRESS.md](PROGRESS.md). Consult [docs/plan/implementation-plan.md](docs/plan/implementation-plan.md) for the master architectural roadmap.
+        P1 ==> P2 -.-> P3 -.-> P4 -.-> P5
+    end
+```
 
----
+```text
+Total Delivery Progress: [██████░░░░░░░░░░░░░░] 28% Complete
 
-## Product Vision & Clinical Context
+Phase 1  [██████████] 100%  COMPLETE  │ Foundation, Intake & Scheduling (PR #79 merged)
+Phase 2  [███░░░░░░░]  25%  ACTIVE    │ Financial Clearance & Pre-Op Readiness (P15c, P17, P16, P22a)
+Phase 3  [░░░░░░░░░░]   0%  PLANNED   │ Day of Surgery, Documentation, Pathology & Scopes
+Phase 4  [░░░░░░░░░░]   0%  PLANNED   │ Coding Engine, Multiple Endoscopy & Claims Cycle
+Phase 5  [░░░░░░░░░░]   0%  BACKLOG   │ Quality, QAPI & Surveillance Recall Ladder
+```
 
-Generic hospital EHRs fail ambulatory surgery centers. In a busy single-specialty GI endoscopy center:
-
-- **Turnover velocity is extreme:** Dr. R (Endoscopist) performs 12 to 14 procedures per block day, with as little as 90 seconds between cases. Screens requiring more than two taps or repeated confirmations cause abandonment.
-- **Nursing interruptions are continuous:** Nina (Pre-Op Nurse) balances up to 8 patients simultaneously. Work-in-progress must never be lost when interrupted mid-entry.
-- **In-room operation is hands-free or one-handed:** Carl (Circulator) stands gloved with one hand on the patient. Intra-procedure saves must complete within 500 ms (NFR-2) without keyboard dependency.
-- **Front desk needs instantaneous financial answers:** Rosa (Front Desk) must instantly answer _"What do I owe today?"_ with computed deductible, coinsurance, and copay before the patient leaves reception.
-- **Coding requires surgical specificity:** Mo (Coder) must audit AI-derived codes back to exact note passages, applying CMS multiple-endoscopy reduction rules, distinct anatomical site modifiers (59/X), and screening-to-therapeutic conversions (modifier PT for Medicare, modifier 33 for commercial).
-- **Accreditation and Safety require non-negotiable guarantees:** Ana (Administrator) must prove record completeness, H&P currency (< 30 days), sterile scope hang-time (< 168 hours), and complete specimen custody to AAAHC, ACHC, or Joint Commission surveyors.
-
-ASC EHR was architected from the ground up to solve these clinical realities without legacy baggage.
+> 📖 **Detailed Sprint Tracking:** See [PROGRESS.md](PROGRESS.md) for granular task breakdowns, daily commits, and blocking lead-time items. See [docs/plan/implementation-plan.md](docs/plan/implementation-plan.md) for the master phase architecture.
 
 ---
 
@@ -219,16 +220,16 @@ flowchart TD
 
 ### Technology Matrix
 
-| Layer             | Technology                        | Version                     | Architectural Responsibility                                                               |
-| ----------------- | --------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------ |
-| **Monorepo**      | Turborepo + pnpm                  | Turborepo 2.11 · pnpm 10.26 | Strict workspace boundaries, package caching, zero circular dependencies                   |
-| **Frontend**      | Next.js App Router                | Next.js 16.0 · React 19.0   | Server & Client Components, accessible clinical forms, Whiteboard TV Kiosk                 |
-| **UI Kit**        | Tailwind CSS v4 + Radix / Base UI | Tailwind 4.0 · Base UI      | Arm's-length touch targets ($\ge 44\text{ px}$), high-contrast clinical themes             |
-| **API Server**    | Fastify                           | Fastify 5.0                 | High-performance JSON-schema validation, default-deny 5-gate security spine                |
-| **Clinical Core** | Medplum Server & Bots             | Medplum 5.1.42 (FHIR R4)    | Self-hosted FHIR datastore, OAuth2/OIDC IdP, immutable audit & FHIR subscriptions          |
-| **App Database**  | PostgreSQL + Drizzle ORM          | Postgres 16 · Drizzle 0.34  | Multi-tenant isolation via PostgreSQL Row-Level Security (`withTenant`), append-only audit |
-| **Job Queues**    | BullMQ + Redis                    | BullMQ 5.53 · Redis 7.2     | Asynchronous background pipelines (claims, PDF consent, notification sweeps)               |
-| **Language**      | TypeScript                        | TypeScript 7.0 (Strict)     | Zero `any` or `unknown` types across all packages; strict lint enforcement                 |
+| Layer             | Component           | Stack & Version                                                                                                                                                                                     | Architectural Responsibility                                                               |
+| ----------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| **Monorepo**      | Build & Workspaces  | [![Turborepo](https://img.shields.io/badge/Turborepo-2.11-ef4444.svg)](https://turbo.build/repo) [![pnpm](https://img.shields.io/badge/pnpm-10.26-orange.svg)](https://pnpm.io/)                    | Strict workspace boundaries, package caching, zero circular dependencies                   |
+| **Frontend**      | Clinical Web App    | [![Next.js](https://img.shields.io/badge/Next.js-16.0-black.svg)](https://nextjs.org/) [![React](https://img.shields.io/badge/React-19.0-61dafb.svg)](https://react.dev/)                           | Next.js App Router, Server/Client Components, accessible clinical forms, Whiteboard Kiosk  |
+| **UI Kit**        | Clinical Components | [![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-38bdf8.svg)](https://tailwindcss.com/) [![shadcn](https://img.shields.io/badge/UI-shadcn%20%2B%20Base-black.svg)](https://ui.shadcn.com/) | Arm's-length touch targets ($\ge 44\text{ px}$), high-contrast clinical themes             |
+| **API Server**    | Security Spine API  | [![Fastify](https://img.shields.io/badge/Fastify-5.0-22c55e.svg)](https://fastify.dev/)                                                                                                             | High-performance schema validation, default-deny 5-gate security spine                     |
+| **Clinical Core** | FHIR Datastore      | [![Medplum](https://img.shields.io/badge/Medplum-5.1.42-3b82f6.svg)](https://medplum.com/)                                                                                                          | Self-hosted FHIR R4 engine, OAuth2/OIDC IdP, immutable audit & FHIR subscriptions          |
+| **App Database**  | Multitenant DB      | [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791.svg)](https://www.postgresql.org/) [![Drizzle](https://img.shields.io/badge/Drizzle-0.34-c5f015.svg)](https://orm.drizzle.team/)   | Multi-tenant isolation via PostgreSQL Row-Level Security (`withTenant`), append-only audit |
+| **Job Queues**    | Background Workers  | [![BullMQ](https://img.shields.io/badge/BullMQ-5.53-d82c20.svg)](https://bullmq.io/) [![Redis](https://img.shields.io/badge/Redis-7.2-dc382d.svg)](https://redis.io/)                               | Asynchronous background pipelines (claims, PDF consent, notification sweeps)               |
+| **Type Safety**   | Language Standard   | [![TypeScript](https://img.shields.io/badge/TypeScript-7.0%20Strict-3178c6.svg)](https://www.typescriptlang.org/)                                                                                   | Zero `any` or `unknown` types across all packages; strict compile-time checks              |
 
 ---
 
