@@ -66,7 +66,11 @@ export const getScheduleQuerySchema = z.object({
       );
     }, "Date must be a valid calendar date")
     .optional(),
-  facilityId: z.string().trim().min(1).optional(),
+  facilityId: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9.-]{1,64}$/, "Invalid facility ID format")
+    .optional(),
 });
 
 export type GetScheduleQuery = z.infer<typeof getScheduleQuerySchema>;

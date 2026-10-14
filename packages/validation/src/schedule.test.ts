@@ -48,4 +48,9 @@ describe("getScheduleQuerySchema", () => {
     const invalid = getScheduleQuerySchema.safeParse({ facilityId: "   " });
     expect(invalid.success).toBe(false);
   });
+
+  it("rejects invalid facilityId format", () => {
+    const invalid = getScheduleQuerySchema.safeParse({ facilityId: "invalid/id" });
+    expect(invalid.success).toBe(false);
+  });
 });
