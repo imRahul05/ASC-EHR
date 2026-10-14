@@ -37,7 +37,8 @@ export const queryKeys = {
     all: ["worklist"] as const,
     list: (query: WorklistQuery = {}) => ["worklist", query] as const,
   },
-  whiteboard: ["whiteboard"] as const,
+  whiteboard: (params?: { readonly mode?: "tv" | "clinical"; readonly facilityId?: string }) =>
+    ["whiteboard", params?.mode ?? "clinical", params?.facilityId ?? ""] as const,
   quality: ["quality"] as const,
   audit: {
     all: ["audit"] as const,

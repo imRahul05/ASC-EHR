@@ -3,6 +3,7 @@ import type { ProcedureIntent } from "@asc/types";
 import { facilityMeta, instant, narrativeText, reference, text } from "@asc/fhir/builders/common";
 import { isProcedureIntent } from "@asc/fhir/case-phase";
 import { procedureIntentExtension } from "@asc/fhir/extensions";
+import { bookingIdempotencyIdentifier } from "@asc/fhir/identifiers";
 import { type FhirUrls, fhirUrls } from "@asc/fhir/urls";
 
 export const CPT_CODE_SYSTEM = "http://www.ama-assn.org/go/cpt";
@@ -17,6 +18,8 @@ export interface ServiceRequestInput {
   readonly requesterId?: string;
   readonly notes?: string;
   readonly authoredOn?: string;
+  readonly idempotencyKey?: string;
+  readonly basedOnId?: string;
 }
 
 /**
@@ -48,6 +51,9 @@ export function buildServiceRequest(input: ServiceRequestInput, urls: FhirUrls =
       text: primaryCode,
     },
     subject: reference<Patient>("Patient", input.patientId, "patient id"),
+    ...(input.idempotencyKey === undefined
+      ? {}
+      : { identifier: [bookingIdempotencyIdentifier(input.idempotencyKey, urls)] }),
     ...(input.encounterId === undefined
       ? {}
       : { encounter: reference<Encounter>("Encounter", input.encounterId, "encounter id") }),
@@ -58,5 +64,8 @@ export function buildServiceRequest(input: ServiceRequestInput, urls: FhirUrls =
     ...(input.notes === undefined
       ? {}
       : { note: [{ text: narrativeText(input.notes, "service request notes", 500) }] }),
+    ...(input.basedOnId === undefined
+      ? {}
+      : { basedOn: [reference<ServiceRequest>("ServiceRequest", input.basedOnId, "based on referral id")] }),
   };
 }

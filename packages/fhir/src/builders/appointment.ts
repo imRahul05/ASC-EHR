@@ -1,5 +1,7 @@
 import type { Appointment, Location, Patient, Practitioner } from "@medplum/fhirtypes";
 import { facilityMeta, instant, narrativeText, reference } from "@asc/fhir/builders/common";
+import { bookingIdempotencyIdentifier } from "@asc/fhir/identifiers";
+import { type FhirUrls, fhirUrls } from "@asc/fhir/urls";
 
 type Participant = NonNullable<Appointment["participant"]>[number];
 
@@ -15,10 +17,11 @@ export interface AppointmentInput {
   readonly anesthesiologistId?: string;
   readonly practitionerIds?: readonly string[];
   readonly description?: string;
+  readonly idempotencyKey?: string;
 }
 
 /** A booked slot for one patient at one facility. The matching case is the Encounter (`buildCaseEncounter`). */
-export function buildAppointment(input: AppointmentInput): Appointment {
+export function buildAppointment(input: AppointmentInput, urls: FhirUrls = fhirUrls): Appointment {
   const start = instant(input.start, "appointment start");
   const end = instant(input.end, "appointment end");
   if (Date.parse(end) <= Date.parse(start)) throw new Error("invalid appointment time range");
@@ -59,6 +62,7 @@ export function buildAppointment(input: AppointmentInput): Appointment {
     start,
     end,
     participant,
+    ...(input.idempotencyKey === undefined ? {} : { identifier: [bookingIdempotencyIdentifier(input.idempotencyKey, urls)] }),
     ...(input.description === undefined ? {} : { description: narrativeText(input.description, "appointment description") }),
   };
 }

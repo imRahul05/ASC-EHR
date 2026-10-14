@@ -52,6 +52,7 @@ const ALLOWED: Readonly<Record<keyof typeof ROUTE_ACCESS, readonly Persona[]>> =
   patients: STAFF,
   referrals: ["surgeon", "nurse", "admin", "floatAtMetro", "floatAtLakeside"],
   whiteboard: STAFF,
+  board: STAFF,
   cases: STAFF,
   worklist: STAFF,
   pathology: ["surgeon", "nurse", "floatAtMetro", "floatAtLakeside"],

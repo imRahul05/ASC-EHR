@@ -19,7 +19,10 @@ import type {
   SignConsentPayload,
   TransitionCasePayload,
 } from "@asc/types";
+import type { BookCaseInput, BookCaseResult } from "@asc/validation/cases/book";
 import { http } from "../http";
+
+export type BookCaseResponse = BookCaseResult & Partial<ProcedureCase>;
 
 // ─── Schedule ───────────────────────────────────────────────────────────────
 
@@ -33,9 +36,10 @@ export function checkScheduleConflicts(payload: BookCasePayload): Promise<Confli
   return http.post(API_ROUTES.scheduleConflicts, payload);
 }
 
-/** Books a case (phase SCHEDULED). Rejects 409 `SCHEDULE_CONFLICT` with conflicts in `details`. */
-export function bookCase(payload: BookCasePayload): Promise<ProcedureCase> {
-  return http.post(API_ROUTES.cases, payload);
+/** Books a case into an operating room (POST /cases). Rejects 409 conflict with structured reasons in `details` and `reasons`. */
+export function bookCase(payload: BookCaseInput | BookCasePayload): Promise<BookCaseResponse> {
+  const headers = payload.idempotencyKey ? { "x-idempotency-key": payload.idempotencyKey } : undefined;
+  return http.post(API_ROUTES.cases, payload, { headers });
 }
 
 // ─── Case workspace ─────────────────────────────────────────────────────────

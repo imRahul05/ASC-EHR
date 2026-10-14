@@ -1,72 +1,12 @@
 import { forFacility } from "@asc/api-client/server";
 import { facilityGrant, staffPrincipal } from "@asc/authz/testing";
-import { ClientStorage, MemoryStorage, ReadablePromise, type WithId } from "@medplum/core";
-import type { Appointment, Bundle, ExtractResource, ResourceType } from "@medplum/fhirtypes";
-import { MockClient as BaseMockClient } from "@medplum/mock";
+import { bookingIdempotencyIdentifier } from "@asc/fhir";
+import type { Appointment } from "@medplum/fhirtypes";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { buildTestApp } from "../testing/test-app.js";
-
-type MedplumQuery = Parameters<BaseMockClient["search"]>[1];
-type MedplumOptions = Parameters<BaseMockClient["search"]>[2];
-
-class MockClient extends BaseMockClient {
-  constructor() {
-    super({ storage: new ClientStorage(new MemoryStorage()) });
-  }
-
-  override search<RT extends ResourceType>(
-    resourceType: RT,
-    query?: MedplumQuery,
-    options?: MedplumOptions,
-  ): ReadablePromise<Bundle<WithId<ExtractResource<RT>>>> {
-    let accountFilter: string | undefined;
-    let dateFilter: string | undefined;
-    let cleanQuery = query;
-
-    if (
-      query !== undefined &&
-      typeof query === "object" &&
-      !(query instanceof URLSearchParams) &&
-      !Array.isArray(query) &&
-      !("resourceType" in query)
-    ) {
-      const copy: Record<string, string | number | boolean | undefined> = { ...query };
-      const rawAccount = copy["_account"];
-      if (typeof rawAccount === "string") {
-        accountFilter = rawAccount;
-        delete copy["_account"];
-      }
-      const rawDate = copy["date"];
-      if (typeof rawDate === "string") {
-        dateFilter = rawDate;
-        delete copy["date"];
-      }
-      cleanQuery = copy;
-    }
-
-    const bundlePromise = super.search(resourceType, cleanQuery, options).then((bundle) => {
-      let filteredEntries = bundle.entry;
-      if (accountFilter !== undefined) {
-        filteredEntries = filteredEntries?.filter((e) =>
-          e.resource?.meta?.accounts?.some((a) => a.reference === accountFilter),
-        );
-      }
-      if (dateFilter !== undefined) {
-        filteredEntries = filteredEntries?.filter((e) => {
-          const appItem = e.resource as Appointment | undefined;
-          return appItem?.start?.startsWith(dateFilter);
-        });
-      }
-      return {
-        ...bundle,
-        total: filteredEntries?.length ?? 0,
-        entry: filteredEntries !== undefined && filteredEntries.length > 0 ? filteredEntries : undefined,
-      };
-    });
-    return new ReadablePromise(bundlePromise);
-  }
-}
+import { CasesMockClient as MockClient } from "../testing/mock-medplum.js";
+import { classifyMedplumReadError } from "./cases.js";
 
 type Built = Awaited<ReturnType<typeof buildTestApp>>;
 let built: Built | undefined;
@@ -80,6 +20,20 @@ const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
 
 const futureInstant = (offsetHours = 24) =>
   new Date(Date.now() + offsetHours * 3600 * 1000).toISOString();
+
+const seedPatient = (
+  medplum: MockClient,
+  facilityId: string,
+  patientId: string,
+  familyName = "Doe",
+  givenName = "Jane",
+) =>
+  forFacility(medplum, facilityId).create({
+    resourceType: "Patient",
+    id: patientId,
+    name: [{ family: familyName, given: [givenName] }],
+    birthDate: "1980-01-01",
+  });
 
 describe("Cases routes", () => {
   describe("POST /cases", () => {
@@ -251,6 +205,8 @@ describe("Cases routes", () => {
       const startMs = Date.parse(scheduledAt);
       const endMs = startMs + 45 * 60 * 1000;
 
+      await seedPatient(mockMedplum, "fac-a", "pat-new");
+
       // Seed existing booked appointment in room-1
       await forFacility(mockMedplum, "fac-a").create({
         resourceType: "Appointment",
@@ -306,6 +262,8 @@ describe("Cases routes", () => {
       const scheduledAt = futureInstant(96);
       const startMs = Date.parse(scheduledAt);
       const endMs = startMs + 60 * 60 * 1000;
+
+      await seedPatient(mockMedplum, "fac-a", "pat-2");
 
       // Seed existing appointment with doc-busy in room-2
       await forFacility(mockMedplum, "fac-a").create({
@@ -365,6 +323,8 @@ describe("Cases routes", () => {
       const startMs = Date.parse(scheduledAt);
       const endMs = startMs + 45 * 60 * 1000;
 
+      await seedPatient(mockMedplum, "fac-a", "pat-new");
+
       // Seed cancelled appointment in room-1 with doc-1
       await forFacility(mockMedplum, "fac-a").create({
         resourceType: "Appointment",
@@ -411,6 +371,8 @@ describe("Cases routes", () => {
       const scheduledAt = futureInstant(144);
       const startMs = Date.parse(scheduledAt);
       const endMs = startMs + 45 * 60 * 1000;
+
+      await seedPatient(mockMedplum, "fac-a", "pat-2");
 
       // Seed existing appointment with crna-1 in room-2
       await forFacility(mockMedplum, "fac-a").create({
@@ -463,6 +425,8 @@ describe("Cases routes", () => {
 
     it("handles empty notes '' and multiline notes without 500 errors", async () => {
       const mockMedplum = new MockClient();
+      await seedPatient(mockMedplum, "fac-a", "pat-1");
+      await seedPatient(mockMedplum, "fac-a", "pat-2");
 
       built = await buildTestApp({
         medplumBaseUrl: "http://localhost:8203/",
@@ -594,6 +558,8 @@ describe("Cases routes", () => {
         ],
       });
 
+      await seedPatient(mockMedplum, "fac-a", "pat-new");
+
       built = await buildTestApp({
         medplumBaseUrl: "http://localhost:8203/",
         createMedplumClient: () => mockMedplum,
@@ -624,5 +590,631 @@ describe("Cases routes", () => {
 
       expect(response.statusCode).toBe(201);
     });
+
+    it("detects room conflict across UTC date boundary when case spans into next UTC day", async () => {
+      const mockMedplum = new MockClient();
+      // 20:00 EDT (UTC-4) = 00:00 UTC next day
+      const existingStart = "2026-10-26T00:15:00.000Z";
+      const existingEnd = "2026-10-26T01:00:00.000Z";
+
+      await seedPatient(mockMedplum, "fac-a", "pat-utc-test");
+
+      await forFacility(mockMedplum, "fac-a").create<Appointment>({
+        resourceType: "Appointment",
+        status: "booked",
+        start: existingStart,
+        end: existingEnd,
+        participant: [
+          { actor: { reference: "Location/room-1" }, status: "accepted" },
+          { actor: { reference: "Practitioner/doc-dr-jones" }, status: "accepted" },
+        ],
+      });
+
+      const built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["front-desk"], ["schedule.manage"])],
+        "fd-fac-a",
+      );
+      built.identity.addToken("token-fd-fac-a", principal);
+
+      // Candidate at 00:30 UTC next day (overlapping the existing case)
+      const response = await built.app.inject({
+        method: "POST",
+        url: "/cases",
+        headers: bearer("token-fd-fac-a"),
+        payload: {
+          facilityId: "fac-a",
+          patientId: "pat-utc-test",
+          roomId: "room-1",
+          scheduledAt: "2026-10-26T00:30:00.000Z",
+          durationMinutes: 45,
+          primaryPhysicianId: "doc-dr-smith",
+          procedureIntent: "screening",
+          primaryProcedureCode: "45378",
+        },
+      });
+
+      expect(response.statusCode).toBe(409);
+      const json = response.json();
+      expect(json.code).toBe("conflict");
+      expect(json.reasons?.[0]?.code).toBe("ROOM_DOUBLE_BOOKED");
+    });
+
+    it("returns 404 when patient does not exist", async () => {
+      const mockMedplum = new MockClient();
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["front-desk"], ["schedule.manage"])],
+        "fd-fac-a",
+      );
+      built.identity.addToken("token-fd-fac-a", principal);
+
+      const response = await built.app.inject({
+        method: "POST",
+        url: "/cases",
+        headers: bearer("token-fd-fac-a"),
+        payload: {
+          facilityId: "fac-a",
+          patientId: "nonexistent-pat",
+          roomId: "room-1",
+          scheduledAt: futureInstant(24),
+          durationMinutes: 45,
+          primaryPhysicianId: "doc-1",
+          procedureIntent: "screening",
+          primaryProcedureCode: "45378",
+        },
+      });
+
+      expect(response.statusCode).toBe(404);
+      expect(response.json()).toMatchObject({ code: "patient_not_found" });
+    });
+
+    it("returns 403 when patient belongs to another facility (cross-facility protection)", async () => {
+      const mockMedplum = new MockClient();
+      // Patient belongs to fac-b only
+      await seedPatient(mockMedplum, "fac-b", "pat-b-only");
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["front-desk"], ["schedule.manage"])],
+        "fd-fac-a",
+      );
+      built.identity.addToken("token-fd-fac-a", principal);
+
+      const response = await built.app.inject({
+        method: "POST",
+        url: "/cases",
+        headers: bearer("token-fd-fac-a"),
+        payload: {
+          facilityId: "fac-a",
+          patientId: "pat-b-only",
+          roomId: "room-1",
+          scheduledAt: futureInstant(24),
+          durationMinutes: 45,
+          primaryPhysicianId: "doc-1",
+          procedureIntent: "screening",
+          primaryProcedureCode: "45378",
+        },
+      });
+
+      expect(response.statusCode).toBe(403);
+      expect(response.json()).toMatchObject({ code: "facility_access_denied" });
+
+      // Invariant: Patient was NOT modified or stamped with fac-a
+      const pat = await mockMedplum.readResource("Patient", "pat-b-only");
+      expect(pat.meta?.accounts?.some((a) => a.reference === "Organization/fac-a")).toBe(false);
+    });
+
+    it("recovers idempotently on duplicate booking retry without returning 409 conflict", async () => {
+      const mockMedplum = new MockClient();
+      await seedPatient(mockMedplum, "fac-a", "pat-idempotent");
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["front-desk"], ["schedule.manage"])],
+        "fd-fac-a",
+      );
+      built.identity.addToken("token-fd-fac-a", principal);
+
+      const scheduledAt = futureInstant(36);
+      const payload = {
+        facilityId: "fac-a",
+        patientId: "pat-idempotent",
+        roomId: "room-1",
+        scheduledAt,
+        durationMinutes: 45,
+        primaryPhysicianId: "doc-1",
+        procedureIntent: "screening",
+        primaryProcedureCode: "45378",
+      };
+
+      // 1. First booking -> 201 Created
+      const res1 = await built.app.inject({
+        method: "POST",
+        url: "/cases",
+        headers: { ...bearer("token-fd-fac-a"), "x-idempotency-key": "retry-key-abc" },
+        payload,
+      });
+      expect(res1.statusCode).toBe(201);
+      const json1 = res1.json();
+
+      // 2. Client retry with identical idempotency key -> 200 OK (idempotent recovery)
+      const res2 = await built.app.inject({
+        method: "POST",
+        url: "/cases",
+        headers: { ...bearer("token-fd-fac-a"), "x-idempotency-key": "retry-key-abc" },
+        payload,
+      });
+      expect(res2.statusCode).toBe(200);
+      const json2 = res2.json();
+      expect(json2.appointmentId).toBe(json1.appointmentId);
+      expect(json2.caseId).toBe(json1.caseId);
+    });
+
+    it("concurrency lock: serializes concurrent booking requests to avoid race conditions", async () => {
+      const mockMedplum = new MockClient();
+      await seedPatient(mockMedplum, "fac-a", "pat-concurrent-1");
+      await seedPatient(mockMedplum, "fac-a", "pat-concurrent-2");
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["front-desk"], ["schedule.manage"])],
+        "fd-fac-a",
+      );
+      built.identity.addToken("token-fd-fac-a", principal);
+
+      const scheduledAt = futureInstant(48);
+
+      // Two different patients attempt to book the exact same room at the exact same time concurrently
+      const [res1, res2] = await Promise.all([
+        built.app.inject({
+          method: "POST",
+          url: "/cases",
+          headers: bearer("token-fd-fac-a"),
+          payload: {
+            facilityId: "fac-a",
+            patientId: "pat-concurrent-1",
+            roomId: "room-3",
+            scheduledAt,
+            durationMinutes: 45,
+            primaryPhysicianId: "doc-dr-smith",
+            procedureIntent: "screening",
+            primaryProcedureCode: "45378",
+          },
+        }),
+        built.app.inject({
+          method: "POST",
+          url: "/cases",
+          headers: bearer("token-fd-fac-a"),
+          payload: {
+            facilityId: "fac-a",
+            patientId: "pat-concurrent-2",
+            roomId: "room-3",
+            scheduledAt,
+            durationMinutes: 45,
+            primaryPhysicianId: "doc-dr-jones",
+            procedureIntent: "diagnostic",
+            primaryProcedureCode: "43239",
+          },
+        }),
+      ]);
+
+      const statuses = [res1.statusCode, res2.statusCode].sort();
+      // Exactly one succeeds (201) and one is rejected with 409 conflict
+      expect(statuses).toEqual([201, 409]);
+    });
+
+    it("rejects booking with 400 invalid_room when roomId is not an ASC procedure room", async () => {
+      const mockMedplum = new MockClient();
+      await seedPatient(mockMedplum, "fac-a", "pat-room-test");
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["front-desk"], ["schedule.manage"])],
+        "fd-fac-a",
+      );
+      built.identity.addToken("token-fd-fac-a", principal);
+
+      const res = await built.app.inject({
+        method: "POST",
+        url: "/cases",
+        headers: bearer("token-fd-fac-a"),
+        payload: {
+          facilityId: "fac-a",
+          patientId: "pat-room-test",
+          roomId: "OR-99",
+          scheduledAt: futureInstant(10),
+          durationMinutes: 45,
+          primaryPhysicianId: "doc-1",
+          procedureIntent: "screening",
+          primaryProcedureCode: "45378",
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+      const body = res.json();
+      expect(body.code).toBe("invalid_room");
+      expect(body.message).toContain("OR-99");
+    });
+
+    it("rejects booking with 400 inactive_or_invalid_practitioner when primary physician is inactive", async () => {
+      const mockMedplum = new MockClient();
+      await seedPatient(mockMedplum, "fac-a", "pat-prac-test");
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["front-desk"], ["schedule.manage"])],
+        "fd-fac-a",
+      );
+      built.identity.addToken("token-fd-fac-a", principal);
+
+      const res = await built.app.inject({
+        method: "POST",
+        url: "/cases",
+        headers: bearer("token-fd-fac-a"),
+        payload: {
+          facilityId: "fac-a",
+          patientId: "pat-prac-test",
+          roomId: "room-1",
+          scheduledAt: futureInstant(12),
+          durationMinutes: 45,
+          primaryPhysicianId: "inactive-doc-smith",
+          procedureIntent: "screening",
+          primaryProcedureCode: "45378",
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+      const body = res.json();
+      expect(body.code).toBe("inactive_or_invalid_practitioner");
+      expect(body.message).toContain("inactive");
+    });
+
+    it("rejects booking with 400 inactive_or_invalid_practitioner when anesthesiologist is inactive", async () => {
+      const mockMedplum = new MockClient();
+      await seedPatient(mockMedplum, "fac-a", "pat-anes-test");
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["front-desk"], ["schedule.manage"])],
+        "fd-fac-a",
+      );
+      built.identity.addToken("token-fd-fac-a", principal);
+
+      const res = await built.app.inject({
+        method: "POST",
+        url: "/cases",
+        headers: bearer("token-fd-fac-a"),
+        payload: {
+          facilityId: "fac-a",
+          patientId: "pat-anes-test",
+          roomId: "room-1",
+          scheduledAt: futureInstant(14),
+          durationMinutes: 45,
+          primaryPhysicianId: "doc-1",
+          anesthesiologistId: "inactive-anes-dr",
+          procedureIntent: "screening",
+          primaryProcedureCode: "45378",
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+      const body = res.json();
+      expect(body.code).toBe("inactive_or_invalid_practitioner");
+      expect(body.message).toContain("inactive");
+    });
+
+    it("rejects booking with 404 primary_physician_not_found when primary physician is not found", async () => {
+      const mockMedplum = new MockClient();
+      await seedPatient(mockMedplum, "fac-a", "pat-nonexistent-doc");
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["front-desk"], ["schedule.manage"])],
+        "fd-fac-a",
+      );
+      built.identity.addToken("token-fd-fac-a", principal);
+
+      const res = await built.app.inject({
+        method: "POST",
+        url: "/cases",
+        headers: bearer("token-fd-fac-a"),
+        payload: {
+          facilityId: "fac-a",
+          patientId: "pat-nonexistent-doc",
+          roomId: "room-1",
+          scheduledAt: futureInstant(16),
+          durationMinutes: 45,
+          primaryPhysicianId: "nonexistent-doc-jones",
+          procedureIntent: "screening",
+          primaryProcedureCode: "45378",
+        },
+      });
+
+      expect(res.statusCode).toBe(404);
+      const body = res.json();
+      expect(body.code).toBe("primary_physician_not_found");
+    });
+
+    it("rejects booking with 403 forbidden when patient read returns forbidden", async () => {
+      const mockMedplum = new MockClient();
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["front-desk"], ["schedule.manage"])],
+        "fd-fac-a",
+      );
+      built.identity.addToken("token-fd-fac-a", principal);
+
+      const res = await built.app.inject({
+        method: "POST",
+        url: "/cases",
+        headers: bearer("token-fd-fac-a"),
+        payload: {
+          facilityId: "fac-a",
+          patientId: "forbidden-pat-secret",
+          roomId: "room-1",
+          scheduledAt: futureInstant(18),
+          durationMinutes: 45,
+          primaryPhysicianId: "doc-1",
+          procedureIntent: "screening",
+          primaryProcedureCode: "45378",
+        },
+      });
+
+      expect(res.statusCode).toBe(403);
+      const body = res.json();
+      expect(body.code).toBe("forbidden");
+    });
+
+    it("rejects booking with 503 upstream_service_unavailable when patient read encounters network timeout", async () => {
+      const mockMedplum = new MockClient();
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["front-desk"], ["schedule.manage"])],
+        "fd-fac-a",
+      );
+      built.identity.addToken("token-fd-fac-a", principal);
+
+      const res = await built.app.inject({
+        method: "POST",
+        url: "/cases",
+        headers: bearer("token-fd-fac-a"),
+        payload: {
+          facilityId: "fac-a",
+          patientId: "unavailable-pat-timeout",
+          roomId: "room-1",
+          scheduledAt: futureInstant(20),
+          durationMinutes: 45,
+          primaryPhysicianId: "doc-1",
+          procedureIntent: "screening",
+          primaryProcedureCode: "45378",
+        },
+      });
+
+      expect(res.statusCode).toBe(503);
+      const body = res.json();
+      expect(body.code).toBe("upstream_service_unavailable");
+    });
+
+    it("rejects booking with 409 idempotency_key_conflict when idempotency key was previously used for a different patient", async () => {
+      const mockMedplum = new MockClient();
+      await seedPatient(mockMedplum, "fac-a", "pat-user-alpha");
+      await seedPatient(mockMedplum, "fac-a", "pat-user-beta");
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["front-desk"], ["schedule.manage"])],
+        "fd-fac-a",
+      );
+      built.identity.addToken("token-fd-fac-a", principal);
+
+      const sharedKey = "shared-idempotency-key-123";
+
+      // 1. Initial booking for patient alpha
+      const res1 = await built.app.inject({
+        method: "POST",
+        url: "/cases",
+        headers: { ...bearer("token-fd-fac-a"), "x-idempotency-key": sharedKey },
+        payload: {
+          facilityId: "fac-a",
+          patientId: "pat-user-alpha",
+          roomId: "room-1",
+          scheduledAt: futureInstant(22),
+          durationMinutes: 45,
+          primaryPhysicianId: "doc-1",
+          procedureIntent: "screening",
+          primaryProcedureCode: "45378",
+        },
+      });
+      expect(res1.statusCode).toBe(201);
+
+      // 2. Duplicate booking with same key for patient beta -> 409 conflict
+      const res2 = await built.app.inject({
+        method: "POST",
+        url: "/cases",
+        headers: { ...bearer("token-fd-fac-a"), "x-idempotency-key": sharedKey },
+        payload: {
+          facilityId: "fac-a",
+          patientId: "pat-user-beta",
+          roomId: "room-2",
+          scheduledAt: futureInstant(24),
+          durationMinutes: 45,
+          primaryPhysicianId: "doc-1",
+          procedureIntent: "diagnostic",
+          primaryProcedureCode: "43239",
+        },
+      });
+      expect(res2.statusCode).toBe(409);
+      const body2 = res2.json();
+      expect(body2.code).toBe("idempotency_key_conflict");
+    });
+
+    it("fails safely with 500 incomplete_transaction when previous transaction is incomplete", async () => {
+      const mockMedplum = new MockClient();
+      await seedPatient(mockMedplum, "fac-a", "pat-partial");
+
+      // Manually seed an appointment with the idempotency key, but NO linked encounter or service request
+      const partialKey = "partial-failure-key-456";
+      await forFacility(mockMedplum, "fac-a").create({
+        resourceType: "Appointment",
+        status: "booked",
+        identifier: [bookingIdempotencyIdentifier(partialKey)],
+        start: futureInstant(26),
+        end: futureInstant(27),
+        participant: [
+          { actor: { reference: "Patient/pat-partial" }, status: "accepted" },
+          { actor: { reference: "Location/room-1" }, status: "accepted" },
+        ],
+      });
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["front-desk"], ["schedule.manage"])],
+        "fd-fac-a",
+      );
+      built.identity.addToken("token-fd-fac-a", principal);
+
+      const res = await built.app.inject({
+        method: "POST",
+        url: "/cases",
+        headers: { ...bearer("token-fd-fac-a"), "x-idempotency-key": partialKey },
+        payload: {
+          facilityId: "fac-a",
+          patientId: "pat-partial",
+          roomId: "room-1",
+          scheduledAt: futureInstant(26),
+          durationMinutes: 45,
+          primaryPhysicianId: "doc-1",
+          procedureIntent: "screening",
+          primaryProcedureCode: "45378",
+        },
+      });
+
+      expect(res.statusCode).toBe(500);
+      const body = res.json();
+      expect(body.code).toBe("incomplete_transaction");
+      expect(body.message).toContain("encounter is missing");
+    });
+  });
+
+  describe("classifyMedplumReadError", () => {
+    it("classifies 404 and not-found messages as not_found", () => {
+      const errStatus = Object.assign(new Error("Missing"), { status: 404 });
+      expect(classifyMedplumReadError(errStatus, "patient", "pat-99")).toEqual({
+        status: 404,
+        code: "patient_not_found",
+        message: "patient with ID pat-99 does not exist",
+      });
+
+      const errMessage = new Error("Patient not found in storage");
+      expect(classifyMedplumReadError(errMessage, "primary_physician", "doc-99")).toEqual({
+        status: 404,
+        code: "primary_physician_not_found",
+        message: "primary physician with ID doc-99 does not exist",
+      });
+    });
+
+    it("classifies 401/403 and forbidden messages as forbidden", () => {
+      const errForbidden = Object.assign(new Error("Forbidden"), { status: 403 });
+      expect(classifyMedplumReadError(errForbidden, "anesthesiologist", "anes-1")).toEqual({
+        status: 403,
+        code: "forbidden",
+        message: "Access denied reading anesthesiologist anes-1",
+      });
+
+      const errUnauthorized = new Error("Unauthorized access");
+      expect(classifyMedplumReadError(errUnauthorized, "patient", "pat-1")).toEqual({
+        status: 403,
+        code: "forbidden",
+        message: "Access denied reading patient pat-1",
+      });
+    });
+
+    it("classifies 502/503/504 and network errors as upstream_service_unavailable", () => {
+      const err503 = Object.assign(new Error("Service Unavailable"), { status: 503 });
+      expect(classifyMedplumReadError(err503, "patient", "pat-1")).toEqual({
+        status: 503,
+        code: "upstream_service_unavailable",
+        message: "Upstream clinical data service is temporarily unavailable",
+      });
+
+      const errTimeout = new Error("Gateway connection timeout");
+      expect(classifyMedplumReadError(errTimeout, "patient", "pat-1")).toEqual({
+        status: 503,
+        code: "upstream_service_unavailable",
+        message: "Upstream clinical data service is temporarily unavailable",
+      });
+
+      const errConnRefused = new Error("read ECONNREFUSED 127.0.0.1:8203");
+      expect(classifyMedplumReadError(errConnRefused, "primary_physician", "doc-1")).toEqual({
+        status: 503,
+        code: "upstream_service_unavailable",
+        message: "Upstream clinical data service is temporarily unavailable",
+      });
+    });
+
+    it("classifies unexpected errors as internal_error", () => {
+      const err500 = Object.assign(new Error("Database crash"), { status: 500 });
+      expect(classifyMedplumReadError(err500, "patient", "pat-1")).toEqual({
+        status: 500,
+        code: "internal_error",
+        message: "Unexpected error reading patient",
+      });
+    });
   });
 });
+

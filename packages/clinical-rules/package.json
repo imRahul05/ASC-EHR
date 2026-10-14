@@ -10,6 +10,7 @@
     "./readiness": "./src/readiness.ts",
     "./time": "./src/time.ts",
     "./patients/duplicate-match": "./src/patients/duplicate-match.ts",
+    "./scheduling/catalog": "./src/scheduling/catalog.ts",
     "./scheduling/conflicts": "./src/scheduling/conflicts.ts"
   },
   "scripts": {
@@ -18,7 +19,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@asc/types": "workspace:*"
+    "@asc/types": "workspace:*",
+    "@date-fns/tz": "^1.5.0",
+    "date-fns": "^4.4.0"
   },
   "devDependencies": {
     "@asc/eslint-config": "workspace:*",

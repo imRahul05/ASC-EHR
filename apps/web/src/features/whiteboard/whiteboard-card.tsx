@@ -12,23 +12,24 @@ interface WhiteboardCardProps {
   readonly tv: boolean;
 }
 
-/** One case on the board. Public display rule: initials + case number only (no name, DOB, MRN). */
+/**
+ * One case on the board.
+ * Public display rule: initials + case number only (no name, DOB, MRN).
+ * In TV mode (public kiosk), cards are non-interactive (no link to EHR charts)
+ * and clinical flags (allergies, anticoagulants) are omitted for patient privacy.
+ */
 export function WhiteboardCard({ card, elapsedMin, warnAfterMin, tv }: WhiteboardCardProps) {
   const overdue = elapsedMin !== null && elapsedMin > warnAfterMin;
-  return (
-    <Link
-      href={`/cases/${card.caseId}`}
-      aria-label={`Open case ${card.caseNumber}, initials ${card.initials.split("").join(" ")}`}
-      data-testid={`whiteboard-card-${card.caseId}`}
-      className={cn(
-        "block min-h-11 rounded-lg border border-border bg-card p-3 shadow-xs outline-none transition-colors hover:border-primary/40 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50",
-        overdue && "border-warning/50",
-        tv && "p-4",
-      )}
-    >
+
+  const cardContent = (
+    <>
       <div className="flex items-start justify-between gap-2">
-        <span className={cn("font-semibold tracking-tight text-foreground", tv ? "text-3xl" : "text-xl")}>{card.initials}</span>
-        <span className={cn("font-mono text-muted-foreground tabular-nums", tv ? "text-base" : "text-xs")}>{card.caseNumber}</span>
+        <span className={cn("font-semibold tracking-tight text-foreground", tv ? "text-3xl" : "text-xl")}>
+          {card.initials}
+        </span>
+        <span className={cn("font-mono text-muted-foreground tabular-nums", tv ? "text-base" : "text-xs")}>
+          {card.caseNumber}
+        </span>
       </div>
 
       <dl className={cn("mt-2 grid grid-cols-2 gap-x-2 gap-y-1 text-muted-foreground", tv ? "text-base" : "text-xs")}>
@@ -37,11 +38,13 @@ export function WhiteboardCard({ card, elapsedMin, warnAfterMin, tv }: Whiteboar
           <DoorOpen aria-hidden className="size-3.5 shrink-0" />
           <dd>{roomLabel(card.roomId)}</dd>
         </div>
-        <div className="flex items-center gap-1">
-          <dt className="sr-only">Surgeon</dt>
-          <Stethoscope aria-hidden className="size-3.5 shrink-0" />
-          <dd>{card.surgeonInitials}</dd>
-        </div>
+        {card.surgeonInitials ? (
+          <div className="flex items-center gap-1">
+            <dt className="sr-only">Surgeon</dt>
+            <Stethoscope aria-hidden className="size-3.5 shrink-0" />
+            <dd>{card.surgeonInitials}</dd>
+          </div>
+        ) : null}
         <div className={cn("col-span-2 flex items-center gap-1 tabular-nums", overdue && "font-medium text-warning")}>
           <dt className="sr-only">Time in phase</dt>
           {overdue ? <TriangleAlert aria-hidden className="size-3.5 shrink-0" /> : <Clock aria-hidden className="size-3.5 shrink-0" />}
@@ -52,14 +55,14 @@ export function WhiteboardCard({ card, elapsedMin, warnAfterMin, tv }: Whiteboar
         </div>
       </dl>
 
-      {card.flags.length > 0 && (
+      {!tv && card.flags.length > 0 && (
         <ul className="mt-2 flex flex-wrap gap-1" aria-label="Flags">
           {card.flags.map((flag) => {
             const { label, icon: Icon, tone } = FLAG_META[flag];
             return (
               <li
                 key={flag}
-                className={cn("inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 font-medium", tone, tv ? "text-sm" : "text-[11px]")}
+                className={cn("inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 font-medium", tone, "text-[11px]")}
                 data-testid={`whiteboard-flag-${flag}`}
               >
                 <Icon aria-hidden className="size-3" />
@@ -69,6 +72,36 @@ export function WhiteboardCard({ card, elapsedMin, warnAfterMin, tv }: Whiteboar
           })}
         </ul>
       )}
+    </>
+  );
+
+  const cardClasses = cn(
+    "block min-h-11 rounded-lg border border-border bg-card p-3 shadow-xs outline-none transition-colors",
+    !tv && "hover:border-primary/40 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50",
+    overdue && "border-warning/50",
+    tv && "p-4 select-none",
+  );
+
+  if (tv) {
+    return (
+      <div
+        data-testid={`whiteboard-card-${card.caseId}`}
+        aria-label={`Case ${card.caseNumber}, initials ${card.initials.split("").join(" ")}`}
+        className={cardClasses}
+      >
+        {cardContent}
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      href={`/cases/${card.caseId}`}
+      aria-label={`Open case ${card.caseNumber}, initials ${card.initials.split("").join(" ")}`}
+      data-testid={`whiteboard-card-${card.caseId}`}
+      className={cardClasses}
+    >
+      {cardContent}
     </Link>
   );
 }

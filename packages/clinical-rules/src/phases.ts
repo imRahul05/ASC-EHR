@@ -1,5 +1,10 @@
 import type { CasePhase, CaseStage, PhaseGroup, RuleResult } from "@asc/types";
-import { fail, OK } from "./result";
+
+const OK: RuleResult = { ok: true, reasons: [] };
+
+function fail(code: string, message: string): RuleResult {
+  return { ok: false, reasons: [{ code, message }] };
+}
 
 export type { CaseStage } from "@asc/types";
 
@@ -337,3 +342,22 @@ export function isPhaseAtLeast(phase: CasePhase | CaseStage, target: CasePhase |
   const targetIndex = phaseIndex(target);
   return index >= 0 && targetIndex >= 0 && index >= targetIndex;
 }
+
+/**
+ * Predicate to determine if a case is physically occupying an operating/procedure room.
+ * Covers both CaseStage values ("in_room", "procedure_start", "procedure_end")
+ * and legacy/display phase strings.
+ */
+export function isRoomOccupyingPhase(phase?: string | null): boolean {
+  if (!phase) return false;
+  const normalized = phase.trim().toLowerCase();
+  return (
+    normalized === "in_room" ||
+    normalized === "procedure_start" ||
+    normalized === "procedure_end" ||
+    normalized === "in_procedure" ||
+    normalized === "ready_for_procedure" ||
+    normalized === "in_progress"
+  );
+}
+

@@ -56,6 +56,8 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 24. Exact MRN conflicts must lock registration override buttons; empty intake sections must be sanitized to undefined; mock Base UI Dialog portals in static test environments. (LM-028)
 25. Atomic case booking bundles: commit Appointment, Encounter, and ServiceRequest in a single FHIR transaction bundle with facility meta accounts; use narrativeText for clinical notes allowing newlines; validate roomId with FHIR_ID regex; pure conflict engine excludes cancelled and noshow slots (including normative FHIR "noshow" and "entered-in-error") and safely falls back on missing endMs; query up to 250 daily appointments; fail fast if transaction response IDs are unresolved. (LM-029)
 26. Neutralize registration TOCTOU race conditions: serialize in-flight duplicate-check-and-write critical sections per facility using an in-flight queue lock, use FHIR conditional create (ifNoneExist) for MRN, and verify transaction response status to reject duplicate creation with HTTP 409. (LM-030)
+27. Scheduling & UI controls: OptionSelect uses explicit nullish check for empty string values; appointment conflict queries use bounded 24h windows (string[][] QueryTypes in Medplum) instead of single-day UTC slices; mock handlers fail fast rather than reassigning patient IDs; Whiteboard in-use room tiles match active procedure phases only; add 30-min grace period and calendar rollover validation for case scheduling. (LM-031)
+28. Distributed scheduling & timezone safety: serialize concurrent booking conflict checks with PostgreSQL transaction advisory locks ('facility-scheduling'); zero side-effect patient verification (read-only 404/403); pin all calendar date/time calculations to facility timezone (facilityDateTimeToIso, isoToFacilityTime); unlink case navigation and omit clinical flags on public Whiteboard TV displays; gate room tiles with isRoomOccupyingPhase. (LM-032)
 
 ---
 
@@ -321,6 +323,44 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **How to check:** `pnpm --filter api test`, `pnpm --filter db test`, `pnpm --filter bots test:medplum live/patient-registration-concurrency.live.ts`.
 - **Guarded by:** `apps/api/src/routes/patients.test.ts` (concurrency, rollback, recovery & live Medplum suites), `packages/db/src/__tests__/lock.test.ts`, `apps/bots/live/patient-registration-concurrency.live.ts`.
 
+### LM-031 — Explicit nullish checks for optional option selects, UTC boundary-aware appointment queries, fail-fast mocks, and active room phase matching
+- **Seen:** 3 · 2026-10-14 · PR #79 review (`feat/case-scheduling-ui-and-whiteboard`, Phase P15b)
+- **What went wrong:**
+  1. In `OptionSelect`, `onValueChange={(next) => { if (next) onValueChange(next) }}` evaluated `""` as falsy, preventing coordinators from selecting "None / Not assigned" (`value: ""`) once an optional provider (anesthesiologist) was chosen.
+  2. In `POST /cases`, appointments were queried using a single 10-char UTC slice `scheduledAt.slice(0, 10)`, causing US-timezone afternoon/evening cases across UTC midnight to query the wrong day, silently bypassing conflict detection.
+  3. In dev MSW mock handler `apps/web/src/mocks/handlers/clinical/cases.ts`, when a requested `patientId` did not exist, the handler silently grabbed the first patient in the mock database (`[...state.patients.values()][0]`) and booked procedures under their chart instead of returning 404/400.
+  4. In `RoomStatusStrip`, when a room had `status === "in_use"` without an explicit `currentCaseId`, the strip selected the first case with matching `roomId`, rendering morning discharged/completed cases instead of the active procedure case.
+  5. Schedulers adding same-day immediate add-on cases within minutes of the procedure or during clock skew were blocked by strict future-only validation (`time > Date.now()`), and month rollover dates like Feb 31 (`2026-02-31`) silently converted to March in JavaScript `Date.parse()`.
+- **Rule:**
+  1. `OptionSelect` must use an explicit nullish check: `if (next !== null && next !== undefined) onValueChange(next)`.
+  2. Query existing appointments using a bounded 24-48h window covering local clinic hours (`["date", "ge..."]`, `["date", "le..."]` using Medplum `QueryTypes` `string[][]`), never a raw 10-char UTC date slice.
+  3. Never reassign missing patient IDs to another patient in mock or production handlers; fail fast immediately with `notFound("Patient")`.
+  4. When falling back to find an active case for an in-use room, restrict matching to active procedure phases (`["in_procedure", "in_room", "procedure_start", "procedure_end", "ready_for_procedure", "in_progress"]`).
+  5. Allow a 30-minute grace window for clock skew / immediate add-on cases, and strictly validate calendar dates (`isValidCalendarDate`) to prevent silent month rollover.
+- **How to check:** `pnpm turbo run lint check-types test`.
+- **Guarded by:** `packages/ui/src/components/form/option-select.tsx`, `packages/validation/src/cases/book.test.ts`, `apps/api/src/routes/cases.test.ts`, `apps/web/src/features/whiteboard/room-status-strip.tsx`.
 
+### LM-032 — Distributed scheduling serialization, durable idempotency, facility timezone/DST safety, and server-side TV kiosk privacy
+- **Seen:** 8 · 2026-10-14 · PR #79 Comprehensive Engineering Remediation (`feat/case-scheduling-ui-and-whiteboard`)
+- **What went wrong:**
+  1. Concurrent booking requests for the same room or physician suffered from TOCTOU race conditions across multi-instance API deployments without cross-process serialization. Falling back to an in-memory lock in production without explicit configuration masked missing distributed locks.
+  2. The booking route attempted silent `$set-accounts` mutations on the Patient resource, mutating patient facility associations as a side-effect and masking missing or unauthorized patient contexts.
+  3. Date/time pickers and day board timelines relied on browser-local `Date` methods (`date.getHours()`, `new Date("YYYY-MM-DDTHH:mm")`), creating timezone skew, date rollover bugs across midnight, and incorrect calendar slot positioning when user machines were in a different timezone from the clinical facility. Furthermore, DST spring-forward nonexistent local times and fall-back repeated times were silently accepted or miscalculated.
+  4. Whiteboard cards in public TV kiosk mode rendered interactive links (`<Link href="/cases/${id}">`) and clinical flags (e.g. allergies, anticoagulants), and the API returned full procedure and clinician labels over the wire, exposing clinical data on unattended wall displays.
+  5. Procedure suite tiles rendered cases whose clinical phases were not active room-occupying phases (e.g. pre-op or discharged cases).
+  6. Retry matching based on arbitrary fields `(patientId, roomId, scheduledAt)` was conflated with distinct intentional bookings, and recovery fabricated encounter IDs from appointment IDs on partial writes.
+  7. Blanket try/catch blocks classified all upstream errors as 404 "not found", masking upstream service outages (502/503/timeouts) and auth failures (401/403).
+  8. Unvalidated room IDs (e.g. "OR-99") and inactive practitioners were accepted for booking without validation against the facility's active directory.
+- **Rule:**
+  1. Enforce distributed locking: `buildApp` must fail fast at startup if `production: true` and distributed locking (`tenantDb` or `facilitySchedulingLock`) is missing. Distributed locking wrappers must require and pass authenticated `tenantId` to PostgreSQL advisory locks (`withPostgresFacilityLock` under namespace `'facility-scheduling'`). Prove concurrency safety with multi-instance tests across independent Fastify instances sharing the lock.
+  2. Treat patient verification as strictly read-only: fail fast with 404 if the patient is not found, or 403 if the patient lacks account association with the booking facility. Never perform implicit account associations during booking.
+  3. Pin all calendar calculations, time extractions, and ISO conversions to the canonical facility timezone (`facilityDateTimeToIso`, `isoToFacilityTime`, `futureIsoDate`, `parseIsoDateToUtcNoon`). Strictly reject nonexistent DST spring-forward local times, and require explicit disambiguation (`earlier` | `later` | `reject`) for ambiguous fall-back times. Deduplicate time conversion functions across packages.
+  4. Server-side Whiteboard TV kiosk response policy: `GET /whiteboard?mode=tv` must strip `procedureLabel`, `flags`, and `surgeonInitials` on the server so sensitive clinical indications never travel over the network to wall displays. Client components must un-link case navigation and hide flag chips in TV mode.
+  5. Gate procedure suite tile assignments with `isRoomOccupyingPhase(phase)`.
+  6. Durable booking idempotency: support explicit `idempotencyKey` persisted across `Appointment`, `Encounter`, and `ServiceRequest` under system `https://fhir.wybit.io/asc/identifier/booking-idempotency-key`. On retry, return actual linked IDs; return 409 `idempotency_key_conflict` if reused for a different patient/facility; fail safely with 500 `incomplete_transaction` on partial transactions without fabricating IDs.
+  7. Strict upstream error classification: use `classifyMedplumReadError` to classify upstream read errors into 404 (`not_found`), 403 (`forbidden`), 503 (`upstream_service_unavailable`), and 500 (`internal_error`), failing closed without writing resources.
+  8. Domain validation: validate room IDs against `ASC_ROOM_IDS = ["room-1", "room-2", "room-3", "room-4"]` and verify primary physician and anesthesiologist existence and active status (`active !== false`).
+- **How to check:** `pnpm turbo run check-types lint test build`.
+- **Guarded by:** `apps/api/src/routes/cases.test.ts`, `apps/api/src/routes/cases-lock.test.ts`, `apps/api/src/routes/whiteboard.test.ts`, `apps/web/src/features/whiteboard/whiteboard-board.test.tsx`, `packages/clinical-rules/src/time.test.ts`, `packages/fhir/src/builders/appointment.test.ts`.
 
 

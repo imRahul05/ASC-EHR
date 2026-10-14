@@ -16,10 +16,11 @@ export async function withPostgresFacilityLock<T>(
   tenantId: string,
   facilityId: string,
   fn: () => Promise<T>,
+  lockNamespace: string = 'facility-registration',
 ): Promise<T> {
   return tenantDb.withTenant(tenantId, async (tx) => {
     await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtext('facility-registration'), hashtext(${facilityId}))`,
+      sql`SELECT pg_advisory_xact_lock(hashtext(${lockNamespace}), hashtext(${facilityId}))`,
     );
     return await fn();
   });

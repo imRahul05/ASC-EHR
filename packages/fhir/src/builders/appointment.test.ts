@@ -48,6 +48,13 @@ describe("buildAppointment", () => {
     ]);
   });
 
+  it("attaches booking idempotency key identifier when provided", () => {
+    const appointment = buildAppointment({ ...base, idempotencyKey: "idem-key-appt-123" });
+    expect(appointment.identifier).toEqual([
+      { system: "https://fhir.wybit.io/asc/identifier/booking-idempotency-key", value: "idem-key-appt-123" },
+    ]);
+  });
+
   it("rejects a range that does not run forward, bad times and ids, without echoing them", () => {
     expect(() => buildAppointment({ ...base, end: base.start })).toThrow("invalid appointment time range");
     expect(() => buildAppointment({ ...base, end: "2026-10-08T08:00:00Z" })).toThrow("invalid appointment time range");

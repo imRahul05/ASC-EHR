@@ -27,6 +27,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@asc/clinical-rules": "workspace:*",
     "@asc/types": "workspace:*",
     "zod": "^3.25.67"
   },

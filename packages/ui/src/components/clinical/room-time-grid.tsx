@@ -1,4 +1,4 @@
-import { formatTime24, PHASE_GROUP, PHASE_LABEL } from "@asc/clinical-rules"
+import { facilityDateTimeToIso, formatTime24, PHASE_GROUP, PHASE_LABEL } from "@asc/clinical-rules"
 import type { CasePhase, CaseStage } from "@asc/types"
 import { Plus } from "lucide-react"
 import type { ReactNode } from "react"
@@ -47,9 +47,9 @@ export interface RoomTimeGridProps {
 const HOUR_PX = 96
 const MINUTE_MS = 60_000
 
-function dayAt(date: string, hour: number, minute = 0): Date {
-  const [year = 1970, month = 1, day = 1] = date.split("-").map(Number)
-  return new Date(year, month - 1, day, hour, minute)
+function facilityDayStartMs(date: string, hour: number, minute = 0): number {
+  const timeStr = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`
+  return Date.parse(facilityDateTimeToIso(date, timeStr))
 }
 
 /** Day time grid: one column per room, case blocks positioned by start and duration, tinted by phase group. */
@@ -65,7 +65,7 @@ export function RoomTimeGrid({
   onSlotClick,
   className,
 }: RoomTimeGridProps) {
-  const dayStart = dayAt(date, startHour).getTime()
+  const dayStart = facilityDayStartMs(date, startHour)
   const totalMin = (endHour - startHour) * 60
   const heightPx = (endHour - startHour) * HOUR_PX
   const toPx = (minutes: number) => (minutes / 60) * HOUR_PX
@@ -148,7 +148,7 @@ export function RoomTimeGrid({
                     className={cn(
                       "absolute inset-x-1 z-10 flex overflow-hidden rounded-md border border-foreground/5 text-left shadow-xs outline-none transition-[filter] hover:brightness-[0.97] focus-visible:ring-2 focus-visible:ring-ring/60 motion-reduce:transition-none dark:hover:brightness-110",
                       PHASE_GROUP_CLASS[group],
-                      group === "stopped" && "left-1/2 z-[5] opacity-70"
+                      group === "stopped" && "left-1/2 z-[5] opacity-50 grayscale border-dashed bg-muted/60"
                     )}
                     style={{ top: toPx(Math.max(0, offset)) + 1, height: Math.max(toPx(item.durationMin) - 2, 22) }}
                   >
@@ -161,7 +161,7 @@ export function RoomTimeGrid({
                         </span>
                         {item.meta && <span className="truncate font-mono">{item.meta}</span>}
                       </span>
-                      <span className={cn("block truncate text-xs font-semibold", compact && "sr-only")}>{item.title}</span>
+                      <span className={cn("block truncate text-xs font-semibold", compact && "sr-only", group === "stopped" && "line-through text-muted-foreground")}>{item.title}</span>
                       {item.subtitle && item.durationMin >= 45 && <span className="block truncate text-[11px] opacity-85">{item.subtitle}</span>}
                     </span>
                   </button>

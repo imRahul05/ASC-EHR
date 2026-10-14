@@ -1,6 +1,6 @@
 import { HTTP_TIMEOUT_MS } from "@asc/config/api";
 import { getPublicApiUrl } from "@asc/config/public-env";
-import type { ApiErrorDetails, DuplicateMatchResult } from "@asc/types";
+import type { ApiErrorDetails, ConflictReason, DuplicateMatchResult } from "@asc/types";
 import { apiErrorPayloadSchema } from "@asc/validation/api-error";
 
 /** Every failed request from @asc/api-client rejects with this error. */
@@ -9,6 +9,7 @@ export class ApiError extends Error {
   readonly code?: string;
   readonly details?: Record<string, string>;
   readonly duplicateMatch?: DuplicateMatchResult;
+  readonly reasons?: readonly ConflictReason[];
 
   constructor(error: ApiErrorDetails) {
     super(error.message);
@@ -17,6 +18,7 @@ export class ApiError extends Error {
     this.code = error.code;
     this.details = error.details;
     this.duplicateMatch = error.duplicateMatch;
+    this.reasons = error.reasons;
   }
 }
 
@@ -74,6 +76,7 @@ export async function toApiError(response: Response): Promise<ApiError> {
     code: data.code,
     details: data.details,
     duplicateMatch: data.duplicateMatch,
+    reasons: data.reasons,
   });
 }
 

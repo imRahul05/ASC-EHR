@@ -12,7 +12,7 @@ import {
   caseReadinessExtensions,
   caseStageExtension,
 } from "@asc/fhir/extensions";
-import { caseNumberIdentifier } from "@asc/fhir/identifiers";
+import { bookingIdempotencyIdentifier, caseNumberIdentifier } from "@asc/fhir/identifiers";
 import { type FhirUrls, fhirUrls } from "@asc/fhir/urls";
 
 export { ENCOUNTER_STATUS_BY_STAGE } from "@asc/fhir/case-stage";
@@ -50,6 +50,7 @@ export interface CaseEncounterInput {
   readonly locationId?: string;
   readonly start?: string;
   readonly end?: string;
+  readonly idempotencyKey?: string;
 }
 
 /** The Encounter that IS the case (docs/product/03 §3): status, stage/phase extension, readiness checks, and facility. */
@@ -73,6 +74,11 @@ export function buildCaseEncounter(input: CaseEncounterInput, urls: FhirUrls = f
     ...(input.readinessChecks !== undefined ? caseReadinessExtensions(input.readinessChecks, urls) : []),
   ];
 
+  const identifiers = [
+    ...(input.caseNumber === undefined ? [] : [caseNumberIdentifier(input.caseNumber, urls)]),
+    ...(input.idempotencyKey === undefined ? [] : [bookingIdempotencyIdentifier(input.idempotencyKey, urls)]),
+  ];
+
   return {
     resourceType: "Encounter",
     meta: facilityMeta(input.facilityId),
@@ -81,7 +87,7 @@ export function buildCaseEncounter(input: CaseEncounterInput, urls: FhirUrls = f
     extension: extensions,
     subject: reference("Patient", input.patientId, "patient id"),
     serviceProvider: reference("Organization", input.facilityId, "facility id"),
-    ...(input.caseNumber === undefined ? {} : { identifier: [caseNumberIdentifier(input.caseNumber, urls)] }),
+    ...(identifiers.length === 0 ? {} : { identifier: identifiers }),
     ...(input.appointmentId === undefined ? {} : { appointment: [reference("Appointment", input.appointmentId, "appointment id")] }),
     ...(input.locationId === undefined ? {} : { location: [{ location: reference("Location", input.locationId, "location id"), status: "active" }] }),
     ...(start === undefined && end === undefined ? {} : { period: { ...(start === undefined ? {} : { start }), ...(end === undefined ? {} : { end }) } }),

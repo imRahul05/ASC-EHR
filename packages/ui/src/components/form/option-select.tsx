@@ -37,12 +37,12 @@ export function OptionSelect<TValue extends string = string>({
 }: OptionSelectProps<TValue>) {
   const items = options.map((option) => ({ value: option.value, label: option.label }))
   return (
-    <Select
+    <Select<TValue>
       items={items}
-      value={value || null}
+      value={(value ?? null) as TValue | null}
       disabled={disabled}
       onValueChange={(next) => {
-        if (next) onValueChange(next)
+        if (next !== null && next !== undefined) onValueChange(next)
       }}
     >
       <SelectTrigger id={id} aria-invalid={invalid || undefined} className={cn("w-full", className)} data-testid={testId}>

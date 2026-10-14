@@ -122,16 +122,54 @@ export const caseHandlers = [
   http.post(apiUrl(P.cases), async ({ request }) => {
     await latency();
     const state = db();
-    const payload = await body<BookCasePayload>(request);
-    const patient = state.patients.get(payload.patientId);
+    const raw = (await request.json().catch(() => ({}))) as Record<string, string | number | undefined>;
+    const patientId = String(raw.patientId ?? "");
+    const patient = state.patients.get(patientId);
     if (!patient) return notFound("Patient");
+
+    const surgeonId = String(raw.primaryPhysicianId ?? raw.surgeonId ?? "");
+    const anesthesiaId = String(raw.anesthesiologistId ?? raw.anesthesiaId ?? "");
+    const nurseId = String(raw.nurseId ?? "");
+
     const staff = (id: string) => STAFF_LIST.find((member) => member.id === id);
-    const [surgeon, anesthesia, nurse] = [staff(payload.surgeonId), staff(payload.anesthesiaId), staff(payload.nurseId)];
-    if (!surgeon || !anesthesia || !nurse) return apiError(400, "VALIDATION_FAILED", "Choose a surgeon, anesthesia provider and nurse.");
-    const conflicts = findScheduleConflicts([...state.cases.values()], payload);
+    const staffByRole = Object.groupBy(STAFF_LIST, (m) => m.role);
+    const surgeon = staff(surgeonId) ?? staffByRole.SURGEON?.[0];
+    if (!surgeon) return apiError(400, "VALIDATION_FAILED", "Choose a valid surgeon.");
+
+    const anesthesia = anesthesiaId ? staff(anesthesiaId) : undefined;
+    const nurse = nurseId ? staff(nurseId) : undefined;
+
+    const scheduledStart = String(raw.scheduledAt ?? raw.scheduledStart ?? new Date().toISOString());
+    const durationMin = Number(raw.durationMinutes ?? raw.durationMin ?? 45);
+    const roomId = String(raw.roomId ?? "room-1");
+    const procedureCode = (raw.procedure as ProcedureCase["procedure"]) ?? "COLONOSCOPY";
+    const intent = (raw.procedureIntent ?? raw.intent ?? "screening") as ProcedureCase["intent"];
+    const indication = String(raw.notes ?? raw.indication ?? "Screening colonoscopy");
+
+    const conflictPayload: BookCasePayload = {
+      patientId: patient.id,
+      procedure: procedureCode,
+      intent,
+      indication,
+      roomId,
+      scheduledStart,
+      durationMin,
+      surgeonId: surgeon.id,
+      anesthesiaId: anesthesia?.id,
+      nurseId: nurse?.id,
+    };
+
+    const conflicts = findScheduleConflicts([...state.cases.values()], conflictPayload);
     if (!conflicts.ok) {
-      return apiError(409, "SCHEDULE_CONFLICT", conflicts.reasons[0]?.message ?? "Schedule conflict", Object.fromEntries(conflicts.conflicts.map((c) => [c.kind, c.message])));
+      return apiError(
+        409,
+        "conflict",
+        conflicts.reasons[0]?.message ?? "Schedule conflict",
+        Object.fromEntries(conflicts.conflicts.map((c) => [c.kind, c.message])),
+        conflicts.reasons.map((r) => ({ code: r.code, message: r.message })),
+      );
     }
+
     const actor = actorFrom(request);
     const id = newId("case");
     const eligibilityActive = patient.coverage?.eligibility?.status === "active";
@@ -140,14 +178,18 @@ export const caseHandlers = [
       caseNumber: nextCaseNumber(),
       patientId: patient.id,
       patient: patientRef(patient),
-      procedure: payload.procedure,
-      procedureLabel: PROCEDURE_LABEL[payload.procedure],
-      intent: payload.intent,
-      indication: payload.indication,
-      roomId: payload.roomId,
-      scheduledStart: payload.scheduledStart,
-      durationMin: payload.durationMin,
-      team: { surgeon: staffRef(surgeon), anesthesia: staffRef(anesthesia), nurse: staffRef(nurse) },
+      procedure: procedureCode,
+      procedureLabel: PROCEDURE_LABEL[procedureCode] ?? "Colonoscopy",
+      intent,
+      indication,
+      roomId,
+      scheduledStart,
+      durationMin,
+      team: {
+        surgeon: staffRef(surgeon),
+        anesthesia: staffRef(anesthesia ?? staffByRole.ANESTHESIOLOGIST?.[0] ?? surgeon),
+        nurse: staffRef(nurse ?? staffByRole.NURSE?.[0] ?? surgeon),
+      },
       phase: "SCHEDULED",
       timestamps: { SCHEDULED: new Date().toISOString() },
       readiness: {
@@ -181,10 +223,11 @@ export const caseHandlers = [
       { id: newId("cns"), caseId: id, kind: "procedure", title: `${procedureCase.procedureLabel} consent`, summary: "Bleeding, perforation, infection, missed lesions; alternatives discussed.", status: "pending" },
       { id: newId("cns"), caseId: id, kind: "sedation", title: "Anesthesia / sedation consent", summary: "Monitored anesthesia care with propofol; airway risks discussed.", status: "pending" },
     ]);
-    if (payload.referralId) {
-      const referral = state.referrals.get(payload.referralId);
+    const referralId = typeof raw.referralId === "string" ? raw.referralId : undefined;
+    if (referralId) {
+      const referral = state.referrals.get(referralId);
       if (referral) state.referrals.set(referral.id, { ...referral, caseId: id, patientId: patient.id, status: "converted" });
-      completeWorkItems((item) => item.referralId === payload.referralId);
+      completeWorkItems((item) => item.referralId === referralId);
     }
     if (!eligibilityActive) {
       addWorkItem({
@@ -198,8 +241,17 @@ export const caseHandlers = [
         patientId: patient.id,
       });
     }
-    audit(actor, "case.book", { type: "ProcedureCase", id }, `Booked ${procedureCase.caseNumber} (${procedureCase.procedureLabel}, ${payload.intent})`);
-    return HttpResponse.json(procedureCase, { status: 201 });
+    audit(actor, "case.book", { type: "ProcedureCase", id }, `Booked ${procedureCase.caseNumber} (${procedureCase.procedureLabel}, ${intent})`);
+    return HttpResponse.json(
+      {
+        caseId: id,
+        appointmentId: newId("apt"),
+        encounterId: id,
+        scheduledAt: scheduledStart,
+        ...procedureCase,
+      },
+      { status: 201 },
+    );
   }),
 
   // ─── Case workspace ───────────────────────────────────────────────────────

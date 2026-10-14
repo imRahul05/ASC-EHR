@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useWhiteboard } from "@asc/api-client/react";
 import { PHASE_GROUP, isPhaseAtLeast } from "@asc/clinical-rules";
 import { formatTime24 } from "@asc/clinical-rules/time";
@@ -10,6 +11,7 @@ import {
   EmptyState,
   ErrorState,
   LoadingSkeleton,
+  OfflineBanner,
   PageHeader,
   PHASE_GROUP_CLASS,
   PHASE_GROUP_ICON,
@@ -23,14 +25,28 @@ import { UPCOMING_PHASES, WHITEBOARD_COLUMNS } from "./whiteboard-config";
 
 const MINUTE_MS = 60_000;
 
+interface WhiteboardBoardProps {
+  readonly initialTv?: boolean;
+}
+
 /**
  * `/whiteboard` — live day board by phase column (initials + case number only, ui-guidelines §9) and
  * room status. Data refetches every 15 s via useWhiteboard; timers tick from the shared useNow clock.
  * TV mode covers the app chrome with a full-screen, large-type board for wall displays.
  */
-export function WhiteboardBoard() {
-  const query = useWhiteboard();
-  const [tv, setTv] = useState(false);
+export function WhiteboardBoard({ initialTv = false }: WhiteboardBoardProps = {}) {
+  let isTvFromParams = false;
+  try {
+    const params = useSearchParams();
+    const mode = params?.get("mode");
+    if (mode === "tv" || mode === "kiosk") isTvFromParams = true;
+  } catch {
+    // In environments without Next.js searchParams context
+  }
+
+  const [tv, setTv] = useState(() => initialTv || isTvFromParams);
+  const query = useWhiteboard({ refetchInterval: 5_000, mode: tv ? "tv" : "clinical" });
+
   const now = useNow();
 
   if (query.isPending) return <LoadingSkeleton variant="cards" />;
@@ -77,7 +93,9 @@ export function WhiteboardBoard() {
         }
       />
 
-      <RoomStatusStrip rooms={rooms} cards={cards} tv={tv} />
+      <OfflineBanner />
+
+      <RoomStatusStrip rooms={rooms} cards={cards} tv={tv} elapsed={elapsed} />
 
       <div className={cn("flex flex-wrap gap-4 text-muted-foreground", tv ? "text-base" : "text-xs")}>
         <span className="inline-flex items-center gap-1.5">

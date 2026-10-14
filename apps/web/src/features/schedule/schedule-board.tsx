@@ -4,7 +4,7 @@ import { Suspense, useState, type ComponentProps } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSchedule } from "@asc/api-client/react";
 import { PHASE_GROUP, PHASE_GROUP_LABEL, PHASE_GROUP_ORDER } from "@asc/clinical-rules";
-import { formatTime24, formatWeekday, toIsoDate, todayIsoDate } from "@asc/clinical-rules/time";
+import { formatTime24, formatWeekday, isoToFacilityTime, todayIsoDate } from "@asc/clinical-rules/time";
 import type { ProcedureCase, Room, RoomStatus } from "@asc/types";
 import {
   Button,
@@ -20,7 +20,7 @@ import {
 } from "@asc/ui";
 import { CalendarPlus, ChevronLeft, ChevronRight } from "@asc/ui/icons";
 import { BookCaseSheet } from "./book-case-sheet";
-import { CLINIC_END_HOUR, CLINIC_START_HOUR } from "./schedule-options";
+import { ASC_ROOMS, CLINIC_END_HOUR, CLINIC_START_HOUR } from "./schedule-options";
 
 type BookCaseDefaults = ComponentProps<typeof BookCaseSheet>["defaults"];
 
@@ -38,7 +38,8 @@ interface SheetState {
 }
 
 function shiftDate(date: string, days: number): string {
-  return toIsoDate(new Date(Date.parse(`${date}T12:00:00`) + days * DAY_MS));
+  const utcMs = Date.parse(`${date}T12:00:00Z`) + days * DAY_MS;
+  return new Date(utcMs).toISOString().slice(0, 10);
 }
 
 function gridItem(item: ProcedureCase): RoomTimeGridItem {
@@ -55,13 +56,16 @@ function gridItem(item: ProcedureCase): RoomTimeGridItem {
   };
 }
 
-/** Grid hours: the clinic day, widened to fit any case outside it. */
+/** Grid hours: the clinic day, widened to fit any case outside it (pinned to facility timezone). */
 function hourRange(cases: readonly ProcedureCase[]): { readonly start: number; readonly end: number } {
-  const starts = cases.map((item) => new Date(item.scheduledStart));
-  const ends = cases.map((item) => new Date(Date.parse(item.scheduledStart) + item.durationMin * 60_000));
+  const starts = cases.map((item) => isoToFacilityTime(item.scheduledStart));
+  const ends = cases.map((item) => {
+    const endIso = new Date(Date.parse(item.scheduledStart) + item.durationMin * 60_000).toISOString();
+    return isoToFacilityTime(endIso);
+  });
   return {
-    start: Math.min(CLINIC_START_HOUR, ...starts.map((date) => date.getHours())),
-    end: Math.min(24, Math.max(CLINIC_END_HOUR, ...ends.map((date) => date.getHours() + (date.getMinutes() > 0 ? 1 : 0)))),
+    start: Math.min(CLINIC_START_HOUR, ...starts.map((t) => t.hour)),
+    end: Math.min(24, Math.max(CLINIC_END_HOUR, ...ends.map((t) => t.hour + (t.minute > 0 ? 1 : 0)))),
   };
 }
 
@@ -162,7 +166,14 @@ function ScheduleBoardView() {
             </p>
           )}
           <RoomTimeGrid
-            rooms={day.rooms.map((room) => ({ id: room.id, name: room.name, status: date === todayIsoDate() ? roomStatus(room) : undefined }))}
+            rooms={ASC_ROOMS.map((std) => {
+              const r = day.rooms.find((item) => item.id === std.id);
+              return {
+                id: std.id,
+                name: r?.name ?? std.name,
+                status: date === todayIsoDate() && r ? roomStatus(r) : undefined,
+              };
+            })}
             items={cases.map(gridItem)}
             date={date}
             startHour={hours.start}

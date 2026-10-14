@@ -1,24 +1,21 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Controller, useForm, useWatch } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ApiError } from "@asc/api-client";
-import { useAdminOverview, useBookCase, useReferral, useSchedule } from "@asc/api-client/react";
-import { findScheduleConflicts } from "@asc/clinical-rules";
-import { todayIsoDate } from "@asc/clinical-rules/time";
-import type { ConflictCheckResult, ScheduleConflict, StaffMember } from "@asc/types";
+import { useAdminOverview, useBookCase, useReferral } from "@asc/api-client/react";
+import type { StaffMember } from "@asc/types";
 import {
   AiBadge,
   Button,
   ErrorState,
   FormField,
-  GateChecklist,
   Input,
   LoadingSkeleton,
   OptionSelect,
   SegmentedControl,
-  type SegmentedOption,
   Sheet,
   SheetContent,
   SheetDescription,
@@ -28,19 +25,29 @@ import {
   Textarea,
   toast,
 } from "@asc/ui";
-import { CalendarCheck, Loader2 } from "@asc/ui/icons";
-import { bookCasePayloadFrom, bookCaseSchema, localDateTimeToIso, type BookCaseFormData } from "@asc/validation/schedule";
+import { CalendarCheck, CircleAlert, Loader2 } from "@asc/ui/icons";
+import {
+  bookCaseFormSchema,
+  bookCaseInputFrom,
+  type BookCaseFormData,
+} from "@asc/validation/cases/book";
+import {
+  facilityDateTimeToIso,
+  futureIsoDate,
+} from "@asc/clinical-rules/time";
 import { bookingHintsFromReferral } from "../referrals/referral-prefill";
 import { PatientPicker } from "./patient-picker";
 import {
-  DEFAULT_INDICATION,
+  DEFAULT_PRIMARY_PROCEDURE,
   DEFAULT_ROOM_ID,
   DEFAULT_START_TIME,
   DURATION_OPTIONS,
+  GI_CPT_PROCEDURE_OPTIONS,
   INTENT_OPTIONS,
-  PROCEDURE_OPTIONS,
-  TEAM_FIELDS,
+  ROOM_OPTIONS,
+  defaultDurationForCpt,
 } from "./schedule-options";
+import { useAuthStore } from "../../lib/stores/auth.store";
 
 interface BookCaseSheetProps {
   readonly open: boolean;
@@ -55,35 +62,10 @@ interface BookCaseSheetProps {
   };
 }
 
-const CONFLICT_CHECKS: readonly { readonly kind: ScheduleConflict["kind"]; readonly label: string }[] = [
-  { kind: "room", label: "Room free" },
-  { kind: "surgeon", label: "Gastroenterologist free" },
-  { kind: "anesthesia", label: "Anesthesia free" },
-  { kind: "nurse", label: "Nurse free" },
-  { kind: "patient", label: "No overlapping case for this patient" },
-];
-
-const ROOM_OPTIONS: readonly SegmentedOption<string>[] = [
-  { value: "room-1", label: "Room 1" },
-  { value: "room-2", label: "Room 2" },
-  { value: "room-3", label: "Room 3" },
-];
-
-/** Conflict result as a checklist (every probe ✓/✗, reasons under failures). */
-function withChecks(result: ConflictCheckResult): ConflictCheckResult {
-  return {
-    ...result,
-    checks: CONFLICT_CHECKS.map(({ kind, label }) => ({
-      code: `CONFLICT_${kind.toUpperCase()}`,
-      label,
-      ok: !result.conflicts.some((conflict) => conflict.kind === kind),
-    })),
-  };
+function defaultFutureDate(): string {
+  return futureIsoDate(1);
 }
 
-function firstOfRole(staff: readonly StaffMember[], role: StaffMember["role"]): string {
-  return staff.find((member) => member.role === role && member.active)?.id ?? "";
-}
 
 /** Right-side sheet to book a case; waits for staff (and the referral, if any) so defaults are complete. */
 export function BookCaseSheet({ open, onOpenChange, defaults }: BookCaseSheetProps) {
@@ -93,17 +75,32 @@ export function BookCaseSheet({ open, onOpenChange, defaults }: BookCaseSheetPro
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-xl" data-testid="book-case-sheet">
+      <SheetContent
+        side="right"
+        className="w-full gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-xl"
+        data-testid="book-case-sheet"
+      >
         <SheetHeader className="border-b border-border">
           <SheetTitle className="flex items-center gap-2">
             <CalendarCheck aria-hidden className="size-4 text-primary" /> Book case
           </SheetTitle>
-          <SheetDescription>Room, time and team are checked for conflicts as you type. The API re-checks on save.</SheetDescription>
+          <SheetDescription>
+            Schedule a surgical case into an operating room. The conflict engine validates room and provider availability.
+          </SheetDescription>
         </SheetHeader>
-        {(admin.isPending || waitingForReferral) && <LoadingSkeleton variant="table" rows={6} className="p-4" />}
-        {admin.isError && <ErrorState className="m-4" title="Could not load staff" onRetry={() => void admin.refetch()} />}
+        {(admin.isPending || waitingForReferral) && (
+          <LoadingSkeleton variant="table" rows={6} className="p-4" />
+        )}
+        {admin.isError && (
+          <ErrorState
+            className="m-4"
+            title="Could not load staff"
+            onRetry={() => void admin.refetch()}
+          />
+        )}
         {admin.data && !waitingForReferral && (
           <BookCaseForm
+            key={`${defaults.roomId ?? ""}-${defaults.startTime ?? ""}-${defaults.date ?? ""}-${defaults.patientId ?? ""}-${defaults.referralId ?? ""}`}
             staff={admin.data.staff}
             defaults={defaults}
             referralHints={referral.data ? bookingHintsFromReferral(referral.data) : null}
@@ -120,175 +117,334 @@ interface BookCaseFormProps {
   readonly defaults: BookCaseSheetProps["defaults"];
   readonly referralHints: ReturnType<typeof bookingHintsFromReferral> | null;
   readonly onDone: () => void;
+  readonly initialConflict?: string;
 }
 
-function BookCaseForm({ staff, defaults, referralHints, onDone }: BookCaseFormProps) {
+export function BookCaseForm({
+  staff,
+  defaults,
+  referralHints,
+  onDone,
+  initialConflict,
+}: BookCaseFormProps) {
   const router = useRouter();
   const book = useBookCase();
+  const facilityId = useAuthStore((s) => s.facilityId) ?? "";
+  const [apiConflict, setApiConflict] = useState<string | null>(initialConflict ?? null);
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
+
+  const defaultDate = defaults.date ?? defaultFutureDate();
+  const defaultStartTime = defaults.startTime ?? DEFAULT_START_TIME;
   const intent = referralHints?.intent ?? "screening";
+
+  const staffByRole = Object.groupBy(staff, (member) => member.role);
+  const activeSurgeons = (staffByRole.SURGEON ?? []).filter((m) => m.active);
+  const activeAnesthesiologists = (staffByRole.ANESTHESIOLOGIST ?? []).filter((m) => m.active);
+
+  const defaultSurgeon = activeSurgeons[0]?.id ?? "";
+  const defaultAnesthesia = "";
+
   const {
     control,
     register,
     handleSubmit,
-    formState: { errors },
+    setError,
+    setValue,
+    formState: { errors, isSubmitting },
   } = useForm<BookCaseFormData>({
-    resolver: zodResolver(bookCaseSchema),
+    resolver: zodResolver(bookCaseFormSchema),
     defaultValues: {
+      facilityId,
       patientId: defaults.patientId ?? "",
-      referralId: defaults.referralId,
-      procedure: referralHints?.procedure ?? "COLONOSCOPY",
-      intent,
-      indication: referralHints?.indication || DEFAULT_INDICATION[intent],
       roomId: defaults.roomId ?? DEFAULT_ROOM_ID,
-      date: defaults.date ?? todayIsoDate(),
-      startTime: defaults.startTime ?? DEFAULT_START_TIME,
-      durationMin: "45",
-      surgeonId: firstOfRole(staff, "SURGEON"),
-      anesthesiaId: firstOfRole(staff, "ANESTHESIOLOGIST"),
-      nurseId: firstOfRole(staff, "NURSE"),
+      date: defaultDate,
+      startTime: defaultStartTime,
+      durationMinutes: defaultDurationForCpt(DEFAULT_PRIMARY_PROCEDURE),
+      procedureIntent: intent,
+      primaryProcedureCode: DEFAULT_PRIMARY_PROCEDURE,
+      primaryPhysicianId: defaultSurgeon,
+      anesthesiologistId: defaultAnesthesia,
+      notes: referralHints?.indication ?? "",
+      idempotencyKey,
+      referralId: defaults.referralId ?? "",
     },
   });
-  const values = useWatch({ control });
-  const schedule = useSchedule(values.date || undefined);
-
-  const ready = Boolean(values.patientId && values.roomId && values.date && values.startTime && values.durationMin);
-  const conflicts =
-    ready && schedule.data
-      ? withChecks(
-          findScheduleConflicts(schedule.data.cases, {
-            patientId: values.patientId ?? "",
-            roomId: values.roomId ?? "",
-            scheduledStart: localDateTimeToIso(values.date ?? "", values.startTime ?? ""),
-            durationMin: Number(values.durationMin),
-            surgeonId: values.surgeonId ?? "",
-            anesthesiaId: values.anesthesiaId ?? "",
-            nurseId: values.nurseId ?? "",
-          }),
-        )
-      : null;
 
   const onSubmit = async (data: BookCaseFormData) => {
+    setApiConflict(null);
     try {
-      const created = await book.mutateAsync(bookCasePayloadFrom(data));
-      toast.success(`Case ${created.caseNumber} booked`, { description: `${created.procedureLabel} · ${created.roomId.replace("room-", "Room ")}` });
+      const scheduledAt = facilityDateTimeToIso(data.date, data.startTime);
+      const payload = bookCaseInputFrom(data, scheduledAt);
+      const created = await book.mutateAsync(payload);
+      toast.success("Case booked successfully", {
+        description: `Case ${created.caseId} · Room ${data.roomId}`,
+      });
       onDone();
-      router.push(`/cases/${created.id}`);
+      router.push(`/cases/${created.caseId}`);
     } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        const conflictMsg = error.message || "Operating room or physician has a conflicting schedule during this time.";
+        setApiConflict(conflictMsg);
+        toast.error("Schedule conflict", { description: conflictMsg });
+
+        if (error.reasons) {
+          for (const reason of error.reasons) {
+            if (reason.code === "ROOM_DOUBLE_BOOKED") {
+              setError("roomId", { type: "server", message: reason.message });
+            } else if (reason.code === "PHYSICIAN_DOUBLE_BOOKED") {
+              setError("primaryPhysicianId", { type: "server", message: reason.message });
+            } else if (reason.code === "ANESTHESIA_DOUBLE_BOOKED") {
+              setError("anesthesiologistId", { type: "server", message: reason.message });
+            }
+          }
+        }
+        return;
+      }
       toast.error(error instanceof ApiError ? error.message : "Could not book the case.");
     }
   };
 
-  const teamOptions = (role: StaffMember["role"]) =>
-    staff.filter((member) => member.role === role && member.active).map((member) => ({ value: member.id, label: member.name, hint: member.title }));
+  const physicianOptions = activeSurgeons.map((member) => ({
+    value: member.id,
+    label: member.name,
+    hint: member.title,
+  }));
+
+  const anesthesiaOptions = [
+    { value: "", label: "None / Not assigned" },
+    ...activeAnesthesiologists.map((member) => ({
+      value: member.id,
+      label: member.name,
+      hint: member.title,
+    })),
+  ];
 
   return (
-    <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} noValidate className="flex min-h-0 flex-1 flex-col" data-testid="book-case-form">
+    <form
+      onSubmit={(event) => void handleSubmit(onSubmit)(event)}
+      noValidate
+      className="flex min-h-0 flex-1 flex-col"
+      data-testid="book-case-form"
+    >
       <div className="flex-1 space-y-5 overflow-y-auto p-4">
+        {/* Missing facility context banner */}
+        {!facilityId && (
+          <div
+            role="alert"
+            className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-destructive"
+            data-testid="book-case-no-facility-alert"
+          >
+            <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
+            <div className="space-y-1 text-sm">
+              <p className="font-semibold">No active facility selected</p>
+              <p>You must select an active facility context before scheduling a case.</p>
+            </div>
+          </div>
+        )}
+
+        {/* HTTP 409 Conflict banner */}
+        {apiConflict && (
+          <div
+            role="alert"
+            className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-destructive"
+            data-testid="book-case-conflict-alert"
+          >
+            <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
+            <div className="space-y-1 text-sm">
+              <p className="font-semibold">Scheduling Conflict (HTTP 409)</p>
+              <p>{apiConflict}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Patient combobox */}
         <FormField id="book-patient" label="Patient" error={errors.patientId?.message}>
           <Controller
             control={control}
             name="patientId"
-            render={({ field }) => <PatientPicker id="book-patient" value={field.value} onChange={field.onChange} invalid={Boolean(errors.patientId)} />}
+            render={({ field }) => (
+              <PatientPicker
+                id="book-patient"
+                value={field.value}
+                onChange={field.onChange}
+                invalid={Boolean(errors.patientId)}
+              />
+            )}
           />
         </FormField>
 
-        <div className="grid gap-4">
-          <FormField id="book-procedure" label="Procedure" error={errors.procedure?.message}>
-            <Controller
-              control={control}
-              name="procedure"
-              render={({ field }) => (
-                <OptionSelect id="book-procedure" options={PROCEDURE_OPTIONS} value={field.value} onValueChange={field.onChange} data-testid="book-case-procedure" />
-              )}
-            />
-          </FormField>
-          <FormField id="book-intent" label="Intent" error={errors.intent?.message}>
-            <Controller
-              control={control}
-              name="intent"
-              render={({ field }) => (
-                <SegmentedControl size="sm" aria-label="Intent" options={INTENT_OPTIONS} value={field.value} onValueChange={field.onChange} data-testid="book-case-intent" />
-              )}
-            />
-          </FormField>
-        </div>
-
-        <FormField
-          id="book-indication"
-          label="Indication"
-          error={errors.indication?.message}
-          labelAction={referralHints ? <AiBadge label="From referral" /> : undefined}
-        >
-          <Textarea id="book-indication" rows={2} {...register("indication")} aria-invalid={errors.indication ? true : undefined} data-testid="book-case-indication" />
-        </FormField>
-
-        <FormField id="book-room" label="Room" error={errors.roomId?.message}>
+        {/* Room selector: room-1 through room-4 */}
+        <FormField id="book-room" label="Operating Room" error={errors.roomId?.message}>
           <Controller
             control={control}
             name="roomId"
             render={({ field }) => (
-              <SegmentedControl size="sm" aria-label="Room" options={ROOM_OPTIONS} value={field.value} onValueChange={field.onChange} data-testid="book-case-room" />
+              <SegmentedControl
+                size="sm"
+                aria-label="Operating Room"
+                options={ROOM_OPTIONS}
+                value={field.value}
+                onValueChange={field.onChange}
+                data-testid="book-case-room"
+              />
             )}
           />
         </FormField>
 
+        {/* Procedure intent */}
+        <FormField id="book-intent" label="Procedure Intent" error={errors.procedureIntent?.message}>
+          <Controller
+            control={control}
+            name="procedureIntent"
+            render={({ field }) => (
+              <SegmentedControl
+                size="sm"
+                aria-label="Procedure Intent"
+                options={INTENT_OPTIONS}
+                value={field.value}
+                onValueChange={field.onChange}
+                data-testid="book-case-intent"
+              />
+            )}
+          />
+        </FormField>
+
+        {/* Primary procedure (CPT code) */}
+        <FormField
+          id="book-procedure"
+          label="Primary Procedure (CPT)"
+          error={errors.primaryProcedureCode?.message}
+        >
+          <Controller
+            control={control}
+            name="primaryProcedureCode"
+            render={({ field }) => (
+              <OptionSelect
+                id="book-procedure"
+                options={GI_CPT_PROCEDURE_OPTIONS}
+                value={field.value}
+                onValueChange={(val) => {
+                  field.onChange(val);
+                  setValue("durationMinutes", defaultDurationForCpt(val), { shouldValidate: true });
+                }}
+                data-testid="book-case-procedure"
+              />
+            )}
+          />
+        </FormField>
+
+        {/* Date & Scheduled Time */}
         <div className="grid gap-4 sm:grid-cols-[1fr_1fr]">
           <FormField id="book-date" label="Date" error={errors.date?.message}>
-            <Input id="book-date" type="date" {...register("date")} data-testid="book-case-date" />
+            <Input
+              id="book-date"
+              type="date"
+              defaultValue={defaultDate}
+              {...register("date")}
+              data-testid="book-case-date"
+            />
           </FormField>
-          <FormField id="book-start" label="Start (24 h)" error={errors.startTime?.message}>
-            <Input id="book-start" type="time" step={900} {...register("startTime")} className="tabular-nums" data-testid="book-case-start" />
+          <FormField id="book-start" label="Start Time (24 h)" error={errors.startTime?.message}>
+            <Input
+              id="book-start"
+              type="time"
+              defaultValue={defaultStartTime}
+              step={900}
+              {...register("startTime")}
+              className="tabular-nums"
+              data-testid="book-case-start"
+            />
           </FormField>
         </div>
 
-        <FormField id="book-duration" label="Duration" error={errors.durationMin?.message}>
+        {/* Duration segmented control */}
+        <FormField id="book-duration" label="Duration" error={errors.durationMinutes?.message}>
           <Controller
             control={control}
-            name="durationMin"
+            name="durationMinutes"
             render={({ field }) => (
-              <SegmentedControl size="sm" aria-label="Duration" options={DURATION_OPTIONS} value={field.value} onValueChange={field.onChange} data-testid="book-case-duration" />
+              <SegmentedControl
+                size="sm"
+                aria-label="Duration"
+                options={DURATION_OPTIONS}
+                value={field.value}
+                onValueChange={field.onChange}
+                data-testid="book-case-duration"
+              />
             )}
           />
         </FormField>
 
-        <fieldset className="space-y-3">
-          <legend className="mb-2 text-xs font-medium text-muted-foreground">Team</legend>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {TEAM_FIELDS.map((slot) => (
-              <FormField key={slot.name} id={`book-${slot.name}`} label={slot.label} error={errors[slot.name]?.message}>
-                <Controller
-                  control={control}
-                  name={slot.name}
-                  render={({ field }) => (
-                    <OptionSelect
-                      id={`book-${slot.name}`}
-                      options={teamOptions(slot.role)}
-                      value={field.value}
-                      onValueChange={field.onChange}
-                      data-testid={`book-case-${slot.name}`}
-                    />
-                  )}
+        {/* Physician & Anesthesia */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField
+            id="book-physician"
+            label="Primary Physician"
+            error={errors.primaryPhysicianId?.message}
+          >
+            <Controller
+              control={control}
+              name="primaryPhysicianId"
+              render={({ field }) => (
+                <OptionSelect
+                  id="book-physician"
+                  options={physicianOptions}
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  data-testid="book-case-physician"
                 />
-              </FormField>
-            ))}
-          </div>
-        </fieldset>
+              )}
+            />
+          </FormField>
+          <FormField
+            id="book-anesthesia"
+            label="Anesthesiologist (Optional)"
+            error={errors.anesthesiologistId?.message}
+          >
+            <Controller
+              control={control}
+              name="anesthesiologistId"
+              render={({ field }) => (
+                <OptionSelect
+                  id="book-anesthesia"
+                  options={anesthesiaOptions}
+                  value={field.value ?? ""}
+                  onValueChange={field.onChange}
+                  data-testid="book-case-anesthesia"
+                />
+              )}
+            />
+          </FormField>
+        </div>
 
-        <section aria-live="polite" className="rounded-lg border border-border bg-muted/30 p-3" data-testid="book-case-conflicts">
-          {conflicts ? (
-            <GateChecklist result={conflicts} title="Conflict check" />
-          ) : (
-            <p className="text-sm text-muted-foreground">Choose a patient, room and time to check conflicts.</p>
-          )}
-        </section>
+        {/* Clinical notes */}
+        <FormField
+          id="book-notes"
+          label="Clinical Notes"
+          error={errors.notes?.message}
+          labelAction={referralHints ? <AiBadge label="From referral" /> : undefined}
+        >
+          <Textarea
+            id="book-notes"
+            rows={3}
+            placeholder="Pre-procedure notes, clinical indication, or special considerations…"
+            {...register("notes")}
+            aria-invalid={errors.notes ? true : undefined}
+            data-testid="book-case-notes"
+          />
+        </FormField>
       </div>
 
       <SheetFooter className="flex-row justify-end border-t border-border">
         <Button type="button" variant="outline" onClick={onDone}>
           Cancel
         </Button>
-        <Button type="submit" disabled={book.isPending || conflicts?.ok === false} data-testid="book-case-submit">
-          {book.isPending && <Loader2 aria-hidden className="animate-spin" />}
+        <Button
+          type="submit"
+          disabled={!facilityId || isSubmitting || book.isPending}
+          data-testid="book-case-submit"
+        >
+          {(isSubmitting || book.isPending) && <Loader2 aria-hidden className="animate-spin" />}
           Book case
         </Button>
       </SheetFooter>

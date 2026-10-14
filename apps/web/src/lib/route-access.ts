@@ -11,6 +11,7 @@ export const ROUTE_ACCESS = {
   patients: ["patient.read"],
   referrals: ["referral.triage", "patient.register"],
   whiteboard: ["whiteboard.read"],
+  board: ["whiteboard.read"],
   cases: ["case.read"],
   worklist: ["case.advance"],
   pathology: ["pathology.reconcile"],

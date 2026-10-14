@@ -13,6 +13,11 @@ export const duplicateMatchResultSchema = z.object({
   matches: z.array(duplicateCandidateMatchSchema),
 });
 
+export const conflictReasonSchema = z.object({
+  code: z.string(),
+  message: z.string(),
+});
+
 /** Error body of any non-2xx API response. Mirrors `ApiErrorPayload` in @asc/types. */
 export const apiErrorPayloadSchema = z
   .object({
@@ -20,5 +25,6 @@ export const apiErrorPayloadSchema = z
     code: z.string().optional(),
     details: z.record(z.string(), z.string()).optional(),
     duplicateMatch: duplicateMatchResultSchema.optional(),
+    reasons: z.array(conflictReasonSchema).optional(),
   })
   .passthrough();

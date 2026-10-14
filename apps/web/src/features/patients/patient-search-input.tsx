@@ -4,38 +4,17 @@ import { useDeferredValue, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSearchPatients } from "@asc/api-client/react";
 import type { PatientListItem } from "@asc/types";
-import type { PatientSearchBodyInput } from "@asc/validation/patients/search";
+import { buildSearchPayload } from "@asc/validation/patients/search";
 import { PatientSearchInput as PresentationalSearchInput } from "@asc/ui";
 import { useAuthStore } from "../../lib/stores/auth.store";
+
+export { buildSearchPayload };
 
 interface ConnectedPatientSearchInputProps {
   readonly onSelectPatient?: (patient: PatientListItem) => void;
   readonly placeholder?: string;
   readonly className?: string;
   readonly "data-testid"?: string;
-}
-
-/**
- * Disambiguates a raw search term into DOB (YYYY-MM-DD), MRN, or patient name.
- */
-export function buildSearchPayload(
-  term: string,
-  facilityId: string | null | undefined,
-): PatientSearchBodyInput {
-  const trimmed = term.trim();
-  const isDob = /^\d{4}-\d{2}-\d{2}$/.test(trimmed);
-  const isMrn =
-    /^(MRN-)?[A-Z0-9.-]+$/i.test(trimmed) &&
-    !/\s/.test(trimmed) &&
-    /[0-9]/.test(trimmed);
-
-  if (isDob) {
-    return { dob: trimmed, facilityId: facilityId ?? undefined };
-  }
-  if (isMrn) {
-    return { mrn: trimmed, facilityId: facilityId ?? undefined };
-  }
-  return { name: trimmed, facilityId: facilityId ?? undefined };
 }
 
 /**

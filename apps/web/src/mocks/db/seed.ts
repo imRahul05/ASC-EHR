@@ -2,7 +2,7 @@ import { isPhaseAtLeast, LEGACY_PHASE_ORDER, STOPPED_PHASES } from "@asc/clinica
 import type {
   AldreteScore,
   AnesthesiaRecord,
-  AuditEvent,
+  ClinicalTimelineEvent,
   CaseCoding,
   CasePhase,
   Consent,
@@ -65,7 +65,7 @@ interface DemoState {
   /** Portal prep checklist per patient (created lazily). */
   readonly prep: Map<string, readonly PrepItem[]>;
   workItems: WorkItem[];
-  audit: AuditEvent[];
+  audit: ClinicalTimelineEvent[];
   readonly quality: readonly QualityPoint[];
 }
 
@@ -647,9 +647,9 @@ function seedWorkItems(state: DemoState, anchor: number): WorkItem[] {
   ];
 }
 
-function seedAudit(state: DemoState): AuditEvent[] {
+function seedAudit(state: DemoState): ClinicalTimelineEvent[] {
   const specById = new Map(CASE_SPECS.map((spec) => [spec.id, spec]));
-  const events: AuditEvent[] = [...state.cases.values()].flatMap((procedureCase) => {
+  const events: ClinicalTimelineEvent[] = [...state.cases.values()].flatMap((procedureCase) => {
     const spec = specById.get(procedureCase.id);
     if (!spec) return [];
     return Object.entries(procedureCase.timestamps).map(([phase, at], index) => {
@@ -665,7 +665,7 @@ function seedAudit(state: DemoState): AuditEvent[] {
       };
     });
   });
-  const extra: AuditEvent[] = [...state.notes.values()]
+  const extra: ClinicalTimelineEvent[] = [...state.notes.values()]
     .filter((note) => note.signedAt)
     .map((note) => ({
       id: `aud_sign_${note.id}`,

@@ -41,6 +41,19 @@ describe("buildCaseEncounter", () => {
     expect(encounter.period).toEqual({ start: "2026-10-08T09:00:00Z", end: "2026-10-08T10:00:00Z" });
   });
 
+  it("adds idempotency key alone or alongside case number", () => {
+    const encWithKeyOnly = buildCaseEncounter({ ...base, idempotencyKey: "key-only" });
+    expect(encWithKeyOnly.identifier).toEqual([
+      { system: "https://fhir.wybit.io/asc/identifier/booking-idempotency-key", value: "key-only" },
+    ]);
+
+    const encWithBoth = buildCaseEncounter({ ...base, caseNumber: "ASC1-20261008-0002", idempotencyKey: "key-both" });
+    expect(encWithBoth.identifier).toEqual([
+      { system: "https://fhir.wybit.io/asc/identifier/case-number", value: "ASC1-20261008-0002" },
+      { system: "https://fhir.wybit.io/asc/identifier/booking-idempotency-key", value: "key-both" },
+    ]);
+  });
+
   it("refuses a period that ends before it starts, and allows an instant", () => {
     expect(() => buildCaseEncounter({ ...base, start: "2026-10-08T10:00:00Z", end: "2026-10-08T09:00:00Z" })).toThrow("invalid case period range");
     expect(buildCaseEncounter({ ...base, start: "2026-10-08T10:00:00Z", end: "2026-10-08T10:00:00Z" }).period).toEqual({ start: "2026-10-08T10:00:00Z", end: "2026-10-08T10:00:00Z" });

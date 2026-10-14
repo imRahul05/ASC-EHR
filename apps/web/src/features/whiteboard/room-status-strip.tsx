@@ -1,40 +1,71 @@
 import type { Room, WhiteboardCard } from "@asc/types";
-import { cn } from "@asc/ui";
-import { ROOM_STATUS_META } from "./whiteboard-config";
+import { toWhiteboardStage, WhiteboardTile, type WhiteboardTileCase } from "@asc/ui";
+import { formatTime24 } from "@asc/clinical-rules/time";
+import { isRoomOccupyingPhase } from "@asc/clinical-rules/phases";
+import { ASC_ROOMS } from "../schedule/schedule-options";
 
 interface RoomStatusStripProps {
   readonly rooms: readonly Room[];
   readonly cards: readonly WhiteboardCard[];
   readonly tv: boolean;
+  readonly elapsed?: (enteredAt: string | undefined) => number | null;
 }
 
-/** One tile per procedure room: status (icon + text) and the case number in it. */
-export function RoomStatusStrip({ rooms, cards, tv }: RoomStatusStripProps) {
+function findRoomCase(room: Room, cards: readonly WhiteboardCard[]): WhiteboardCard | undefined {
+  if (room.currentCaseId) {
+    const directMatch = cards.find(
+      (card) =>
+        card.caseId === room.currentCaseId &&
+        card.roomId === room.id &&
+        isRoomOccupyingPhase(card.phase),
+    );
+    if (directMatch) return directMatch;
+  }
+
+  if (room.status === "in_use") {
+    return cards.find(
+      (card) => card.roomId === room.id && isRoomOccupyingPhase(card.phase),
+    );
+  }
+
+  return undefined;
+}
+
+/**
+ * Live room tiles for all ASC procedure suites (room-1 through room-4).
+ * Rendered with WhiteboardTile enforcing strict PHI compliance (Patient Initials + Case Number ONLY).
+ */
+export function RoomStatusStrip({ rooms, cards, tv, elapsed }: RoomStatusStripProps) {
+  const allRooms: readonly Room[] = ASC_ROOMS.map((std) => {
+    const found = rooms.find((r) => r.id === std.id);
+    return found ?? { id: std.id, name: std.name, status: "idle" as const };
+  });
+
   return (
-    <ul className="grid gap-3 sm:grid-cols-3" aria-label="Procedure rooms" data-testid="whiteboard-rooms">
-      {rooms.map((room) => {
-        const { label, icon: Icon, tone } = ROOM_STATUS_META[room.status];
-        const current = cards.find((card) => card.caseId === room.currentCaseId);
-        return (
-          <li
-            key={room.id}
-            className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3 shadow-xs"
-            data-testid={`whiteboard-room-${room.id}`}
-            data-status={room.status}
-          >
-            <div className="min-w-0">
-              <p className={cn("font-semibold tracking-tight", tv ? "text-2xl" : "text-sm")}>{room.name}</p>
-              <p className={cn("font-mono text-muted-foreground tabular-nums", tv ? "text-base" : "text-xs")}>
-                {current ? `${current.caseNumber} · ${current.initials}` : "No case in room"}
-              </p>
+    <section aria-label="Procedure rooms status" data-testid="whiteboard-rooms">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {allRooms.map((room) => {
+          const current = findRoomCase(room, cards);
+
+          const tileCase: WhiteboardTileCase | null = current
+            ? {
+                caseId: current.caseId,
+                caseNumber: current.caseNumber,
+                initials: current.initials,
+                stage: toWhiteboardStage(current.phase),
+                elapsedMin: elapsed ? elapsed(current.phaseEnteredAt) : null,
+                scheduledStart: formatTime24(current.scheduledStart),
+                physicianInitials: current.surgeonInitials,
+              }
+            : null;
+
+          return (
+            <div key={room.id} data-testid={`whiteboard-room-${room.id}`} data-status={room.status}>
+              <WhiteboardTile room={room} currentCase={tileCase} tv={tv} />
             </div>
-            <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium", tone, tv ? "text-base" : "text-xs")}>
-              <Icon aria-hidden className={cn("size-3.5", room.status === "in_use" && "motion-safe:animate-pulse")} />
-              {label}
-            </span>
-          </li>
-        );
-      })}
-    </ul>
+          );
+        })}
+      </div>
+    </section>
   );
 }

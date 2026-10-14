@@ -119,6 +119,7 @@ export const ROOMS: readonly Room[] = [
   { id: "room-1", name: "Room 1", status: "idle" },
   { id: "room-2", name: "Room 2", status: "idle" },
   { id: "room-3", name: "Room 3", status: "idle" },
+  { id: "room-4", name: "Room 4", status: "idle" },
 ];
 
 export const BLOCKS: readonly BlockTemplate[] = [1, 2, 3, 4, 5].flatMap((day) => [
