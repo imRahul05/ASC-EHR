@@ -79,6 +79,8 @@ export class CasesMockClient extends BaseMockClient {
     let appointmentFilter: string | undefined;
     let subjectFilter: string | undefined;
     let identifierFilter: string | undefined;
+    let idFilter: string | undefined;
+    let countFilter: number | undefined;
     let dateFilter: string | undefined;
     let dateRangeFilter: { ge?: number; le?: number } | undefined;
     let cleanQuery = query;
@@ -99,6 +101,10 @@ export class CasesMockClient extends BaseMockClient {
           subjectFilter = entry[1];
         } else if (Array.isArray(entry) && entry[0] === "identifier" && typeof entry[1] === "string") {
           identifierFilter = entry[1];
+        } else if (Array.isArray(entry) && (entry[0] === "_id" || entry[0] === "id") && typeof entry[1] === "string") {
+          idFilter = entry[1];
+        } else if (Array.isArray(entry) && entry[0] === "_count" && typeof entry[1] === "string") {
+          countFilter = Number.parseInt(entry[1], 10);
         } else if (Array.isArray(entry)) {
           cleanArray.push(entry);
         }
@@ -128,6 +134,17 @@ export class CasesMockClient extends BaseMockClient {
       if (typeof rawIdentifier === "string") {
         identifierFilter = rawIdentifier;
         delete copy["identifier"];
+      }
+      const rawId = copy["_id"] ?? copy["id"];
+      if (typeof rawId === "string") {
+        idFilter = rawId;
+        delete copy["_id"];
+        delete copy["id"];
+      }
+      const rawCount = copy["_count"];
+      if (typeof rawCount === "string" || typeof rawCount === "number") {
+        countFilter = typeof rawCount === "string" ? Number.parseInt(rawCount, 10) : rawCount;
+        delete copy["_count"];
       }
       cleanQuery = copy;
     }
@@ -187,6 +204,13 @@ export class CasesMockClient extends BaseMockClient {
               : id.value === targetValue,
           );
         });
+      }
+      if (idFilter !== undefined) {
+        const targetIds = new Set(idFilter.split(","));
+        filteredEntries = filteredEntries?.filter((e) => e.resource?.id && targetIds.has(e.resource.id));
+      }
+      if (countFilter !== undefined && filteredEntries !== undefined) {
+        filteredEntries = filteredEntries.slice(0, countFilter);
       }
       return {
         ...bundle,

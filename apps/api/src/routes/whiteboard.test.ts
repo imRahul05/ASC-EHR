@@ -592,6 +592,78 @@ describe("Whiteboard routes", () => {
       expect(room4?.status).toBe("idle");
       expect(room4?.currentCaseId).toBeUndefined();
     });
+
+    it("batch loads missing patient display names in a single query to compute initials", async () => {
+      const mockMedplum = new MockClient();
+      const facilityId = "fac-a";
+      const today = new Date().toISOString();
+
+      await forFacility(mockMedplum, facilityId).create({
+        resourceType: "Patient",
+        id: "pat-batch-1",
+        name: [{ family: "Appleseed", given: ["John"] }],
+      });
+
+      await forFacility(mockMedplum, facilityId).create({
+        resourceType: "Patient",
+        id: "pat-batch-2",
+        name: [{ family: "Connor", given: ["Sarah"] }],
+      });
+
+      // Appointment 1 with no participant display
+      await forFacility(mockMedplum, facilityId).create({
+        resourceType: "Appointment",
+        id: "appt-batch-1",
+        status: "booked",
+        start: today,
+        end: new Date(Date.now() + 30 * 60_000).toISOString(),
+        participant: [
+          { actor: { reference: "Location/room-1" }, status: "accepted" },
+          { actor: { reference: "Patient/pat-batch-1" }, status: "accepted" }, // Notice NO display
+        ],
+      });
+
+      // Appointment 2 with no participant display
+      await forFacility(mockMedplum, facilityId).create({
+        resourceType: "Appointment",
+        id: "appt-batch-2",
+        status: "booked",
+        start: today,
+        end: new Date(Date.now() + 45 * 60_000).toISOString(),
+        participant: [
+          { actor: { reference: "Location/room-2" }, status: "accepted" },
+          { actor: { reference: "Patient/pat-batch-2" }, status: "accepted" }, // Notice NO display
+        ],
+      });
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant(facilityId, ["clinical-staff"], ["schedule.read"])],
+        "user-clinician",
+      );
+      built.identity.addToken("token-clinician", principal);
+
+      const response = await built.app.inject({
+        method: "GET",
+        url: "/whiteboard",
+        headers: bearer("token-clinician"),
+      });
+
+      expect(response.statusCode).toBe(200);
+      const json = response.json<WhiteboardBoard>();
+      expect(json.cards.length).toBe(2);
+
+      const card1 = json.cards.find((c) => c.caseId === "appt-batch-1");
+      const card2 = json.cards.find((c) => c.caseId === "appt-batch-2");
+
+      expect(card1?.initials).toBe("J.A.");
+      expect(card2?.initials).toBe("S.C.");
+    });
   });
 });
+
 

@@ -301,8 +301,45 @@ export function whiteboardRoutes(app: FastifyInstance): Promise<void> {
         }
       }
 
-      // Preload patient display names to optimize initials resolution
-      const patientCache = new Map<string, string>();
+      // Batch load missing patient display names in a single query to eliminate N+1 queries
+      const missingPatientIds = new Set<string>();
+      for (const appItem of filteredAppointments) {
+        const patientParticipant = appItem.participant?.find((p) =>
+          p.actor?.reference?.startsWith("Patient/"),
+        );
+        const patientId = patientParticipant?.actor?.reference
+          ? patientParticipant.actor.reference.replace("Patient/", "")
+          : undefined;
+        if (!patientParticipant?.actor?.display && patientId) {
+          missingPatientIds.add(patientId);
+        }
+      }
+
+      const patientDisplayById = new Map<string, string>();
+      if (missingPatientIds.size > 0) {
+        try {
+          const patientIdList = Array.from(missingPatientIds);
+          const patients = await request.medplum.searchResources("Patient", [
+            ["_id", patientIdList.join(",")],
+            ["_count", String(patientIdList.length)],
+          ]);
+          for (const patient of patients) {
+            if (patient.id) {
+              const humanName = patient.name?.[0];
+              if (humanName) {
+                const given = humanName.given?.[0] ?? "";
+                const family = humanName.family ?? "";
+                const fullName = `${given} ${family}`.trim();
+                if (fullName) {
+                  patientDisplayById.set(patient.id, fullName);
+                }
+              }
+            }
+          }
+        } catch {
+          // Graceful fallback when batch search fails
+        }
+      }
 
       const cards: WhiteboardCard[] = [];
       for (const appItem of filteredAppointments) {
@@ -316,25 +353,9 @@ export function whiteboardRoutes(app: FastifyInstance): Promise<void> {
           ? patientParticipant.actor.reference.replace("Patient/", "")
           : undefined;
 
-        let patientNameDisplay = patientParticipant?.actor?.display;
-        if (!patientNameDisplay && patientId) {
-          if (patientCache.has(patientId)) {
-            patientNameDisplay = patientCache.get(patientId);
-          } else {
-            try {
-              const patient = await request.medplum.readResource("Patient", patientId);
-              const humanName = patient.name?.[0];
-              if (humanName) {
-                const given = humanName.given?.[0] ?? "";
-                const family = humanName.family ?? "";
-                patientNameDisplay = `${given} ${family}`.trim();
-                patientCache.set(patientId, patientNameDisplay);
-              }
-            } catch {
-              // Graceful fallback when patient record cannot be read
-            }
-          }
-        }
+        const patientNameDisplay =
+          patientParticipant?.actor?.display ??
+          (patientId ? patientDisplayById.get(patientId) : undefined);
 
         const initials = extractInitials(
           patientNameDisplay ?? (patientId ? `${patientId[0]} ${patientId[1] ?? ""}` : "P T"),
