@@ -3,7 +3,7 @@ import {
   isCheckSatisfiedOrWaived,
   mapReadinessChecks,
 } from "@asc/clinical-rules/readiness";
-import { STAGE_FROM_PHASE } from "@asc/clinical-rules";
+import { STAGE_FROM_PHASE } from "@asc/clinical-rules/phases";
 import {
   readCasePhase,
   readCaseReadiness,

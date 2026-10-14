@@ -1,5 +1,5 @@
 import { forFacility } from "@asc/api-client/server";
-import { transitionGate } from "@asc/clinical-rules";
+import { transitionGate } from "@asc/clinical-rules/gates";
 import {
   casePhaseExtension,
   caseStageExtension,
