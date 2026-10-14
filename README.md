@@ -51,7 +51,7 @@ Phase 5  [░░░░░░░░░░]   0%  BACKLOG   │ Quality, QAPI & Su
 
 ## Core Clinical Safety: The 3 Strict Hard Gates
 
-Patient safety in ASC EHR is governed by three non-negotiable **Clinical Hard Gates** and a **Sterile Scope Hang-Time Lock**. These gates physically prevent case state progression until all required clinical criteria are satisfied.
+Patient safety in ASC EHR is governed by three non-negotiable **Clinical Hard Gates** and a **Sterile Scope Hang-Time Lock**. Physical case state progression is blocked until mandatory safety criteria are met:
 
 ```mermaid
 flowchart LR
@@ -76,45 +76,16 @@ flowchart LR
     Procedure --> PACU --> G3 --> Discharged
 ```
 
-### 1. Hard Gate 1: Arrived ➔ Pre-Op
-
-- **Enforced by:** `evaluateGate1()` in [`@asc/clinical-rules`](packages/clinical-rules/src/gates/gate1.ts).
-- **Mandatory Checks:**
-  1. `identity`: Two-factor demographic verification (matched to record, Name + DOB confirmed).
-  2. `consent`: Signed informed consent naming the specific planned procedure and performing physician.
-  3. `hp`: History & Physical examination completed within 30 days of the procedure date, plus a signed pre-procedure update note confirming no interval clinical change.
-  4. `npo`: Minimum fasting duration confirmed per anesthesia protocol.
-  5. `escort`: Responsible adult escort confirmed to accompany the patient home.
-- **Non-Waivable Rule:** Per REQ-5 §202 and AC-F-02-3, **`identity` and `consent` CANNOT be waived by any role, under any circumstances, including Administrator**. Attempts to waive fail closed. H&P may only be overridden by a credentialed clinician with a mandatory logged justification.
-
-### 2. Hard Gate 2: Pre-Op ➔ In-Room
-
-- **Enforced by:** `evaluateGate2()` in [`@asc/clinical-rules`](packages/clinical-rules/src/gates/gate2.ts).
-- **Mandatory Checks:**
-  1. `anesthesia_clearance`: Documented pre-anesthesia evaluation with ASA physical status classification and airway assessment (Mallampati score).
-  2. `anticoagulation`: Anticoagulation/antiplatelet protocol clearance verified (documented hold window confirmed by prescriber, or explicitly marked not applicable).
-  3. `equipment`: Required scope model and accessories confirmed available, reprocessed, and within hang-time.
-  4. `timeout`: Synchronous multi-role attestation in the procedure room naming all participants (Physician, Anesthesia/CRNA, RN Circulator) verifying patient identity, procedure, site, allergies, and fire risk.
-
-### 3. Hard Gate 3: PACU ➔ Discharge
-
-- **Mandatory Checks:**
-  1. `aldrete`: Modified Aldrete recovery score $\ge 9$ (or PADSS equivalent) with vital signs stable at protocol intervals.
-  2. `escort_verified`: Physical presence of the confirmed responsible adult escort verified at the bedside before release.
-  3. `signed_note`: Procedure note signed by the physician, or an immediate post-procedure note documenting findings, specimens, and complications.
-  4. `discharge_instructions`: Printed and explained post-procedure instructions, dietary guidelines, emergency phone contacts, and anticoagulation restart schedule.
-
-### Scope Reprocessing Hang-Time Hard Gate: 168 Hours (Zero Overrides)
-
-- **Enforced by:** `evaluateScopeHangTime()` in [`@asc/clinical-rules`](packages/clinical-rules/src/gates/scope-hang-time.ts).
-- **Maximum Limit:** **168 hours (7 calendar days)** elapsed from sterile reprocessing cycle completion.
-- **Absolute Zero-Override Enforcement:** Per REQ-13 and AC-I-05-4, if an endoscope's hang-time exceeds 168 hours or its leak test failed, **no role (including Administrator) can override this lock**. The scope is immediately quarantined and cannot be booked or assigned to any procedure until re-sterilized.
+- **Gate 1 (`arrived` ➔ `preop`)**: Evaluated by [`evaluateGate1`](packages/clinical-rules/src/gates/gate1.ts). Requires positive 2-factor identity, signed tablet consent, valid H&P (< 30 days + update note), NPO, and adult escort. **Identity and consent are strictly non-waivable by any role.**
+- **Gate 2 (`preop` ➔ `in_room`)**: Evaluated by [`evaluateGate2`](packages/clinical-rules/src/gates/gate2.ts). Requires pre-anesthesia clearance (ASA class + Mallampati score), anticoagulation hold verification, equipment readiness, and synchronous multi-role timeout attestation (MD, CRNA, RN).
+- **Gate 3 (`pacu` ➔ `discharged`)**: Requires Aldrete recovery score $\ge 9$, stable interval vitals, bedside physical escort verification, signed procedure note, and printed discharge instructions.
+- **Scope Hang-Time Lock**: Evaluated by [`evaluateScopeHangTime`](packages/clinical-rules/src/gates/scope-hang-time.ts). Enforces **168 hours (7 days) maximum** elapsed from sterile reprocessing. Zero overrides permitted.
 
 ---
 
 ## Architectural Core: Stage vs. Readiness Decoupling
 
-The single most critical architectural insight in ASC EHR (REQ-5 §158–184) is the **complete decoupling of physical patient Stage from computed clinical/financial Readiness**.
+ASC EHR decouples physical patient **Stage** (where the patient physically is, 12 sequential states) from computed **Readiness** (pure functional reduction over 12 clinical & administrative checks):
 
 ```mermaid
 flowchart TD
@@ -147,15 +118,10 @@ flowchart TD
     OverallReadiness -->|Evaluated at| Gate2["Gate 2 (Pre-Op ➔ In-Room)"]
 ```
 
-### Why Decouple?
+- **Zero Combinatorial Explosion**: Eliminates 140+ synthetic statuses; physical stage moves forward while readiness evaluates dynamically.
+- **Non-Blocking Financial Flow**: Pending insurance authorizations route asynchronous `Task` items to billing staff without blocking arrived patients from clinical pre-op preparation.
 
-Traditional hospital EHRs collapse stage and readiness into monolithic enum statuses (e.g. `Checked-In-Auth-Pending`, `Checked-In-HP-Expired`), triggering a combinatorial explosion that makes automated reasoning impossible.
-
-In ASC EHR:
-
-1. **Stage represents where the patient physically is:** Stage transitions move forward only (`requested` ➔ `scheduled` ➔ `confirmed` ➔ `arrived` ➔ `preop` ➔ `in_room` ➔ `procedure_start` ➔ `procedure_end` ➔ `pacu` ➔ `discharged`). Reversals (e.g. patient sent from room back to pre-op) are explicit, audited transactions.
-2. **Readiness is dynamically computed, never stored:** Readiness is a pure functional reduction over 12 independent checks. Each check evaluates to `satisfied`, `pending`, `failed`, or `waived`.
-3. **Financial readiness never blocks clinical care:** An uncleared authorization or pending deductible does NOT trap an arrived patient in the waiting room. It automatically routes a prioritized `Task` to Dee (Financial Clearance) while clinical care proceeds through Gate 1. Only clinical hard gates block physical stage progression.
+> 📖 **Full Specification:** See [docs/product/09-clinical-safety-and-stage-readiness.md](docs/product/09-clinical-safety-and-stage-readiness.md) for the complete hard gates rules, waiver hierarchy, and FHIR R4 extension mappings.
 
 ---
 
