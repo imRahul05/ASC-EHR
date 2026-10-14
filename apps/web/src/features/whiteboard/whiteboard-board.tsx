@@ -30,8 +30,8 @@ const MINUTE_MS = 60_000;
  * TV mode covers the app chrome with a full-screen, large-type board for wall displays.
  */
 export function WhiteboardBoard() {
-  const query = useWhiteboard({ refetchInterval: 5_000 });
   const [tv, setTv] = useState(false);
+  const query = useWhiteboard({ refetchInterval: 5_000, mode: tv ? "tv" : "clinical" });
   const now = useNow();
 
   if (query.isPending) return <LoadingSkeleton variant="cards" />;

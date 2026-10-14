@@ -135,15 +135,28 @@ export const centerHandlers = [
     return HttpResponse.json(done);
   }),
 
-  http.get(apiUrl(P.whiteboard), async () => {
+  http.get(apiUrl(P.whiteboard), async ({ request }) => {
     await latency();
+    const url = new URL(request.url);
+    const isTv = url.searchParams.get("mode") === "tv";
+    const rawCards = todaysCases()
+      .map((item) => whiteboardCard(item.id))
+      .filter((card): card is WhiteboardCard => card !== null)
+      .sort((a, b) => Date.parse(a.scheduledStart) - Date.parse(b.scheduledStart));
+
+    const cards: WhiteboardCard[] = isTv
+      ? rawCards.map((c) => ({
+          ...c,
+          procedureLabel: "",
+          surgeonInitials: "",
+          flags: [],
+        }))
+      : rawCards;
+
     const board: WhiteboardBoard = {
       generatedAt: new Date().toISOString(),
       rooms: roomsNow(),
-      cards: todaysCases()
-        .map((item) => whiteboardCard(item.id))
-        .filter((card): card is WhiteboardCard => card !== null)
-        .sort((a, b) => Date.parse(a.scheduledStart) - Date.parse(b.scheduledStart)),
+      cards,
     };
     return HttpResponse.json(board);
   }),

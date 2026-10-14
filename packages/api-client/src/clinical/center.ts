@@ -28,8 +28,12 @@ export function completeWorkItem(itemId: string): Promise<WorkItem> {
 }
 
 /** Today's live board (initials + case number only). */
-export function getWhiteboard(): Promise<WhiteboardBoard> {
-  return http.get(API_ROUTES.whiteboard);
+export function getWhiteboard(params?: {
+  readonly mode?: "tv" | "clinical";
+  readonly facilityId?: string;
+}): Promise<WhiteboardBoard> {
+  const query = params ? toQuery(params) : undefined;
+  return http.get(API_ROUTES.whiteboard, query !== undefined ? { query } : undefined);
 }
 
 /** Quality metrics with 30 days of history. */

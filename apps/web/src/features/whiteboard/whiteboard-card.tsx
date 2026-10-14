@@ -38,11 +38,13 @@ export function WhiteboardCard({ card, elapsedMin, warnAfterMin, tv }: Whiteboar
           <DoorOpen aria-hidden className="size-3.5 shrink-0" />
           <dd>{roomLabel(card.roomId)}</dd>
         </div>
-        <div className="flex items-center gap-1">
-          <dt className="sr-only">Surgeon</dt>
-          <Stethoscope aria-hidden className="size-3.5 shrink-0" />
-          <dd>{card.surgeonInitials}</dd>
-        </div>
+        {card.surgeonInitials ? (
+          <div className="flex items-center gap-1">
+            <dt className="sr-only">Surgeon</dt>
+            <Stethoscope aria-hidden className="size-3.5 shrink-0" />
+            <dd>{card.surgeonInitials}</dd>
+          </div>
+        ) : null}
         <div className={cn("col-span-2 flex items-center gap-1 tabular-nums", overdue && "font-medium text-warning")}>
           <dt className="sr-only">Time in phase</dt>
           {overdue ? <TriangleAlert aria-hidden className="size-3.5 shrink-0" /> : <Clock aria-hidden className="size-3.5 shrink-0" />}
