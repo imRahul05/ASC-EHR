@@ -1,5 +1,5 @@
 import type { HoldRule, Medication, MedicationClass, RuleResult } from "@asc/types";
-import { fromChecks } from "./result.js";
+import { fromChecks } from "@asc/clinical-rules/result";
 
 const GI_PROTOCOL = "Center GI endoscopy peri-procedural medication protocol (demo)";
 

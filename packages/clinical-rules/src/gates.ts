@@ -17,11 +17,11 @@ import type {
   TimeOutRecord,
   TimeOutRole,
 } from "@asc/types";
-import { medHoldCheck } from "./meds.js";
-import { transitionAllowed } from "./phases.js";
-import { canWaiveCheck, isCheckSatisfiedOrWaived, mapReadinessChecks } from "./readiness.js";
-import { combine, fail, fromChecks, OK } from "./result.js";
-import { ALDRETE_COMPONENTS } from "./scores.js";
+import { medHoldCheck } from "@asc/clinical-rules/meds";
+import { transitionAllowed } from "@asc/clinical-rules/phases";
+import { canWaiveCheck, isCheckSatisfiedOrWaived, mapReadinessChecks } from "@asc/clinical-rules/readiness";
+import { combine, fail, fromChecks, OK } from "@asc/clinical-rules/result";
+import { ALDRETE_COMPONENTS } from "@asc/clinical-rules/scores";
 
 /** Minimum modified Aldrete total for discharge (and no component may be 0). */
 export const ALDRETE_DISCHARGE_MIN = 9;

@@ -4,7 +4,7 @@ import {
   DEFAULT_DURATION_BY_CPT,
   DEFAULT_PROCEDURE_DURATION_MINUTES,
   defaultDurationForCpt,
-} from "./catalog.js";
+} from "./catalog";
 
 describe("Procedure duration catalog", () => {
   it("exports standard CPT durations", () => {
