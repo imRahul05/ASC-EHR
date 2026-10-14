@@ -20,8 +20,8 @@
 | Updated        | 2026-10-14                                                                       |
 | -------------- | -------------------------------------------------------------------------------- |
 | Current wave   | 3 (Phase 2 Clinical Readiness)                                                   |
-| In progress    | Ready to start P15c (Case Read & Schedule Backend APIs) & P17 (Pre-Op & Consent) |
-| Ready to start | P15c, P17, P16, P08, P09, P10, P12, P00b, P01, P06                               |
+| In progress    | Ready to start P16 (H&P & Med-Hold) & P17 (Pre-Op & Consent)                     |
+| Ready to start | P16, P17, P18, P20, P22a, P08, P09, P10, P12, P00b, P01, P06                    |
 | Blocked        | P13 soft-blocked on Q-MS1 (fallback allowed)                                     |
 | Go-live target | November 15, 2026 (Software Freeze) / January 2027 (Facility Opening)            |
 
@@ -31,7 +31,7 @@
 >
 > - **EP-A** (Foundation: Auth, Identity, Audit) [DONE]: P00–P05, P06
 > - **EP-B** (Referral Intake & Registration) [DONE for Phase 1]: P14a/b, P24 (Inbound Fax / eCW)
-> - **EP-C** (Scheduling & Whiteboard) [DONE for Phase 1]: P15a/b, P15c (Live Backend APIs)
+> - **EP-C** (Scheduling & Whiteboard) [DONE]: P15a/b, P15c (Live Backend APIs)
 > - **EP-D** (Financial Clearance): P14a/b (Eligibility intake), P22a (270/271 Monitor, 278 Auth, Estimates & Collection)
 > - **EP-E** (Pre-Operative Readiness & Hard Gates): P07 (Gates core) [DONE], P11 (Questionnaires), P16 (H&P & Med-Hold), P17 (Pre-Op & Consent)
 > - **EP-F** (Day of Surgery Flow): P18 (Room capture), P20 (AIMS flowsheet), P21 (PACU & discharge)
@@ -63,7 +63,7 @@
 | P14b | EP-B        | Registration: eligibility stub bot, UI components & web pages                                                      | done                               | P14a, P09                | Antigravity               | `feat/patient-registration-ui-and-eligibility`                          | [#77](https://github.com/imRahul05/ASC-EHR/pull/77)                                                                                                 | 2026-10-13 | 2026-10-13 |
 | P15a | EP-C        | Scheduling: contracts, conflict engine & case booking API                                                          | done                               | P14b, P07                | Antigravity               | `feat/case-scheduling-contracts-and-api`                                | [#78](https://github.com/imRahul05/ASC-EHR/pull/78)                                                                                                 | 2026-10-13 | 2026-10-13 |
 | P15b | EP-C        | Scheduling & whiteboard: UI components, calendar & live board                                                      | done                               | P15a, P10                | Antigravity               | `feat/case-scheduling-ui-and-whiteboard`                                | [#79](https://github.com/imRahul05/ASC-EHR/pull/79)                                                                                                 | 2026-10-13 | 2026-10-14 |
-| P15c | EP-C        | Case Read, Schedule & Workspace Backend APIs (GET /schedule, GET /cases/:id, POST /cases/:id/transition)           | ready                              | P15b                     | Antigravity               | `feat/case-read-schedule-apis`                                          |                                                                                                                                                     |            |            |
+| P15c | EP-C        | Case Read, Schedule & Workspace Backend APIs (GET /schedule, GET /cases/:id, POST /cases/:id/transition)           | done                               | P15b                     | Antigravity               | `feat/api-schedule-and-case-routes`                                     | PR 4                                                                                                                                                | 2026-10-14 | 2026-10-14 |
 | P16  | EP-E        | Pre-procedure H&P review, update note & anticoagulation rule engine                                                | ready                              | P07, P15b                | Antigravity               | `feat/hp-medhold`                                                       |                                                                                                                                                     |            |            |
 | P17  | EP-E        | Pre-op nursing, digital tablet consent (SignaturePad + PDF) & Gate 1                                               | ready                              | P07, P15b                | Antigravity               | `feat/preop-consent-gate1`                                              |                                                                                                                                                     |            |            |
 | P18  | EP-F        | Procedure capture                                                                                                  | pending                            | P15c, P10                |                           |                                                                         |                                                                                                                                                     |            |            |
