@@ -51,7 +51,21 @@ export function bookCasePayloadFrom(data: BookCaseFormData) {
 }
 
 export const getScheduleQuerySchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (expected YYYY-MM-DD)").optional(),
+  date: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (expected YYYY-MM-DD)")
+    .refine((val) => {
+      const [y, m, d] = val.split("-").map(Number);
+      if (!y || !m || !d) return false;
+      const dateObj = new Date(Date.UTC(y, m - 1, d));
+      return (
+        dateObj.getUTCFullYear() === y &&
+        dateObj.getUTCMonth() === m - 1 &&
+        dateObj.getUTCDate() === d
+      );
+    }, "Date must be a valid calendar date")
+    .optional(),
   facilityId: z.string().trim().min(1).optional(),
 });
 

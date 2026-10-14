@@ -28,6 +28,22 @@ describe("getScheduleQuerySchema", () => {
     expect(invalid.success).toBe(false);
   });
 
+  it("rejects calendar-invalid dates such as Feb 31 or Month 13", () => {
+    const invalidFeb31 = getScheduleQuerySchema.safeParse({ date: "2026-02-31" });
+    expect(invalidFeb31.success).toBe(false);
+
+    const invalidMonth13 = getScheduleQuerySchema.safeParse({ date: "2026-13-01" });
+    expect(invalidMonth13.success).toBe(false);
+  });
+
+  it("accepts leap year Feb 29 and rejects non-leap Feb 29", () => {
+    const leapYear = getScheduleQuerySchema.safeParse({ date: "2024-02-29" });
+    expect(leapYear.success).toBe(true);
+
+    const nonLeapYear = getScheduleQuerySchema.safeParse({ date: "2025-02-29" });
+    expect(nonLeapYear.success).toBe(false);
+  });
+
   it("rejects empty facilityId", () => {
     const invalid = getScheduleQuerySchema.safeParse({ facilityId: "   " });
     expect(invalid.success).toBe(false);

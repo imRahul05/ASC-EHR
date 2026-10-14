@@ -36,6 +36,11 @@ describe("transitionCaseSchema", () => {
     expect(invalid.success).toBe(false);
   });
 
+  it("rejects unknown or invalid target stages", () => {
+    const invalid = transitionCaseSchema.safeParse({ to: "unknown_stage" });
+    expect(invalid.success).toBe(false);
+  });
+
   it("rejects reasons longer than 500 characters", () => {
     const tooLong = "a".repeat(501);
     const invalid = transitionCaseSchema.safeParse({
