@@ -1,6 +1,5 @@
 import { isPhaseAtLeast } from "@asc/clinical-rules/phases";
-import type { CaseDetail, CasePhase } from "@asc/types";
-import type { ActiveDemoPersonaId } from "@/lib/personas";
+import type { ActiveDemoPersonaId, CaseDetail, CasePhase } from "@asc/types";
 import {
   Bot,
   ClipboardCheck,
@@ -394,7 +393,7 @@ export const WELCOME = {
   intro: "A clickable GI surgery center EHR. There is no backend: every patient and case is synthetic and lives in your browser.",
   highlights: [
     { id: "journey", title: "Follow one patient end to end", description: "Fax referral → booking → pre-op → procedure → AI note → discharge → coding → pathology.", icon: Stethoscope },
-    { id: "roles", title: "Switch persona any time", description: "Front desk, nurse, surgeon, anesthesia and patient each see their own screens.", icon: HeartHandshake },
+    { id: "roles", title: "Switch persona any time", description: "Front desk, nurse, surgeon, and anesthesia each see their own screens.", icon: HeartHandshake },
     { id: "ai", title: "Try the AI drafts", description: "Referral facts, the procedure note, codes and discharge instructions — always reviewed by a human.", icon: Bot },
   ],
   note: "Reloading the page signs you out and resets the data. Help is always under the ? button.",

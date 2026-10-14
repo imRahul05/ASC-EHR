@@ -47,3 +47,8 @@ export const PERSONAS = {
   ActiveDemoPersonaId,
   { readonly home: string; readonly label: string; readonly short: string; readonly description: string; readonly lands: string; readonly tryThis: string; readonly order: number }
 >;
+
+/** Type guard verifying an ID belongs to an active clinical demo persona. */
+export function isActivePersona(id: string): id is ActiveDemoPersonaId {
+  return Object.hasOwn(PERSONAS, id);
+}

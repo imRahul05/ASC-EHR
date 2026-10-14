@@ -2,12 +2,8 @@
 
 import { Button, DataTable, SectionCard } from "@asc/ui";
 import { useDemoPresets } from "@/hooks/use-auth";
-import { PERSONAS, type ActiveDemoPersonaId } from "@/lib/personas";
+import { PERSONAS, isActivePersona, type ActiveDemoPersonaId } from "@/lib/personas";
 import { useGoTo } from "./use-go-to";
-
-function isActivePersona(id: string): id is ActiveDemoPersonaId {
-  return Object.hasOwn(PERSONAS, id);
-}
 
 /** Demo personas: who they are, where they land, what to try — with a one-click switch. */
 export function GuidePersonas() {

@@ -22,16 +22,12 @@ import {
 import { Check, ChevronDown, ChevronRight, LogOut, RotateCcw } from "@asc/ui/icons";
 import { HelpButton } from "../../features/guide/help-button";
 import { useAuth, useCurrentPersona, useDemoPresets } from "../../hooks/use-auth";
-import { PERSONAS, type ActiveDemoPersonaId } from "../../lib/personas";
+import { PERSONAS, isActivePersona, type ActiveDemoPersonaId } from "../../lib/personas";
 import { roleLabelsFor } from "../../lib/role-labels";
 import { CommandMenu } from "./command-menu";
 import { FacilitySwitcher } from "./facility-switcher";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 import { routeTitle } from "./nav-config";
-
-function isActivePersona(id: string): id is ActiveDemoPersonaId {
-  return Object.hasOwn(PERSONAS, id);
-}
 
 function PersonaSwitcher() {
   const isMocking = isApiMockingEnabled();

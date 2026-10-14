@@ -6,7 +6,7 @@ import { Skeleton } from "@asc/ui/components/ui/skeleton";
 import { toast } from "@asc/ui/components/ui/sonner";
 import { cn } from "@asc/ui/lib/utils";
 import { ArrowRight, Building2, HeartPulse, Loader2, ShieldPlus, Stethoscope, type LucideIcon } from "@asc/ui/icons";
-import { PERSONAS, type ActiveDemoPersonaId } from "../../lib/personas";
+import { PERSONAS, isActivePersona, type ActiveDemoPersonaId } from "../../lib/personas";
 import { useAuth, useDemoPresets } from "../../hooks/use-auth";
 
 /** Persona icons (labels and order live in lib/personas.ts, keyed by preset id). */
@@ -16,10 +16,6 @@ const PERSONA_ICON: Readonly<Record<ActiveDemoPersonaId, LucideIcon>> = {
   "demo-surgeon": Stethoscope,
   "demo-anesthesia": ShieldPlus,
 };
-
-function isActivePersona(id: string): id is ActiveDemoPersonaId {
-  return Object.hasOwn(PERSONAS, id);
-}
 
 /** One-click demo sign-in: a card per persona (active clinical roles). Export name kept for the login page. */
 export function DemoLoginBar() {
