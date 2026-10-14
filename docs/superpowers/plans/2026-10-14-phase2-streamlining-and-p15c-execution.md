@@ -32,49 +32,25 @@
 
 ---
 
-## Sub-Agent Dependency Matrix
+## Phase-Wise PR Breakdown (Small, Context-Bounded Deliverables)
+
+To ensure maximum agent reasoning quality, avoid context saturation, and adhere strictly to the repo's **≤ 400 lines per commit/PR rule**, this work is decomposed into **5 independent, bite-sized PR phases**:
 
 ```mermaid
-flowchart TD
-    subgraph StreamA ["Track A: Frontend Streamlining & Single-Facility Auth (Sub-agent 1)"]
-        T1["Task 1: Auto-Default Facility Context (auth.store.ts & navbar)"]
-        T2["Task 2: Unmount Dormant Phase 2 Routes (/my-care & tour overlays)"]
-        T1 --> T2
-    end
-
-    subgraph StreamB ["Track B: Database & Backend Core (Sub-agent 2)"]
-        T3["Task 3: Streamline @asc/db Access (Remove withTenant RLS hook)"]
-        T4["Task 4: Implement GET /schedule in Fastify"]
-        T5["Task 5: Implement GET /cases/:id & POST /cases/:id/transition in Fastify"]
-        T3 --> T4
-        T3 --> T5
-    end
-
-    subgraph StreamC ["Track C: Integration & Mock Lockstep (Sub-agent 3)"]
-        T6["Task 6: Wire Case Workspace & Schedule to Live API Client"]
-        T7["Task 7: Align MSW Mock Handlers & Lockstep Verification"]
-        T6 --> T7
-    end
-
-    subgraph StreamD ["Track D: Verification & Gate Review (Sub-agent 4)"]
-        T8["Task 8: Full Monorepo Typecheck, Lint & Integration Test Gate"]
-    end
-
-    StreamA --> StreamC
-    StreamB --> StreamC
-    StreamC --> StreamD
+flowchart LR
+    PR1["PR 1: Active Facility Resolution<br/>(auth.store & useActiveFacility)<br/>~120 lines"] --> PR2["PR 2: Route Hygiene & Unmounting<br/>(Unmount /my-care & tour triggers)<br/>~150 lines"]
+    PR2 --> PR3["PR 3: Database Simplification<br/>(Streamline @asc/db access)<br/>~120 lines"]
+    PR3 --> PR4["PR 4: Fastify Backend APIs<br/>(GET /schedule, GET /cases/:id)<br/>~250 lines"]
+    PR4 --> PR5["PR 5: Workspace Wiring & Mocks<br/>(Frontend hooks & MSW parity)<br/>~250 lines"]
 ```
 
-| Task | Track | Dependencies | Parallel Execution | Role | Output Files |
-|---|---|---|---|---|---|
-| **T1** | Frontend Auth | None | Parallel with T3, T4, T5 | UI Systems Engineer | `apps/web/src/lib/stores/auth.store.ts`, `apps/web/src/components/shell/` |
-| **T2** | Route Streamlining | T1 | Parallel with T4, T5 | Frontend Engineer | `apps/web/src/app/(dashboard)/`, `apps/web/src/components/shell/nav-config.ts` |
-| **T3** | DB Simplification | None | Parallel with T1, T2 | Database Architect | `packages/db/src/tenant.ts`, `packages/db/src/audit-store.ts` |
-| **T4** | Schedule API | T3 | Parallel with T1, T2, T5 | Backend API Engineer | `apps/api/src/routes/schedule.ts`, `apps/api/src/routes/schedule.test.ts` |
-| **T5** | Case Lifecycle API | T3 | Parallel with T1, T2, T4 | Clinical Backend Engineer | `apps/api/src/routes/cases.ts`, `apps/api/src/routes/cases.test.ts` |
-| **T6** | Frontend Wiring | T1, T4, T5 | Sequential after APIs | Fullstack Integrator | `packages/api-client/src/cases.ts`, `apps/web/src/features/case/` |
-| **T7** | Mock Lockstep | T6 | Sequential after wiring | QA & Mock Engineer | `apps/web/src/mocks/handlers/cases.ts`, `apps/web/src/mocks/handlers/schedule.ts` |
-| **T8** | Verification Gate | T2, T7 | Final gate | Security & QA Reviewer | Turborepo lint, check-types, test suites passing 100% |
+| PR Phase | Branch Name | Scope & Deliverable | Target Size | Verification Gate |
+|---|---|---|---|---|
+| **PR 1: Auth Facility Context** | `feat/auth-resolve-active-facility` | Implement `resolveActiveFacility()`, `useActiveFacility()` hook, hide switcher when single site, regression tests. | ~120 lines | `pnpm --filter @asc/web test auth.store.test.ts` |
+| **PR 2: Route Unmounting** | `feat/unmount-dormant-portal-routes` | Unmount `/my-care` and tour triggers while preserving all code in `src/features/portal/` and `src/features/guide/`. | ~150 lines | `pnpm --filter @asc/web check-types test` |
+| **PR 3: DB Streamlining** | `feat/db-streamline-access` | Remove connection-pinned `set_config('app.tenant_id')` hook in `@asc/db`, retaining `facility_id` on all tables. | ~120 lines | `pnpm --filter @asc/db test` |
+| **PR 4: Backend APIs (P15c.1)** | `feat/api-schedule-and-case-routes` | Implement `GET /schedule`, `GET /cases/:id`, and `POST /cases/:id/transition` in `apps/api`. | ~250 lines | `pnpm --filter @asc/api test` |
+| **PR 5: UI & Mocks (P15c.2)** | `feat/case-workspace-wiring-and-mocks` | Wire `useSchedule` & `useCase` to `@asc/api-client`, align MSW handlers in lockstep, e2e test. | ~250 lines | Full monorepo `lint check-types test` |
 
 ---
 
