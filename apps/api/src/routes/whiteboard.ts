@@ -18,7 +18,7 @@ const DEFAULT_ROOMS: readonly Room[] = [
 
 const TURNOVER_WINDOW_MS = 15 * 60_000;
 
-function computeRoomStatuses(cards: readonly WhiteboardCard[]): Room[] {
+export function computeRoomStatuses(cards: readonly WhiteboardCard[]): Room[] {
   const now = Date.now();
   return DEFAULT_ROOMS.map((room) => {
     // 1. Check for active case currently occupying the procedure suite
@@ -44,7 +44,7 @@ function computeRoomStatuses(cards: readonly WhiteboardCard[]): Room[] {
         normalizedPhase === "ready_for_discharge" ||
         normalizedPhase === "discharged";
       if (!isPostRoomPhase) return false;
-      if (!c.phaseEnteredAt) return true;
+      if (!c.phaseEnteredAt) return false;
       const enteredTime = Date.parse(c.phaseEnteredAt);
       if (Number.isNaN(enteredTime)) return false;
       const elapsed = now - enteredTime;
@@ -275,6 +275,8 @@ export function whiteboardRoutes(app: FastifyInstance): Promise<void> {
           ["_count", "100"],
         ]),
         request.medplum.searchResources("Encounter", [
+          ["date", `ge${startOfDayIso}`],
+          ["date", `le${endOfDayIso}`],
           ["_count", "100"],
         ]),
       ]);
@@ -283,8 +285,13 @@ export function whiteboardRoutes(app: FastifyInstance): Promise<void> {
         appItem.meta?.accounts?.some((account) => account.reference === facilityAccountRef),
       );
 
+      const filteredEncounters = encounters.filter((enc) =>
+        enc.meta?.accounts?.some((account) => account.reference === facilityAccountRef) ||
+        enc.serviceProvider?.reference === facilityAccountRef,
+      );
+
       const encounterByApptId = new Map<string, Encounter>();
-      for (const enc of encounters) {
+      for (const enc of filteredEncounters) {
         if (enc.appointment) {
           for (const ref of enc.appointment) {
             if (ref.reference?.startsWith("Appointment/")) {

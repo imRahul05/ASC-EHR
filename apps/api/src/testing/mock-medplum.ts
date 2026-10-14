@@ -135,21 +135,29 @@ export class CasesMockClient extends BaseMockClient {
     const bundlePromise = super.search(resourceType, cleanQuery, options).then((bundle) => {
       let filteredEntries = bundle.entry;
       if (accountFilter !== undefined) {
-        filteredEntries = filteredEntries?.filter((e) =>
-          e.resource?.meta?.accounts?.some((a) => a.reference === accountFilter),
-        );
+        filteredEntries = filteredEntries?.filter((e) => {
+          const enc = e.resource as Encounter | undefined;
+          return (
+            e.resource?.meta?.accounts?.some((a) => a.reference === accountFilter) ||
+            enc?.serviceProvider?.reference === accountFilter
+          );
+        });
       }
       if (dateFilter !== undefined) {
         filteredEntries = filteredEntries?.filter((e) => {
           const appItem = e.resource as Appointment | undefined;
-          return appItem?.start?.startsWith(dateFilter);
+          const encItem = e.resource as Encounter | undefined;
+          const startIso = appItem?.start ?? encItem?.period?.start;
+          return startIso?.startsWith(dateFilter);
         });
       }
       if (dateRangeFilter !== undefined) {
         filteredEntries = filteredEntries?.filter((e) => {
           const appItem = e.resource as Appointment | undefined;
-          if (!appItem?.start) return false;
-          const startMs = Date.parse(appItem.start);
+          const encItem = e.resource as Encounter | undefined;
+          const startIso = appItem?.start ?? encItem?.period?.start;
+          if (!startIso) return false;
+          const startMs = Date.parse(startIso);
           if (dateRangeFilter?.ge !== undefined && startMs < dateRangeFilter.ge) return false;
           if (dateRangeFilter?.le !== undefined && startMs > dateRangeFilter.le) return false;
           return true;

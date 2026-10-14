@@ -1,11 +1,12 @@
 import { forFacility } from "@asc/api-client/server";
 import { facilityGrant, staffPrincipal } from "@asc/authz/testing";
 import { caseStageExtension } from "@asc/fhir";
-import type { WhiteboardBoard } from "@asc/types";
+import type { WhiteboardBoard, WhiteboardCard } from "@asc/types";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { buildTestApp } from "../testing/test-app.js";
 import { CasesMockClient as MockClient } from "../testing/mock-medplum.js";
+import { computeRoomStatuses } from "./whiteboard.js";
 
 type Built = Awaited<ReturnType<typeof buildTestApp>>;
 let built: Built | undefined;
@@ -210,6 +211,7 @@ describe("Whiteboard routes", () => {
         resourceType: "Encounter",
         id: "enc-pacu",
         status: "in-progress",
+        period: { start: today, end: new Date(Date.now() + 45 * 60_000).toISOString() },
         class: { system: "http://terminology.hl7.org/CodeSystem/v3-ActCode", code: "AMB" },
         appointment: [{ reference: "Appointment/appt-dynamic-phase" }],
         extension: [caseStageExtension("pacu")],
@@ -268,6 +270,7 @@ describe("Whiteboard routes", () => {
         resourceType: "Encounter",
         id: "enc-procedure",
         status: "in-progress",
+        period: { start: today, end: new Date(Date.now() + 45 * 60_000).toISOString() },
         class: { system: "http://terminology.hl7.org/CodeSystem/v3-ActCode", code: "AMB" },
         appointment: [{ reference: "Appointment/appt-active-or" }],
         extension: [
@@ -327,6 +330,7 @@ describe("Whiteboard routes", () => {
         resourceType: "Encounter",
         id: "enc-canon-num",
         status: "in-progress",
+        period: { start: today, end: new Date(Date.now() + 30 * 60_000).toISOString() },
         class: { system: "http://terminology.hl7.org/CodeSystem/v3-ActCode", code: "AMB" },
         appointment: [{ reference: "Appointment/appt-canon-num" }],
         identifier: [
@@ -356,5 +360,238 @@ describe("Whiteboard routes", () => {
       expect(json.cards.length).toBe(1);
       expect(json.cards[0]?.caseNumber).toBe("CASE-2026-0042");
     });
+
+    it("date-bounds encounter search and filters out encounters from other days or other facilities", async () => {
+      const mockMedplum = new MockClient();
+      const facilityId = "fac-a";
+      const otherFacilityId = "fac-b";
+      const today = new Date().toISOString();
+      const yesterday = new Date(Date.now() - 36 * 3600_000).toISOString();
+
+      // Today's appointment at fac-a
+      await forFacility(mockMedplum, facilityId).create({
+        resourceType: "Appointment",
+        id: "appt-today-bound",
+        status: "booked",
+        start: today,
+        end: new Date(Date.now() + 45 * 60_000).toISOString(),
+        participant: [
+          { actor: { reference: "Location/room-1" }, status: "accepted" },
+          { actor: { reference: "Patient/pat-today-bound", display: "Today Bound" }, status: "accepted" },
+        ],
+      });
+
+      // Today's encounter at fac-a (should match and map)
+      await forFacility(mockMedplum, facilityId).create({
+        resourceType: "Encounter",
+        id: "enc-today-bound",
+        status: "in-progress",
+        period: { start: today, end: new Date(Date.now() + 45 * 60_000).toISOString() },
+        class: { system: "http://terminology.hl7.org/CodeSystem/v3-ActCode", code: "AMB" },
+        appointment: [{ reference: "Appointment/appt-today-bound" }],
+        extension: [caseStageExtension("in_room")],
+      });
+
+      // Yesterday's encounter at fac-a (should be excluded by date bounds)
+      await forFacility(mockMedplum, facilityId).create({
+        resourceType: "Encounter",
+        id: "enc-yesterday-bound",
+        status: "finished",
+        period: { start: yesterday, end: new Date(Date.parse(yesterday) + 45 * 60_000).toISOString() },
+        class: { system: "http://terminology.hl7.org/CodeSystem/v3-ActCode", code: "AMB" },
+        appointment: [{ reference: "Appointment/appt-today-bound" }],
+      });
+
+      // Today's encounter at fac-b (should be excluded by facility account filter)
+      await forFacility(mockMedplum, otherFacilityId).create({
+        resourceType: "Encounter",
+        id: "enc-other-fac",
+        status: "in-progress",
+        period: { start: today, end: new Date(Date.now() + 45 * 60_000).toISOString() },
+        class: { system: "http://terminology.hl7.org/CodeSystem/v3-ActCode", code: "AMB" },
+        appointment: [{ reference: "Appointment/appt-today-bound" }],
+      });
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant(facilityId, ["clinical-staff"], ["schedule.read"])],
+        "user-clinician",
+      );
+      built.identity.addToken("token-clinician", principal);
+
+      const response = await built.app.inject({
+        method: "GET",
+        url: "/whiteboard",
+        headers: bearer("token-clinician"),
+      });
+
+      expect(response.statusCode).toBe(200);
+      const json = response.json<WhiteboardBoard>();
+      expect(json.cards.length).toBe(1);
+      const card = json.cards[0];
+      // Mapped to today's encounter for fac-a
+      expect(card?.caseId).toBe("enc-today-bound");
+      expect(card?.phase).toBe("READY_FOR_PROCEDURE");
+    });
+
+    it("handles turnover timeout and does not get stuck in turnover when phaseEnteredAt is missing or expired", async () => {
+      const mockMedplum = new MockClient();
+      const facilityId = "fac-a";
+      const now = Date.now();
+
+      // Case 1: Room 1 entered recovery 5 minutes ago (within 15 min turnover window -> turnover)
+      const fiveMinsAgo = new Date(now - 5 * 60_000).toISOString();
+      await forFacility(mockMedplum, facilityId).create({
+        resourceType: "Appointment",
+        id: "appt-recent-recovery",
+        status: "booked",
+        start: fiveMinsAgo,
+        end: new Date(now).toISOString(),
+        participant: [
+          { actor: { reference: "Location/room-1" }, status: "accepted" },
+          { actor: { reference: "Patient/pat-1", display: "Pat One" }, status: "accepted" },
+        ],
+      });
+      await forFacility(mockMedplum, facilityId).create({
+        resourceType: "Encounter",
+        id: "enc-recent-recovery",
+        status: "in-progress",
+        period: { start: fiveMinsAgo },
+        class: { system: "http://terminology.hl7.org/CodeSystem/v3-ActCode", code: "AMB" },
+        appointment: [{ reference: "Appointment/appt-recent-recovery" }],
+        extension: [caseStageExtension("pacu")],
+      });
+
+      // Case 2: Room 2 entered recovery 25 minutes ago (window expired -> idle)
+      const twentyFiveMinsAgo = new Date(now - 25 * 60_000).toISOString();
+      await forFacility(mockMedplum, facilityId).create({
+        resourceType: "Appointment",
+        id: "appt-expired-recovery",
+        status: "booked",
+        start: twentyFiveMinsAgo,
+        end: new Date(now - 5 * 60_000).toISOString(),
+        participant: [
+          { actor: { reference: "Location/room-2" }, status: "accepted" },
+          { actor: { reference: "Patient/pat-2", display: "Pat Two" }, status: "accepted" },
+        ],
+      });
+      await forFacility(mockMedplum, facilityId).create({
+        resourceType: "Encounter",
+        id: "enc-expired-recovery",
+        status: "in-progress",
+        period: { start: twentyFiveMinsAgo },
+        class: { system: "http://terminology.hl7.org/CodeSystem/v3-ActCode", code: "AMB" },
+        appointment: [{ reference: "Appointment/appt-expired-recovery" }],
+        extension: [caseStageExtension("pacu")],
+      });
+
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant(facilityId, ["clinical-staff"], ["schedule.read"])],
+        "user-clinician",
+      );
+      built.identity.addToken("token-clinician", principal);
+
+      const response = await built.app.inject({
+        method: "GET",
+        url: "/whiteboard",
+        headers: bearer("token-clinician"),
+      });
+
+      expect(response.statusCode).toBe(200);
+      const json = response.json<WhiteboardBoard>();
+
+      const room1 = json.rooms.find((r) => r.id === "room-1");
+      expect(room1?.status).toBe("turnover");
+      expect(room1?.currentCaseId).toBe("enc-recent-recovery");
+
+      const room2 = json.rooms.find((r) => r.id === "room-2");
+      expect(room2?.status).toBe("idle");
+      expect(room2?.currentCaseId).toBeUndefined();
+    });
+
+    it("verifies computeRoomStatuses does not get stuck in turnover when phaseEnteredAt is undefined or invalid", () => {
+      const now = Date.now();
+      const fiveMinsAgo = new Date(now - 5 * 60_000).toISOString();
+      const twentyMinsAgo = new Date(now - 20 * 60_000).toISOString();
+
+      const testCards: WhiteboardCard[] = [
+        {
+          caseId: "case-active",
+          caseNumber: "CASE-001",
+          initials: "A.B.",
+          phase: "IN_PROCEDURE",
+          roomId: "room-1",
+          procedureLabel: "Colonoscopy",
+          scheduledStart: fiveMinsAgo,
+          phaseEnteredAt: fiveMinsAgo,
+          surgeonInitials: "DR",
+          flags: [],
+        },
+        {
+          caseId: "case-turnover",
+          caseNumber: "CASE-002",
+          initials: "C.D.",
+          phase: "RECOVERY",
+          roomId: "room-2",
+          procedureLabel: "EGD",
+          scheduledStart: fiveMinsAgo,
+          phaseEnteredAt: fiveMinsAgo,
+          surgeonInitials: "DR",
+          flags: [],
+        },
+        {
+          caseId: "case-expired",
+          caseNumber: "CASE-003",
+          initials: "E.F.",
+          phase: "RECOVERY",
+          roomId: "room-3",
+          procedureLabel: "Colonoscopy",
+          scheduledStart: twentyMinsAgo,
+          phaseEnteredAt: twentyMinsAgo,
+          surgeonInitials: "DR",
+          flags: [],
+        },
+        {
+          caseId: "case-no-timestamp",
+          caseNumber: "CASE-004",
+          initials: "G.H.",
+          phase: "RECOVERY",
+          roomId: "room-4",
+          procedureLabel: "Colonoscopy",
+          scheduledStart: fiveMinsAgo,
+          phaseEnteredAt: undefined, // missing timestamp -> must NOT be stuck in turnover
+          surgeonInitials: "DR",
+          flags: [],
+        },
+      ];
+
+      const rooms = computeRoomStatuses(testCards);
+
+      const room1 = rooms.find((r) => r.id === "room-1");
+      expect(room1?.status).toBe("in_use");
+      expect(room1?.currentCaseId).toBe("case-active");
+
+      const room2 = rooms.find((r) => r.id === "room-2");
+      expect(room2?.status).toBe("turnover");
+      expect(room2?.currentCaseId).toBe("case-turnover");
+
+      const room3 = rooms.find((r) => r.id === "room-3");
+      expect(room3?.status).toBe("idle");
+      expect(room3?.currentCaseId).toBeUndefined();
+
+      const room4 = rooms.find((r) => r.id === "room-4");
+      expect(room4?.status).toBe("idle");
+      expect(room4?.currentCaseId).toBeUndefined();
+    });
   });
 });
+
