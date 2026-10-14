@@ -36,8 +36,11 @@ export {
   localDateTimeToIso,
   bookCasePayloadFrom,
   type BookCaseFormData,
+  getScheduleQuerySchema,
+  type GetScheduleQuery,
 } from "./schedule.js";
 export * from "./cases/book.js";
+export * from "./cases/transition.js";
 
 // Principal, grants, role templates and GET /me (authorization contracts)
 export * from "./authz.js";

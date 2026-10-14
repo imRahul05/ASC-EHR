@@ -3,6 +3,7 @@ import { casesRoutes } from "./cases.js";
 import { healthRoute } from "./health.js";
 import { meRoute } from "./me.js";
 import { patientsRoutes } from "./patients.js";
+import { scheduleRoutes } from "./schedule.js";
 import { whiteboardRoutes } from "./whiteboard.js";
 
 export function registerRoutes(app: FastifyInstance) {
@@ -10,5 +11,6 @@ export function registerRoutes(app: FastifyInstance) {
   app.register(meRoute);
   app.register(patientsRoutes);
   app.register(casesRoutes);
+  app.register(scheduleRoutes);
   app.register(whiteboardRoutes);
 }

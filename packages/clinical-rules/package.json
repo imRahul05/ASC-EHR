@@ -6,6 +6,7 @@
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
+    "./gates": "./src/gates.ts",
     "./phases": "./src/phases.ts",
     "./readiness": "./src/readiness.ts",
     "./time": "./src/time.ts",
