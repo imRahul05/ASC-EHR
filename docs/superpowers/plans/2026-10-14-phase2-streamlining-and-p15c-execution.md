@@ -80,22 +80,42 @@ flowchart TD
 
 ## Detailed Task Specifications
 
-### Task 1: Auto-Default Facility Context on Login
+### Task 1: Robust Active Facility Resolution & `useActiveFacility` Hook
 **Files:**
+- Create: `apps/web/src/hooks/use-active-facility.ts`
 - Modify: `apps/web/src/lib/stores/auth.store.ts`
 - Modify: `apps/web/src/components/shell/app-header.tsx`
 - Test: `apps/web/src/lib/stores/auth.store.test.ts`
+- Test: `apps/web/src/hooks/use-active-facility.test.ts`
 
-- [ ] **Step 1: Write failing test for auto-defaulting facility ID**
-  Verify that when an admin user logs in with multiple facilities or scope `"all"`, `authStore.getState().facilityId` automatically defaults to the primary facility (`Organization/default` or `facilities[0].id`), and is never `null`.
-- [ ] **Step 2: Run test to verify failure**
-  Run: `pnpm --filter @asc/web test auth.store.test.ts`
-- [ ] **Step 3: Implement auto-default logic in `auth.store.ts`**
-  Ensure `setAuthSession` selects `facilities[0]?.id ?? "default-facility"` if `facilityId` is not explicitly set.
+**Architecture Principle (Separation of Concerns):**
+- **Grants** answer: *"What can you do?"* (Capabilities & Role).
+- **`me.facilities`** answers: *"Where are you authorized to work?"* (Facility memberships).
+- `me.facilities` is the **sole source of truth** for accessible work locations. Do not derive active working facility from `grantedFacilityIds()`.
+
+- [ ] **Step 1: Write failing regression test in `auth.store.test.ts`**
+  Verify that when an admin user logs in with `scope: "all"` and `me.facilities = [{ id: "org-1", name: "Metro GI ASC" }]`, `resolveActiveFacility(me)` resolves to `"org-1"` and is never `null`.
+- [ ] **Step 2: Implement `resolveActiveFacility(me, persistedId)` in `auth.store.ts`**
+  ```ts
+  export function resolveActiveFacility(
+    facilities: readonly { readonly id: string; readonly name: string }[],
+    persistedId?: string | null,
+    defaultFacilityId?: string | null
+  ): string | null {
+    const validIds = facilities.map((f) => f.id);
+    if (persistedId && validIds.includes(persistedId)) return persistedId;
+    if (defaultFacilityId && validIds.includes(defaultFacilityId)) return defaultFacilityId;
+    return validIds[0] ?? null;
+  }
+  ```
+- [ ] **Step 3: Implement `useActiveFacility()` hook**
+  In `apps/web/src/hooks/use-active-facility.ts`, export a hook that returns `{ activeFacilityId, facility, hasFacility: boolean }`. If `facilityId` is `null` (misconfigured account with zero facilities), return a clear blocked status so components render a *"No facility assigned. Please contact your center administrator"* state rather than propagating a nullable ID to mutation forms.
 - [ ] **Step 4: Hide manual `FacilitySwitcher` when single facility exists**
   In `app-header.tsx`, render `FacilitySwitcher` only when `facilities.length > 1`.
-- [ ] **Step 5: Verify test passes and commit**
-  Commit: `fix(web): auto-default facility context on sign-in and streamline header`
+- [ ] **Step 5: Run tests to verify pass**
+  Run: `pnpm --filter @asc/web test auth.store.test.ts`
+- [ ] **Step 6: Commit**
+  Commit: `fix(web): resolve active facility from me.facilities and add useActiveFacility hook`
 
 ---
 
