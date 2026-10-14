@@ -55,7 +55,13 @@ describe("buildApp in production", () => {
 
   it("builds with a real adapter", async () => {
     const real: IdentityPort = { authenticate: () => Promise.resolve({ ok: false, reason: "invalid-token" }) };
-    const { app } = await buildTestApp({ production: true, identity: real });
+    const dummyLock = { withLock: async <T>(_fac: string, op: () => Promise<T>): Promise<T> => op() };
+    const { app } = await buildTestApp({
+      production: true,
+      identity: real,
+      facilityRegistrationLock: dummyLock,
+      facilitySchedulingLock: dummyLock,
+    });
     await app.close();
   });
 });

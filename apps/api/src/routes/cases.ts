@@ -1,7 +1,8 @@
 import { forFacility } from "@asc/api-client/server";
 import {
+  ASC_ROOM_IDS,
   evaluateScheduleConflict,
-  isCancelledOrNoShow,
+  type AscRoomId,
   type ScheduleSlot,
 } from "@asc/clinical-rules/scheduling/conflicts";
 import { API_ROUTE_PATTERNS } from "@asc/config";
@@ -10,6 +11,7 @@ import {
   buildCaseEncounter,
   buildServiceRequest,
   createTransaction,
+  fhirUrls,
 } from "@asc/fhir";
 import type { FacilitySchedulingLock } from "@asc/types";
 import {
@@ -18,10 +20,86 @@ import {
   type BookCaseInput,
 } from "@asc/validation";
 import type { WithId } from "@medplum/core";
-import type { Appointment, Encounter, Patient } from "@medplum/fhirtypes";
+import type { Appointment, Encounter, Patient, Practitioner } from "@medplum/fhirtypes";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import { capabilityAtResource } from "../auth/route-auth.js";
+
+interface ClassifiedReadError {
+  readonly status: number;
+  readonly code: string;
+  readonly message: string;
+}
+
+export function classifyMedplumReadError(
+  error: Error,
+  resourceKind: "patient" | "primary_physician" | "anesthesiologist",
+  resourceId: string,
+): ClassifiedReadError {
+  const err = error as Error & {
+    readonly status?: number;
+    readonly statusCode?: number;
+    readonly outcome?: {
+      readonly issue?: ReadonlyArray<{
+        readonly severity?: string;
+        readonly code?: string;
+        readonly details?: { readonly text?: string };
+      }>;
+    };
+  };
+
+  const status = err.status ?? err.statusCode;
+  const isNotFound =
+    status === 404 ||
+    err.outcome?.issue?.some((i) => i.code === "not-found") ||
+    err.message.toLowerCase().includes("not found");
+
+  if (isNotFound) {
+    return {
+      status: 404,
+      code: `${resourceKind}_not_found`,
+      message: `${resourceKind.replace("_", " ")} with ID ${resourceId} does not exist`,
+    };
+  }
+
+  const isForbidden =
+    status === 403 ||
+    status === 401 ||
+    err.outcome?.issue?.some((i) => i.code === "security" || i.code === "forbidden") ||
+    err.message.toLowerCase().includes("forbidden") ||
+    err.message.toLowerCase().includes("unauthorized");
+
+  if (isForbidden) {
+    return {
+      status: 403,
+      code: "forbidden",
+      message: `Access denied reading ${resourceKind.replace("_", " ")} ${resourceId}`,
+    };
+  }
+
+  const isUnavailable =
+    status === 503 ||
+    status === 502 ||
+    status === 504 ||
+    err.message.toLowerCase().includes("econnrefused") ||
+    err.message.toLowerCase().includes("timeout") ||
+    err.message.toLowerCase().includes("unavailable") ||
+    err.message.toLowerCase().includes("network");
+
+  if (isUnavailable) {
+    return {
+      status: 503,
+      code: "upstream_service_unavailable",
+      message: "Upstream clinical data service is temporarily unavailable",
+    };
+  }
+
+  return {
+    status: 500,
+    code: "internal_error",
+    message: `Unexpected error reading ${resourceKind.replace("_", " ")}`,
+  };
+}
 
 export function createInMemorySchedulingLock(): FacilitySchedulingLock {
   const queues = new Map<string, Promise<void>>();
@@ -79,21 +157,43 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
         return reply;
       }
 
-      return await schedulingLock.withLock(facilityId, async () => {
-        const facilityAccountRef = `Organization/${facilityId}`;
+      const tenantId = request.tenant?.tenantId;
+      if (!tenantId) {
+        return reply.code(403).send({
+          code: "forbidden",
+          message: "Tenant context is required",
+        });
+      }
 
-        // 1. Strict Patient verification - fail fast if patient does not exist or lacks facility association
+      if (!ASC_ROOM_IDS.includes(body.roomId as AscRoomId)) {
+        return reply.code(400).send({
+          code: "invalid_room",
+          message: `Room ID '${body.roomId}' is not a valid ASC procedure room. Supported rooms: ${ASC_ROOM_IDS.join(", ")}`,
+        });
+      }
+
+      return await schedulingLock.withLock(
+        facilityId,
+        async () => {
+          const facilityAccountRef = `Organization/${facilityId}`;
+
+        // 1. Strict Patient verification - fail fast if patient does not exist, errors, or lacks facility association
         let patient: Patient;
         try {
           patient = await request.medplum.readResource("Patient", body.patientId);
         } catch (readError) {
-          request.log.warn(
-            { patientId: body.patientId, error: readError instanceof Error ? readError.message : String(readError) },
-            "patient not found during case booking",
+          const classified = classifyMedplumReadError(
+            readError instanceof Error ? readError : new Error(String(readError)),
+            "patient",
+            body.patientId,
           );
-          return reply.code(404).send({
-            code: "patient_not_found",
-            message: `Patient with ID ${body.patientId} does not exist`,
+          request.log.warn(
+            { patientId: body.patientId, classified },
+            "patient read failed during case booking",
+          );
+          return reply.code(classified.status).send({
+            code: classified.code,
+            message: classified.message,
           });
         }
 
@@ -111,11 +211,161 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
           });
         }
 
+        // 2. Validate primary physician exists and is active
+        let primaryPhysician: Practitioner;
+        try {
+          primaryPhysician = await request.medplum.readResource("Practitioner", body.primaryPhysicianId);
+        } catch (readError) {
+          const classified = classifyMedplumReadError(
+            readError instanceof Error ? readError : new Error(String(readError)),
+            "primary_physician",
+            body.primaryPhysicianId,
+          );
+          return reply.code(classified.status).send({
+            code: classified.code,
+            message: classified.message,
+          });
+        }
+
+        if (primaryPhysician.active === false) {
+          return reply.code(400).send({
+            code: "inactive_or_invalid_practitioner",
+            message: `Primary physician ${body.primaryPhysicianId} is marked inactive`,
+          });
+        }
+
+        // 3. Validate anesthesiologist if provided
+        if (body.anesthesiologistId) {
+          let anesthesiologist: Practitioner;
+          try {
+            anesthesiologist = await request.medplum.readResource("Practitioner", body.anesthesiologistId);
+          } catch (readError) {
+            const classified = classifyMedplumReadError(
+              readError instanceof Error ? readError : new Error(String(readError)),
+              "anesthesiologist",
+              body.anesthesiologistId,
+            );
+            return reply.code(classified.status).send({
+              code: classified.code,
+              message: classified.message,
+            });
+          }
+
+          if (anesthesiologist.active === false) {
+            return reply.code(400).send({
+              code: "inactive_or_invalid_practitioner",
+              message: `Anesthesiologist ${body.anesthesiologistId} is marked inactive`,
+            });
+          }
+        }
+
+        // 4. Durable booking idempotency check
+        const rawHeaderKey = request.headers["x-idempotency-key"] ?? request.headers["idempotency-key"];
+        const headerIdempotencyKey =
+          typeof rawHeaderKey === "string" && rawHeaderKey.trim().length > 0
+            ? rawHeaderKey.trim()
+            : undefined;
+        const idempotencyKey =
+          headerIdempotencyKey ??
+          (body.idempotencyKey && body.idempotencyKey.trim().length > 0 ? body.idempotencyKey.trim() : undefined);
+
+        const idempotencySystem = fhirUrls.identifierSystem("booking-idempotency-key");
+
+        if (idempotencyKey !== undefined) {
+          const existingAppts = await request.medplum.searchResources("Appointment", [
+            ["identifier", `${idempotencySystem}|${idempotencyKey}`],
+            ["_count", "10"],
+          ]);
+
+          if (existingAppts.length > 0) {
+            const existingAppt = existingAppts[0];
+            if (!existingAppt || !existingAppt.id) {
+              return reply.code(500).send({
+                code: "incomplete_transaction",
+                message: "Existing booking appointment has no identifier",
+              });
+            }
+
+            const matchesFacility = existingAppt.meta?.accounts?.some(
+              (a) => a.reference === facilityAccountRef,
+            );
+            const matchesPatient = existingAppt.participant?.some(
+              (p) => p.actor?.reference === `Patient/${body.patientId}`,
+            );
+
+            if (!matchesFacility || !matchesPatient) {
+              return reply.code(409).send({
+                code: "idempotency_key_conflict",
+                message: `Idempotency key '${idempotencyKey}' was already used for a different patient or facility`,
+              });
+            }
+
+            const existingEncounters = await request.medplum.searchResources("Encounter", [
+              ["identifier", `${idempotencySystem}|${idempotencyKey}`],
+              ["_count", "10"],
+            ]);
+            const matchingEncounter =
+              existingEncounters[0] ??
+              (
+                await request.medplum.searchResources("Encounter", [
+                  ["appointment", `Appointment/${existingAppt.id}`],
+                  ["_count", "10"],
+                ])
+              )[0];
+
+            if (!matchingEncounter || !matchingEncounter.id) {
+              request.log.error(
+                { appointmentId: existingAppt.id, idempotencyKey },
+                "idempotent retry found appointment without linked encounter",
+              );
+              return reply.code(500).send({
+                code: "incomplete_transaction",
+                message: "Previous booking transaction was incomplete; encounter is missing. Manual reconciliation required.",
+              });
+            }
+
+            const existingServiceRequests = await request.medplum.searchResources("ServiceRequest", [
+              ["identifier", `${idempotencySystem}|${idempotencyKey}`],
+              ["_count", "10"],
+            ]);
+            const matchingServiceRequest = existingServiceRequests[0];
+            if (!matchingServiceRequest || !matchingServiceRequest.id) {
+              request.log.error(
+                { appointmentId: existingAppt.id, encounterId: matchingEncounter.id, idempotencyKey },
+                "idempotent retry found appointment and encounter without linked service request",
+              );
+              return reply.code(500).send({
+                code: "incomplete_transaction",
+                message: "Previous booking transaction was incomplete; service request is missing. Manual reconciliation required.",
+              });
+            }
+
+            request.log.info(
+              {
+                facilityId,
+                patientId: body.patientId,
+                caseId: matchingEncounter.id,
+                appointmentId: existingAppt.id,
+                roomId: body.roomId,
+                idempotencyKey,
+              },
+              "idempotent case booking retry returned verified existing booking",
+            );
+            return reply.code(200).send({
+              caseId: matchingEncounter.id,
+              appointmentId: existingAppt.id,
+              encounterId: matchingEncounter.id,
+              scheduledAt: existingAppt.start ?? body.scheduledAt,
+              roomId: body.roomId,
+            });
+          }
+        }
+
         const candidateStartMs = Date.parse(body.scheduledAt);
         const windowStartIso = new Date(candidateStartMs - 24 * 60 * 60_000).toISOString();
         const windowEndIso = new Date(candidateStartMs + 24 * 60 * 60_000).toISOString();
 
-        // 2. Fetch existing appointments covering the local facility window with pagination
+        // 5. Fetch existing appointments covering the local facility window with pagination
         const allAppointments: Appointment[] = [];
         const pageSize = 100;
         let offset = 0;
@@ -137,51 +387,7 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
           appointment.meta?.accounts?.some((account) => account.reference === facilityAccountRef),
         );
 
-        // 3. Durable booking idempotency check (matching patient, room, and scheduled time)
-        const matchingExistingAppointment = facilityAppointments.find((appItem) => {
-          if (isCancelledOrNoShow(appItem.status)) return false;
-          const hasPatient = appItem.participant?.some(
-            (p) => p.actor?.reference === `Patient/${body.patientId}`,
-          );
-          const hasRoom = appItem.participant?.some(
-            (p) => p.actor?.reference === `Location/${body.roomId}`,
-          );
-          const matchesTime = appItem.start === body.scheduledAt;
-          return hasPatient && hasRoom && matchesTime;
-        });
-
-        if (matchingExistingAppointment && matchingExistingAppointment.id) {
-          const encounters = await request.medplum.searchResources("Encounter", [
-            ["subject", `Patient/${body.patientId}`],
-            ["_count", "50"],
-          ]);
-          const matchingEncounter = encounters.find(
-            (enc) =>
-              enc.appointment?.some((a) => a.reference === `Appointment/${matchingExistingAppointment.id}`) ||
-              (enc.period?.start === body.scheduledAt &&
-                enc.location?.some((l) => l.location?.reference === `Location/${body.roomId}`)),
-          );
-          const existingEncounterId = matchingEncounter?.id ?? matchingExistingAppointment.id;
-          request.log.info(
-            {
-              facilityId,
-              patientId: body.patientId,
-              caseId: existingEncounterId,
-              appointmentId: matchingExistingAppointment.id,
-              roomId: body.roomId,
-            },
-            "idempotent case booking retry returned existing booking",
-          );
-          return reply.code(200).send({
-            caseId: existingEncounterId,
-            appointmentId: matchingExistingAppointment.id,
-            encounterId: existingEncounterId,
-            scheduledAt: body.scheduledAt,
-            roomId: body.roomId,
-          });
-        }
-
-        // 4. Convert existing appointments into schedule slots for pure conflict evaluation
+        // 6. Convert existing appointments into schedule slots for pure conflict evaluation
         const existingSlots: ScheduleSlot[] = facilityAppointments.map((appItem) => {
           const startMs = appItem.start ? Date.parse(appItem.start) : 0;
           const parsedEndMs = appItem.end ? Date.parse(appItem.end) : 0;
@@ -274,6 +480,7 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
           physicianId: body.primaryPhysicianId,
           anesthesiologistId: body.anesthesiologistId,
           description: notes,
+          idempotencyKey,
         });
         tx.add("appointment", appointmentResource);
 
@@ -285,6 +492,7 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
             locationId: body.roomId,
             start: body.scheduledAt,
             end: endInstant,
+            idempotencyKey,
           }),
           appointment: [appointmentRef],
         };
@@ -300,6 +508,7 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
             requesterId: body.primaryPhysicianId,
             notes,
             authoredOn: new Date().toISOString(),
+            idempotencyKey,
           }),
           encounter: encounterRef,
         };
@@ -348,7 +557,9 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
           scheduledAt: body.scheduledAt,
           roomId: body.roomId,
         });
-      });
+      },
+      tenantId,
+    );
     },
   );
 

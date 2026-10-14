@@ -18,6 +18,7 @@ import { registerRateLimit, registerSecurityHeaders } from "./plugins/security.j
 import { registerRoutes } from "./routes/index.js";
 import type { FacilityRegistrationLock, FacilitySchedulingLock } from "@asc/types";
 import { createInMemoryRegistrationLock } from "./routes/patients.js";
+import { createInMemorySchedulingLock } from "./routes/cases.js";
 
 interface AppOptions {
   /** Exact browser origins allowed cross-origin (from `resolveCorsOrigins`). Empty = none. */
@@ -113,13 +114,23 @@ export async function buildApp({
     ...(createMedplumClient === undefined ? {} : { createClient: createMedplumClient }),
   });
 
+  if (production && facilityRegistrationLock === undefined && tenantDb === undefined) {
+    throw new Error("Distributed registration lock (tenantDb or facilityRegistrationLock) is required in production");
+  }
+
+  if (production && facilitySchedulingLock === undefined && tenantDb === undefined) {
+    throw new Error("Distributed scheduling lock (tenantDb or facilitySchedulingLock) is required in production");
+  }
+
   if (facilityRegistrationLock !== undefined) {
     app.decorate("facilityRegistrationLock", facilityRegistrationLock);
   } else if (tenantDb !== undefined) {
     app.decorate("facilityRegistrationLock", {
       async withLock<T>(facilityId: string, operation: () => Promise<T>, tenantId?: string): Promise<T> {
-        const resolvedTenantId = tenantId ?? "00000000-0000-0000-0000-000000000000";
-        return withPostgresFacilityLock(tenantDb, resolvedTenantId, facilityId, operation, "facility-registration");
+        if (!tenantId) {
+          throw new Error("Tenant ID is required for distributed facility registration lock");
+        }
+        return withPostgresFacilityLock(tenantDb, tenantId, facilityId, operation, "facility-registration");
       },
     });
   } else {
@@ -131,12 +142,14 @@ export async function buildApp({
   } else if (tenantDb !== undefined) {
     app.decorate("facilitySchedulingLock", {
       async withLock<T>(facilityId: string, operation: () => Promise<T>, tenantId?: string): Promise<T> {
-        const resolvedTenantId = tenantId ?? "00000000-0000-0000-0000-000000000000";
-        return withPostgresFacilityLock(tenantDb, resolvedTenantId, facilityId, operation, "facility-scheduling");
+        if (!tenantId) {
+          throw new Error("Tenant ID is required for distributed facility scheduling lock");
+        }
+        return withPostgresFacilityLock(tenantDb, tenantId, facilityId, operation, "facility-scheduling");
       },
     });
   } else {
-    app.decorate("facilitySchedulingLock", createInMemoryRegistrationLock());
+    app.decorate("facilitySchedulingLock", createInMemorySchedulingLock());
   }
 
   registerRoutes(app);
