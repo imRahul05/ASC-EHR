@@ -1,7 +1,5 @@
-/**
- * Clinical time formatting (ui-guidelines §7: 24 h clock in clinical areas, relative time only as a hint).
- * Standardized to the ASC facility time zone (defaults to "America/New_York").
- */
+import { TZDate } from "@date-fns/tz";
+import { format } from "date-fns";
 import type { IsoDate, IsoDateTime } from "@asc/types";
 
 export const DEFAULT_FACILITY_TIMEZONE = "America/New_York";
@@ -48,6 +46,11 @@ export function facilityDateTimeToIso(
   const minute = Number(minStr);
 
   if (
+    !yearStr ||
+    !monthStr ||
+    !dayStr ||
+    !hourStr ||
+    !minStr ||
     Number.isNaN(year) ||
     Number.isNaN(month) ||
     Number.isNaN(day) ||
@@ -57,77 +60,41 @@ export function facilityDateTimeToIso(
     throw new Error(`Invalid facility date/time: ${dateStr} ${timeStr}`);
   }
 
-  const targetLocalUtcMs = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
+  // Construct instant using numeric components in target facility timezone
+  const candidate = new TZDate(year, month - 1, day, hour, minute, 0, 0, timeZone);
 
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-    hour: "numeric",
-    minute: "numeric",
-    second: "numeric",
-    hourCycle: "h23",
-  });
-
-  function getFacilityLocalUtcMs(testUtcMs: number): number {
-    const parts = formatter.formatToParts(new Date(testUtcMs));
-    let y = year;
-    let m = month;
-    let d = day;
-    let h = hour;
-    let min = minute;
-    let s = 0;
-    for (const part of parts) {
-      if (part.type === "year") y = Number(part.value);
-      else if (part.type === "month") m = Number(part.value);
-      else if (part.type === "day") d = Number(part.value);
-      else if (part.type === "hour") h = Number(part.value);
-      else if (part.type === "minute") min = Number(part.value);
-      else if (part.type === "second") s = Number(part.value);
-    }
-    return Date.UTC(y, m - 1, d, h, min, s, 0);
-  }
-
-  function matchesLocal(testUtcMs: number): boolean {
-    const parts = formatter.formatToParts(new Date(testUtcMs));
-    let py = 0;
-    let pm = 0;
-    let pd = 0;
-    let ph = 0;
-    let pmin = 0;
-    for (const part of parts) {
-      if (part.type === "year") py = Number(part.value);
-      else if (part.type === "month") pm = Number(part.value);
-      else if (part.type === "day") pd = Number(part.value);
-      else if (part.type === "hour") ph = Number(part.value);
-      else if (part.type === "minute") pmin = Number(part.value);
-    }
-    return py === year && pm === month && pd === day && ph === hour && pmin === minute;
-  }
-
-  let candidateUtcMs = targetLocalUtcMs;
-  let facilityLocalUtcMs = getFacilityLocalUtcMs(candidateUtcMs);
-  const offsetMs = targetLocalUtcMs - facilityLocalUtcMs;
-  candidateUtcMs += offsetMs;
-
-  facilityLocalUtcMs = getFacilityLocalUtcMs(candidateUtcMs);
-  const secondaryDiff = targetLocalUtcMs - facilityLocalUtcMs;
-  if (secondaryDiff !== 0) {
-    candidateUtcMs += secondaryDiff;
-  }
-
-  // Round-trip verification: verify that candidate instant reproduces the requested local date/time
-  if (!matchesLocal(candidateUtcMs)) {
+  // Spring-forward gap check: if TZDate rolled over, the local time does not exist
+  if (
+    candidate.getFullYear() !== year ||
+    candidate.getMonth() !== month - 1 ||
+    candidate.getDate() !== day ||
+    candidate.getHours() !== hour ||
+    candidate.getMinutes() !== minute
+  ) {
     throw new Error(
       `Nonexistent local time in timezone ${timeZone} due to daylight saving transition: ${dateStr} ${timeStr}`,
     );
   }
 
-  // Ambiguity check: check if candidate ± 1 hour also matches the requested local date/time (fall-back transition)
-  const earlierMatch = matchesLocal(candidateUtcMs - 3600_000);
-  const laterMatch = matchesLocal(candidateUtcMs + 3600_000);
-  const isAmbiguous = earlierMatch || laterMatch;
+  // Fall-back ambiguity check: verify if candidate ± 1 hour also matches the requested local date/time
+  const earlierCandidate = new TZDate(candidate.getTime() - 3600_000, timeZone);
+  const laterCandidate = new TZDate(candidate.getTime() + 3600_000, timeZone);
+
+  const earlierMatches =
+    earlierCandidate.getFullYear() === year &&
+    earlierCandidate.getMonth() === month - 1 &&
+    earlierCandidate.getDate() === day &&
+    earlierCandidate.getHours() === hour &&
+    earlierCandidate.getMinutes() === minute;
+
+  const laterMatches =
+    laterCandidate.getFullYear() === year &&
+    laterCandidate.getMonth() === month - 1 &&
+    laterCandidate.getDate() === day &&
+    laterCandidate.getHours() === hour &&
+    laterCandidate.getMinutes() === minute;
+
+  const isAmbiguous = earlierMatches || laterMatches;
 
   if (isAmbiguous) {
     if (disambiguation === "reject") {
@@ -136,14 +103,14 @@ export function facilityDateTimeToIso(
       );
     }
     if (disambiguation === "later") {
-      const finalMs = laterMatch ? candidateUtcMs + 3600_000 : candidateUtcMs;
-      return new Date(finalMs).toISOString();
+      const finalCandidate = laterMatches ? laterCandidate : candidate;
+      return new Date(finalCandidate.getTime()).toISOString();
     }
-    const finalMs = earlierMatch ? candidateUtcMs - 3600_000 : candidateUtcMs;
-    return new Date(finalMs).toISOString();
+    const finalCandidate = earlierMatches ? earlierCandidate : candidate;
+    return new Date(finalCandidate.getTime()).toISOString();
   }
 
-  return new Date(candidateUtcMs).toISOString();
+  return new Date(candidate.getTime()).toISOString();
 }
 
 /**
@@ -153,20 +120,8 @@ export function isoToFacilityTime(
   iso: IsoDateTime,
   timeZone: string = DEFAULT_FACILITY_TIMEZONE,
 ): { readonly hour: number; readonly minute: number } {
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    hour: "numeric",
-    minute: "numeric",
-    hourCycle: "h23",
-  });
-  const parts = formatter.formatToParts(new Date(iso));
-  let hour = 0;
-  let minute = 0;
-  for (const part of parts) {
-    if (part.type === "hour") hour = Number(part.value);
-    else if (part.type === "minute") minute = Number(part.value);
-  }
-  return { hour, minute };
+  const date = new TZDate(new Date(iso), timeZone);
+  return { hour: date.getHours(), minute: date.getMinutes() };
 }
 
 /** `14:05` formatted in facility timezone */
@@ -174,13 +129,8 @@ export function formatTime24(
   iso: IsoDateTime,
   timeZone: string = DEFAULT_FACILITY_TIMEZONE,
 ): string {
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  });
-  return formatter.format(new Date(iso));
+  const date = new TZDate(new Date(iso), timeZone);
+  return format(date, "HH:mm");
 }
 
 function parseIsoDateToUtcNoon(iso: string): Date {
@@ -201,13 +151,8 @@ export function formatDate(
   iso: IsoDateTime,
   timeZone: string = DEFAULT_FACILITY_TIMEZONE,
 ): string {
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-  return formatter.format(parseIsoDateToUtcNoon(iso));
+  const date = new TZDate(parseIsoDateToUtcNoon(iso), timeZone);
+  return format(date, "MMM d, yyyy");
 }
 
 /** `Mon, Sep 28` in facility timezone */
@@ -215,13 +160,8 @@ export function formatWeekday(
   iso: IsoDateTime,
   timeZone: string = DEFAULT_FACILITY_TIMEZONE,
 ): string {
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
-  return formatter.format(parseIsoDateToUtcNoon(iso));
+  const date = new TZDate(parseIsoDateToUtcNoon(iso), timeZone);
+  return format(date, "EEE, MMM d");
 }
 
 /** `Sep 28, 14:05` in facility timezone */
@@ -229,15 +169,8 @@ export function formatDateTime(
   iso: IsoDateTime,
   timeZone: string = DEFAULT_FACILITY_TIMEZONE,
 ): string {
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  });
-  return formatter.format(new Date(iso));
+  const date = new TZDate(new Date(iso), timeZone);
+  return format(date, "MMM d, HH:mm");
 }
 
 /** Whole minutes between two instants (default end: now). */
@@ -258,13 +191,8 @@ export function toIsoDate(
   date: Date,
   timeZone: string = DEFAULT_FACILITY_TIMEZONE,
 ): IsoDate {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  return formatter.format(date);
+  const tzDate = new TZDate(date, timeZone);
+  return format(tzDate, "yyyy-MM-dd");
 }
 
 export function todayIsoDate(timeZone: string = DEFAULT_FACILITY_TIMEZONE): IsoDate {
