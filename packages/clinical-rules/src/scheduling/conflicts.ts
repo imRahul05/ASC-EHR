@@ -11,6 +11,9 @@ export interface ScheduleSlot {
   readonly status?: string;
 }
 
+export const ASC_ROOM_IDS = ["room-1", "room-2", "room-3", "room-4"] as const;
+export type AscRoomId = (typeof ASC_ROOM_IDS)[number];
+
 export const ROOM_DOUBLE_BOOKED_CODE = "ROOM_DOUBLE_BOOKED";
 export const ROOM_DOUBLE_BOOKED_MESSAGE = "Operating room is already occupied during this time window";
 

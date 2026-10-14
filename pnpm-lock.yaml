@@ -772,6 +772,9 @@ importers:
 
   packages/validation:
     dependencies:
+      '@asc/clinical-rules':
+        specifier: workspace:*
+        version: link:../clinical-rules
       '@asc/types':
         specifier: workspace:*
         version: link:../types

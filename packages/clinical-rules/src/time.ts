@@ -8,16 +8,37 @@ export const DEFAULT_FACILITY_TIMEZONE = "America/New_York";
 
 const MINUTE_MS = 60_000;
 
+export type DstDisambiguation = "earlier" | "later" | "reject";
+
+export interface FacilityDateTimeOptions {
+  readonly timeZone?: string;
+  readonly disambiguation?: DstDisambiguation;
+}
+
 /**
  * Converts a facility-local calendar date `YYYY-MM-DD` and local time `HH:mm`
  * into an absolute UTC ISO 8601 instant string (`YYYY-MM-DDTHH:mm:00.000Z`).
  * Operates deterministically across all environments regardless of host/browser timezone.
+ *
+ * DST handling:
+ * - Spring-forward gaps (nonexistent local times): strictly rejected with a clear error.
+ * - Fall-back overlaps (ambiguous local times): handled per explicit disambiguation policy
+ *   ("earlier" | "later" | "reject", default: "earlier").
  */
 export function facilityDateTimeToIso(
   dateStr: string,
   timeStr: string,
-  timeZone: string = DEFAULT_FACILITY_TIMEZONE,
+  timeZoneOrOptions: string | FacilityDateTimeOptions = DEFAULT_FACILITY_TIMEZONE,
 ): string {
+  const timeZone =
+    typeof timeZoneOrOptions === "string"
+      ? timeZoneOrOptions
+      : (timeZoneOrOptions.timeZone ?? DEFAULT_FACILITY_TIMEZONE);
+  const disambiguation: DstDisambiguation =
+    typeof timeZoneOrOptions === "object" && timeZoneOrOptions.disambiguation
+      ? timeZoneOrOptions.disambiguation
+      : "earlier";
+
   const [yearStr, monthStr, dayStr] = dateStr.split("-");
   const [hourStr, minStr] = timeStr.split(":");
   const year = Number(yearStr);
@@ -68,6 +89,23 @@ export function facilityDateTimeToIso(
     return Date.UTC(y, m - 1, d, h, min, s, 0);
   }
 
+  function matchesLocal(testUtcMs: number): boolean {
+    const parts = formatter.formatToParts(new Date(testUtcMs));
+    let py = 0;
+    let pm = 0;
+    let pd = 0;
+    let ph = 0;
+    let pmin = 0;
+    for (const part of parts) {
+      if (part.type === "year") py = Number(part.value);
+      else if (part.type === "month") pm = Number(part.value);
+      else if (part.type === "day") pd = Number(part.value);
+      else if (part.type === "hour") ph = Number(part.value);
+      else if (part.type === "minute") pmin = Number(part.value);
+    }
+    return py === year && pm === month && pd === day && ph === hour && pmin === minute;
+  }
+
   let candidateUtcMs = targetLocalUtcMs;
   let facilityLocalUtcMs = getFacilityLocalUtcMs(candidateUtcMs);
   const offsetMs = targetLocalUtcMs - facilityLocalUtcMs;
@@ -77,6 +115,32 @@ export function facilityDateTimeToIso(
   const secondaryDiff = targetLocalUtcMs - facilityLocalUtcMs;
   if (secondaryDiff !== 0) {
     candidateUtcMs += secondaryDiff;
+  }
+
+  // Round-trip verification: verify that candidate instant reproduces the requested local date/time
+  if (!matchesLocal(candidateUtcMs)) {
+    throw new Error(
+      `Nonexistent local time in timezone ${timeZone} due to daylight saving transition: ${dateStr} ${timeStr}`,
+    );
+  }
+
+  // Ambiguity check: check if candidate ± 1 hour also matches the requested local date/time (fall-back transition)
+  const earlierMatch = matchesLocal(candidateUtcMs - 3600_000);
+  const laterMatch = matchesLocal(candidateUtcMs + 3600_000);
+  const isAmbiguous = earlierMatch || laterMatch;
+
+  if (isAmbiguous) {
+    if (disambiguation === "reject") {
+      throw new Error(
+        `Ambiguous local time in timezone ${timeZone} due to daylight saving transition: ${dateStr} ${timeStr}`,
+      );
+    }
+    if (disambiguation === "later") {
+      const finalMs = laterMatch ? candidateUtcMs + 3600_000 : candidateUtcMs;
+      return new Date(finalMs).toISOString();
+    }
+    const finalMs = earlierMatch ? candidateUtcMs - 3600_000 : candidateUtcMs;
+    return new Date(finalMs).toISOString();
   }
 
   return new Date(candidateUtcMs).toISOString();

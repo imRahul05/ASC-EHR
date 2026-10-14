@@ -219,4 +219,52 @@ describe("bookCaseSchema", () => {
     };
     expect(bookCaseFormSchema.safeParse(invalidDateFormData).success).toBe(false);
   });
+
+  it("accepts and forwards idempotencyKey in schema and form helper", () => {
+    const payloadWithKey = {
+      ...validPayload,
+      idempotencyKey: "idem-key-abc-123",
+    };
+    const parsed = bookCaseSchema.safeParse(payloadWithKey);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.idempotencyKey).toBe("idem-key-abc-123");
+    }
+
+    const formWithKey = {
+      facilityId: "fac-1",
+      patientId: "pat-101",
+      roomId: "room-2",
+      date: "2026-10-25",
+      startTime: "10:30",
+      durationMinutes: 45,
+      primaryPhysicianId: "doc-1",
+      procedureIntent: "screening" as const,
+      primaryProcedureCode: "45378",
+      idempotencyKey: "idem-key-form-456",
+    };
+    const parsedForm = bookCaseFormSchema.safeParse(formWithKey);
+    expect(parsedForm.success).toBe(true);
+    if (parsedForm.success) {
+      const input = bookCaseInputFrom(parsedForm.data);
+      expect(input.idempotencyKey).toBe("idem-key-form-456");
+    }
+  });
+
+  it("rejects nonexistent local time during DST spring forward in bookCaseFormSchema", () => {
+    // 2027-03-14 02:30:00 does not exist in America/New_York (skips 02:00 -> 03:00)
+    const dstGapFormData = {
+      facilityId: "fac-1",
+      patientId: "pat-101",
+      roomId: "room-2",
+      date: "2027-03-14",
+      startTime: "02:30",
+      durationMinutes: 45,
+      primaryPhysicianId: "doc-1",
+      procedureIntent: "diagnostic" as const,
+      primaryProcedureCode: "43239",
+    };
+    expect(bookCaseFormSchema.safeParse(dstGapFormData).success).toBe(false);
+  });
 });
+

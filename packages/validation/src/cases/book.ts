@@ -86,79 +86,28 @@ export const bookCaseSchema = z.object({
     .max(500, "Notes cannot exceed 500 characters")
     .transform((v) => (v.length > 0 ? v : undefined))
     .optional(),
+  idempotencyKey: z
+    .string()
+    .trim()
+    .min(1, "Idempotency key must not be empty")
+    .max(128, "Idempotency key must not exceed 128 characters")
+    .optional(),
 });
 
 export type BookCaseInput = z.infer<typeof bookCaseSchema>;
 export type BookCaseFormInput = z.input<typeof bookCaseSchema>;
 
-export function facilityDateTimeToIso(
-  dateStr: string,
-  timeStr: string,
-  timeZone: string = "America/New_York",
-): string {
-  const [yearStr, monthStr, dayStr] = dateStr.split("-");
-  const [hourStr, minStr] = timeStr.split(":");
-  const year = Number(yearStr);
-  const month = Number(monthStr);
-  const day = Number(dayStr);
-  const hour = Number(hourStr);
-  const minute = Number(minStr);
+import {
+  facilityDateTimeToIso,
+  type DstDisambiguation,
+  type FacilityDateTimeOptions,
+} from "@asc/clinical-rules/time";
 
-  if (
-    Number.isNaN(year) ||
-    Number.isNaN(month) ||
-    Number.isNaN(day) ||
-    Number.isNaN(hour) ||
-    Number.isNaN(minute)
-  ) {
-    throw new Error(`Invalid facility date/time: ${dateStr} ${timeStr}`);
-  }
-
-  const targetLocalUtcMs = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
-
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-    hour: "numeric",
-    minute: "numeric",
-    second: "numeric",
-    hourCycle: "h23",
-  });
-
-  function getFacilityLocalUtcMs(testUtcMs: number): number {
-    const parts = formatter.formatToParts(new Date(testUtcMs));
-    let y = year;
-    let m = month;
-    let d = day;
-    let h = hour;
-    let min = minute;
-    let s = 0;
-    for (const part of parts) {
-      if (part.type === "year") y = Number(part.value);
-      else if (part.type === "month") m = Number(part.value);
-      else if (part.type === "day") d = Number(part.value);
-      else if (part.type === "hour") h = Number(part.value);
-      else if (part.type === "minute") min = Number(part.value);
-      else if (part.type === "second") s = Number(part.value);
-    }
-    return Date.UTC(y, m - 1, d, h, min, s, 0);
-  }
-
-  let candidateUtcMs = targetLocalUtcMs;
-  let facilityLocalUtcMs = getFacilityLocalUtcMs(candidateUtcMs);
-  const offsetMs = targetLocalUtcMs - facilityLocalUtcMs;
-  candidateUtcMs += offsetMs;
-
-  facilityLocalUtcMs = getFacilityLocalUtcMs(candidateUtcMs);
-  const secondaryDiff = targetLocalUtcMs - facilityLocalUtcMs;
-  if (secondaryDiff !== 0) {
-    candidateUtcMs += secondaryDiff;
-  }
-
-  return new Date(candidateUtcMs).toISOString();
-}
+export {
+  facilityDateTimeToIso,
+  type DstDisambiguation,
+  type FacilityDateTimeOptions,
+};
 
 export const bookCaseFormSchema = z
   .object({
@@ -211,6 +160,12 @@ export const bookCaseFormSchema = z
       .trim()
       .max(500, "Notes cannot exceed 500 characters")
       .optional(),
+    idempotencyKey: z
+      .string()
+      .trim()
+      .min(1, "Idempotency key must not be empty")
+      .max(128, "Idempotency key must not exceed 128 characters")
+      .optional(),
   })
   .refine(
     (data) => {
@@ -251,6 +206,10 @@ export function bookCaseInputFrom(
     primaryProcedureCode: formData.primaryProcedureCode.trim(),
     secondaryProcedureCodes: formData.secondaryProcedureCodes,
     notes: formData.notes && formData.notes.trim().length > 0 ? formData.notes.trim() : undefined,
+    idempotencyKey:
+      formData.idempotencyKey && formData.idempotencyKey.trim().length > 0
+        ? formData.idempotencyKey.trim()
+        : undefined,
   };
 }
 

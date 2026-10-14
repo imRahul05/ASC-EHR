@@ -33,6 +33,38 @@ describe("Clinical Time & Facility Timezone", () => {
       expect(iso).toBe("2026-10-14T13:00:00.000Z");
     });
 
+    it("rejects nonexistent local time during spring-forward DST transition", () => {
+      // On 2026-03-08 in America/New_York, 02:00:00 skips forward to 03:00:00; 02:30 does not exist
+      expect(() =>
+        facilityDateTimeToIso("2026-03-08", "02:30", "America/New_York"),
+      ).toThrow(/Nonexistent local time/);
+    });
+
+    it("handles ambiguous local time during fall-back DST transition with explicit policy", () => {
+      // On 2026-11-01 in America/New_York, 01:30 occurs twice (01:30 EDT and 01:30 EST)
+      // Earlier (default) yields EDT instant (UTC-4)
+      const earlier = facilityDateTimeToIso("2026-11-01", "01:30", {
+        timeZone: "America/New_York",
+        disambiguation: "earlier",
+      });
+      expect(earlier).toBe("2026-11-01T05:30:00.000Z");
+
+      // Later yields EST instant (UTC-5)
+      const later = facilityDateTimeToIso("2026-11-01", "01:30", {
+        timeZone: "America/New_York",
+        disambiguation: "later",
+      });
+      expect(later).toBe("2026-11-01T06:30:00.000Z");
+
+      // Reject throws explicitly
+      expect(() =>
+        facilityDateTimeToIso("2026-11-01", "01:30", {
+          timeZone: "America/New_York",
+          disambiguation: "reject",
+        }),
+      ).toThrow(/Ambiguous local time/);
+    });
+
     it("throws on invalid date/time input", () => {
       expect(() => facilityDateTimeToIso("bad-date", "09:00")).toThrow();
       expect(() => facilityDateTimeToIso("2026-10-14", "bad-time")).toThrow();
