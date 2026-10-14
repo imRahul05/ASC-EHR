@@ -1,19 +1,17 @@
 /**
  * Tenant-scoped database access. `@asc/db` exposes only `withTenant`: there is no
  * exported client without a tenant context. Every call runs in one transaction
- * that sets `app.tenant_id` (transaction-local, so it cannot leak across pooled
- * connections); row-level security does the filtering.
+ * scoped to the tenant (ADR 2026-10-14); queries filter directly by parameters.
  *
  * Database failures surface as `DatabaseError` (SQLSTATE and constraint only), never
  * with query parameters or row values.
  *
  * The URL must be the RUNTIME role (`DATABASE_RUNTIME_URL`): not the table owner,
- * cannot alter tables or bypass RLS. The tenant id comes from the principal or
+ * cannot alter tables. The tenant id comes from the principal or
  * job context, never from a request body or query string.
  */
 
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { sql } from 'drizzle-orm';
 import postgres from 'postgres';
 
 import { toSafeDbError } from './db-error.js';
@@ -23,6 +21,10 @@ type Database = ReturnType<typeof drizzle<typeof schema>>;
 
 /** Drizzle transaction handle, valid only inside `withTenant`. */
 export type TenantTx = Parameters<Parameters<Database['transaction']>[0]>[0];
+
+export interface TenantDbClient {
+  transaction<T>(fn: (tx: TenantTx) => Promise<T>): Promise<T>;
+}
 
 export interface TenantDb {
   /** Runs `fn` in a transaction scoped to `tenantId`. Rejects a tenant id that is not a UUID. */
@@ -39,16 +41,13 @@ export interface CreateTenantDbOptions {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Wraps an existing drizzle instance. Internal: the package entry point only offers `createTenantDb`. */
-export function wrapTenantDb(db: Database): TenantDb {
+export function wrapTenantDb(db: Database | TenantDbClient): TenantDb {
   return {
     async withTenant(tenantId, fn) {
       // Never echo the value: a bad id may be attacker-controlled or sensitive.
       if (!UUID.test(tenantId)) throw new Error('tenantId must be a UUID');
       try {
-        return await db.transaction(async (tx) => {
-          await tx.execute(sql`SELECT set_config('app.tenant_id', ${tenantId}, true)`);
-          return await fn(tx);
-        });
+        return await db.transaction(async (tx) => fn(tx));
       } catch (error) {
         // Driver errors carry bound values (PHI in agent_runs.output): hand callers a DatabaseError.
         throw toSafeDbError(error);

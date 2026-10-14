@@ -11,5 +11,10 @@ export { createTenantDb, type CreateTenantDbOptions, type TenantDb, type TenantT
 export { withPostgresFacilityLock } from './lock.js';
 export * from './schema/index.js';
 export { createPostgresAgentRunStore, type AgentRunScope } from './agent-run-store.js';
-export { createPostgresAuditStore, AuditTenantMissingError, type PostgresAuditStoreOptions } from './audit-store.js';
+export {
+  createPostgresAuditStore,
+  AuditTenantMissingError,
+  DEFAULT_SINGLE_FACILITY_TENANT_ID,
+  type PostgresAuditStoreOptions,
+} from './audit-store.js';
 export { DatabaseError } from './db-error.js';

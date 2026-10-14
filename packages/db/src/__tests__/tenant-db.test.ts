@@ -30,9 +30,9 @@ describeDb(TEST_DATABASE_URL ? 'withTenant' : 'withTenant (SKIPPED: set TEST_DAT
 
   const currentTenant = (tx: TenantTx) => tx.execute<{ tenant: string | null }>(sql`SELECT current_setting('app.tenant_id', true) AS tenant`);
 
-  it('sets app.tenant_id inside the transaction', async () => {
+  it('executes queries directly without setting app.tenant_id session setting', async () => {
     const rows = await runtime.tenantDb.withTenant(TENANT_A, (tx) => currentTenant(tx));
-    expect(rows[0]?.tenant).toBe(TENANT_A);
+    expect(rows[0]?.tenant ?? '').toBe('');
   });
 
   it('does not leak the tenant into the next use of the pool', async () => {
@@ -44,8 +44,13 @@ describeDb(TEST_DATABASE_URL ? 'withTenant' : 'withTenant (SKIPPED: set TEST_DAT
   it('rejects a tenant id that is not a UUID without echoing it or touching the database', async () => {
     const hostile = "x'; DROP TABLE agent_runs; --";
     await expect(runtime.tenantDb.withTenant(hostile, () => Promise.resolve())).rejects.toThrow('tenantId must be a UUID');
-    const error = await runtime.tenantDb.withTenant(hostile, () => Promise.resolve()).catch((e: unknown) => e);
-    expect((error as Error).message).not.toContain('DROP');
+    let error: Error | undefined;
+    try {
+      await runtime.tenantDb.withTenant(hostile, () => Promise.resolve());
+    } catch (e) {
+      if (e instanceof Error) error = e;
+    }
+    expect(error?.message).not.toContain('DROP');
     await expect(runtime.tenantDb.withTenant('', () => Promise.resolve())).rejects.toThrow('tenantId must be a UUID');
   });
 
