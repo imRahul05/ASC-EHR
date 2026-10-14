@@ -2,14 +2,14 @@
 
 import { Button, DataTable, SectionCard } from "@asc/ui";
 import { useDemoPresets } from "@/hooks/use-auth";
-import { PERSONAS } from "@/lib/personas";
+import { PERSONAS, isActivePersona, type ActiveDemoPersonaId } from "@/lib/personas";
 import { useGoTo } from "./use-go-to";
 
 /** Demo personas: who they are, where they land, what to try — with a one-click switch. */
 export function GuidePersonas() {
   const presets = useDemoPresets();
   const { goTo, pendingKey, persona } = useGoTo();
-  const rows = presets.data ?? [];
+  const rows = (presets.data ?? []).filter((row): row is typeof row & { readonly id: ActiveDemoPersonaId } => isActivePersona(row.id));
 
   return (
     <SectionCard title="Demo personas" description="Each one is a real login with its own screens. Switching keeps the data." contentClassName="p-0" data-testid="guide-personas">

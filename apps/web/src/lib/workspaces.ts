@@ -20,7 +20,6 @@ export const WORKSPACES = [
   },
   { key: "operations", label: "Center operations", requiresAny: ["schedule.manage", "admin.users"], home: "/dashboard", navTitles: {} },
   { key: "tech", label: "Endoscopy tech", requiresAny: ["procedure.document"], home: "/dashboard", navTitles: {} },
-  { key: "patient", label: "Patient portal", requiresAny: ["portal.self.read"], home: "/my-care", navTitles: {} },
 ] as const;
 
 /** Workspaces the principal can use at a facility, in priority order. Empty means none. */

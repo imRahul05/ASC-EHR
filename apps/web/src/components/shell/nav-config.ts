@@ -1,9 +1,6 @@
 import {
   CalendarDays,
   ChartLine,
-  ClipboardList,
-  FileHeart,
-  HeartHandshake,
   Inbox,
   LifeBuoy,
   LayoutDashboard,
@@ -34,7 +31,6 @@ const ROUTES = {
   quality: { href: "/quality", title: "Quality", icon: ChartLine },
   audit: { href: "/audit", title: "Audit log", icon: ScrollText },
   admin: { href: "/admin", title: "Admin", icon: Settings2 },
-  "my-care": { href: "/my-care", title: "My procedure", icon: HeartHandshake },
   guide: { href: "/guide", title: "Help center", icon: LifeBuoy },
 } as const satisfies Record<string, { href: string; title: string; icon: LucideIcon }>;
 
@@ -56,8 +52,6 @@ const nav = (key: RouteKey, title?: string): NavItem => ({
   requiresAny: ROUTE_ACCESS[key],
 });
 
-const PORTAL: readonly Capability[] = ["portal.self.read"];
-
 /** Every sidebar entry in display order. Each declares the capability that shows it. */
 const NAV_ITEMS: readonly NavItem[] = [
   nav("dashboard"),
@@ -71,10 +65,6 @@ const NAV_ITEMS: readonly NavItem[] = [
   nav("quality"),
   nav("audit"),
   nav("admin"),
-  nav("my-care"),
-  { key: "my-care-prep", href: "/my-care?view=prep", title: "Prep", icon: ClipboardList, requiresAny: PORTAL },
-  { key: "my-care-escort", href: "/my-care?view=escort", title: "Escort", icon: UsersRound, requiresAny: PORTAL },
-  { key: "my-care-results", href: "/my-care?view=results", title: "Results & instructions", icon: FileHeart, requiresAny: PORTAL },
   nav("guide"),
 ];
 

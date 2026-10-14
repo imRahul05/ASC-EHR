@@ -37,15 +37,6 @@ export const DEMO_PRESETS: readonly DemoAccountPreset[] = [
     badgeLabel: "Administration",
     description: "OR block scheduling, whiteboard coordination, billing hand-off & audit.",
   },
-  {
-    id: "demo-patient",
-    email: "patient@ascehr.demo",
-    fullName: "Robert Miller",
-    roleTitle: "Outpatient",
-    department: "Patient Portal",
-    badgeLabel: "Patient",
-    description: "GI bowel prep timeline, NPO countdown, escort details & discharge guidance.",
-  },
 ] as const;
 
 export const MOCK_USER_PROFILES: Record<string, UserProfile> = {

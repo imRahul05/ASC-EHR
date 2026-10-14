@@ -1,4 +1,6 @@
-import type { DemoPersonaId } from "@asc/types";
+import type { ActiveDemoPersonaId } from "@asc/types";
+
+export type { ActiveDemoPersonaId };
 
 /**
  * Demo personas: labels for one-click sign-in and the guide (D-A4: persona = label). What a
@@ -41,16 +43,12 @@ export const PERSONAS = {
     tryThis: "Sedation flowsheet, airway",
     order: 3,
   },
-  "demo-patient": {
-    home: "/my-care",
-    label: "Patient",
-    short: "Patient",
-    description: "Portal: prep, escort, results",
-    lands: "My procedure",
-    tryThis: "Prep, escort, results",
-    order: 4,
-  },
 } as const satisfies Record<
-  DemoPersonaId,
+  ActiveDemoPersonaId,
   { readonly home: string; readonly label: string; readonly short: string; readonly description: string; readonly lands: string; readonly tryThis: string; readonly order: number }
 >;
+
+/** Type guard verifying an ID belongs to an active clinical demo persona. */
+export function isActivePersona(id: string): id is ActiveDemoPersonaId {
+  return Object.hasOwn(PERSONAS, id);
+}

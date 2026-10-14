@@ -1,5 +1,5 @@
 import { isPhaseAtLeast } from "@asc/clinical-rules/phases";
-import type { CaseDetail, CasePhase, DemoPersonaId } from "@asc/types";
+import type { ActiveDemoPersonaId, CaseDetail, CasePhase } from "@asc/types";
 import {
   Bot,
   ClipboardCheck,
@@ -161,17 +161,6 @@ export const ROUTE_HELP: Readonly<Record<string, HelpEntry>> = {
     records: [],
     mocked: "Read-only view of seeded settings.",
     production: "Settings live in Medplum and the agent registry; model changes go through config review.",
-  },
-  "my-care": {
-    title: "My procedure",
-    purpose: "The patient portal: procedure details, prep checklist, escort, instructions and results.",
-    steps: ["Tick off prep items as you go.", "Confirm who is driving you home under Escort.", "After the procedure, read instructions and your result letter."],
-    records: [
-      { label: "Prep checklist", href: "/my-care?view=prep" },
-      { label: "Results & instructions", href: "/my-care?view=results" },
-    ],
-    mocked: "Robert Miller (case 0915) is the demo patient.",
-    production: "Patient-facing app with its own sign-in; reads only this patient's records.",
   },
   guide: {
     title: "Help center",
@@ -386,16 +375,9 @@ export const TOUR_STEPS = [
     caseId: "case_115",
     check: reached("CLOSED"),
   },
-  {
-    id: "portal",
-    persona: "demo-patient",
-    title: "See it as the patient",
-    description: "The portal shows prep, escort, discharge instructions and the result letter in plain language.",
-    href: "/my-care?view=results",
-  },
 ] as const satisfies readonly {
   id: string;
-  persona: DemoPersonaId;
+  persona: ActiveDemoPersonaId;
   title: string;
   description: string;
   href: string;
@@ -411,7 +393,7 @@ export const WELCOME = {
   intro: "A clickable GI surgery center EHR. There is no backend: every patient and case is synthetic and lives in your browser.",
   highlights: [
     { id: "journey", title: "Follow one patient end to end", description: "Fax referral → booking → pre-op → procedure → AI note → discharge → coding → pathology.", icon: Stethoscope },
-    { id: "roles", title: "Switch persona any time", description: "Front desk, nurse, surgeon, anesthesia and patient each see their own screens.", icon: HeartHandshake },
+    { id: "roles", title: "Switch persona any time", description: "Front desk, nurse, surgeon, and anesthesia each see their own screens.", icon: HeartHandshake },
     { id: "ai", title: "Try the AI drafts", description: "Referral facts, the procedure note, codes and discharge instructions — always reviewed by a human.", icon: Bot },
   ],
   note: "Reloading the page signs you out and resets the data. Help is always under the ? button.",
@@ -450,7 +432,6 @@ export const GUIDE_SECTIONS = [
       { key: "note", persona: "demo-surgeon", href: "/cases/case_106?tab=note" },
       { key: "coding", persona: "demo-admin", href: "/coding" },
       { key: "pathology", persona: "demo-surgeon", href: "/pathology" },
-      { key: "my-care", persona: "demo-patient", href: "/my-care" },
     ],
   },
   {
@@ -465,7 +446,7 @@ export const GUIDE_SECTIONS = [
       { key: "admin", persona: "demo-admin", href: "/admin" },
     ],
   },
-] as const satisfies readonly { id: string; title: string; icon: LucideIcon; items: readonly { key: string; persona: DemoPersonaId; href: string }[] }[];
+] as const satisfies readonly { id: string; title: string; icon: LucideIcon; items: readonly { key: string; persona: ActiveDemoPersonaId; href: string }[] }[];
 
 export const SHORTCUTS = [
   { id: "search", keys: ["⌘", "K"], label: "Search patients, cases and pages (Ctrl+K on Windows)" },
