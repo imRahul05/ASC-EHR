@@ -16,10 +16,12 @@ import type { TenantDb } from './tenant.js';
 export interface PostgresAuditStoreOptions {
   /**
    * The configured tenant (`DEFAULT_TENANT_ID`) for events that carry no
-   * `tenantId` (single hospital, tenant-ready). Comes from config, never from a request.
+   * `tenantId` (single hospital, tenant-ready). Defaults to canonical single-facility tenant UUID.
    */
   defaultTenantId?: string;
 }
+
+export const DEFAULT_SINGLE_FACILITY_TENANT_ID = '00000000-0000-4000-8000-000000000001';
 
 export class AuditTenantMissingError extends Error {
   constructor() {
@@ -30,14 +32,14 @@ export class AuditTenantMissingError extends Error {
 
 export function createPostgresAuditStore(
   tenantDb: TenantDb,
-  { defaultTenantId }: PostgresAuditStoreOptions = {},
+  { defaultTenantId = DEFAULT_SINGLE_FACILITY_TENANT_ID }: PostgresAuditStoreOptions = {},
 ): AuditStore & { readonly durable: true; readonly appendOnly: true } {
   return {
     durable: true,
     appendOnly: true,
     async save(event: AuditEvent): Promise<void> {
-      const tenantId = event.tenantId ?? defaultTenantId;
-      if (tenantId === undefined) throw new AuditTenantMissingError();
+      const tenantId = event.tenantId ?? defaultTenantId ?? DEFAULT_SINGLE_FACILITY_TENANT_ID;
+      if (!tenantId) throw new AuditTenantMissingError();
       await tenantDb.withTenant(tenantId, async (tx) => {
         await tx.insert(auditEvents).values({
           tenantId,

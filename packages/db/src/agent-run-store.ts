@@ -23,8 +23,8 @@ export interface AgentRunScope {
 }
 
 /**
- * Every operation runs inside `tenantDb.withTenant(scope.tenantId, …)`, so
- * row-level security confines it to that tenant's rows.
+ * Every operation runs inside `tenantDb.withTenant(scope.tenantId, …)` and filters
+ * explicitly by `scope.tenantId` for defense-in-depth isolation (ADR 2026-10-14).
  */
 export function createPostgresAgentRunStore(tenantDb: TenantDb, scope: AgentRunScope): AgentRunStore {
   async function finish(
@@ -37,7 +37,12 @@ export function createPostgresAgentRunStore(tenantDb: TenantDb, scope: AgentRunS
         .update(agentRuns)
         .set({ ...update, updatedAt: sql`now()`, finishedAt: sql`now()` })
         .where(
-          and(eq(agentRuns.executionId, executionId), eq(agentRuns.status, 'running'), eq(agentRuns.claim, claim)),
+          and(
+            eq(agentRuns.tenantId, scope.tenantId),
+            eq(agentRuns.executionId, executionId),
+            eq(agentRuns.status, 'running'),
+            eq(agentRuns.claim, claim),
+          ),
         )
         .returning({ executionId: agentRuns.executionId });
       return rows.length > 0;
@@ -122,7 +127,10 @@ export function createPostgresAgentRunStore(tenantDb: TenantDb, scope: AgentRunS
 
     async get(executionId) {
       return tenantDb.withTenant(scope.tenantId, async (tx) => {
-        const rows = await tx.select().from(agentRuns).where(eq(agentRuns.executionId, executionId));
+        const rows = await tx
+          .select()
+          .from(agentRuns)
+          .where(and(eq(agentRuns.tenantId, scope.tenantId), eq(agentRuns.executionId, executionId)));
         return rows[0] && toRecord(rows[0]);
       });
     },

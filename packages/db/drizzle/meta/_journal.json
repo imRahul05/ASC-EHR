@@ -50,6 +50,13 @@
       "when": 1791289308013,
       "tag": "0006_audit_events_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791985000000,
+      "tag": "0007_streamline_single_facility_access",
+      "breakpoints": true
     }
   ]
 }
