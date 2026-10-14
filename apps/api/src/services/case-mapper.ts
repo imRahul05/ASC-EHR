@@ -3,7 +3,13 @@ import {
   isCheckSatisfiedOrWaived,
   mapReadinessChecks,
 } from "@asc/clinical-rules/readiness";
-import { readCaseReadiness } from "@asc/fhir";
+import { STAGE_FROM_PHASE } from "@asc/clinical-rules";
+import {
+  readCasePhase,
+  readCaseReadiness,
+  readCaseStage,
+  readProcedureIntent,
+} from "@asc/fhir";
 import { casePhaseFromCode } from "@asc/fhir/case-phase";
 import { caseStageFromCode } from "@asc/fhir/case-stage";
 import type {
@@ -15,6 +21,7 @@ import type {
   PatientRef,
   ProcedureCase,
   ProcedureCode,
+  ProcedureIntent,
   ReadinessFlags,
   StaffRef,
 } from "@asc/types";
@@ -22,27 +29,48 @@ import type { Appointment, Encounter, Patient as FhirPatient, ServiceRequest } f
 
 export function computeAge(dateOfBirth?: string): number {
   if (!dateOfBirth) return 0;
-  const [y, m, d] = dateOfBirth.split("-").map(Number);
-  if (!y) return 0;
+  const datePart = dateOfBirth.split("T")[0] ?? "";
+  const [y, m, d] = datePart.split("-").map(Number);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d) || (y ?? 0) <= 0) {
+    const parsed = Date.parse(dateOfBirth);
+    if (Number.isNaN(parsed)) return 0;
+    const parsedDate = new Date(parsed);
+    const today = new Date();
+    let age = today.getFullYear() - parsedDate.getFullYear();
+    const mDiff = today.getMonth() - parsedDate.getMonth();
+    if (mDiff < 0 || (mDiff === 0 && today.getDate() < parsedDate.getDate())) age--;
+    return Math.max(0, age);
+  }
   const today = new Date();
-  let age = today.getFullYear() - y;
+  let age = today.getFullYear() - (y ?? 0);
   const monthDiff = today.getMonth() + 1 - (m ?? 1);
   if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < (d ?? 1))) age--;
   return Math.max(0, age);
 }
 
 export function extractPatientInitials(givenName?: string, familyName?: string, fallbackDisplay?: string): string {
-  if (givenName || familyName) {
-    const g = givenName?.trim() ? givenName.trim()[0]?.toUpperCase() : "P";
-    const f = familyName?.trim() ? familyName.trim()[0]?.toUpperCase() : "T";
-    return `${g ?? "P"}.${f ?? "T"}.`;
+  const g = givenName?.trim() ? givenName.trim()[0]?.toUpperCase() : undefined;
+  const f = familyName?.trim() ? familyName.trim()[0]?.toUpperCase() : undefined;
+  if (g && f) {
+    return `${g}.${f}.`;
   }
   if (fallbackDisplay?.trim()) {
     const parts = fallbackDisplay.trim().split(/\s+/).filter(Boolean);
-    const p0 = parts[0]?.[0]?.toUpperCase() ?? "P";
-    const p1 = parts[parts.length - 1]?.[0]?.toUpperCase() ?? "T";
-    return `${p0}.${p1}.`;
+    if (parts.length >= 2) {
+      const p0 = parts[0]?.[0]?.toUpperCase() ?? "P";
+      const p1 = parts[parts.length - 1]?.[0]?.toUpperCase() ?? "T";
+      return `${p0}.${p1}.`;
+    }
+    if (parts.length === 1 && parts[0]) {
+      const word = parts[0];
+      if (word.length >= 2) {
+        return `${word[0]?.toUpperCase() ?? "P"}.${word[1]?.toUpperCase() ?? "T"}.`;
+      }
+      return `${word[0]?.toUpperCase() ?? "P"}.T.`;
+    }
   }
+  if (g) return `${g}.T.`;
+  if (f) return `P.${f}.`;
   return "P.T.";
 }
 
@@ -61,7 +89,7 @@ export function extractPractitionerStaffRef(display?: string, ref?: string, defa
   return { id, name, initials };
 }
 
-const STAGE_TO_PHASE: Readonly<Record<string, CasePhase>> = {
+export const STAGE_TO_PHASE: Readonly<Record<string, CasePhase>> = {
   requested: "SCHEDULED",
   scheduled: "SCHEDULED",
   confirmed: "CONFIRMED",
@@ -80,6 +108,51 @@ const STAGE_TO_PHASE: Readonly<Record<string, CasePhase>> = {
   no_show: "NO_SHOW",
 };
 
+export const PHASE_TO_STAGE: Readonly<Record<CasePhase, CaseStage>> = {
+  ...STAGE_FROM_PHASE,
+  READY_FOR_PROCEDURE: "in_room",
+};
+
+export function resolveTransitionTarget(target: string): {
+  canonicalTarget: CasePhase | CaseStage;
+  matchedStage: CaseStage | undefined;
+  matchedPhase: CasePhase | undefined;
+} {
+  const trimmed = target.trim();
+  const stage = caseStageFromCode(trimmed);
+  if (stage !== undefined) {
+    return {
+      canonicalTarget: stage,
+      matchedStage: stage,
+      matchedPhase: STAGE_TO_PHASE[stage],
+    };
+  }
+
+  if (Object.hasOwn(PHASE_TO_STAGE, trimmed)) {
+    const phase = trimmed as CasePhase;
+    return {
+      canonicalTarget: phase,
+      matchedStage: PHASE_TO_STAGE[phase],
+      matchedPhase: phase,
+    };
+  }
+
+  const phaseFromCode = casePhaseFromCode(trimmed);
+  if (phaseFromCode !== undefined) {
+    return {
+      canonicalTarget: phaseFromCode,
+      matchedStage: PHASE_TO_STAGE[phaseFromCode],
+      matchedPhase: phaseFromCode,
+    };
+  }
+
+  return {
+    canonicalTarget: trimmed as CasePhase | CaseStage,
+    matchedStage: undefined,
+    matchedPhase: undefined,
+  };
+}
+
 const STATUS_TO_PHASE: Readonly<Record<string, CasePhase>> = {
   planned: "SCHEDULED",
   arrived: "ARRIVED",
@@ -90,16 +163,27 @@ const STATUS_TO_PHASE: Readonly<Record<string, CasePhase>> = {
   "entered-in-error": "CANCELLED",
 };
 
-export function resolveCasePhase(encounter?: Encounter): CasePhase {
-  if (!encounter) return "SCHEDULED";
+export function resolveCaseStage(encounter?: Encounter): CaseStage | undefined {
+  if (!encounter) return undefined;
+  const directStage = readCaseStage(encounter.extension);
+  if (directStage) return directStage;
   const stageExt = encounter.extension?.find((e) =>
     e.url?.includes("case-stage") || e.url?.endsWith("/case-stage"),
   );
   const stageCode = stageExt?.valueCoding?.code ?? stageExt?.valueCode;
-  if (stageCode && Object.hasOwn(STAGE_TO_PHASE, stageCode)) {
-    const mapped = STAGE_TO_PHASE[stageCode];
+  return stageCode ? caseStageFromCode(stageCode) : undefined;
+}
+
+export function resolveCasePhase(encounter?: Encounter): CasePhase {
+  if (!encounter) return "SCHEDULED";
+  const stage = resolveCaseStage(encounter);
+  if (stage && Object.hasOwn(STAGE_TO_PHASE, stage)) {
+    const mapped = STAGE_TO_PHASE[stage];
     if (mapped) return mapped;
   }
+
+  const directPhase = readCasePhase(encounter.extension);
+  if (directPhase) return directPhase;
 
   const phaseExt = encounter.extension?.find((e) =>
     e.url?.includes("case-phase") || e.url?.endsWith("/case-phase"),
@@ -113,15 +197,6 @@ export function resolveCasePhase(encounter?: Encounter): CasePhase {
   return (encounter.status && Object.hasOwn(STATUS_TO_PHASE, encounter.status)
     ? STATUS_TO_PHASE[encounter.status]
     : undefined) ?? "SCHEDULED";
-}
-
-export function resolveCaseStage(encounter?: Encounter): CaseStage | undefined {
-  if (!encounter) return undefined;
-  const stageExt = encounter.extension?.find((e) =>
-    e.url?.includes("case-stage") || e.url?.endsWith("/case-stage"),
-  );
-  const stageCode = stageExt?.valueCoding?.code ?? stageExt?.valueCode;
-  return stageCode ? caseStageFromCode(stageCode) : undefined;
 }
 
 export function formatCanonicalCaseNumber(rawNumber?: string, fallbackId?: string): string {
@@ -194,7 +269,11 @@ export function buildProcedureCaseFromFhir(params: {
 
   const givenName = fhirPatient?.name?.[0]?.given?.[0];
   const familyName = fhirPatient?.name?.[0]?.family;
-  const displayName = patientParticipant?.actor?.display ?? (givenName && familyName ? `${givenName} ${familyName}` : "Unknown Patient");
+  const fullNameFromPatient = [givenName, familyName].filter(Boolean).join(" ").trim();
+  const displayName =
+    patientParticipant?.actor?.display?.trim() ||
+    fullNameFromPatient ||
+    "Unknown Patient";
   const birthDate = fhirPatient?.birthDate;
 
   const patientRef: PatientRef = {
@@ -207,9 +286,12 @@ export function buildProcedureCaseFromFhir(params: {
     dateOfBirth: birthDate ?? "1980-01-01",
   };
 
-  const docRef = appItem?.participant?.find((p) => p.actor?.reference?.startsWith("Practitioner/") && !p.actor.reference.includes("anes"));
-  const anesRef = appItem?.participant?.find((p) => p.actor?.reference?.startsWith("Practitioner/") && (p.actor.reference.includes("anes") || p.actor.display?.toLowerCase().includes("anesthes")));
-  const nurseRef = appItem?.participant?.find((p) => p.actor?.reference?.startsWith("Practitioner/") && p.actor.reference.includes("nurse"));
+  const docRef = appItem?.participant?.find((p) => p.type?.some((t) => t.coding?.some((c) => c.code === "PPRF")))
+    ?? appItem?.participant?.find((p) => p.actor?.reference?.startsWith("Practitioner/") && !p.actor.reference.includes("anes"));
+  const anesRef = appItem?.participant?.find((p) => p.type?.some((t) => t.coding?.some((c) => c.code === "SPRF")))
+    ?? appItem?.participant?.find((p) => p.actor?.reference?.startsWith("Practitioner/") && (p.actor.reference.includes("anes") || p.actor.display?.toLowerCase().includes("anesthes")));
+  const nurseRef = appItem?.participant?.find((p) => p.type?.some((t) => t.coding?.some((c) => c.code === "ATND" || c.code === "CON")))
+    ?? appItem?.participant?.find((p) => p.actor?.reference?.startsWith("Practitioner/") && p.actor.reference.includes("nurse"));
 
   const team: CaseTeam = {
     surgeon: extractPractitionerStaffRef(docRef?.actor?.display, docRef?.actor?.reference ?? serviceRequest?.requester?.reference, "Surgeon"),
@@ -226,7 +308,11 @@ export function buildProcedureCaseFromFhir(params: {
   const { code: procedure, label: procedureLabel } = procedureCodeAndLabel(description, cptCode);
 
   const scheduledStart = appItem?.start ?? encounter?.period?.start ?? new Date().toISOString();
-  const durationMin = appItem?.start && appItem?.end ? Math.round((Date.parse(appItem.end) - Date.parse(appItem.start)) / 60_000) : 45;
+  const rawDuration =
+    appItem?.start && appItem?.end
+      ? Math.round((Date.parse(appItem.end) - Date.parse(appItem.start)) / 60_000)
+      : 45;
+  const durationMin = Number.isFinite(rawDuration) && rawDuration > 0 ? rawDuration : 45;
 
   const readinessChecks = encounter ? readCaseReadiness(encounter.extension) : [];
   const checkMap = mapReadinessChecks(readinessChecks);
@@ -259,6 +345,9 @@ export function buildProcedureCaseFromFhir(params: {
     stageTimestamps[stage] = encounter?.period?.start ?? scheduledStart;
   }
 
+  const intent: ProcedureIntent =
+    (serviceRequest?.extension ? readProcedureIntent(serviceRequest.extension) : undefined) ?? "screening";
+
   return {
     id: caseId,
     caseNumber,
@@ -266,7 +355,7 @@ export function buildProcedureCaseFromFhir(params: {
     patient: patientRef,
     procedure,
     procedureLabel,
-    intent: "screening",
+    intent,
     indication: description?.trim() ? description.trim() : "Screening examination",
     roomId,
     scheduledStart,

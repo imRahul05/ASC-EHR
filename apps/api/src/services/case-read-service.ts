@@ -7,12 +7,8 @@ import {
   ENCOUNTER_STATUS_BY_STAGE,
   fhirUrls,
 } from "@asc/fhir";
-import { casePhaseFromCode } from "@asc/fhir/case-phase";
-import { caseStageFromCode } from "@asc/fhir/case-stage";
 import type {
   CaseDetail,
-  CasePhase,
-  CaseStage,
   CaseSummaryFlags,
   RuleReason,
   TimeOutRecord,
@@ -21,7 +17,11 @@ import type { TransitionCaseInput } from "@asc/validation";
 import type { MedplumClient } from "@medplum/core";
 import type { Encounter, Extension } from "@medplum/fhirtypes";
 import type { FastifyBaseLogger } from "fastify";
-import { buildPatientFromFhir, buildProcedureCaseFromFhir } from "./case-mapper.js";
+import {
+  buildPatientFromFhir,
+  buildProcedureCaseFromFhir,
+  resolveTransitionTarget,
+} from "./case-mapper.js";
 
 export async function getCaseDetail(params: {
   medplum: MedplumClient;
@@ -153,12 +153,12 @@ export async function transitionCase(params: {
     };
   }
 
-  const target = input.to.trim() as CasePhase | CaseStage;
-  const gateResult = transitionGate(currentDetail, target);
+  const { canonicalTarget, matchedStage, matchedPhase } = resolveTransitionTarget(input.to);
+  const gateResult = transitionGate(currentDetail, canonicalTarget);
 
   if (!gateResult.ok) {
     logger.warn(
-      { caseId, target, reasons: gateResult.reasons },
+      { caseId, target: canonicalTarget, reasonCodes: gateResult.reasons.map((r) => r.code) },
       "transition rejected by clinical gate",
     );
     return {
@@ -169,10 +169,36 @@ export async function transitionCase(params: {
     };
   }
 
-  const rawEncounter = await medplum.readResource("Encounter", caseId);
+  let rawEncounter: Encounter | null;
+  const facilityAccountRef = `Organization/${facilityId}`;
+  try {
+    rawEncounter = await medplum.readResource("Encounter", caseId);
+  } catch {
+    const foundEncounters = await medplum.searchResources("Encounter", [
+      ["_id", caseId],
+      ["_count", "1"],
+    ]).catch(() => []);
+    rawEncounter = foundEncounters[0] ?? null;
+  }
 
-  const matchedStage = caseStageFromCode(target);
-  const matchedPhase = casePhaseFromCode(target);
+  if (!rawEncounter) {
+    return {
+      status: 404,
+      code: "not_found",
+      message: `Case ${caseId} not found`,
+    };
+  }
+
+  const hasFacilityAccount = rawEncounter.meta?.accounts?.some(
+    (acc) => acc.reference === facilityAccountRef,
+  );
+  if (!hasFacilityAccount) {
+    return {
+      status: 404,
+      code: "not_found",
+      message: `Case ${caseId} not found`,
+    };
+  }
 
   let newStatus = rawEncounter.status;
   if (matchedStage !== undefined) {
@@ -204,7 +230,7 @@ export async function transitionCase(params: {
   const existingSubExtensions: Extension[] = existingTimestampsExt?.extension ? [...existingTimestampsExt.extension] : [];
 
   const nowIso = new Date().toISOString();
-  const targetKey = matchedStage ?? matchedPhase ?? target;
+  const targetKey = matchedStage ?? matchedPhase ?? canonicalTarget;
   const existingSubIndex = existingSubExtensions.findIndex((sub) => sub.url === targetKey);
   if (existingSubIndex >= 0) {
     existingSubExtensions[existingSubIndex] = { url: targetKey, valueDateTime: nowIso };
@@ -217,16 +243,24 @@ export async function transitionCase(params: {
     extension: existingSubExtensions,
   });
 
+  let updatedPeriod = rawEncounter.period;
+  if (!updatedPeriod?.start && (matchedStage === "arrived" || matchedStage === "preop" || matchedStage === "in_room")) {
+    updatedPeriod = { ...updatedPeriod, start: nowIso };
+  } else if (matchedStage === "discharged" || newStatus === "finished") {
+    updatedPeriod = { ...updatedPeriod, end: nowIso };
+  }
+
   const updatedEncounter: Encounter = {
     ...rawEncounter,
     status: newStatus,
+    period: updatedPeriod,
     extension: updatedExtensions,
   };
 
   await forFacility(medplum, facilityId).update(updatedEncounter);
 
   logger.info(
-    { caseId, previousStage: currentDetail.case.stage, target, status: newStatus },
+    { caseId, previousStage: currentDetail.case.stage, target: canonicalTarget, status: newStatus },
     "case transition executed successfully",
   );
 

@@ -9,6 +9,7 @@ import {
   procedureCodeAndLabel,
   resolveCasePhase,
   resolveCaseStage,
+  resolveTransitionTarget,
 } from "./case-mapper.js";
 
 describe("case-mapper", () => {
@@ -21,6 +22,10 @@ describe("case-mapper", () => {
     it("computes approximate age", () => {
       expect(computeAge("2000-01-01")).toBeGreaterThanOrEqual(24);
     });
+    it("handles ISO date strings and malformed formats gracefully", () => {
+      expect(computeAge("1990-06-15T00:00:00.000Z")).toBeGreaterThanOrEqual(30);
+      expect(computeAge("bad-date")).toBe(0);
+    });
   });
 
   describe("extractPatientInitials", () => {
@@ -29,6 +34,12 @@ describe("case-mapper", () => {
     });
     it("falls back to display name", () => {
       expect(extractPatientInitials(undefined, undefined, "Jane Smith")).toBe("J.S.");
+    });
+    it("handles single-name / mononym patient without dropping known initial", () => {
+      expect(extractPatientInitials("Cher", undefined, "Cher")).toBe("C.H.");
+      expect(extractPatientInitials(undefined, "Madonna", "Madonna")).toBe("M.A.");
+      expect(extractPatientInitials("Cher", undefined, undefined)).toBe("C.T.");
+      expect(extractPatientInitials(undefined, "Madonna", undefined)).toBe("P.M.");
     });
     it("defaults to P.T. when empty", () => {
       expect(extractPatientInitials(undefined, undefined, undefined)).toBe("P.T.");
@@ -100,6 +111,51 @@ describe("case-mapper", () => {
       expect(procCase.id).toBe("enc-456");
       expect(procCase.patient.displayName).toBe("Bob Builder");
       expect(procCase.phase).toBe("SCHEDULED");
+    });
+
+    it("handles anomalous appointment times by defaulting to 45 min duration", () => {
+      const procCase = buildProcedureCaseFromFhir({
+        appItem: {
+          resourceType: "Appointment",
+          status: "booked",
+          participant: [{ status: "accepted" }],
+          start: "2026-10-14T10:00:00.000Z",
+          end: "2026-10-14T09:00:00.000Z", // end before start
+        },
+      });
+      expect(procCase.durationMin).toBe(45);
+    });
+  });
+
+  describe("resolveTransitionTarget", () => {
+    it("resolves CaseStage target with matching CasePhase", () => {
+      const res = resolveTransitionTarget("preop");
+      expect(res.matchedStage).toBe("preop");
+      expect(res.matchedPhase).toBe("PRE_OP");
+    });
+
+    it("resolves in_room stage with READY_FOR_PROCEDURE phase", () => {
+      const res = resolveTransitionTarget("in_room");
+      expect(res.matchedStage).toBe("in_room");
+      expect(res.matchedPhase).toBe("READY_FOR_PROCEDURE");
+    });
+
+    it("resolves legacy CasePhase enum target with matching CaseStage", () => {
+      const res = resolveTransitionTarget("PRE_OP");
+      expect(res.matchedStage).toBe("preop");
+      expect(res.matchedPhase).toBe("PRE_OP");
+    });
+
+    it("resolves legacy stored code target with matching CaseStage and Phase", () => {
+      const res = resolveTransitionTarget("pre-op");
+      expect(res.matchedStage).toBe("preop");
+      expect(res.matchedPhase).toBe("PRE_OP");
+    });
+
+    it("returns undefined for unknown target strings", () => {
+      const res = resolveTransitionTarget("completely_invalid");
+      expect(res.matchedStage).toBeUndefined();
+      expect(res.matchedPhase).toBeUndefined();
     });
   });
 });
