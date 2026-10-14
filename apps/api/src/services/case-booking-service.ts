@@ -1,4 +1,5 @@
 import { forFacility } from "@asc/api-client/server";
+import { defaultDurationForCpt } from "@asc/clinical-rules/scheduling/catalog";
 import {
   ASC_ROOM_IDS,
   evaluateScheduleConflict,
@@ -353,7 +354,9 @@ export async function bookCase(options: BookCaseOptions): Promise<CaseBookingRes
         const parsedEndMs = appItem.end ? Date.parse(appItem.end) : 0;
         const endMs = startMs > 0 && parsedEndMs > startMs ? parsedEndMs : undefined;
         const durationMinutes =
-          endMs !== undefined ? Math.round((endMs - startMs) / 60_000) : 45;
+          endMs !== undefined
+            ? Math.round((endMs - startMs) / 60_000)
+            : defaultDurationForCpt();
 
         const roomParticipant = appItem.participant?.find((p) =>
           p.actor?.reference?.startsWith("Location/"),
@@ -395,7 +398,8 @@ export async function bookCase(options: BookCaseOptions): Promise<CaseBookingRes
         };
       });
 
-      const durationMinutes = body.durationMinutes;
+      const durationMinutes =
+        body.durationMinutes ?? defaultDurationForCpt(body.primaryProcedureCode);
       const candidateEndMs = candidateStartMs + durationMinutes * 60_000;
 
       const candidateSlot: ScheduleSlot = {
