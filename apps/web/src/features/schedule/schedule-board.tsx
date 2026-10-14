@@ -19,6 +19,7 @@ import {
   type RoomTimeGridItem,
 } from "@asc/ui";
 import { CalendarPlus, ChevronLeft, ChevronRight } from "@asc/ui/icons";
+import { useActiveFacility } from "../../hooks/use-active-facility";
 import { BookCaseSheet } from "./book-case-sheet";
 import { ASC_ROOMS, CLINIC_END_HOUR, CLINIC_START_HOUR } from "./schedule-options";
 
@@ -79,12 +80,13 @@ function ScheduleBoardView() {
   const pathname = usePathname();
   const params = useSearchParams();
   const now = useNow();
+  const { facilityId } = useActiveFacility();
   const [date, setDate] = useState(todayIsoDate);
   const [sheet, setSheet] = useState<SheetState>(() => ({
     open: params.get("book") === "1",
     defaults: { patientId: params.get("patient") ?? undefined, referralId: params.get("referral") ?? undefined },
   }));
-  const query = useSchedule(date);
+  const query = useSchedule(date, facilityId ?? undefined);
 
   const openSheet = (defaults: BookCaseDefaults) => setSheet({ open: true, defaults: { date, ...defaults } });
   const onSheetOpenChange = (open: boolean) => {

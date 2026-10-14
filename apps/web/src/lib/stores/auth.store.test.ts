@@ -1,3 +1,4 @@
+import { getFacilityId } from "@asc/api-client";
 import type { AuthSession } from "@asc/types";
 import type { MeResponse } from "@asc/validation/authz";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -37,6 +38,25 @@ describe("auth store", () => {
     useAuthStore.getState().setSession(session, me);
     expect(useAuthStore.getState()).toMatchObject({ facilityId: "A", principal: { id: "u1" } });
     expect(useAuthStore.getState().facilities).toHaveLength(2);
+  });
+
+  it("synchronizes resolved facilityId to @asc/api-client", () => {
+    useAuthStore.getState().setSession(session, {
+      principal: me.principal,
+      facilities: [{ id: "fac-sync-1", name: "Endo Center" }],
+    });
+    expect(getFacilityId()).toBe("fac-sync-1");
+    useAuthStore.getState().clearSession();
+    expect(getFacilityId()).toBeNull();
+  });
+
+  it("synchronizes selected facilityId to @asc/api-client", () => {
+    useAuthStore.getState().setSession(session, me);
+    expect(getFacilityId()).toBe("A");
+    useAuthStore.getState().selectFacility("B");
+    expect(getFacilityId()).toBe("B");
+    useAuthStore.getState().clearSession();
+    expect(getFacilityId()).toBeNull();
   });
 
   it("switches facility only to one the principal has a grant at", () => {

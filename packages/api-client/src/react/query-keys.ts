@@ -24,7 +24,7 @@ export const queryKeys = {
   },
   schedule: {
     all: ["schedule"] as const,
-    day: (date?: IsoDate) => ["schedule", date ?? "today"] as const,
+    day: (date?: IsoDate, facilityId?: string) => ["schedule", date ?? "today", facilityId ?? ""] as const,
   },
   cases: {
     all: ["cases"] as const,

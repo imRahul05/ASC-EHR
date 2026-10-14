@@ -14,6 +14,7 @@ import {
   logoutWebSession,
   refreshWebAuthToken,
   setAccessToken,
+  setFacilityId,
 } from "@asc/api-client";
 import { queryKeys } from "@asc/api-client/react";
 import { getPublicMedplumClientId, isApiMockingEnabled } from "@asc/config/public-env";
@@ -74,6 +75,7 @@ export function useAuth() {
         setSession(next, me, sessionStartedAt);
       } catch (error) {
         setAccessToken(null);
+        setFacilityId(null);
         void logoutWebSession();
         throw error;
       }
@@ -238,6 +240,7 @@ export function useAuth() {
           );
         } catch (error) {
           setAccessToken(null);
+          setFacilityId(null);
           void logoutWebSession();
           throw error;
         }
@@ -313,6 +316,7 @@ export function useAuth() {
       // Ignore network failure on cookie clearing
     }
     setAccessToken(null);
+    setFacilityId(null);
     setIdToken(null);
     clearPendingCodeVerifier();
     clearSession();

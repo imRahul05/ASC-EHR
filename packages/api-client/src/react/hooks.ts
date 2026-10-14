@@ -137,8 +137,12 @@ export const useConvertReferral = (referralId: string) =>
 
 // ─── Schedule & case workspace ──────────────────────────────────────────────
 
-export function useSchedule(date?: IsoDate) {
-  return useQuery({ queryKey: queryKeys.schedule.day(date), queryFn: () => getSchedule(date), placeholderData: keepPreviousData });
+export function useSchedule(date?: IsoDate, facilityId?: string) {
+  return useQuery({
+    queryKey: queryKeys.schedule.day(date, facilityId),
+    queryFn: () => getSchedule(date, facilityId),
+    placeholderData: keepPreviousData,
+  });
 }
 
 export const useBookCase = () => useClinicalMutation(bookCase);
