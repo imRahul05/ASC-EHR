@@ -1,5 +1,5 @@
 import type { BookCasePayload, ConflictCheckResult, ProcedureCase, ScheduleConflict } from "@asc/types";
-import { STOPPED_PHASES } from "./phases";
+import { STOPPED_PHASES } from "./phases.js";
 
 const MINUTE_MS = 60_000;
 
