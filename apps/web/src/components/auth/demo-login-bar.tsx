@@ -2,38 +2,40 @@
 
 import { useState } from "react";
 import { isApiMockingEnabled } from "@asc/config/public-env";
-import type { DemoPersonaId } from "@asc/types";
 import { Skeleton } from "@asc/ui/components/ui/skeleton";
 import { toast } from "@asc/ui/components/ui/sonner";
 import { cn } from "@asc/ui/lib/utils";
-import { ArrowRight, Building2, HeartPulse, Loader2, ShieldPlus, Stethoscope, UserRound, type LucideIcon } from "@asc/ui/icons";
-import { PERSONAS } from "../../lib/personas";
+import { ArrowRight, Building2, HeartPulse, Loader2, ShieldPlus, Stethoscope, type LucideIcon } from "@asc/ui/icons";
+import { PERSONAS, type ActiveDemoPersonaId } from "../../lib/personas";
 import { useAuth, useDemoPresets } from "../../hooks/use-auth";
 
 /** Persona icons (labels and order live in lib/personas.ts, keyed by preset id). */
-const PERSONA_ICON: Readonly<Record<DemoPersonaId, LucideIcon>> = {
+const PERSONA_ICON: Readonly<Record<ActiveDemoPersonaId, LucideIcon>> = {
   "demo-admin": Building2,
   "demo-nurse": HeartPulse,
   "demo-surgeon": Stethoscope,
   "demo-anesthesia": ShieldPlus,
-  "demo-patient": UserRound,
 };
 
-/** One-click demo sign-in: a card per persona (all five roles). Export name kept for the login page. */
+function isActivePersona(id: string): id is ActiveDemoPersonaId {
+  return Object.hasOwn(PERSONAS, id);
+}
+
+/** One-click demo sign-in: a card per persona (active clinical roles). Export name kept for the login page. */
 export function DemoLoginBar() {
   const isMocking = isApiMockingEnabled();
   const { loginWithDemo, isDemoLoggingIn } = useAuth();
   const presets = useDemoPresets();
-  const [pendingId, setPendingId] = useState<DemoPersonaId | null>(null);
+  const [pendingId, setPendingId] = useState<ActiveDemoPersonaId | null>(null);
 
   if (!isMocking) {
     return null;
   }
-  const ordered = (presets.data ?? []).toSorted(
-    (a, b) => PERSONAS[a.id].order - PERSONAS[b.id].order,
-  );
+  const ordered = (presets.data ?? [])
+    .filter((p): p is typeof p & { readonly id: ActiveDemoPersonaId } => isActivePersona(p.id))
+    .toSorted((a, b) => PERSONAS[a.id].order - PERSONAS[b.id].order);
 
-  const signIn = async (presetId: DemoPersonaId) => {
+  const signIn = async (presetId: ActiveDemoPersonaId) => {
     setPendingId(presetId);
     try {
       await loginWithDemo(presetId);
@@ -54,7 +56,7 @@ export function DemoLoginBar() {
       {presets.isError && <p className="text-sm text-destructive">Demo accounts are unavailable — use email sign-in.</p>}
       <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {presets.isPending &&
-          Array.from({ length: 5 }, (_, index) => (
+          Array.from({ length: 4 }, (_, index) => (
             <li key={index}>
               <Skeleton className="h-[4.25rem] rounded-xl" />
             </li>

@@ -28,7 +28,6 @@ const PERSONAS = {
   anesthesia: ["anesthesia@ascehr.demo", undefined],
   nurse: ["nurse@ascehr.demo", undefined],
   admin: ["admin@ascehr.demo", undefined],
-  patient: ["patient@ascehr.demo", undefined],
   floatAtMetro: ["float@ascehr.demo", "fac-metro"],
   floatAtLakeside: ["float@ascehr.demo", "fac-lakeside"],
 } as const;
@@ -60,8 +59,7 @@ const ALLOWED: Readonly<Record<keyof typeof ROUTE_ACCESS, readonly Persona[]>> =
   quality: ["surgeon", "admin", "floatAtLakeside"],
   audit: ["admin"],
   admin: ["admin"],
-  "my-care": ["patient"],
-  guide: [...STAFF, "patient"],
+  guide: [...STAFF],
 };
 
 const ROUTES = Object.keys(ROUTE_ACCESS) as (keyof typeof ROUTE_ACCESS)[];
@@ -79,7 +77,7 @@ function render(pathname: string) {
 describe("route table", () => {
   const appDir = join(__dirname, "../app/(dashboard)");
   const folders = readdirSync(appDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && existsSync(join(appDir, entry.name)))
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith("_") && existsSync(join(appDir, entry.name)))
     .map((entry) => entry.name);
 
   it("has an entry for every signed-in route folder, and no stale entries", () => {

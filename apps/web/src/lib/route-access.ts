@@ -19,7 +19,6 @@ export const ROUTE_ACCESS = {
   quality: ["quality.read"],
   audit: ["audit.read"],
   admin: ["admin.users"],
-  "my-care": ["portal.self.read"],
   guide: null,
 } as const satisfies Readonly<Record<string, readonly Capability[] | null>>;
 

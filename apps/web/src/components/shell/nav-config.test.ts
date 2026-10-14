@@ -61,8 +61,15 @@ describe("sidebar from capabilities", () => {
     ]);
   });
 
-  it("shows a patient only the portal and help", () => {
-    expect(navKeys("patient@ascehr.demo")).toEqual(["my-care", "my-care-prep", "my-care-escort", "my-care-results", "guide"]);
+  it("shows a patient only the help center while portal routes are unmounted", () => {
+    expect(navKeys("patient@ascehr.demo")).toEqual(["guide"]);
+  });
+
+  it("does not include dormant patient portal routes in navigation for any user", () => {
+    for (const email of ["nurse@ascehr.demo", "surgeon@ascehr.demo", "anesthesia@ascehr.demo", "admin@ascehr.demo"]) {
+      const keys = navKeys(email);
+      expect(keys.some((k) => k.startsWith("my-care"))).toBe(false);
+    }
   });
 
   it("changes when the float user switches facility", () => {

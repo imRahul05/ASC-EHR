@@ -22,12 +22,16 @@ import {
 import { Check, ChevronDown, ChevronRight, LogOut, RotateCcw } from "@asc/ui/icons";
 import { HelpButton } from "../../features/guide/help-button";
 import { useAuth, useCurrentPersona, useDemoPresets } from "../../hooks/use-auth";
-import { PERSONAS } from "../../lib/personas";
+import { PERSONAS, type ActiveDemoPersonaId } from "../../lib/personas";
 import { roleLabelsFor } from "../../lib/role-labels";
 import { CommandMenu } from "./command-menu";
 import { FacilitySwitcher } from "./facility-switcher";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 import { routeTitle } from "./nav-config";
+
+function isActivePersona(id: string): id is ActiveDemoPersonaId {
+  return Object.hasOwn(PERSONAS, id);
+}
 
 function PersonaSwitcher() {
   const isMocking = isApiMockingEnabled();
@@ -36,7 +40,10 @@ function PersonaSwitcher() {
   const current = useCurrentPersona();
 
   if (!isMocking) return null;
-  const ordered = (presets.data ?? []).toSorted((a, b) => PERSONAS[a.id].order - PERSONAS[b.id].order);
+  const ordered = (presets.data ?? [])
+    .filter((p): p is typeof p & { readonly id: ActiveDemoPersonaId } => isActivePersona(p.id))
+    .toSorted((a, b) => PERSONAS[a.id].order - PERSONAS[b.id].order);
+  const activeCurrent = current !== null && isActivePersona(current) ? current : null;
 
   return (
     <DropdownMenu>
@@ -44,7 +51,7 @@ function PersonaSwitcher() {
         render={
           <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs font-medium" data-testid="role-switcher">
             <span className="hidden text-muted-foreground md:inline">Viewing as</span>
-            {current === null ? (user?.fullName.split(",")[0] ?? "You") : PERSONAS[current].label}
+            {activeCurrent === null ? (user?.fullName.split(",")[0] ?? "You") : PERSONAS[activeCurrent].label}
             <ChevronDown className="size-3 text-muted-foreground" />
           </Button>
         }

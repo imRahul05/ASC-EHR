@@ -29,7 +29,7 @@ describe("workspaces", () => {
     expect(keys("nurse@ascehr.demo")).toEqual(["nursing", "tech"]);
     expect(keys("anesthesia@ascehr.demo")).toEqual(["anesthesia", "nursing"]);
     expect(keys("admin@ascehr.demo")).toEqual(["operations"]);
-    expect(keys("patient@ascehr.demo")).toEqual(["patient"]);
+    expect(keys("patient@ascehr.demo")).toEqual([]);
   });
 
   it("change with the facility for the float user", () => {
@@ -43,9 +43,9 @@ describe("workspaces", () => {
     expect(workspacesFor(nurse, null)).toEqual([]);
   });
 
-  it("send the patient workspace to the portal and every other one to the dashboard", () => {
+  it("send every workspace to the dashboard", () => {
     for (const workspace of WORKSPACES) {
-      expect(workspace.home).toBe(workspace.key === "patient" ? "/my-care" : "/dashboard");
+      expect(workspace.home).toBe("/dashboard");
     }
   });
 });
@@ -70,7 +70,7 @@ describe("a tech added by configuration alone", () => {
     for (const route of ["dashboard", "whiteboard", "schedule", "patients", "cases", "guide"] as const) {
       expect(opens(route), route).toBe(true);
     }
-    for (const route of ["worklist", "referrals", "pathology", "coding", "quality", "audit", "admin", "my-care"] as const) {
+    for (const route of ["worklist", "referrals", "pathology", "coding", "quality", "audit", "admin"] as const) {
       expect(opens(route), route).toBe(false);
     }
   });

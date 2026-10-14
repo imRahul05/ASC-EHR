@@ -22,6 +22,8 @@ export interface AuthSession {
   readonly expiresAt: string;
 }
 
+export type ActiveDemoPersonaId = "demo-admin" | "demo-nurse" | "demo-surgeon" | "demo-anesthesia";
+
 /** Demo personas are labels for one-click sign-in (a person, not a permission). */
 export type DemoPersonaId = "demo-admin" | "demo-nurse" | "demo-surgeon" | "demo-anesthesia" | "demo-patient";
 
