@@ -91,6 +91,75 @@ export const bookCaseSchema = z.object({
 export type BookCaseInput = z.infer<typeof bookCaseSchema>;
 export type BookCaseFormInput = z.input<typeof bookCaseSchema>;
 
+export function facilityDateTimeToIso(
+  dateStr: string,
+  timeStr: string,
+  timeZone: string = "America/New_York",
+): string {
+  const [yearStr, monthStr, dayStr] = dateStr.split("-");
+  const [hourStr, minStr] = timeStr.split(":");
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+  const hour = Number(hourStr);
+  const minute = Number(minStr);
+
+  if (
+    Number.isNaN(year) ||
+    Number.isNaN(month) ||
+    Number.isNaN(day) ||
+    Number.isNaN(hour) ||
+    Number.isNaN(minute)
+  ) {
+    throw new Error(`Invalid facility date/time: ${dateStr} ${timeStr}`);
+  }
+
+  const targetLocalUtcMs = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
+
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+    hourCycle: "h23",
+  });
+
+  function getFacilityLocalUtcMs(testUtcMs: number): number {
+    const parts = formatter.formatToParts(new Date(testUtcMs));
+    let y = year;
+    let m = month;
+    let d = day;
+    let h = hour;
+    let min = minute;
+    let s = 0;
+    for (const part of parts) {
+      if (part.type === "year") y = Number(part.value);
+      else if (part.type === "month") m = Number(part.value);
+      else if (part.type === "day") d = Number(part.value);
+      else if (part.type === "hour") h = Number(part.value);
+      else if (part.type === "minute") min = Number(part.value);
+      else if (part.type === "second") s = Number(part.value);
+    }
+    return Date.UTC(y, m - 1, d, h, min, s, 0);
+  }
+
+  let candidateUtcMs = targetLocalUtcMs;
+  let facilityLocalUtcMs = getFacilityLocalUtcMs(candidateUtcMs);
+  const offsetMs = targetLocalUtcMs - facilityLocalUtcMs;
+  candidateUtcMs += offsetMs;
+
+  facilityLocalUtcMs = getFacilityLocalUtcMs(candidateUtcMs);
+  const secondaryDiff = targetLocalUtcMs - facilityLocalUtcMs;
+  if (secondaryDiff !== 0) {
+    candidateUtcMs += secondaryDiff;
+  }
+
+  return new Date(candidateUtcMs).toISOString();
+}
+
 export const bookCaseFormSchema = z
   .object({
     facilityId: z
@@ -109,8 +178,10 @@ export const bookCaseFormSchema = z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/, "Select a valid calendar date (YYYY-MM-DD)")
       .refine(isValidCalendarDate, "Date must be a valid calendar date"),
-    startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Select a valid 24-hour start time (HH:MM)"),
-    durationMinutes: z
+    startTime: z
+      .string()
+      .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Select a valid 24-hour start time (HH:MM)"),
+    durationMinutes: z.coerce
       .number()
       .int("Duration must be an integer")
       .min(15, "Duration must be at least 15 minutes")
@@ -143,8 +214,13 @@ export const bookCaseFormSchema = z
   })
   .refine(
     (data) => {
-      const time = Date.parse(`${data.date}T${data.startTime}:00`);
-      return !Number.isNaN(time) && time > Date.now() - PAST_DATE_GRACE_MS;
+      try {
+        const iso = facilityDateTimeToIso(data.date, data.startTime);
+        const time = Date.parse(iso);
+        return !Number.isNaN(time) && time > Date.now() - PAST_DATE_GRACE_MS;
+      } catch {
+        return false;
+      }
     },
     {
       message: "Scheduled date and time cannot be in the past (more than 30 minutes ago)",
@@ -154,8 +230,12 @@ export const bookCaseFormSchema = z
 
 export type BookCaseFormData = z.infer<typeof bookCaseFormSchema>;
 
-export function bookCaseInputFrom(formData: BookCaseFormData): BookCaseInput {
-  const scheduledAt = new Date(`${formData.date}T${formData.startTime}:00`).toISOString();
+export function bookCaseInputFrom(
+  formData: BookCaseFormData,
+  scheduledAtIso?: string,
+): BookCaseInput {
+  const scheduledAt =
+    scheduledAtIso ?? facilityDateTimeToIso(formData.date, formData.startTime);
   return {
     facilityId: formData.facilityId.trim(),
     patientId: formData.patientId.trim(),

@@ -6,8 +6,11 @@ import {
   bookCaseInputFrom,
   type BookCaseFormData,
 } from "@asc/validation/cases/book";
+import { facilityDateTimeToIso } from "@asc/clinical-rules/time";
 import { BookCaseForm } from "./book-case-sheet";
 import { GI_CPT_PROCEDURE_OPTIONS } from "./schedule-options";
+
+let mockFacilityId: string | null = "fac-metro";
 
 const MOCK_STAFF: readonly StaffMember[] = [
   {
@@ -40,7 +43,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("../../lib/stores/auth.store", () => ({
   useAuthStore: (selector: (s: { facilityId: string | null }) => string | null) =>
-    selector({ facilityId: "fac-metro" }),
+    selector({ facilityId: mockFacilityId }),
 }));
 
 vi.mock("@asc/api-client/react", () => ({
@@ -182,6 +185,22 @@ describe("BookCaseForm & BookCaseSheet", () => {
     expect(input.primaryPhysicianId).toBe("doc-vance");
     expect(input.anesthesiologistId).toBe("anes-rostova");
     expect(input.notes).toBe("Polypectomy planned for large sigmoid polyp.");
-    expect(input.scheduledAt).toBe(new Date("2026-11-01T10:30:00").toISOString());
+    expect(input.scheduledAt).toBe(facilityDateTimeToIso("2026-11-01", "10:30"));
+  });
+
+  it("renders warning banner and disables submit when no active facility is selected", () => {
+    mockFacilityId = null;
+    const html = renderToStaticMarkup(
+      <BookCaseForm
+        staff={MOCK_STAFF}
+        defaults={{}}
+        referralHints={null}
+        onDone={() => {}}
+      />,
+    );
+    expect(html).toContain('data-testid="book-case-no-facility-alert"');
+    expect(html).toContain("No active facility selected");
+    expect(html).toContain('disabled=""');
+    mockFacilityId = "fac-metro";
   });
 });

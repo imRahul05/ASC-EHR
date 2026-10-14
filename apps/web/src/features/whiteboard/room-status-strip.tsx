@@ -1,6 +1,8 @@
 import type { Room, WhiteboardCard } from "@asc/types";
 import { toWhiteboardStage, WhiteboardTile, type WhiteboardTileCase } from "@asc/ui";
 import { formatTime24 } from "@asc/clinical-rules/time";
+import { isRoomOccupyingPhase } from "@asc/clinical-rules/phases";
+import { ASC_ROOMS } from "../schedule/schedule-options";
 
 interface RoomStatusStripProps {
   readonly rooms: readonly Room[];
@@ -9,31 +11,20 @@ interface RoomStatusStripProps {
   readonly elapsed?: (enteredAt: string | undefined) => number | null;
 }
 
-const ASC_ROOMS: readonly { readonly id: string; readonly name: string }[] = [
-  { id: "room-1", name: "Room 1" },
-  { id: "room-2", name: "Room 2" },
-  { id: "room-3", name: "Room 3" },
-  { id: "room-4", name: "Room 4" },
-];
-
-const ACTIVE_ROOM_PHASES = new Set([
-  "in_procedure",
-  "in_room",
-  "procedure_start",
-  "procedure_end",
-  "ready_for_procedure",
-  "in_progress",
-]);
-
 function findRoomCase(room: Room, cards: readonly WhiteboardCard[]): WhiteboardCard | undefined {
   if (room.currentCaseId) {
-    const directMatch = cards.find((card) => card.caseId === room.currentCaseId);
+    const directMatch = cards.find(
+      (card) =>
+        card.caseId === room.currentCaseId &&
+        card.roomId === room.id &&
+        isRoomOccupyingPhase(card.phase),
+    );
     if (directMatch) return directMatch;
   }
 
   if (room.status === "in_use") {
     return cards.find(
-      (card) => card.roomId === room.id && ACTIVE_ROOM_PHASES.has(card.phase.toLowerCase()),
+      (card) => card.roomId === room.id && isRoomOccupyingPhase(card.phase),
     );
   }
 

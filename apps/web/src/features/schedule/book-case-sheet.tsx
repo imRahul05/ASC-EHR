@@ -31,6 +31,10 @@ import {
   bookCaseInputFrom,
   type BookCaseFormData,
 } from "@asc/validation/cases/book";
+import {
+  facilityDateTimeToIso,
+  futureIsoDate,
+} from "@asc/clinical-rules/time";
 import { bookingHintsFromReferral } from "../referrals/referral-prefill";
 import { PatientPicker } from "./patient-picker";
 import {
@@ -58,9 +62,7 @@ interface BookCaseSheetProps {
 }
 
 function defaultFutureDate(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+  return futureIsoDate(1);
 }
 
 
@@ -126,7 +128,7 @@ export function BookCaseForm({
 }: BookCaseFormProps) {
   const router = useRouter();
   const book = useBookCase();
-  const facilityId = useAuthStore((s) => s.facilityId) ?? "fac-metro";
+  const facilityId = useAuthStore((s) => s.facilityId) ?? "";
   const [apiConflict, setApiConflict] = useState<string | null>(initialConflict ?? null);
 
   const defaultDate = defaults.date ?? defaultFutureDate();
@@ -166,7 +168,8 @@ export function BookCaseForm({
   const onSubmit = async (data: BookCaseFormData) => {
     setApiConflict(null);
     try {
-      const payload = bookCaseInputFrom(data);
+      const scheduledAt = facilityDateTimeToIso(data.date, data.startTime);
+      const payload = bookCaseInputFrom(data, scheduledAt);
       const created = await book.mutateAsync(payload);
       toast.success("Case booked successfully", {
         description: `Case ${created.caseId} · Room ${data.roomId}`,
@@ -219,6 +222,21 @@ export function BookCaseForm({
       data-testid="book-case-form"
     >
       <div className="flex-1 space-y-5 overflow-y-auto p-4">
+        {/* Missing facility context banner */}
+        {!facilityId && (
+          <div
+            role="alert"
+            className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-destructive"
+            data-testid="book-case-no-facility-alert"
+          >
+            <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
+            <div className="space-y-1 text-sm">
+              <p className="font-semibold">No active facility selected</p>
+              <p>You must select an active facility context before scheduling a case.</p>
+            </div>
+          </div>
+        )}
+
         {/* HTTP 409 Conflict banner */}
         {apiConflict && (
           <div
@@ -415,7 +433,7 @@ export function BookCaseForm({
         </Button>
         <Button
           type="submit"
-          disabled={isSubmitting || book.isPending}
+          disabled={!facilityId || isSubmitting || book.isPending}
           data-testid="book-case-submit"
         >
           {(isSubmitting || book.isPending) && <Loader2 aria-hidden className="animate-spin" />}

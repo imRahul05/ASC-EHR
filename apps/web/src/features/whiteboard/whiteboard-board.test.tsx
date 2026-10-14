@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Room, WhiteboardBoard as WhiteboardBoardData } from "@asc/types";
 import { WhiteboardTile } from "@asc/ui";
 import { WhiteboardBoard } from "./whiteboard-board";
+import { WhiteboardCard } from "./whiteboard-card";
 
 const MOCK_ROOMS: readonly Room[] = [
   { id: "room-1", name: "OR 1", status: "in_use", currentCaseId: "case-101" },
@@ -167,6 +168,31 @@ describe("WhiteboardBoard & WhiteboardTile", () => {
       expect(html).toContain("OR 4");
       expect(html).toContain("Available");
       expect(html).toContain("No case currently in room");
+    });
+  });
+
+  describe("WhiteboardCard Privacy & TV Kiosk Guard", () => {
+    const cardData = MOCK_BOARD_DATA.cards[0];
+
+    it("renders clinical links and flags in staff desktop mode (tv = false)", () => {
+      const html = renderToStaticMarkup(
+        <WhiteboardCard card={cardData} elapsedMin={15} warnAfterMin={30} tv={false} />,
+      );
+
+      expect(html).toContain('href="/cases/case-101"');
+      expect(html).toContain('data-testid="whiteboard-flag-allergy"');
+    });
+
+    it("unlinks case navigation and hides clinical flags in public TV mode (tv = true)", () => {
+      const html = renderToStaticMarkup(
+        <WhiteboardCard card={cardData} elapsedMin={15} warnAfterMin={30} tv={true} />,
+      );
+
+      expect(html).not.toContain('href="/cases');
+      expect(html).not.toContain("href=");
+      expect(html).not.toContain('data-testid="whiteboard-flag-allergy"');
+      expect(html).toContain("J.D.");
+      expect(html).toContain("CASE-101");
     });
   });
 });

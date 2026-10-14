@@ -16,7 +16,7 @@ import { resolveRequestId } from "./lib/request-id.js";
 import { registerMedplum } from "./plugins/medplum.js";
 import { registerRateLimit, registerSecurityHeaders } from "./plugins/security.js";
 import { registerRoutes } from "./routes/index.js";
-import type { FacilityRegistrationLock } from "@asc/types";
+import type { FacilityRegistrationLock, FacilitySchedulingLock } from "@asc/types";
 import { createInMemoryRegistrationLock } from "./routes/patients.js";
 
 interface AppOptions {
@@ -45,6 +45,8 @@ interface AppOptions {
   readonly tenantDb?: TenantDb | undefined;
   /** Custom facility registration lock override (for tests). */
   readonly facilityRegistrationLock?: FacilityRegistrationLock | undefined;
+  /** Custom facility scheduling lock override (for tests). */
+  readonly facilitySchedulingLock?: FacilitySchedulingLock | undefined;
 }
 
 export async function buildApp({
@@ -59,6 +61,7 @@ export async function buildApp({
   createMedplumClient,
   tenantDb,
   facilityRegistrationLock,
+  facilitySchedulingLock,
 }: AppOptions) {
   assertIdentityAllowed(identity, production);
   const app = Fastify({
@@ -116,11 +119,24 @@ export async function buildApp({
     app.decorate("facilityRegistrationLock", {
       async withLock<T>(facilityId: string, operation: () => Promise<T>, tenantId?: string): Promise<T> {
         const resolvedTenantId = tenantId ?? "00000000-0000-0000-0000-000000000000";
-        return withPostgresFacilityLock(tenantDb, resolvedTenantId, facilityId, operation);
+        return withPostgresFacilityLock(tenantDb, resolvedTenantId, facilityId, operation, "facility-registration");
       },
     });
   } else {
     app.decorate("facilityRegistrationLock", createInMemoryRegistrationLock());
+  }
+
+  if (facilitySchedulingLock !== undefined) {
+    app.decorate("facilitySchedulingLock", facilitySchedulingLock);
+  } else if (tenantDb !== undefined) {
+    app.decorate("facilitySchedulingLock", {
+      async withLock<T>(facilityId: string, operation: () => Promise<T>, tenantId?: string): Promise<T> {
+        const resolvedTenantId = tenantId ?? "00000000-0000-0000-0000-000000000000";
+        return withPostgresFacilityLock(tenantDb, resolvedTenantId, facilityId, operation, "facility-scheduling");
+      },
+    });
+  } else {
+    app.decorate("facilitySchedulingLock", createInMemoryRegistrationLock());
   }
 
   registerRoutes(app);

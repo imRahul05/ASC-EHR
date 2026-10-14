@@ -57,6 +57,7 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 25. Atomic case booking bundles: commit Appointment, Encounter, and ServiceRequest in a single FHIR transaction bundle with facility meta accounts; use narrativeText for clinical notes allowing newlines; validate roomId with FHIR_ID regex; pure conflict engine excludes cancelled and noshow slots (including normative FHIR "noshow" and "entered-in-error") and safely falls back on missing endMs; query up to 250 daily appointments; fail fast if transaction response IDs are unresolved. (LM-029)
 26. Neutralize registration TOCTOU race conditions: serialize in-flight duplicate-check-and-write critical sections per facility using an in-flight queue lock, use FHIR conditional create (ifNoneExist) for MRN, and verify transaction response status to reject duplicate creation with HTTP 409. (LM-030)
 27. Scheduling & UI controls: OptionSelect uses explicit nullish check for empty string values; appointment conflict queries use bounded 24h windows (string[][] QueryTypes in Medplum) instead of single-day UTC slices; mock handlers fail fast rather than reassigning patient IDs; Whiteboard in-use room tiles match active procedure phases only; add 30-min grace period and calendar rollover validation for case scheduling. (LM-031)
+28. Distributed scheduling & timezone safety: serialize concurrent booking conflict checks with PostgreSQL transaction advisory locks ('facility-scheduling'); zero side-effect patient verification (read-only 404/403); pin all calendar date/time calculations to facility timezone (facilityDateTimeToIso, isoToFacilityTime); unlink case navigation and omit clinical flags on public Whiteboard TV displays; gate room tiles with isRoomOccupyingPhase. (LM-032)
 
 ---
 
@@ -338,3 +339,22 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
   5. Allow a 30-minute grace window for clock skew / immediate add-on cases, and strictly validate calendar dates (`isValidCalendarDate`) to prevent silent month rollover.
 - **How to check:** `pnpm turbo run lint check-types test`.
 - **Guarded by:** `packages/ui/src/components/form/option-select.tsx`, `packages/validation/src/cases/book.test.ts`, `apps/api/src/routes/cases.test.ts`, `apps/web/src/features/whiteboard/room-status-strip.tsx`.
+
+### LM-032 — Distributed scheduling serialization, zero side-effect authorization, facility timezone pinning, and TV kiosk privacy
+- **Seen:** 5 · 2026-10-14 · PR #79 Comprehensive Engineering Remediation (`feat/case-scheduling-ui-and-whiteboard`)
+- **What went wrong:**
+  1. Concurrent booking requests for the same room or physician suffered from TOCTOU race conditions across multi-instance API deployments without cross-process serialization.
+  2. The booking route attempted silent `$set-accounts` mutations on the Patient resource, mutating patient facility associations as a side-effect and masking missing or unauthorized patient contexts.
+  3. Date/time pickers and day board timelines relied on browser-local `Date` methods (`date.getHours()`, `new Date("YYYY-MM-DDTHH:mm")`), creating timezone skew, date rollover bugs across midnight, and incorrect calendar slot positioning when user machines were in a different timezone from the clinical facility.
+  4. Whiteboard cards in public TV kiosk mode rendered interactive links (`<Link href="/cases/${id}">`) and clinical flags (e.g. allergies, anticoagulants), exposing navigability and clinical data on unattended wall displays.
+  5. Procedure suite tiles rendered cases whose clinical phases were not active room-occupying phases (e.g. pre-op or discharged cases).
+- **Rule:**
+  1. Serialize concurrent booking conflict checks using PostgreSQL transaction advisory locks (`withPostgresFacilityLock` under namespace `'facility-scheduling'`).
+  2. Treat patient verification as strictly read-only: fail fast with 404 if the patient is not found, or 403 if the patient lacks account association with the booking facility. Never perform implicit account associations during booking.
+  3. Pin all calendar calculations, time extractions, and ISO conversions to the facility timezone (`facilityDateTimeToIso`, `isoToFacilityTime`, `futureIsoDate`, `parseIsoDateToUtcNoon`).
+  4. In TV kiosk mode, render non-interactive `<div>` containers instead of links, and omit all clinical flags and notes.
+  5. Gate procedure suite tile assignments with `isRoomOccupyingPhase(phase)`.
+  6. Support durable booking idempotency returning HTTP 200 with existing appointment and encounter identifiers on client retry.
+- **How to check:** `pnpm turbo run check-types lint test build`.
+- **Guarded by:** `apps/api/src/routes/cases.test.ts`, `apps/web/src/features/whiteboard/whiteboard-board.test.tsx`, `packages/clinical-rules/src/time.test.ts`.
+

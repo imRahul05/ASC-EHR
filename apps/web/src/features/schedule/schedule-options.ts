@@ -1,13 +1,19 @@
 import type { ProcedureIntentInput } from "@asc/validation/cases/book";
 import type { SegmentedOption, SelectOption } from "@asc/ui";
 
-/** Standard ASC rooms (room-1 through room-4) per P15b specification. */
-export const ROOM_OPTIONS: readonly SegmentedOption<string>[] = [
-  { value: "room-1", label: "Room 1" },
-  { value: "room-2", label: "Room 2" },
-  { value: "room-3", label: "Room 3" },
-  { value: "room-4", label: "Room 4" },
+/** Standard ASC procedure suites inventory (room-1 through room-4) per P15 specification. */
+export const ASC_ROOMS: readonly { readonly id: string; readonly name: string }[] = [
+  { id: "room-1", name: "Room 1" },
+  { id: "room-2", name: "Room 2" },
+  { id: "room-3", name: "Room 3" },
+  { id: "room-4", name: "Room 4" },
 ];
+
+/** Standard ASC rooms (room-1 through room-4) segmented options. */
+export const ROOM_OPTIONS: readonly SegmentedOption<string>[] = ASC_ROOMS.map((r) => ({
+  value: r.id,
+  label: r.name,
+}));
 
 /** Selectable GI CPT codes for primary procedure per P15b specification. */
 export const GI_CPT_PROCEDURE_OPTIONS: readonly SelectOption<string>[] = [

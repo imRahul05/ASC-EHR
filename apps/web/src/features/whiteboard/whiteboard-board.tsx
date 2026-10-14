@@ -10,6 +10,7 @@ import {
   EmptyState,
   ErrorState,
   LoadingSkeleton,
+  OfflineBanner,
   PageHeader,
   PHASE_GROUP_CLASS,
   PHASE_GROUP_ICON,
@@ -76,6 +77,8 @@ export function WhiteboardBoard() {
           </>
         }
       />
+
+      <OfflineBanner />
 
       <RoomStatusStrip rooms={rooms} cards={cards} tv={tv} elapsed={elapsed} />
 

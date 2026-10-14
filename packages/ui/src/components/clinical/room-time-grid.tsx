@@ -1,4 +1,4 @@
-import { formatTime24, PHASE_GROUP, PHASE_LABEL } from "@asc/clinical-rules"
+import { facilityDateTimeToIso, formatTime24, PHASE_GROUP, PHASE_LABEL } from "@asc/clinical-rules"
 import type { CasePhase, CaseStage } from "@asc/types"
 import { Plus } from "lucide-react"
 import type { ReactNode } from "react"
@@ -47,9 +47,9 @@ export interface RoomTimeGridProps {
 const HOUR_PX = 96
 const MINUTE_MS = 60_000
 
-function dayAt(date: string, hour: number, minute = 0): Date {
-  const [year = 1970, month = 1, day = 1] = date.split("-").map(Number)
-  return new Date(year, month - 1, day, hour, minute)
+function facilityDayStartMs(date: string, hour: number, minute = 0): number {
+  const timeStr = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`
+  return Date.parse(facilityDateTimeToIso(date, timeStr))
 }
 
 /** Day time grid: one column per room, case blocks positioned by start and duration, tinted by phase group. */
@@ -65,7 +65,7 @@ export function RoomTimeGrid({
   onSlotClick,
   className,
 }: RoomTimeGridProps) {
-  const dayStart = dayAt(date, startHour).getTime()
+  const dayStart = facilityDayStartMs(date, startHour)
   const totalMin = (endHour - startHour) * 60
   const heightPx = (endHour - startHour) * HOUR_PX
   const toPx = (minutes: number) => (minutes / 60) * HOUR_PX

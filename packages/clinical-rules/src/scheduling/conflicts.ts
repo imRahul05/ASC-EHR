@@ -20,7 +20,7 @@ export const PHYSICIAN_DOUBLE_BOOKED_MESSAGE = "Physician has another procedure 
 export const ANESTHESIA_DOUBLE_BOOKED_CODE = "ANESTHESIA_DOUBLE_BOOKED";
 export const ANESTHESIA_DOUBLE_BOOKED_MESSAGE = "Anesthesia provider is booked in another room during this time window";
 
-function isCancelledOrNoShow(status?: string): boolean {
+export function isCancelledOrNoShow(status?: string): boolean {
   if (status === undefined) return false;
   const normalized = status.trim().toLowerCase();
   return (
@@ -28,7 +28,8 @@ function isCancelledOrNoShow(status?: string): boolean {
     normalized === "no_show" ||
     normalized === "no-show" ||
     normalized === "noshow" ||
-    normalized === "entered-in-error"
+    normalized === "entered-in-error" ||
+    normalized === "waitlist"
   );
 }
 

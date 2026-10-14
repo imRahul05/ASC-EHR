@@ -28,3 +28,9 @@ export interface ApiErrorDetails {
 export interface FacilityRegistrationLock {
   withLock<T>(facilityId: string, operation: () => Promise<T>, tenantId?: string): Promise<T>;
 }
+
+/** Concurrency control interface for serializing facility scheduling operations across instances. */
+export interface FacilitySchedulingLock {
+  withLock<T>(facilityId: string, operation: () => Promise<T>, tenantId?: string): Promise<T>;
+}
+
