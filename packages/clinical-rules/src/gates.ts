@@ -340,13 +340,10 @@ export const GATE_BY_TARGET: Partial<Record<CasePhase | CaseStage, GateFn>> = {
   READY_FOR_PROCEDURE: (detail) =>
     readinessGate(detail.case, detail.hp, detail.consents, detail.patient.medications),
   in_room: (detail) => evaluateGate2(detail.case.readinessChecks ?? []),
-  "in-room": (detail) => evaluateGate2(detail.case.readinessChecks ?? []),
   IN_PROCEDURE: (detail) => timeOutGate(detail.timeOut),
   procedure_start: (detail) => timeOutGate(detail.timeOut),
-  "procedure-start": (detail) => timeOutGate(detail.timeOut),
   RECOVERY: (detail) => procedureEndGate(detail.events),
   procedure_end: (detail) => procedureEndGate(detail.events),
-  "procedure-end": (detail) => procedureEndGate(detail.events),
   pacu: (detail) => procedureEndGate(detail.events),
   READY_FOR_DISCHARGE: (detail) => dischargeGate(detail.aldrete, detail.patient.escort?.present ?? false),
   DISCHARGED: (detail) =>
