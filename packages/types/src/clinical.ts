@@ -341,6 +341,34 @@ export interface HpAssessment {
   readonly signedAt?: IsoDateTime;
 }
 
+export interface HpValidityInfo {
+  readonly status: "satisfied" | "pending" | "failed";
+  readonly daysOld: number | null;
+  readonly isExpired: boolean;
+  readonly requiresUpdateNote: boolean;
+  readonly hasUpdateNote: boolean;
+  readonly message: string;
+}
+
+export interface HpDetailResponse {
+  readonly caseId: string;
+  readonly status: "satisfied" | "pending" | "failed" | "waived";
+  readonly validity?: HpValidityInfo;
+  readonly documentedDate?: string | null;
+  readonly updateNote?: {
+    readonly id?: string;
+    readonly signedAt?: string;
+    readonly practitionerName?: string;
+    readonly attestation?: string;
+  } | null;
+  readonly override?: {
+    readonly waivedBy?: string;
+    readonly waivedRole?: string;
+    readonly waivedAt?: string;
+    readonly waiverReason?: string;
+  } | null;
+}
+
 export type ConsentKind = "procedure" | "sedation" | "privacy";
 
 export interface Consent {
@@ -1310,6 +1338,37 @@ export interface PreopAssessmentResult {
     readonly heightInches?: number;
     readonly weightLbs?: number;
   };
+  readonly readiness?: ReadinessFlags;
+  readonly readinessChecks?: readonly ReadinessCheck[];
+  readonly overallReadiness?: OverallReadiness;
+  readonly case?: ProcedureCase;
+}
+
+export interface SubmitHpUpdateResult {
+  readonly ok: true;
+  readonly documentId?: string;
+  readonly readiness?: ReadinessFlags;
+  readonly readinessChecks?: readonly ReadinessCheck[];
+  readonly overallReadiness?: OverallReadiness;
+  readonly case?: ProcedureCase;
+}
+
+export interface SubmitHpOverrideResult {
+  readonly ok: true;
+  readonly readiness?: ReadinessFlags;
+  readonly readinessChecks?: readonly ReadinessCheck[];
+  readonly overallReadiness?: OverallReadiness;
+  readonly case?: ProcedureCase;
+}
+
+export interface SubmitAnticoagulationResult {
+  readonly ok: true;
+  readonly evaluation?: {
+    readonly status: "satisfied" | "pending" | "failed";
+    readonly hasAnticoagulants: boolean;
+    readonly message: string;
+  };
+  readonly observationId?: string;
   readonly readiness?: ReadinessFlags;
   readonly readinessChecks?: readonly ReadinessCheck[];
   readonly overallReadiness?: OverallReadiness;

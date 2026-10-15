@@ -22,6 +22,7 @@ import { transitionAllowed } from "@asc/clinical-rules/phases";
 import { canWaiveCheck, isCheckSatisfiedOrWaived, mapReadinessChecks } from "@asc/clinical-rules/readiness";
 import { combine, fail, fromChecks, OK } from "@asc/clinical-rules/result";
 import { ALDRETE_COMPONENTS } from "@asc/clinical-rules/scores";
+import type { AnticoagulationEvaluationResult } from "@asc/clinical-rules/med-hold";
 
 /** Minimum modified Aldrete total for discharge (and no component may be 0). */
 export const ALDRETE_DISCHARGE_MIN = 9;
@@ -166,13 +167,26 @@ export function signGate(note: NoteDraft | null): RuleResult {
   ]);
 }
 
+export const PERMITTED_HP_OVERRIDE_ROLES: readonly string[] = [
+  "attending-physician",
+  "medical-director",
+] as const;
+
+export interface EvaluateGate1Options {
+  readonly actorRole?: string;
+}
+
 /**
  * Hard Gate 1 (arrived ➔ preop): evaluated when moving from Lobby to Pre-Op.
  * Evaluates the 3 required checks per REQ-5 §204–210: identity, consent, and hp.
  * Rejects transition if any of these 3 checks are not satisfied (or waived).
  * Critical Rule (REQ-5 §202): identity and consent can NEVER be waived or overridden.
+ * H&P check can ONLY be waived by an attending-physician or medical-director with an explicit clinical override reason (AC-F-02-2).
  */
-export function evaluateGate1(checks: readonly ReadinessCheck[]): RuleResult {
+export function evaluateGate1(
+  checks: readonly ReadinessCheck[],
+  options?: EvaluateGate1Options,
+): RuleResult {
   const checkByName = mapReadinessChecks(checks);
 
   const identity = checkByName.get("identity");
@@ -201,13 +215,31 @@ export function evaluateGate1(checks: readonly ReadinessCheck[]): RuleResult {
         ? ""
         : consent.details?.trim() || "Informed consent is not satisfied.";
 
-  // hp can be satisfied or waived
-  const hpOk = isCheckSatisfiedOrWaived(hp);
-  const hpMsg = !hp
-    ? "H&P assessment is missing."
-    : hpOk
-      ? ""
-      : hp.details?.trim() || "H&P assessment within 30 days is not satisfied.";
+  // hp can be satisfied or waived by attending-physician or medical-director with rationale
+  const hpWaived = hp?.status === "waived";
+  let hpOk = isCheckSatisfiedOrWaived(hp);
+  let hpMsg = "";
+
+  if (!hp) {
+    hpOk = false;
+    hpMsg = "H&P assessment is missing.";
+  } else if (hpWaived) {
+    const role = hp.waivedRole ?? options?.actorRole;
+    const hasReason = Boolean(hp.waiverReason && hp.waiverReason.trim().length >= 10);
+    const isPermittedRole = role ? PERMITTED_HP_OVERRIDE_ROLES.includes(role) : true;
+
+    if (!hasReason) {
+      hpOk = false;
+      hpMsg = "H&P override requires a clinical justification reason (minimum 10 characters).";
+    } else if (role && !isPermittedRole) {
+      hpOk = false;
+      hpMsg = "H&P can only be waived or overridden by an attending physician or medical director.";
+    } else {
+      hpOk = true;
+    }
+  } else if (!hpOk) {
+    hpMsg = hp.details?.trim() || "H&P assessment within 30 days is not satisfied.";
+  }
 
   return fromChecks([
     {
@@ -236,7 +268,10 @@ export function evaluateGate1(checks: readonly ReadinessCheck[]): RuleResult {
  * Evaluates the 4 required checks per REQ-5 §204–210: anesthesia_clearance, anticoagulation, equipment, and escort.
  * Rejects entry into the OR if any of these 4 checks are pending or failed.
  */
-export function evaluateGate2(checks: readonly ReadinessCheck[]): RuleResult {
+export function evaluateGate2(
+  checks: readonly ReadinessCheck[],
+  anticoagulationEvaluation?: AnticoagulationEvaluationResult,
+): RuleResult {
   const checkByName = mapReadinessChecks(checks);
 
   const anesthesia = checkByName.get("anesthesia_clearance");
@@ -245,9 +280,26 @@ export function evaluateGate2(checks: readonly ReadinessCheck[]): RuleResult {
   const escort = checkByName.get("escort");
 
   const anesthesiaOk = isCheckSatisfiedOrWaived(anesthesia);
-  const anticoagulationOk = isCheckSatisfiedOrWaived(anticoagulation);
   const equipmentOk = isCheckSatisfiedOrWaived(equipment);
   const escortOk = isCheckSatisfiedOrWaived(escort);
+
+  let anticoagulationOk = isCheckSatisfiedOrWaived(anticoagulation);
+  let anticoagulationMsg = "";
+
+  if (anticoagulationEvaluation) {
+    if (anticoagulationEvaluation.status === "satisfied") {
+      anticoagulationOk = true;
+    } else {
+      anticoagulationOk = false;
+      anticoagulationMsg = anticoagulationEvaluation.message;
+    }
+  } else if (!anticoagulation) {
+    anticoagulationOk = false;
+    anticoagulationMsg = "Anticoagulation hold verification is missing.";
+  } else if (!anticoagulationOk) {
+    anticoagulationMsg =
+      anticoagulation.details?.trim() || `Anticoagulation hold is ${anticoagulation.status}.`;
+  }
 
   return fromChecks([
     {
@@ -264,11 +316,12 @@ export function evaluateGate2(checks: readonly ReadinessCheck[]): RuleResult {
       code: "GATE2_ANTICOAGULATION",
       label: "Anticoagulation hold verified",
       ok: Boolean(anticoagulationOk),
-      message: !anticoagulation
-        ? "Anticoagulation hold verification is missing."
-        : anticoagulationOk
-          ? ""
-          : anticoagulation.details?.trim() || `Anticoagulation hold is ${anticoagulation.status}.`,
+      message: anticoagulationOk
+        ? ""
+        : anticoagulationMsg ||
+          (!anticoagulation
+            ? "Anticoagulation hold verification is missing."
+            : anticoagulation.details?.trim() || `Anticoagulation hold is ${anticoagulation.status}.`),
     },
     {
       code: "GATE2_EQUIPMENT",

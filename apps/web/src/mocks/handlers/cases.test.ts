@@ -1,7 +1,20 @@
 import { API_ROUTES } from "@asc/config/api";
-import type { CaseDetail, Consent, PreopAssessmentResult, ReadinessCheck, ScheduleDay, SignConsentResult } from "@asc/types";
+import type {
+  CaseDetail,
+  Consent,
+  HpDetailResponse,
+  PreopAssessmentResult,
+  ReadinessCheck,
+  ScheduleDay,
+  SignConsentResult,
+  SubmitAnticoagulationResult,
+  SubmitHpOverrideResult,
+  SubmitHpUpdateResult,
+} from "@asc/types";
 import type { SignConsentInput } from "@asc/validation/consent";
 import type { PreopAssessmentInput } from "@asc/validation/preop";
+import type { HpOverrideInput, HpUpdateNoteInput } from "@asc/validation/hp";
+import type { AnticoagulationAssessmentInput } from "@asc/validation/anticoagulation";
 import { setupServer } from "msw/node";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db, resetDb } from "../db/store";
@@ -426,4 +439,102 @@ describe("mock clinical case handlers", () => {
     expect(body.code).toBe("GATE_FAILED");
     expect(body.reasons.some((r) => r.code === "GATE1_CONSENT")).toBe(true);
   });
+
+  it("POST /cases/:id/hp-update signs day-of update note and sets hp check to satisfied", async () => {
+    const payload: HpUpdateNoteInput = {
+      caseId: "case_101",
+      facilityId: "facility-main",
+      attestation: "I attest that the patient has no interval changes in cardiopulmonary or airway status.",
+      noIntervalChange: true,
+      cardiovascularStatus: "Regular rate and rhythm",
+      pulmonaryStatus: "Clear to auscultation bilaterally",
+      practitionerName: "Dr. Gregory House, MD",
+    };
+
+    const res = await postJson(apiUrl(API_ROUTES.caseHpUpdate("case_101")), payload);
+    expect(res.status).toBe(200);
+    const result = (await res.json()) as SubmitHpUpdateResult;
+    expect(result.ok).toBe(true);
+    expect(result.documentId).toMatch(/^doc-update-/);
+
+    const checks: readonly ReadinessCheck[] = result.readinessChecks ?? [];
+    const hpCheck = checks.find((c) => c.name === "hp");
+    expect(hpCheck?.status).toBe("satisfied");
+    expect(hpCheck?.details).toContain("Dr. Gregory House, MD");
+  });
+
+  it("POST /cases/:id/hp-update rejects invalid payload with 400", async () => {
+    const invalidPayload = {
+      caseId: "case_101",
+      facilityId: "facility-main",
+      noIntervalChange: false, // Invalid: must be true
+      cardiovascularStatus: "",
+    };
+
+    const res = await postJson(apiUrl(API_ROUTES.caseHpUpdate("case_101")), invalidPayload);
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { code: string; message: string };
+    expect(body.code).toBe("invalid_payload");
+  });
+
+  it("POST /cases/:id/hp-override waives hp check when authorized by attending physician", async () => {
+    const payload: HpOverrideInput = {
+      caseId: "case_101",
+      facilityId: "facility-main",
+      role: "attending-physician",
+      overrideReason: "Direct bedside cardiopulmonary exam completed; patient hemodynamically stable.",
+      practitionerName: "Dr. James Wilson, MD",
+    };
+
+    const res = await postJson(apiUrl(API_ROUTES.caseHpOverride("case_101")), payload);
+    expect(res.status).toBe(200);
+    const result = (await res.json()) as SubmitHpOverrideResult;
+    expect(result.ok).toBe(true);
+
+    const checks: readonly ReadinessCheck[] = result.readinessChecks ?? [];
+    const hpCheck = checks.find((c) => c.name === "hp");
+    expect(hpCheck?.status).toBe("waived");
+    expect(hpCheck?.waivedRole).toBe("attending-physician");
+    expect(hpCheck?.waiverReason).toContain("bedside cardiopulmonary exam");
+  });
+
+  it("POST /cases/:id/anticoagulation evaluates hold and updates readiness checks", async () => {
+    const payload: AnticoagulationAssessmentInput = {
+      caseId: "case_101",
+      facilityId: "facility-main",
+      hasAnticoagulants: true,
+      procedureBleedingRisk: "high",
+      medications: [
+        {
+          medicationId: "med-eliquis-1",
+          medicationName: "Apixaban (Eliquis) 5mg",
+          prescriberInstructionDate: "2026-10-10",
+          prescriberInstruction: "Hold 48 hours prior to polypectomy",
+          patientConfirmedHeld: true,
+          lastDoseTakenAt: "2026-10-12",
+        },
+      ],
+    };
+
+    const res = await postJson(apiUrl(API_ROUTES.caseAnticoagulation("case_101")), payload);
+    expect(res.status).toBe(200);
+    const result = (await res.json()) as SubmitAnticoagulationResult;
+    expect(result.ok).toBe(true);
+    expect(result.evaluation?.status).toBe("satisfied");
+    expect(result.observationId).toMatch(/^obs-anticoag-/);
+
+    const checks: readonly ReadinessCheck[] = result.readinessChecks ?? [];
+    const anticoagCheck = checks.find((c) => c.name === "anticoagulation");
+    expect(anticoagCheck?.status).toBe("satisfied");
+  });
+
+  it("GET /cases/:id/hp returns H&P validity and status details", async () => {
+    const res = await get(apiUrl(API_ROUTES.caseHp("case_101")));
+    expect(res.status).toBe(200);
+    const result = (await res.json()) as HpDetailResponse;
+    expect(result.caseId).toBe("case_101");
+    expect(result).toHaveProperty("validity");
+    expect(result).toHaveProperty("status");
+  });
 });
+

@@ -36,10 +36,18 @@ interface GatePanelProps {
   readonly detail: CaseDetail;
   readonly onOpenConsent?: () => void;
   readonly onOpenPreop?: () => void;
+  readonly onOpenHpUpdate?: () => void;
+  readonly onOpenHpOverride?: () => void;
 }
 
 /** Current gate (RuleResult reasons) + the primary "advance phase" action. Server re-checks the same rule. */
-export function GatePanel({ detail, onOpenConsent, onOpenPreop }: GatePanelProps) {
+export function GatePanel({
+  detail,
+  onOpenConsent,
+  onOpenPreop,
+  onOpenHpUpdate,
+  onOpenHpOverride,
+}: GatePanelProps) {
   const [confirmTarget, setConfirmTarget] = useState<CasePhase | null>(null);
   const [gateBlockers, setGateBlockers] = useState<readonly string[]>([]);
   const transition = useTransitionCase(detail.case.id);
@@ -92,6 +100,8 @@ export function GatePanel({ detail, onOpenConsent, onOpenPreop }: GatePanelProps
             reasons={gateBlockers}
             onOpenConsent={onOpenConsent}
             onOpenPreop={onOpenPreop}
+            onOpenHpUpdate={onOpenHpUpdate}
+            onOpenHpOverride={onOpenHpOverride}
           />
         )}
         {gate && <GateChecklist result={gate} />}

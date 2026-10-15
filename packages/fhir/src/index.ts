@@ -19,3 +19,5 @@ export * from "./builders/related-person.js";
 export * from "./builders/service-request.js";
 export * from "./builders/consent.js";
 export * from "./builders/preop.js";
+export * from "./builders/hp-update.js";
+export * from "./builders/anticoagulation.js";

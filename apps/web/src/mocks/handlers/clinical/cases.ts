@@ -1,4 +1,12 @@
-import { computeOverallReadiness, findScheduleConflicts, TIME_OUT_ROLES, toIsoDate, transitionGate } from "@asc/clinical-rules";
+import {
+  computeOverallReadiness,
+  evaluateAnticoagulationHold,
+  evaluateHpValidity,
+  findScheduleConflicts,
+  TIME_OUT_ROLES,
+  toIsoDate,
+  transitionGate,
+} from "@asc/clinical-rules";
 import { API_ROUTE_PATTERNS as P } from "@asc/config/api";
 import type {
   AddImagePayload,
@@ -12,6 +20,7 @@ import type {
   CheckInPayload,
   Consent,
   HpAssessment,
+  HpDetailResponse,
   ProcedureCase,
   ProcedureCode,
   ProcedureEventType,
@@ -22,12 +31,17 @@ import type {
   SaveVitalsPayload,
   ScheduleDay,
   SignConsentPayload,
+  SubmitAnticoagulationResult,
+  SubmitHpOverrideResult,
+  SubmitHpUpdateResult,
   TransitionCasePayload,
   VitalsEntry,
 } from "@asc/types";
 import { formatZodError } from "@asc/validation/errors";
 import { signConsentSchema, type SignConsentInput } from "@asc/validation/consent";
 import { preopAssessmentSchema, type PreopAssessmentInput } from "@asc/validation/preop";
+import { hpOverrideSchema, hpUpdateNoteSchema, type HpOverrideInput, type HpUpdateNoteInput } from "@asc/validation/hp";
+import { anticoagulationAssessmentSchema, type AnticoagulationAssessmentInput } from "@asc/validation/anticoagulation";
 import { http, HttpResponse } from "msw";
 import { buildPreVisitBrief } from "../../db/content";
 import { PROCEDURE_LABEL } from "../../db/seed";
@@ -758,5 +772,237 @@ export const caseHandlers = [
     db().anesthesia.set(caseId, applyAnesthesiaEntry(record, payload, actor));
     audit(actor, "anesthesia.entry", { type: "AnesthesiaRecord", id: caseId }, `Anesthesia ${payload.kind} recorded`);
     return detailResponse(caseId);
+  }),
+
+  http.post(apiUrl(P.caseHpUpdate), async ({ params, request }) => {
+    await latency();
+    const caseId = param(params.caseId);
+    const current = getCaseOrNull(caseId);
+    if (!current) return caseNotFound(caseId);
+
+    const rawPayload = await body<HpUpdateNoteInput>(request);
+    const parsed = hpUpdateNoteSchema.safeParse(rawPayload);
+    if (!parsed.success) {
+      return apiError(400, "invalid_payload", "Invalid H&P update note payload", formatZodError(parsed.error).details);
+    }
+    const payload = parsed.data;
+    const actor = actorFrom(request);
+    const practitionerName = payload.practitionerName || actor.name || "Attending Physician";
+
+    const existingChecks: readonly ReadinessCheck[] = current.readinessChecks ?? [
+      { name: "identity", label: "Patient identity", status: "satisfied" },
+      { name: "hp", label: "History & physical", status: "pending" },
+    ];
+
+    const updatedHpCheck: ReadinessCheck = {
+      name: "hp",
+      label: "History & physical",
+      status: "satisfied",
+      details: `Day-of interval update signed by ${practitionerName}: No interval change in cardiovascular, pulmonary, or airway status`,
+    };
+
+    const nextChecks: readonly ReadinessCheck[] = [
+      ...existingChecks.filter((c) => c.name !== "hp"),
+      updatedHpCheck,
+    ];
+
+    const nextOverall = computeOverallReadiness(nextChecks);
+
+    updateCase(caseId, {
+      readinessChecks: nextChecks,
+      overallReadiness: nextOverall,
+      readiness: {
+        ...current.readiness,
+        hpCurrent: true,
+      },
+    });
+
+    audit(actor, "hp.update", { type: "ProcedureCase", id: caseId }, `Day-of H&P interval update note signed by ${practitionerName}`);
+
+    const updatedCase = getCaseOrNull(caseId);
+
+    const result: SubmitHpUpdateResult = {
+      ok: true,
+      documentId: `doc-update-${newId("doc")}`,
+      readiness: updatedCase?.readiness,
+      readinessChecks: nextChecks,
+      overallReadiness: nextOverall,
+      case: updatedCase ?? undefined,
+    };
+    return HttpResponse.json(result);
+  }),
+
+  http.post(apiUrl(P.caseHpOverride), async ({ params, request }) => {
+    await latency();
+    const caseId = param(params.caseId);
+    const current = getCaseOrNull(caseId);
+    if (!current) return caseNotFound(caseId);
+
+    const rawPayload = await body<HpOverrideInput>(request);
+    const parsed = hpOverrideSchema.safeParse(rawPayload);
+    if (!parsed.success) {
+      return apiError(400, "invalid_payload", "Invalid H&P override payload", formatZodError(parsed.error).details);
+    }
+    const payload = parsed.data;
+
+    // Role check: only attending-physician or medical-director can override H&P (AC-F-02-2)
+    if (payload.role !== "attending-physician" && payload.role !== "medical-director") {
+      return apiError(403, "forbidden", "H&P override requires attending physician or medical director role");
+    }
+
+    const actor = actorFrom(request);
+    const practitionerName = payload.practitionerName || actor.name || "Attending Physician";
+
+    const existingChecks: readonly ReadinessCheck[] = current.readinessChecks ?? [
+      { name: "identity", label: "Patient identity", status: "satisfied" },
+      { name: "hp", label: "History & physical", status: "pending" },
+    ];
+
+    const updatedHpCheck: ReadinessCheck = {
+      name: "hp",
+      label: "History & physical",
+      status: "waived",
+      waivedRole: payload.role,
+      waivedBy: practitionerName,
+      waivedAt: payload.overriddenAt || new Date().toISOString(),
+      waiverReason: payload.overrideReason,
+      details: `Clinically waived by ${practitionerName} (${payload.role}): ${payload.overrideReason}`,
+    };
+
+    const nextChecks: readonly ReadinessCheck[] = [
+      ...existingChecks.filter((c) => c.name !== "hp"),
+      updatedHpCheck,
+    ];
+
+    const nextOverall = computeOverallReadiness(nextChecks);
+
+    updateCase(caseId, {
+      readinessChecks: nextChecks,
+      overallReadiness: nextOverall,
+      readiness: {
+        ...current.readiness,
+        hpCurrent: true,
+      },
+    });
+
+    audit(actor, "hp.override", { type: "ProcedureCase", id: caseId }, `H&P waived by ${payload.role} (${practitionerName}): ${payload.overrideReason}`);
+
+    const updatedCase = getCaseOrNull(caseId);
+
+    const result: SubmitHpOverrideResult = {
+      ok: true,
+      readiness: updatedCase?.readiness,
+      readinessChecks: nextChecks,
+      overallReadiness: nextOverall,
+      case: updatedCase ?? undefined,
+    };
+    return HttpResponse.json(result);
+  }),
+
+  http.post(apiUrl(P.caseAnticoagulation), async ({ params, request }) => {
+    await latency();
+    const caseId = param(params.caseId);
+    const current = getCaseOrNull(caseId);
+    if (!current) return caseNotFound(caseId);
+
+    const rawPayload = await body<AnticoagulationAssessmentInput>(request);
+    const parsed = anticoagulationAssessmentSchema.safeParse(rawPayload);
+    if (!parsed.success) {
+      return apiError(400, "invalid_payload", "Invalid anticoagulation assessment payload", formatZodError(parsed.error).details);
+    }
+    const payload = parsed.data;
+    const actor = actorFrom(request);
+
+    const patient = db().patients.get(current.patientId);
+    const patientMeds = patient?.medications ?? [];
+
+    const evaluation = evaluateAnticoagulationHold({
+      medications: patientMeds,
+      procedureBleedingRisk: payload.procedureBleedingRisk,
+      assessments: payload.medications,
+    });
+
+    const existingChecks: readonly ReadinessCheck[] = current.readinessChecks ?? [
+      { name: "identity", label: "Patient identity", status: "satisfied" },
+      { name: "consent", label: "Informed consent", status: "satisfied" },
+      { name: "hp", label: "History & physical", status: "satisfied" },
+    ];
+
+    const updatedAnticoagCheck: ReadinessCheck = {
+      name: "anticoagulation",
+      label: "Anticoagulation & antiplatelet clearance",
+      status: evaluation.status,
+      details: evaluation.message,
+    };
+
+    const nextChecks: readonly ReadinessCheck[] = [
+      ...existingChecks.filter((c) => c.name !== "anticoagulation"),
+      updatedAnticoagCheck,
+    ];
+
+    const nextOverall = computeOverallReadiness(nextChecks);
+
+    updateCase(caseId, {
+      readinessChecks: nextChecks,
+      overallReadiness: nextOverall,
+      readiness: {
+        ...current.readiness,
+        holdsConfirmed: evaluation.status === "satisfied",
+      },
+    });
+
+    audit(actor, "anticoagulation.assess", { type: "ProcedureCase", id: caseId }, `Anticoagulation evaluated: ${evaluation.status} (${evaluation.message})`);
+
+    const updatedCase = getCaseOrNull(caseId);
+
+    const result: SubmitAnticoagulationResult = {
+      ok: true,
+      evaluation,
+      observationId: `obs-anticoag-${newId("obs")}`,
+      readiness: updatedCase?.readiness,
+      readinessChecks: nextChecks,
+      overallReadiness: nextOverall,
+      case: updatedCase ?? undefined,
+    };
+    return HttpResponse.json(result);
+  }),
+
+  http.get(apiUrl(P.caseHp), async ({ params }) => {
+    await latency();
+    const caseId = param(params.caseId);
+    const current = getCaseOrNull(caseId);
+    if (!current) return caseNotFound(caseId);
+
+    const hpRecord = db().hp.get(caseId);
+    const hpCheck = current.readinessChecks?.find((c) => c.name === "hp");
+    const documentedDate = hpRecord?.performedAt?.split("T")[0] ?? hpRecord?.signedAt?.split("T")[0] ?? null;
+    const procedureDate = current.scheduledStart.split("T")[0] ?? toIsoDate(new Date());
+
+    const validity = evaluateHpValidity({
+      documentedDate,
+      procedureDate,
+      updateNoteSignedDate: hpCheck?.status === "satisfied" ? procedureDate : null,
+    });
+
+    const response: HpDetailResponse = {
+      caseId,
+      status: hpCheck?.status ?? validity.status,
+      validity,
+      documentedDate,
+      updateNote: hpCheck?.status === "satisfied" && validity.requiresUpdateNote ? {
+        id: `doc-hp-update-${caseId}`,
+        signedAt: new Date().toISOString(),
+        practitionerName: "Attending Physician",
+        attestation: "No interval change in cardiovascular, pulmonary, or airway status",
+      } : null,
+      override: hpCheck?.status === "waived" ? {
+        waivedBy: hpCheck.waivedBy,
+        waivedRole: hpCheck.waivedRole,
+        waivedAt: hpCheck.waivedAt,
+        waiverReason: hpCheck.waiverReason,
+      } : null,
+    };
+
+    return HttpResponse.json(response);
   }),
 ];

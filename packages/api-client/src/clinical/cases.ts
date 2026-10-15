@@ -11,6 +11,7 @@ import type {
   CheckInPayload,
   ConflictCheckResult,
   ConsentRecord,
+  HpDetailResponse,
   IsoDate,
   PreopAssessmentResult,
   ProcedureCase,
@@ -20,10 +21,15 @@ import type {
   ScheduleDay,
   SignConsentPayload,
   SignConsentResult,
+  SubmitAnticoagulationResult,
+  SubmitHpOverrideResult,
+  SubmitHpUpdateResult,
   TransitionCasePayload,
 } from "@asc/types";
+import type { AnticoagulationAssessmentInput } from "@asc/validation/anticoagulation";
 import type { BookCaseInput, BookCaseResult } from "@asc/validation/cases/book";
 import type { SignConsentInput } from "@asc/validation/consent";
+import type { HpOverrideInput, HpUpdateNoteInput } from "@asc/validation/hp";
 import type { PreopAssessmentInput } from "@asc/validation/preop";
 import { http } from "../http";
 
@@ -169,4 +175,48 @@ export function addImage(caseId: string, payload: AddImagePayload): Promise<Case
 /** AIMS flowsheet entry: dose, vitals row, airway event, sedation start/end, or setup. */
 export function addAnesthesiaEntry(caseId: string, payload: AnesthesiaEntryPayload): Promise<CaseDetail> {
   return http.post(API_ROUTES.caseAnesthesia(caseId), payload);
+}
+
+export function submitHpUpdate(
+  caseId: string,
+  payload: HpUpdateNoteInput,
+  facilityId?: string,
+): Promise<SubmitHpUpdateResult> {
+  const trimmed = facilityId?.trim();
+  return http.post(API_ROUTES.caseHpUpdate(caseId), payload, {
+    query: trimmed ? { facilityId: trimmed } : undefined,
+    headers: trimmed ? { "x-facility-id": trimmed } : undefined,
+  });
+}
+
+export function submitHpOverride(
+  caseId: string,
+  payload: HpOverrideInput,
+  facilityId?: string,
+): Promise<SubmitHpOverrideResult> {
+  const trimmed = facilityId?.trim();
+  return http.post(API_ROUTES.caseHpOverride(caseId), payload, {
+    query: trimmed ? { facilityId: trimmed } : undefined,
+    headers: trimmed ? { "x-facility-id": trimmed } : undefined,
+  });
+}
+
+export function submitAnticoagulation(
+  caseId: string,
+  payload: AnticoagulationAssessmentInput,
+  facilityId?: string,
+): Promise<SubmitAnticoagulationResult> {
+  const trimmed = facilityId?.trim();
+  return http.post(API_ROUTES.caseAnticoagulation(caseId), payload, {
+    query: trimmed ? { facilityId: trimmed } : undefined,
+    headers: trimmed ? { "x-facility-id": trimmed } : undefined,
+  });
+}
+
+export function getHpDetail(caseId: string, facilityId?: string): Promise<HpDetailResponse> {
+  const trimmed = facilityId?.trim();
+  return http.get(API_ROUTES.caseHp(caseId), {
+    query: trimmed ? { facilityId: trimmed } : undefined,
+    headers: trimmed ? { "x-facility-id": trimmed } : undefined,
+  });
 }
