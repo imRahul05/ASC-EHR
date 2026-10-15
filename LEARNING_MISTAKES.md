@@ -375,4 +375,25 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **How to check:** `pnpm turbo run test`.
 - **Guarded by:** `packages/api-client/src/react/hooks.test.ts`, `apps/web/src/hooks/use-auth.ts`.
 
+### LM-034 — Centralize API error codes in @asc/types; use preHandler hooks and controllers to eliminate repetitive route boilerplate; never double-nest details in ApiErrorPayload
+- **Seen:** 5 · 2026-10-15 · Centralized Error Handling & Fastify API Layering (`packages/types`, `apps/api`, `apps/web`)
+- **What went wrong:**
+  1. API error codes and messages were duplicated as ad-hoc magic strings across `apps/api/src/routes/` and `apps/web/src/mocks/handlers/`, creating drift where MSW returned different HTTP status codes or error code names (e.g. MSW returning HTTP 422 for `GATE_FAILED` while backend returned HTTP 409).
+  2. Route definitions in `apps/api/src/routes/` were cluttered with repetitive boilerplate: every single `/cases/:caseId/*` route manually validated `x-facility-id`, checked FHIR regex on `caseId`, fetched the case from Medplum, checked tenant/facility ownership, and parsed the request body with Zod before executing business logic.
+  3. Ad-hoc error formatting caused subtle schema discrepancies: formatting a Zod validation error and wrapping it inside `{ details: formatZodError(...) }` resulted in double-nested `details.details`, violating the `ApiErrorPayload` interface contract.
+  4. Passing object controller methods directly to Fastify route definitions (e.g. `casesController.bookCase`) triggered `@typescript-eslint/unbound-method` errors.
+  5. Typing union `ApiErrorCode | string` triggered `@typescript-eslint/no-redundant-type-constituents` because string literal unions are subsumed by primitive `string`.
+  6. Authorization checks must precede resource lookups in `preHandler` chains: running `requireCaseContext` before `requireCapabilityHook` allowed unauthorized callers to probe whether a case existed (resource enumeration risk under HIPAA).
+- **Rule:**
+  1. Centralize all API error codes and standard status mappings in `@asc/types` (`API_ERROR_CODES`, `API_ERROR_REGISTRY`, `type ApiErrorCode`, `type ErrorDefinition`). Never use uncatalogued string literals for API error codes.
+  2. Use a type-safe Fastify plugin with a decorated `reply.sendApiError(...)` helper and global error handler that automatically parses Zod validation failures, classification errors, and operational exceptions into canonical `ApiErrorPayload`.
+  3. In async Fastify hooks and route handlers, always explicitly `return` when sending an error response (e.g. `return reply.sendApiError(...)`) to halt execution and avoid `FST_ERR_REP_ALREADY_SENT`.
+  4. Always sequence authorization hooks (`requireCapabilityHook`) BEFORE resource resolution hooks (`requireCaseContext`) to prevent unauthorized resource enumeration.
+  5. Delegate route execution to dedicated controllers (`apps/api/src/controllers/`) and wrap method calls in arrow functions `(request, reply) => controller.method(request, reply)` to maintain `this` binding and satisfy `@typescript-eslint/unbound-method`.
+  6. Preserve literal autocomplete while accepting custom string codes without lint errors using `ApiErrorCode | (string & {})`.
+  7. Never double-nest details: `formatZodError` produces `{ code, message, details, issues }`. Spread or assign directly at top-level `ApiErrorPayload`.
+- **How to check:** `pnpm turbo run lint check-types test`.
+- **Guarded by:** `packages/types/src/errors.test.ts`, `apps/api/src/plugins/error-handler.test.ts`, `apps/api/src/hooks/case-context.test.ts`, `apps/api/src/routes/*.test.ts`, `apps/web/src/mocks/handlers/cases.test.ts`.
+
+
 
