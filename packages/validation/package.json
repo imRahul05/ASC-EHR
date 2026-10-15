@@ -22,6 +22,8 @@
     "./cases/transition": "./src/cases/transition.ts",
     "./consent": "./src/consent.ts",
     "./preop": "./src/preop.ts",
+    "./hp": "./src/hp.ts",
+    "./anticoagulation": "./src/anticoagulation.ts",
     "./errors": "./src/errors.ts"
   },
   "scripts": {

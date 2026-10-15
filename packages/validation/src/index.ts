@@ -46,6 +46,10 @@ export * from "./cases/transition.js";
 export * from "./consent.js";
 export * from "./preop.js";
 
+// H&P update note, override, and anticoagulation contracts (Phase P16)
+export * from "./hp.js";
+export * from "./anticoagulation.js";
+
 // Principal, grants, role templates and GET /me (authorization contracts)
 export * from "./authz.js";
 
