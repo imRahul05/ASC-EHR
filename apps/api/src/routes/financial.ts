@@ -47,6 +47,241 @@ interface PriorAuthPayload {
 }
 
 /**
+/**
+ * Controller: Real-time X12 270/271 eligibility verification
+ */
+async function handleCheckEligibility(
+  request: FastifyRequest<{ Params: CaseRouteParams; Querystring: CaseQuery; Body: EligibilityCheckPayload }>,
+  reply: FastifyReply,
+  app: FastifyInstance
+): Promise<FastifyReply> {
+  const { caseId } = request.params;
+  const facilityId = resolveFacilityId(request);
+
+  if (!facilityId) {
+    return reply.code(400).send({
+      code: "facility_required",
+      message: "Facility context is required to check eligibility",
+    });
+  }
+
+  if (!FHIR_ID.test(caseId)) {
+    return reply.code(400).send({
+      code: "invalid_case_id",
+      message: "Invalid case ID format",
+    });
+  }
+
+  if (!(await app.guards.requireCapabilityAt(request, reply, "patient.eligibility.check", facilityId))) {
+    return reply;
+  }
+
+  const body = request.body ?? {};
+  const parsed = eligibilityCheckRequestSchema.safeParse({
+    caseId,
+    ...body,
+  });
+
+  if (!parsed.success) {
+    return reply.code(400).send({
+      code: "invalid_payload",
+      message: "Invalid eligibility check payload",
+      details: formatZodError(parsed.error),
+    });
+  }
+
+  const result = await financialClearanceService.checkEligibility({
+    medplum: request.medplum,
+    facilityId,
+    caseId,
+    input: parsed.data,
+    logger: request.log,
+  });
+
+  if (result.status === 404) {
+    return reply.code(404).send({
+      code: result.code,
+      message: result.message,
+    });
+  }
+
+  return reply.code(200).send(result.data);
+}
+
+/**
+ * Controller: Full financial clearance summary and dual GFE
+ */
+async function handleGetFinancialSummary(
+  request: FastifyRequest<{ Params: CaseRouteParams; Querystring: CaseQuery }>,
+  reply: FastifyReply,
+  app: FastifyInstance
+): Promise<FastifyReply> {
+  const { caseId } = request.params;
+  const facilityId = resolveFacilityId(request);
+
+  if (!facilityId) {
+    return reply.code(400).send({
+      code: "facility_required",
+      message: "Facility context is required to retrieve financial summary",
+    });
+  }
+
+  if (!FHIR_ID.test(caseId)) {
+    return reply.code(400).send({
+      code: "invalid_case_id",
+      message: "Invalid case ID format",
+    });
+  }
+
+  if (!(await app.guards.requireCapabilityAt(request, reply, "case.read", facilityId))) {
+    return reply;
+  }
+
+  const result = await financialClearanceService.getFinancialSummary({
+    medplum: request.medplum,
+    facilityId,
+    caseId,
+    logger: request.log,
+  });
+
+  if (result.status === 404) {
+    return reply.code(404).send({
+      code: result.code,
+      message: result.message,
+    });
+  }
+
+  return reply.code(200).send(result.data);
+}
+
+/**
+ * Controller: Front-desk copay/deductible collection and payment plan with idempotency
+ */
+async function handleCollectCopay(
+  request: FastifyRequest<{ Params: CaseRouteParams; Querystring: CaseQuery; Body: CopayBodyPayload }>,
+  reply: FastifyReply,
+  app: FastifyInstance
+): Promise<FastifyReply> {
+  const { caseId } = request.params;
+  const facilityId = resolveFacilityId(request);
+
+  if (!facilityId) {
+    return reply.code(400).send({
+      code: "facility_required",
+      message: "Facility context is required to record copay collection",
+    });
+  }
+
+  if (!FHIR_ID.test(caseId)) {
+    return reply.code(400).send({
+      code: "invalid_case_id",
+      message: "Invalid case ID format",
+    });
+  }
+
+  if (!(await app.guards.requireCapabilityAt(request, reply, "patient.register", facilityId))) {
+    return reply;
+  }
+
+  const rawHeaderKey = request.headers["x-idempotency-key"] ?? request.headers["idempotency-key"];
+  const headerIdempotencyKey =
+    typeof rawHeaderKey === "string" && rawHeaderKey.trim().length > 0
+      ? rawHeaderKey.trim()
+      : undefined;
+
+  const body = request.body ?? {};
+  const parsed = copayCollectionSchema.safeParse({
+    caseId,
+    ...body,
+    transactionRef: body.transactionRef ?? headerIdempotencyKey,
+  });
+
+  if (!parsed.success) {
+    return reply.code(400).send({
+      code: "invalid_payload",
+      message: "Invalid copay collection payload",
+      details: formatZodError(parsed.error),
+    });
+  }
+
+  const result = await financialClearanceService.collectCopay({
+    medplum: request.medplum,
+    facilityId,
+    caseId,
+    input: parsed.data,
+    actorId: request.principal?.id,
+    logger: request.log,
+  });
+
+  if (result.status === 404) {
+    return reply.code(404).send({
+      code: result.code,
+      message: result.message,
+    });
+  }
+
+  return reply.code(200).send(result.data);
+}
+
+/**
+ * Controller: Record and revalidate X12 278 prior authorization
+ */
+async function handleRecordPriorAuth(
+  request: FastifyRequest<{ Params: CaseRouteParams; Querystring: CaseQuery; Body: PriorAuthPayload }>,
+  reply: FastifyReply,
+  app: FastifyInstance
+): Promise<FastifyReply> {
+  const { caseId } = request.params;
+  const facilityId = resolveFacilityId(request);
+
+  if (!facilityId) {
+    return reply.code(400).send({
+      code: "facility_required",
+      message: "Facility context is required to record prior authorization",
+    });
+  }
+
+  if (!FHIR_ID.test(caseId)) {
+    return reply.code(400).send({
+      code: "invalid_case_id",
+      message: "Invalid case ID format",
+    });
+  }
+
+  if (!(await app.guards.requireCapabilityAt(request, reply, "patient.eligibility.check", facilityId))) {
+    return reply;
+  }
+
+  const body = request.body ?? {};
+  const parsed = priorAuthCheckSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return reply.code(400).send({
+      code: "invalid_payload",
+      message: "Invalid prior authorization payload",
+      details: formatZodError(parsed.error),
+    });
+  }
+
+  const result = await financialClearanceService.recordPriorAuth({
+    medplum: request.medplum,
+    facilityId,
+    caseId,
+    input: parsed.data,
+    logger: request.log,
+  });
+
+  if (result.status === 404) {
+    return reply.code(404).send({
+      code: result.code,
+      message: result.message,
+    });
+  }
+
+  return reply.code(200).send(result.data);
+}
+
+/**
  * Financial Clearance & Eligibility Routes (Phase P22a / EP-D)
  *
  * Implements:
@@ -60,228 +295,28 @@ export function financialRoutes(app: FastifyInstance): Promise<void> {
   app.post<{ Params: CaseRouteParams; Querystring: CaseQuery; Body: EligibilityCheckPayload }>(
     API_ROUTE_PATTERNS.caseEligibilityCheck,
     { config: capabilityAtResource("patient.eligibility.check") },
-    async (
-      request: FastifyRequest<{ Params: CaseRouteParams; Querystring: CaseQuery; Body: EligibilityCheckPayload }>,
-      reply: FastifyReply
-    ) => {
-      const { caseId } = request.params;
-      const facilityId = resolveFacilityId(request);
-
-      if (!facilityId) {
-        return reply.code(400).send({
-          code: "facility_required",
-          message: "Facility context is required to check eligibility",
-        });
-      }
-
-      if (!FHIR_ID.test(caseId)) {
-        return reply.code(400).send({
-          code: "invalid_case_id",
-          message: "Invalid case ID format",
-        });
-      }
-
-      if (!(await app.guards.requireCapabilityAt(request, reply, "patient.eligibility.check", facilityId))) {
-        return reply;
-      }
-
-      const body = request.body ?? {};
-      const parsed = eligibilityCheckRequestSchema.safeParse({
-        caseId,
-        ...body,
-      });
-
-      if (!parsed.success) {
-        return reply.code(400).send({
-          code: "invalid_payload",
-          message: "Invalid eligibility check payload",
-          details: formatZodError(parsed.error),
-        });
-      }
-
-      const result = await financialClearanceService.checkEligibility({
-        medplum: request.medplum,
-        facilityId,
-        caseId,
-        input: parsed.data,
-        logger: request.log,
-      });
-
-      if (result.status === 404) {
-        return reply.code(404).send({
-          code: result.code,
-          message: result.message,
-        });
-      }
-
-      return reply.code(200).send(result.data);
-    }
+    (request, reply) => handleCheckEligibility(request, reply, app)
   );
 
   // GET /cases/:caseId/financial-summary — Full financial clearance summary and dual GFE
   app.get<{ Params: CaseRouteParams; Querystring: CaseQuery }>(
     API_ROUTE_PATTERNS.caseFinancialSummary,
     { config: capabilityAtResource("case.read") },
-    async (request: FastifyRequest<{ Params: CaseRouteParams; Querystring: CaseQuery }>, reply: FastifyReply) => {
-      const { caseId } = request.params;
-      const facilityId = resolveFacilityId(request);
-
-      if (!facilityId) {
-        return reply.code(400).send({
-          code: "facility_required",
-          message: "Facility context is required to retrieve financial summary",
-        });
-      }
-
-      if (!FHIR_ID.test(caseId)) {
-        return reply.code(400).send({
-          code: "invalid_case_id",
-          message: "Invalid case ID format",
-        });
-      }
-
-      if (!(await app.guards.requireCapabilityAt(request, reply, "case.read", facilityId))) {
-        return reply;
-      }
-
-      const result = await financialClearanceService.getFinancialSummary({
-        medplum: request.medplum,
-        facilityId,
-        caseId,
-        logger: request.log,
-      });
-
-      if (result.status === 404) {
-        return reply.code(404).send({
-          code: result.code,
-          message: result.message,
-        });
-      }
-
-      return reply.code(200).send(result.data);
-    }
+    (request, reply) => handleGetFinancialSummary(request, reply, app)
   );
 
   // POST /cases/:caseId/copay-collected — Front-desk copay/deductible collection and payment plan
   app.post<{ Params: CaseRouteParams; Querystring: CaseQuery; Body: CopayBodyPayload }>(
     API_ROUTE_PATTERNS.caseCopayCollected,
     { config: capabilityAtResource("patient.register") },
-    async (
-      request: FastifyRequest<{ Params: CaseRouteParams; Querystring: CaseQuery; Body: CopayBodyPayload }>,
-      reply: FastifyReply
-    ) => {
-      const { caseId } = request.params;
-      const facilityId = resolveFacilityId(request);
-
-      if (!facilityId) {
-        return reply.code(400).send({
-          code: "facility_required",
-          message: "Facility context is required to record copay collection",
-        });
-      }
-
-      if (!FHIR_ID.test(caseId)) {
-        return reply.code(400).send({
-          code: "invalid_case_id",
-          message: "Invalid case ID format",
-        });
-      }
-
-      if (!(await app.guards.requireCapabilityAt(request, reply, "patient.register", facilityId))) {
-        return reply;
-      }
-
-      const body = request.body ?? {};
-      const parsed = copayCollectionSchema.safeParse({
-        caseId,
-        ...body,
-      });
-
-      if (!parsed.success) {
-        return reply.code(400).send({
-          code: "invalid_payload",
-          message: "Invalid copay collection payload",
-          details: formatZodError(parsed.error),
-        });
-      }
-
-      const result = await financialClearanceService.collectCopay({
-        medplum: request.medplum,
-        facilityId,
-        caseId,
-        input: parsed.data,
-        actorId: request.principal?.id,
-        logger: request.log,
-      });
-
-      if (result.status === 404) {
-        return reply.code(404).send({
-          code: result.code,
-          message: result.message,
-        });
-      }
-
-      return reply.code(200).send(result.data);
-    }
+    (request, reply) => handleCollectCopay(request, reply, app)
   );
 
   // POST /cases/:caseId/prior-auth — Record and revalidate X12 278 prior authorization
   app.post<{ Params: CaseRouteParams; Querystring: CaseQuery; Body: PriorAuthPayload }>(
     API_ROUTE_PATTERNS.casePriorAuth,
     { config: capabilityAtResource("patient.eligibility.check") },
-    async (
-      request: FastifyRequest<{ Params: CaseRouteParams; Querystring: CaseQuery; Body: PriorAuthPayload }>,
-      reply: FastifyReply
-    ) => {
-      const { caseId } = request.params;
-      const facilityId = resolveFacilityId(request);
-
-      if (!facilityId) {
-        return reply.code(400).send({
-          code: "facility_required",
-          message: "Facility context is required to record prior authorization",
-        });
-      }
-
-      if (!FHIR_ID.test(caseId)) {
-        return reply.code(400).send({
-          code: "invalid_case_id",
-          message: "Invalid case ID format",
-        });
-      }
-
-      if (!(await app.guards.requireCapabilityAt(request, reply, "patient.eligibility.check", facilityId))) {
-        return reply;
-      }
-
-      const body = request.body ?? {};
-      const parsed = priorAuthCheckSchema.safeParse(body);
-
-      if (!parsed.success) {
-        return reply.code(400).send({
-          code: "invalid_payload",
-          message: "Invalid prior authorization payload",
-          details: formatZodError(parsed.error),
-        });
-      }
-
-      const result = await financialClearanceService.recordPriorAuth({
-        medplum: request.medplum,
-        facilityId,
-        caseId,
-        input: parsed.data,
-        logger: request.log,
-      });
-
-      if (result.status === 404) {
-        return reply.code(404).send({
-          code: result.code,
-          message: result.message,
-        });
-      }
-
-      return reply.code(200).send(result.data);
-    }
+    (request, reply) => handleRecordPriorAuth(request, reply, app)
   );
 
   return Promise.resolve();

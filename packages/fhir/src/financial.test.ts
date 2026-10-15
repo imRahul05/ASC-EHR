@@ -247,14 +247,17 @@ describe("FHIR R4 financial resource builders", () => {
         priorAuthNumber: "AUTH-8821",
         priorAuthStatus: "approved",
         paymentPlanActive: true,
+        lastTransactionRef: "tx_abc123",
       });
 
       expect(ext.url).toContain("case-financial");
-      expect(ext.extension?.length).toBe(6);
+      expect(ext.extension?.length).toBe(7);
       const authSub = ext.extension?.find((s) => s.url === "priorAuthNumber");
       expect(authSub?.valueString).toBe("AUTH-8821");
       const planSub = ext.extension?.find((s) => s.url === "paymentPlanActive");
       expect(planSub?.valueBoolean).toBe(true);
+      const txSub = ext.extension?.find((s) => s.url === "lastTransactionRef");
+      expect(txSub?.valueString).toBe("tx_abc123");
     });
 
     it("builds minimal case financial extension", () => {

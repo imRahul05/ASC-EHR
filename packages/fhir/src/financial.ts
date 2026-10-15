@@ -309,6 +309,7 @@ export interface FinancialExtensionParams {
   readonly priorAuthNumber?: string;
   readonly priorAuthStatus?: string;
   readonly paymentPlanActive?: boolean;
+  readonly lastTransactionRef?: string;
 }
 
 /**
@@ -334,6 +335,9 @@ export function caseFinancialExtension(
         : []),
       ...(params.paymentPlanActive !== undefined
         ? [{ url: "paymentPlanActive", valueBoolean: params.paymentPlanActive }]
+        : []),
+      ...(params.lastTransactionRef !== undefined
+        ? [{ url: "lastTransactionRef", valueString: params.lastTransactionRef }]
         : []),
     ],
   };

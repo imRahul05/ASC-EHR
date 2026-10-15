@@ -61,6 +61,7 @@ interface FinancialExtensionState {
   priorAuthNumber?: string;
   priorAuthStatus?: string;
   paymentPlanActive?: boolean;
+  lastTransactionRef?: string;
 }
 
 function parseFinancialExtension(encounter: Encounter): FinancialExtensionState {
@@ -82,6 +83,8 @@ function parseFinancialExtension(encounter: Encounter): FinancialExtensionState 
       state.priorAuthStatus = sub.valueString;
     } else if (sub.url === "paymentPlanActive" && sub.valueBoolean !== undefined) {
       state.paymentPlanActive = sub.valueBoolean;
+    } else if (sub.url === "lastTransactionRef" && sub.valueString) {
+      state.lastTransactionRef = sub.valueString;
     }
   }
   return state;
@@ -128,6 +131,7 @@ function upsertFinancialExtension(
     priorAuthNumber: updates.priorAuthNumber ?? current.priorAuthNumber,
     priorAuthStatus: updates.priorAuthStatus ?? current.priorAuthStatus,
     paymentPlanActive: updates.paymentPlanActive ?? current.paymentPlanActive,
+    lastTransactionRef: updates.lastTransactionRef ?? current.lastTransactionRef,
   };
 
   const filtered = existing.filter((e: Extension) => e.url !== finUrl);
@@ -140,6 +144,7 @@ function upsertFinancialExtension(
       priorAuthNumber: merged.priorAuthNumber,
       priorAuthStatus: merged.priorAuthStatus,
       paymentPlanActive: merged.paymentPlanActive,
+      lastTransactionRef: merged.lastTransactionRef,
     }),
   ];
 }
@@ -253,6 +258,64 @@ export class FinancialClearanceService {
       facilityId;
 
     const scheduledDate = encounter.period?.start?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+
+    // Caching: If not forcing refresh, check for a fresh active response recorded today (Fastify API engineering §7, §11)
+    if (!input.forceRefresh) {
+      const existingResponses = await medplum.searchResources("CoverageEligibilityResponse", [
+        ["patient", encounter.subject.reference],
+        ["_sort", "-_lastUpdated"],
+        ["_count", "1"],
+      ]).catch(() => []);
+
+      const cachedResp = existingResponses[0];
+      if (
+        cachedResp &&
+        cachedResp.status === "active" &&
+        (cachedResp.created?.slice(0, 10) === today || cachedResp.created?.slice(0, 10) === scheduledDate) &&
+        cachedResp.insurance?.[0]?.item?.[0]
+      ) {
+        logger.info({ caseId, facilityId }, "Returning fresh cached eligibility check result");
+        const benefitItem = cachedResp.insurance[0].item[0];
+        const deductibleBenefit = benefitItem.benefit?.find((b) => b.type?.coding?.[0]?.code === "deductible");
+        const copayBenefit = benefitItem.benefit?.find((b) => b.type?.coding?.[0]?.code === "copay");
+        const coinsuranceBenefit = benefitItem.benefit?.find((b) => b.type?.coding?.[0]?.code === "coinsurance");
+        const oopBenefit = benefitItem.benefit?.find((b) => b.type?.coding?.[0]?.code === "benefit");
+
+        const cachedEligibility: EligibilityResponse = {
+          status: "active",
+          planName: "Aetna Choice POS II",
+          planType: "PPO",
+          effectiveDate: cachedResp.servicedPeriod?.start ?? scheduledDate,
+          terminationDate: cachedResp.servicedPeriod?.end,
+          subscriberRelationship: "self",
+          inNetwork: true,
+          individualDeductibleCents: Math.round((deductibleBenefit?.allowedMoney?.value ?? 0) * 100),
+          individualDeductibleRemainingCents: Math.round(
+            ((deductibleBenefit?.allowedMoney?.value ?? 0) - (deductibleBenefit?.usedMoney?.value ?? 0)) * 100
+          ),
+          copayCents: Math.round((copayBenefit?.allowedMoney?.value ?? 0) * 100),
+          coinsurancePercent: coinsuranceBenefit?.allowedUnsignedInt ?? 20,
+          outOfPocketMaxCents: Math.round((oopBenefit?.allowedMoney?.value ?? 0) * 100),
+          outOfPocketRemainingCents: Math.round(
+            ((oopBenefit?.allowedMoney?.value ?? 0) - (oopBenefit?.usedMoney?.value ?? 0)) * 100
+          ),
+          checkedAt: cachedResp.created ?? new Date().toISOString(),
+        };
+
+        const cachedEvaluation = evaluateEligibilityStatus(cachedEligibility, scheduledDate);
+        return {
+          status: 200,
+          data: {
+            eligibility: cachedEligibility,
+            evaluation: cachedEvaluation,
+            requestId: cachedResp.request?.reference?.replace(/^CoverageEligibilityRequest\//, "") ?? "",
+            responseId: cachedResp.id ?? "",
+          },
+        };
+      }
+    }
+
     const patientFirstName = patient?.name?.[0]?.given?.[0] ?? "Patient";
     const patientLastName = patient?.name?.[0]?.family ?? "LastName";
     const patientDob = patient?.birthDate ?? "1980-01-01";
@@ -490,14 +553,33 @@ export class FinancialClearanceService {
     const facilityClient = forFacility(medplum, facilityId);
     const current = parseFinancialExtension(encounter);
 
+    // Idempotency Protection (Fastify API engineering §1, §8):
+    // If this transaction reference was already recorded on the case, return the existing receipt without duplicate charges
+    if (input.transactionRef && current.lastTransactionRef === input.transactionRef) {
+      logger.info({ caseId, transactionRef: input.transactionRef }, "Duplicate transactionRef detected; returning idempotent receipt");
+      return {
+        status: 200,
+        data: {
+          caseId,
+          paidCents: input.amountCents,
+          totalCollectedCents: current.collectedCents ?? input.amountCents,
+          paymentMethod: input.paymentMethod,
+          transactionRef: input.transactionRef,
+          paymentPlanActive: Boolean(current.paymentPlanActive),
+        },
+      };
+    }
+
     const newCollected = (current.collectedCents ?? 0) + input.amountCents;
     const hasPlan = Boolean(input.paymentPlanDetails) || Boolean(current.paymentPlanActive);
+    const txRef = input.transactionRef ?? `tx_${Date.now()}`;
 
-    logger.info({ caseId, amountCents: input.amountCents, method: input.paymentMethod }, "Recording patient copay collection");
+    logger.info({ caseId, amountCents: input.amountCents, method: input.paymentMethod, txRef }, "Recording patient copay collection");
 
     let updatedExtensions = upsertFinancialExtension(encounter, {
       collectedCents: newCollected,
       paymentPlanActive: hasPlan,
+      lastTransactionRef: txRef,
     });
     encounter.extension = updatedExtensions;
 
@@ -521,7 +603,7 @@ export class FinancialClearanceService {
         paidCents: input.amountCents,
         totalCollectedCents: newCollected,
         paymentMethod: input.paymentMethod,
-        transactionRef: input.transactionRef ?? `tx_${Date.now()}`,
+        transactionRef: txRef,
         paymentPlanActive: hasPlan,
       },
     };

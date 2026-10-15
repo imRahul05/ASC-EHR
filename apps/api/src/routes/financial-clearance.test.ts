@@ -205,6 +205,34 @@ describe("Financial clearance routes in Fastify API", () => {
       expect(body.evaluation.status).toBe("pending");
       expect(body.evaluation.requiresWorkItem).toBe(true);
     });
+
+    it("returns cached eligibility check without calling clearinghouse when forceRefresh is omitted (Fastify API §7, §11)", async () => {
+      const mockMedplum = new MockClient();
+      built = await setupApp(mockMedplum);
+      const seed = await seedTestEncounter(mockMedplum);
+
+      // First check: forces initial check
+      const firstRes = await built.app.inject({
+        method: "POST",
+        url: `/cases/${seed.encounterId}/eligibility/check`,
+        headers: { ...bearer(tokenStaff), "x-facility-id": facilityId },
+        payload: { forceRefresh: true, serviceTypeCode: "33" },
+      });
+      expect(firstRes.statusCode).toBe(200);
+      const firstBody = firstRes.json();
+
+      // Second check: without forceRefresh should return cached 200
+      const secondRes = await built.app.inject({
+        method: "POST",
+        url: `/cases/${seed.encounterId}/eligibility/check`,
+        headers: { ...bearer(tokenStaff), "x-facility-id": facilityId },
+        payload: { serviceTypeCode: "33" },
+      });
+      expect(secondRes.statusCode).toBe(200);
+      const secondBody = secondRes.json();
+      expect(secondBody.eligibility.status).toBe("active");
+      expect(secondBody.eligibility.planName).toBe(firstBody.eligibility.planName);
+    });
   });
 
   describe("GET /cases/:caseId/financial-summary", () => {
@@ -258,6 +286,87 @@ describe("Financial clearance routes in Fastify API", () => {
       const body = res.json();
       expect(body.paidCents).toBe(5000);
       expect(body.paymentMethod).toBe("credit_card");
+    });
+
+    it("is idempotent when submitted with the same transactionRef (Review Focus: Idempotency Protection)", async () => {
+      const mockMedplum = new MockClient();
+      built = await setupApp(mockMedplum);
+      const seed = await seedTestEncounter(mockMedplum);
+
+      // First payment
+      const res1 = await built.app.inject({
+        method: "POST",
+        url: `/cases/${seed.encounterId}/copay-collected`,
+        headers: { ...bearer(tokenStaff), "x-facility-id": facilityId },
+        payload: {
+          amountCents: 5000,
+          paymentMethod: "credit_card",
+          transactionRef: "tx_idem_123",
+        },
+      });
+      expect(res1.statusCode).toBe(200);
+      expect(res1.json().totalCollectedCents).toBe(5000);
+
+      // Duplicate payment retry with identical transactionRef
+      const res2 = await built.app.inject({
+        method: "POST",
+        url: `/cases/${seed.encounterId}/copay-collected`,
+        headers: { ...bearer(tokenStaff), "x-facility-id": facilityId },
+        payload: {
+          amountCents: 5000,
+          paymentMethod: "credit_card",
+          transactionRef: "tx_idem_123",
+        },
+      });
+      expect(res2.statusCode).toBe(200);
+      const body2 = res2.json();
+      // Total collected must NOT double-charge!
+      expect(body2.totalCollectedCents).toBe(5000);
+      expect(body2.transactionRef).toBe("tx_idem_123");
+    });
+
+    it("uses x-idempotency-key header as transaction reference when not provided in body", async () => {
+      const mockMedplum = new MockClient();
+      built = await setupApp(mockMedplum);
+      const seed = await seedTestEncounter(mockMedplum);
+
+      // First call with header
+      const res1 = await built.app.inject({
+        method: "POST",
+        url: `/cases/${seed.encounterId}/copay-collected`,
+        headers: {
+          ...bearer(tokenStaff),
+          "x-facility-id": facilityId,
+          "x-idempotency-key": "idem-hdr-999",
+        },
+        payload: {
+          amountCents: 2500,
+          paymentMethod: "debit_card",
+        },
+      });
+      expect(res1.statusCode).toBe(200);
+      const body1 = res1.json();
+      expect(body1.transactionRef).toBe("idem-hdr-999");
+      expect(body1.totalCollectedCents).toBe(2500);
+
+      // Retry with same idempotency header
+      const res2 = await built.app.inject({
+        method: "POST",
+        url: `/cases/${seed.encounterId}/copay-collected`,
+        headers: {
+          ...bearer(tokenStaff),
+          "x-facility-id": facilityId,
+          "x-idempotency-key": "idem-hdr-999",
+        },
+        payload: {
+          amountCents: 2500,
+          paymentMethod: "debit_card",
+        },
+      });
+      expect(res2.statusCode).toBe(200);
+      const body2 = res2.json();
+      expect(body2.transactionRef).toBe("idem-hdr-999");
+      expect(body2.totalCollectedCents).toBe(2500);
     });
   });
 
