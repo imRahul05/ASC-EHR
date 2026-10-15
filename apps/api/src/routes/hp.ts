@@ -1,9 +1,14 @@
 import { API_ROUTE_PATTERNS } from "@asc/config";
+import {
+  anticoagulationAssessmentSchema,
+  hpOverrideSchema,
+  hpUpdateNoteSchema,
+} from "@asc/validation";
 import type { FastifyInstance } from "fastify";
 
 import { capabilityAtResource } from "../auth/route-auth.js";
 import { hpController } from "../controllers/hp.controller.js";
-import { requireCapabilityHook, requireCaseContext } from "../hooks/case-context.js";
+import { requireCapabilityHook, requireCaseContext, validateBody } from "../hooks/case-context.js";
 
 /**
  * History & Physical (H&P) & Anticoagulation Routes (Phase P16 / EP-E, EP-F)
@@ -20,7 +25,11 @@ export function hpRoutes(app: FastifyInstance): Promise<void> {
     API_ROUTE_PATTERNS.caseHpUpdate,
     {
       config: capabilityAtResource("procedure.document"),
-      preHandler: [requireCapabilityHook("procedure.document"), requireCaseContext],
+      preHandler: [
+        requireCapabilityHook("procedure.document"),
+        requireCaseContext,
+        validateBody(hpUpdateNoteSchema),
+      ],
     },
     (request, reply) => hpController.recordHpUpdate(request, reply)
   );
@@ -30,7 +39,11 @@ export function hpRoutes(app: FastifyInstance): Promise<void> {
     API_ROUTE_PATTERNS.caseHpOverride,
     {
       config: capabilityAtResource("case.advance"),
-      preHandler: [requireCapabilityHook("case.advance"), requireCaseContext],
+      preHandler: [
+        requireCapabilityHook("case.advance"),
+        requireCaseContext,
+        validateBody(hpOverrideSchema),
+      ],
     },
     (request, reply) => hpController.recordHpOverride(request, reply)
   );
@@ -40,7 +53,11 @@ export function hpRoutes(app: FastifyInstance): Promise<void> {
     API_ROUTE_PATTERNS.caseAnticoagulation,
     {
       config: capabilityAtResource("procedure.document"),
-      preHandler: [requireCapabilityHook("procedure.document"), requireCaseContext],
+      preHandler: [
+        requireCapabilityHook("procedure.document"),
+        requireCaseContext,
+        validateBody(anticoagulationAssessmentSchema),
+      ],
     },
     (request, reply) => hpController.recordAnticoagulation(request, reply)
   );
