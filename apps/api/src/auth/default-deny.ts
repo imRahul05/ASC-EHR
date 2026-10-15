@@ -20,7 +20,7 @@ export function registerDefaultDeny(app: FastifyInstance): void {
 
   app.addHook("onRoute", (route) => {
     const methods = Array.isArray(route.method) ? route.method : [route.method];
-    if (route.method === "OPTIONS" && route.url === "*") {
+    if ((route.method === "OPTIONS" && route.url === "*") || route.url.startsWith("/docs")) {
       route.config = { ...route.config, auth: { mode: "public" } };
     }
     const auth = route.config?.auth;

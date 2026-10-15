@@ -226,5 +226,6 @@ export {
   collectCopay,
   getFinancialSummary,
   recordPriorAuth,
-} from "./financial.js";
+} from "./financial";
+
 

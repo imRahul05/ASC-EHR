@@ -5,6 +5,8 @@ import { capabilityAtResource } from "../auth/route-auth.js";
 import { financialController } from "../controllers/financial.controller.js";
 import { requireCapabilityHook, requireCaseContext } from "../hooks/case-context.js";
 
+import { requireIdempotency } from "../hooks/idempotency.js";
+
 /**
  * Financial Clearance & Eligibility Routes (Phase P22a / EP-D)
  *
@@ -40,10 +42,11 @@ export function financialRoutes(app: FastifyInstance): Promise<void> {
     API_ROUTE_PATTERNS.caseCopayCollected,
     {
       config: capabilityAtResource("patient.register"),
-      preHandler: [requireCapabilityHook("patient.register"), requireCaseContext],
+      preHandler: [requireIdempotency, requireCapabilityHook("patient.register"), requireCaseContext],
     },
     (request, reply) => financialController.recordCopay(request, reply)
   );
+
 
   // POST /cases/:caseId/prior-auth — Record and revalidate X12 278 prior authorization
   app.post(

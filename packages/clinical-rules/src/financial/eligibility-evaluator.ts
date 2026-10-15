@@ -17,10 +17,11 @@
  *   satisfies the financial gate without dropping the remaining balance.
  */
 
-import type { PriorAuthRecord, PriorAuthEvaluationResult } from "./prior-auth-evaluator.js";
-import { evaluatePriorAuthValidity } from "./prior-auth-evaluator.js";
-import type { GfeCalculationInput, GfeCalculationResult } from "./gfe-calculator.js";
-import { calculateGoodFaithEstimate } from "./gfe-calculator.js";
+import type { PriorAuthRecord, PriorAuthEvaluationResult } from "@asc/clinical-rules/financial/prior-auth-evaluator";
+import { evaluatePriorAuthValidity } from "@asc/clinical-rules/financial/prior-auth-evaluator";
+import type { GfeCalculationInput, GfeCalculationResult } from "@asc/clinical-rules/financial/gfe-calculator";
+import { calculateGoodFaithEstimate } from "@asc/clinical-rules/financial/gfe-calculator";
+
 
 export interface EligibilityResponseData {
   readonly status: "active" | "inactive" | "incomplete" | "error";

@@ -15,7 +15,8 @@
 
 import { z } from "zod";
 
-import { subscriberRelationshipSchema, type SubscriberRelationship } from "../patient.js";
+import { subscriberRelationshipSchema, type SubscriberRelationship } from "@asc/validation/patient";
+
 
 export const FHIR_ID_REGEX = /^[A-Za-z0-9._-]{1,64}$/;
 
@@ -89,5 +90,6 @@ export const eligibilityResponseSchema = z.object({
 export type EligibilityResponse = z.infer<typeof eligibilityResponseSchema>;
 
 // Re-export estimate and prior-auth contracts from eligibility module for unified access
-export * from "./prior-auth.js";
-export * from "./estimate.js";
+export * from "@asc/validation/financial/prior-auth";
+export * from "@asc/validation/financial/estimate";
+

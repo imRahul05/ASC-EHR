@@ -12,6 +12,7 @@ import {
   transitionGate,
 } from "@asc/clinical-rules";
 import { API_ROUTE_PATTERNS as P } from "@asc/config/api";
+import { API_ERROR_CODES } from "@asc/types/errors";
 import type {
   AddImagePayload,
   AddProcedureEventPayload,
@@ -233,7 +234,7 @@ export const caseHandlers = [
     if (!conflicts.ok) {
       return apiError(
         409,
-        "conflict",
+        API_ERROR_CODES.CONFLICT,
         conflicts.reasons[0]?.message ?? "Schedule conflict",
         Object.fromEntries(conflicts.conflicts.map((c) => [c.kind, c.message])),
         conflicts.reasons.map((r) => ({ code: r.code, message: r.message })),
@@ -337,7 +338,7 @@ export const caseHandlers = [
     if (!detail) return caseNotFound(caseId);
     const payload = await body<TransitionCasePayload>(request);
     if (!payload?.to || typeof payload.to !== "string" || payload.to.trim() === "") {
-      return apiError(400, "invalid_payload", "Invalid case transition payload");
+      return apiError(400, API_ERROR_CODES.INVALID_PAYLOAD, "Invalid case transition payload");
     }
     const { to, reason } = payload;
     const actor = actorFrom(request);
@@ -400,7 +401,7 @@ export const caseHandlers = [
       medications: patient.medications.map((med) => ({ ...med, holdStatus: decisions.get(med.id) ?? med.holdStatus })),
     });
     const next: HpAssessment = { ...existing, ...fields, performedBy: actor.ref, performedAt: new Date().toISOString() };
-    if (sign && next.asa == null) return apiError(422, "GATE_FAILED", "Record the ASA class before signing.", { ASA_SET: "Record the ASA class before signing." });
+    if (sign && next.asa == null) return apiError(409, API_ERROR_CODES.GATE_FAILED, "Record the ASA class before signing.", { ASA_SET: "Record the ASA class before signing." });
     state.hp.set(caseId, sign ? { ...next, status: "signed", signedAt: new Date().toISOString() } : next);
     if (next.holdsReviewed) completeWorkItems((item) => item.caseId === caseId && item.type === "med_hold_review");
     audit(actor, sign ? "hp.sign" : "hp.save", { type: "HpAssessment", id: caseId }, sign ? "H&P signed" : "H&P updated");
@@ -457,7 +458,7 @@ export const caseHandlers = [
     const rawPayload = await body<PreopAssessmentInput>(request);
     const parsed = preopAssessmentSchema.safeParse(rawPayload);
     if (!parsed.success) {
-      return apiError(400, "invalid_payload", "Invalid pre-op assessment payload", formatZodError(parsed.error).details);
+      return apiError(400, API_ERROR_CODES.INVALID_PAYLOAD, "Invalid pre-op assessment payload", formatZodError(parsed.error).details);
     }
     const payload = parsed.data;
     const state = db();
@@ -569,7 +570,7 @@ export const caseHandlers = [
     const rawPayload = await body<SignConsentInput>(request);
     const parsed = signConsentSchema.safeParse(rawPayload);
     if (!parsed.success) {
-      return apiError(400, "invalid_payload", "Invalid consent payload", formatZodError(parsed.error).details);
+      return apiError(400, API_ERROR_CODES.INVALID_PAYLOAD, "Invalid consent payload", formatZodError(parsed.error).details);
     }
     const payload = parsed.data;
     const state = db();
@@ -678,7 +679,7 @@ export const caseHandlers = [
     if (blocked) return blocked;
     const payload = await body<AttestTimeOutPayload>(request);
     if (!Object.values(payload.checklist).every(Boolean)) {
-      return apiError(422, "GATE_FAILED", "Complete every time-out item before attesting.", { TIMEOUT_CHECKLIST: "Complete every time-out item." });
+      return apiError(409, API_ERROR_CODES.GATE_FAILED, "Complete every time-out item before attesting.", { TIMEOUT_CHECKLIST: "Complete every time-out item." });
     }
     const state = db();
     const actor = actorFrom(request);
@@ -799,7 +800,7 @@ export const caseHandlers = [
     const rawPayload = await body<HpUpdateNoteInput>(request);
     const parsed = hpUpdateNoteSchema.safeParse(rawPayload);
     if (!parsed.success) {
-      return apiError(400, "invalid_payload", "Invalid H&P update note payload", formatZodError(parsed.error).details);
+      return apiError(400, API_ERROR_CODES.INVALID_PAYLOAD, "Invalid H&P update note payload", formatZodError(parsed.error).details);
     }
     const payload = parsed.data;
     const actor = actorFrom(request);
@@ -857,7 +858,7 @@ export const caseHandlers = [
     const rawPayload = await body<HpOverrideInput>(request);
     const parsed = hpOverrideSchema.safeParse(rawPayload);
     if (!parsed.success) {
-      return apiError(400, "invalid_payload", "Invalid H&P override payload", formatZodError(parsed.error).details);
+      return apiError(400, API_ERROR_CODES.INVALID_PAYLOAD, "Invalid H&P override payload", formatZodError(parsed.error).details);
     }
     const payload = parsed.data;
 
@@ -924,7 +925,7 @@ export const caseHandlers = [
     const rawPayload = await body<AnticoagulationAssessmentInput>(request);
     const parsed = anticoagulationAssessmentSchema.safeParse(rawPayload);
     if (!parsed.success) {
-      return apiError(400, "invalid_payload", "Invalid anticoagulation assessment payload", formatZodError(parsed.error).details);
+      return apiError(400, API_ERROR_CODES.INVALID_PAYLOAD, "Invalid anticoagulation assessment payload", formatZodError(parsed.error).details);
     }
     const payload = parsed.data;
     const actor = actorFrom(request);
@@ -1033,7 +1034,7 @@ export const caseHandlers = [
     const raw = await body<Record<string, unknown>>(request);
     const parsed = eligibilityCheckRequestSchema.safeParse({ caseId, ...raw });
     if (!parsed.success) {
-      return apiError(400, "invalid_payload", "Invalid eligibility check payload", formatZodError(parsed.error).details);
+      return apiError(400, API_ERROR_CODES.INVALID_PAYLOAD, "Invalid eligibility check payload", formatZodError(parsed.error).details);
     }
 
     const patient = db().patients.get(current.patientId);
@@ -1202,7 +1203,7 @@ export const caseHandlers = [
     const raw = await body<Record<string, unknown>>(request);
     const parsed = copayCollectionSchema.safeParse({ caseId, ...raw });
     if (!parsed.success) {
-      return apiError(400, "invalid_payload", "Invalid copay collection payload", formatZodError(parsed.error).details);
+      return apiError(400, API_ERROR_CODES.INVALID_PAYLOAD, "Invalid copay collection payload", formatZodError(parsed.error).details);
     }
 
     const fin = getCaseFinancial(caseId);
@@ -1255,7 +1256,7 @@ export const caseHandlers = [
     const raw = await body<Record<string, unknown>>(request);
     const parsed = priorAuthCheckSchema.safeParse(raw);
     if (!parsed.success) {
-      return apiError(400, "invalid_payload", "Invalid prior authorization payload", formatZodError(parsed.error).details);
+      return apiError(400, API_ERROR_CODES.INVALID_PAYLOAD, "Invalid prior authorization payload", formatZodError(parsed.error).details);
     }
 
     const procedureDate = current.scheduledStart.split("T")[0] ?? toIsoDate(new Date());

@@ -375,4 +375,36 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **How to check:** `pnpm turbo run test`.
 - **Guarded by:** `packages/api-client/src/react/hooks.test.ts`, `apps/web/src/hooks/use-auth.ts`.
 
+### LM-034 — Centralize API error codes in @asc/types; use preHandler hooks and controllers to eliminate repetitive route boilerplate; never double-nest details in ApiErrorPayload
+- **Seen:** 5 · 2026-10-15 · Centralized Error Handling & Fastify API Layering (`packages/types`, `apps/api`, `apps/web`)
+- **What went wrong:**
+  1. API error codes and messages were duplicated as ad-hoc magic strings across `apps/api/src/routes/` and `apps/web/src/mocks/handlers/`, creating drift where MSW returned different HTTP status codes or error code names (e.g. MSW returning HTTP 422 for `GATE_FAILED` while backend returned HTTP 409).
+  2. Route definitions in `apps/api/src/routes/` were cluttered with repetitive boilerplate: every single `/cases/:caseId/*` route manually validated `x-facility-id`, checked FHIR regex on `caseId`, fetched the case from Medplum, checked tenant/facility ownership, and parsed the request body with Zod before executing business logic.
+  3. Ad-hoc error formatting caused subtle schema discrepancies: formatting a Zod validation error and wrapping it inside `{ details: formatZodError(...) }` resulted in double-nested `details.details`, violating the `ApiErrorPayload` interface contract.
+  4. Passing object controller methods directly to Fastify route definitions (e.g. `casesController.bookCase`) triggered `@typescript-eslint/unbound-method` errors.
+  5. Typing union `ApiErrorCode | string` triggered `@typescript-eslint/no-redundant-type-constituents` because string literal unions are subsumed by primitive `string`.
+  6. Authorization checks must precede resource lookups in `preHandler` chains: running `requireCaseContext` before `requireCapabilityHook` allowed unauthorized callers to probe whether a case existed (resource enumeration risk under HIPAA).
+- **Rule:**
+  1. Centralize all API error codes and standard status mappings in `@asc/types` (`API_ERROR_CODES`, `API_ERROR_REGISTRY`, `type ApiErrorCode`, `type ErrorDefinition`). Never use uncatalogued string literals for API error codes.
+  2. Use a type-safe Fastify plugin with a decorated `reply.sendApiError(...)` helper and global error handler that automatically parses Zod validation failures, classification errors, and operational exceptions into canonical `ApiErrorPayload`.
+  3. In async Fastify hooks and route handlers, always explicitly `return` when sending an error response (e.g. `return reply.sendApiError(...)`) to halt execution and avoid `FST_ERR_REP_ALREADY_SENT`.
+  4. Always sequence authorization hooks (`requireCapabilityHook`) BEFORE resource resolution hooks (`requireCaseContext`) to prevent unauthorized resource enumeration.
+  5. Delegate route execution to dedicated controllers (`apps/api/src/controllers/`) and wrap method calls in arrow functions `(request, reply) => controller.method(request, reply)` to maintain `this` binding and satisfy `@typescript-eslint/unbound-method`.
+  6. Preserve literal autocomplete while accepting custom string codes without lint errors using `ApiErrorCode | (string & {})`.
+  7. Never double-nest details: `formatZodError` produces `{ code, message, details, issues }`. Spread or assign directly at top-level `ApiErrorPayload`.
+- **How to check:** `pnpm turbo run lint check-types test`.
+- **Guarded by:** `packages/types/src/errors.test.ts`, `apps/api/src/plugins/error-handler.test.ts`, `apps/api/src/hooks/case-context.test.ts`, `apps/api/src/routes/*.test.ts`, `apps/web/src/mocks/handlers/cases.test.ts`.
 
+### LM-035 — Sequence idempotency after authorization, reconcile idempotency replay with fail-closed facility guards, and support default-deny public documentation routes
+- **Seen:** 3 · 2026-10-15 · Centralized Error Handling, Concurrency & API Layering Hardening (`apps/api`, `packages/logger`)
+- **What went wrong:**
+  1. Placing `requireIdempotency` hook before `requireCapabilityHook` allowed unauthenticated callers to potentially replay cached operations or trigger cache lookups before capability verification. Furthermore, when `requireIdempotency` replayed a cached response for a resource-scoped route (`auth.facility.from === "resource"`), the request bypassed the route handler where `request.facilityChecked = true` is normally set, causing the Fastify `onSend` fail-closed guard to overwrite the 200 replay with HTTP 500 (`handler answered a resource route without requireCapabilityAt`).
+  2. Registering OpenAPI / Swagger documentation plugins (`@fastify/swagger`, `@fastify/swagger-ui`) under a strict default-deny regime (`default-deny.ts`) caused the app to throw at startup because Swagger UI registers internal routes (`/docs`, `/docs/json`, `/docs/static/*`) without an explicit `config.auth` declaration.
+  3. Sensitive patient identifiers (SSN, member ID, patient name, digital signature canvas data) were at risk of serialization in standard HTTP access logs during clinical intake or consent submission without centralized redaction.
+- **Rule:**
+  1. In Fastify route definitions, `requireCapabilityHook` must strictly precede `requireIdempotency`.
+  2. Idempotency replay mechanisms must set `request.facilityChecked = true` when short-circuiting handler execution so downstream `onSend` security assertions are satisfied.
+  3. Default-deny route interceptors must recognize documentation prefixes (e.g. `route.url.startsWith("/docs")`) and mark them as `auth: { mode: "public" }`. Swagger UI should be conditionally mounted (enabled in non-production environments and disabled in production by default).
+  4. Redact sensitive clinical and demographic attributes at logger initialization (`loggerOptions.redact` in `@asc/logger` covering `*.ssn`, `*.memberId`, `req.body.patient.name`, `req.body.signatureData`).
+- **How to check:** `pnpm turbo run check-types lint test build`.
+- **Guarded by:** `apps/api/src/hooks/idempotency.test.ts`, `apps/api/src/plugins/swagger.test.ts`, `apps/api/src/auth/default-deny.test.ts`, `packages/logger/src/index.test.ts`.

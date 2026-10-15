@@ -1,8 +1,7 @@
-import {
-  bookCaseSchema,
-  formatZodError,
-  transitionCaseSchema,
-  type BookCaseInput,
+import { API_ERROR_CODES, type ApiErrorCode } from "@asc/types";
+import type {
+  BookCaseInput,
+  TransitionCaseInput,
 } from "@asc/validation";
 import type { FastifyReply, FastifyRequest } from "fastify";
 
@@ -17,16 +16,7 @@ const defaultFallbackLock = createInMemorySchedulingLock();
  */
 export const casesController = {
   async bookCase(request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> {
-    const parsed = bookCaseSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return reply.code(400).send({
-        code: "invalid_payload",
-        message: "Invalid case booking payload",
-        details: formatZodError(parsed.error),
-      });
-    }
-
-    const body: BookCaseInput = parsed.data;
+    const body = request.body as BookCaseInput;
     const facilityId = body.facilityId.trim();
 
     if (!(await request.server.guards.requireCapabilityAt(request, reply, "schedule.manage", facilityId))) {
@@ -35,8 +25,9 @@ export const casesController = {
 
     const tenantId = request.tenant?.tenantId;
     if (!tenantId) {
-      return reply.code(403).send({
-        code: "forbidden",
+      return reply.sendApiError({
+        code: API_ERROR_CODES.FORBIDDEN,
+        status: 403,
         message: "Tenant context is required",
       });
     }
@@ -59,16 +50,18 @@ export const casesController = {
       logger: request.log,
     });
 
-    return reply.code(result.status).send(
-      "data" in result
-        ? result.data
-        : {
-            code: result.code,
-            message: result.message,
-            ...("details" in result ? { details: result.details } : {}),
-            ...("reasons" in result ? { reasons: result.reasons } : {}),
-          }
-    );
+    if (!("data" in result)) {
+      const code = (result.code as ApiErrorCode) ?? API_ERROR_CODES.INTERNAL_ERROR;
+      return reply.sendApiError({
+        code,
+        status: result.status,
+        message: result.message,
+        ...(result.details ? { details: result.details } : {}),
+        ...(result.reasons ? { reasons: result.reasons } : {}),
+      });
+    }
+
+    return reply.code(result.status).send(result.data);
   },
 
   async getCase(request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> {
@@ -81,8 +74,8 @@ export const casesController = {
     });
 
     if (!detail) {
-      return reply.code(404).send({
-        code: "not_found",
+      return reply.sendApiError({
+        code: API_ERROR_CODES.NOT_FOUND,
         message: `Case ${caseId} not found`,
       });
     }
@@ -92,34 +85,27 @@ export const casesController = {
 
   async transitionCase(request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> {
     const { caseId, facilityId } = getCaseContext(request);
-
-    const parsed = transitionCaseSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return reply.code(400).send({
-        code: "invalid_payload",
-        message: "Invalid case transition payload",
-        details: formatZodError(parsed.error),
-      });
-    }
+    const body = request.body as TransitionCaseInput;
 
     const result = await transitionCase({
       medplum: request.medplum,
       facilityId,
       caseId,
-      input: parsed.data,
+      input: body,
       logger: request.log,
     });
 
     if (result.status === 404) {
-      return reply.code(404).send({
-        code: result.code,
+      return reply.sendApiError({
+        code: API_ERROR_CODES.NOT_FOUND,
         message: result.message,
       });
     }
 
     if (result.status === 409) {
-      return reply.code(409).send({
-        code: result.code,
+      return reply.sendApiError({
+        code: result.code ?? API_ERROR_CODES.GATE_FAILED,
+        status: 409,
         message: result.message,
         reasons: result.reasons,
       });

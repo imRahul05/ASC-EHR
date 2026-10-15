@@ -20,7 +20,7 @@ import type {
   EligibilityCheckRequest,
   PriorAuthCheck,
 } from "@asc/validation/financial";
-import { http } from "../http.js";
+import { http } from "../http";
 
 /**
  * Executes real-time ANSI X12 270 inquiry against payer clearinghouse and evaluates

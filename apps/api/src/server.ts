@@ -39,6 +39,7 @@ async function start(): Promise<void> {
     production,
     medplumBaseUrl: env.MEDPLUM_BASE_URL,
     tenantDb: database,
+    enableSwagger: !production,
   });
 
   let shuttingDown = false;

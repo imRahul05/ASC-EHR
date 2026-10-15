@@ -1,4 +1,5 @@
-import { formatZodError, signConsentSchema, type SignConsentInput } from "@asc/validation";
+import { API_ERROR_CODES } from "@asc/types";
+import type { SignConsentInput } from "@asc/validation";
 import type { FastifyReply, FastifyRequest } from "fastify";
 
 import { getCaseContext } from "../hooks/case-context.js";
@@ -10,17 +11,7 @@ import { getConsent, signConsent } from "../services/consent-service.js";
 export const consentController = {
   async signConsent(request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> {
     const { caseId, facilityId } = getCaseContext(request);
-
-    const parsed = signConsentSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return reply.code(400).send({
-        code: "invalid_payload",
-        message: "Invalid consent payload",
-        details: formatZodError(parsed.error),
-      });
-    }
-
-    const body: SignConsentInput = parsed.data;
+    const body = request.body as SignConsentInput;
 
     const result = await signConsent({
       medplum: request.medplum,
@@ -31,8 +22,8 @@ export const consentController = {
     });
 
     if (result.status === 404) {
-      return reply.code(404).send({
-        code: result.code,
+      return reply.sendApiError({
+        code: API_ERROR_CODES.NOT_FOUND,
         message: result.message,
       });
     }

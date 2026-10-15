@@ -1,4 +1,10 @@
+import {
+  API_ERROR_CODES,
+  type ApiErrorCode,
+} from "@asc/types/errors";
 import type { ApiErrorPayload, CaseDetail, RuleResult } from "@asc/types";
+
+
 import { delay, HttpResponse } from "msw";
 import { caseDetail } from "../../db/store";
 import { latencyMs } from "../../db/util";
@@ -6,7 +12,7 @@ import { latencyMs } from "../../db/util";
 /** Same error body shape as apps/api (`ApiErrorPayload`), so @asc/api-client maps it to ApiError. */
 export function apiError(
   status: number,
-  code: string,
+  code: ApiErrorCode | (string & {}),
   message: string,
   details?: Record<string, string>,
   reasons?: readonly { readonly code: string; readonly message: string }[],
@@ -20,14 +26,20 @@ export function apiError(
   return HttpResponse.json(body, { status });
 }
 
-export const notFound = (what: string) => apiError(404, `${what.toUpperCase()}_NOT_FOUND`, `${what} not found`);
-export const caseNotFound = (caseId: string) => apiError(404, "not_found", `Case ${caseId} not found`);
+export const notFound = (what: string) =>
+  apiError(
+    404,
+    what === "Case" ? API_ERROR_CODES.NOT_FOUND : `${what.toLowerCase()}_not_found`,
+    `${what} not found`,
+  );
+export const caseNotFound = (caseId: string) =>
+  apiError(404, API_ERROR_CODES.NOT_FOUND, `Case ${caseId} not found`);
 
 /** 409 GATE_FAILED matching Fastify byte-for-byte ({ code: "GATE_FAILED", message, reasons }). */
 export function gateFailed(result: RuleResult, status = 409) {
   return apiError(
     status,
-    "GATE_FAILED",
+    API_ERROR_CODES.GATE_FAILED,
     result.reasons[0]?.message ?? "Clinical gate rejected transition",
     undefined,
     result.reasons,

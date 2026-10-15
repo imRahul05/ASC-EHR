@@ -5,7 +5,7 @@ import type { AuditClient } from "@asc/audit";
 import type { IdentityPort, TenantResolver } from "@asc/authz";
 import { type TenantDb, withPostgresFacilityLock } from "@asc/db";
 import { loggerOptions } from "@asc/logger";
-import { formatZodError, isZodError } from "@asc/validation";
+import { registerErrorHandler } from "./plugins/error-handler.js";
 import { registerAuthentication } from "./auth/authn.js";
 import { createDenier } from "./auth/denied.js";
 import { registerDefaultDeny } from "./auth/default-deny.js";
@@ -17,6 +17,7 @@ import { registerMedplum } from "./plugins/medplum.js";
 import { registerRateLimit, registerSecurityHeaders } from "./plugins/security.js";
 import { registerRoutes } from "./routes/index.js";
 import type { FacilityRegistrationLock, FacilitySchedulingLock } from "@asc/types";
+import { registerSwagger } from "./plugins/swagger.js";
 import { createInMemoryRegistrationLock } from "./routes/patients.js";
 import { createInMemorySchedulingLock } from "./routes/cases.js";
 
@@ -48,6 +49,11 @@ interface AppOptions {
   readonly facilityRegistrationLock?: FacilityRegistrationLock | undefined;
   /** Custom facility scheduling lock override (for tests). */
   readonly facilitySchedulingLock?: FacilitySchedulingLock | undefined;
+  /**
+   * Enable OpenAPI specification and Swagger UI interactive documentation at `/docs`.
+   * Typically enabled in non-production environments and disabled in production.
+   */
+  readonly enableSwagger?: boolean | undefined;
 }
 
 export async function buildApp({
@@ -63,6 +69,7 @@ export async function buildApp({
   tenantDb,
   facilityRegistrationLock,
   facilitySchedulingLock,
+  enableSwagger = false,
 }: AppOptions) {
   assertIdentityAllowed(identity, production);
   const app = Fastify({
@@ -71,12 +78,7 @@ export async function buildApp({
     genReqId: (req) => resolveRequestId(req.headers),
   });
 
-  app.setErrorHandler((error, _request, reply) => {
-    if (isZodError(error)) {
-      return reply.code(400).send(formatZodError(error));
-    }
-    return reply.send(error);
-  });
+  await app.register(registerErrorHandler);
 
   registerDefaultDeny(app); // before any route or plugin that registers routes
   const deny = createDenier({ audit, catalogVersion });
@@ -150,6 +152,10 @@ export async function buildApp({
     });
   } else {
     app.decorate("facilitySchedulingLock", createInMemorySchedulingLock());
+  }
+
+  if (enableSwagger) {
+    await registerSwagger(app);
   }
 
   registerRoutes(app);
