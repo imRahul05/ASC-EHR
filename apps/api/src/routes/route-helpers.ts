@@ -23,8 +23,10 @@ interface BodyWithFacility {
  */
 export function resolveFacilityId(
   request: FastifyRequest,
-  preferredFacilityId?: string
+  preferredFacilityId?: string,
+  allowPrincipalDefault = true,
 ): string | undefined {
+
   if (preferredFacilityId !== undefined && preferredFacilityId.trim() !== "") {
     const trimmed = preferredFacilityId.trim();
     return FHIR_ID.test(trimmed) ? trimmed : undefined;
@@ -45,10 +47,11 @@ export function resolveFacilityId(
     const trimmed = headerValue.trim();
     return FHIR_ID.test(trimmed) ? trimmed : undefined;
   }
-  if (request.principal !== undefined) {
+  if (allowPrincipalDefault && request.principal !== undefined) {
     const granted = grantedFacilityIds(request.principal);
     const first = granted[0];
     if (first !== undefined && FHIR_ID.test(first)) return first;
   }
+
   return undefined;
 }
