@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, FileSignature, HeartPulse, ShieldAlert, XCircle } from "@asc/ui/icons";
+import { AlertTriangle, FileSignature, HeartPulse, ShieldAlert, ShieldCheck, XCircle } from "@asc/ui/icons";
 import { Button, cn } from "@asc/ui";
 
 interface GateBlockerAlertProps {
@@ -9,10 +9,11 @@ interface GateBlockerAlertProps {
   readonly onOpenPreop?: () => void;
   readonly onOpenHpUpdate?: () => void;
   readonly onOpenHpOverride?: () => void;
+  readonly onOpenFinancial?: () => void;
   readonly className?: string;
 }
 
-const REASON_MAPPING: Record<string, { title: string; description: string; action?: "consent" | "preop" | "hp" }> = {
+const REASON_MAPPING: Record<string, { title: string; description: string; action?: "consent" | "preop" | "hp" | "financial" }> = {
   GATE1_CONSENT: {
     title: "Informed Consent Required",
     description: "Informed consent must be digitally signed and procedure code verified before entering pre-op. Consent CANNOT be waived by any role.",
@@ -27,6 +28,21 @@ const REASON_MAPPING: Record<string, { title: string; description: string; actio
     description: "Valid H&P within 30 days must be completed and attested with a day-of interval update note by an attending physician, or clinically overridden.",
     action: "hp",
   },
+  GATE0_FINANCIAL: {
+    title: "Financial Clearance Required",
+    description: "Active insurance eligibility (270/271) and approved prior authorization (278) must be verified before procedure confirmation.",
+    action: "financial",
+  },
+  GATE0_COVERAGE: {
+    title: "Active Insurance Coverage Required",
+    description: "Real-time 270/271 inquiry returned inactive or degraded coverage. Insurance must be verified prior to confirming case.",
+    action: "financial",
+  },
+  GATE0_AUTH: {
+    title: "Prior Authorization Required or Expired",
+    description: "Case procedure date is outside approved 278 authorization window or authorization is pending.",
+    action: "financial",
+  },
 };
 
 export function GateBlockerAlert({
@@ -35,6 +51,7 @@ export function GateBlockerAlert({
   onOpenPreop,
   onOpenHpUpdate,
   onOpenHpOverride,
+  onOpenFinancial,
   className,
 }: GateBlockerAlertProps) {
   if (reasons.length === 0) return null;
@@ -47,6 +64,9 @@ export function GateBlockerAlert({
   );
   const hasPreopBlocker = reasons.some(
     (r) => /prep|npo|vitals|iv/i.test(r) || (r === "GATE1_HP" && !onOpenHpUpdate && !onOpenHpOverride),
+  );
+  const hasFinancialBlocker = reasons.some(
+    (r) => /financial|coverage|authorization|auth|gate0/i.test(r),
   );
 
   return (
@@ -140,6 +160,18 @@ export function GateBlockerAlert({
           >
             <HeartPulse className="size-4" aria-hidden />
             Open Pre-Op Bay
+          </Button>
+        )}
+        {hasFinancialBlocker && onOpenFinancial && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onOpenFinancial}
+            className="min-h-11 flex items-center gap-1.5"
+            data-testid="gate-resolve-financial-button"
+          >
+            <ShieldCheck className="size-4" aria-hidden />
+            Review Financial Clearance
           </Button>
         )}
       </div>

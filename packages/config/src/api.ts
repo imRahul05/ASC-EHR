@@ -49,6 +49,12 @@ export const API_ROUTE_PATTERNS = {
   caseImages: "/cases/:caseId/images",
   caseAnesthesia: "/cases/:caseId/anesthesia",
 
+  // Financial clearance (Phase P22a)
+  caseEligibilityCheck: "/cases/:caseId/eligibility/check",
+  caseFinancialSummary: "/cases/:caseId/financial-summary",
+  caseCopayCollected: "/cases/:caseId/copay-collected",
+  casePriorAuth: "/cases/:caseId/prior-auth",
+
   // AI note
   caseNote: "/cases/:caseId/note",
   caseNoteGenerate: "/cases/:caseId/note/generate",
@@ -144,6 +150,12 @@ export const API_ROUTES = {
   caseSpecimens: byCase(P.caseSpecimens),
   caseImages: byCase(P.caseImages),
   caseAnesthesia: byCase(P.caseAnesthesia),
+
+  // Financial clearance (Phase P22a)
+  caseEligibilityCheck: byCase(P.caseEligibilityCheck),
+  caseFinancialSummary: byCase(P.caseFinancialSummary),
+  caseCopayCollected: byCase(P.caseCopayCollected),
+  casePriorAuth: byCase(P.casePriorAuth),
 
   caseNote: byCase(P.caseNote),
   caseNoteGenerate: byCase(P.caseNoteGenerate),

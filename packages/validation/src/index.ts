@@ -28,6 +28,7 @@ export * from "./api-error.js";
 
 // Front desk: patient registration and case booking forms
 export * from "./patient.js";
+export { subscriberRelationshipSchema, type SubscriberRelationship } from "./patient.js";
 export {
   bookCaseSchema as legacyBookCaseSchema,
   procedureIntentSchema as legacyProcedureIntentSchema,
@@ -60,3 +61,6 @@ export * from "./patients/search.js";
 
 // Validation error formatting and guards (LM-001)
 export * from "./errors.js";
+
+// Financial clearance, eligibility, and estimate contracts (Phase P22a)
+export * from "./financial/index.js";

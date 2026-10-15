@@ -43,6 +43,10 @@ export const queryKeys = {
       facilityId && facilityId.trim() !== ""
         ? (["cases", caseId, "hp", facilityId.trim()] as const)
         : (["cases", caseId, "hp"] as const),
+    financial: (caseId: string, facilityId?: string) =>
+      facilityId && facilityId.trim() !== ""
+        ? (["cases", caseId, "financial", facilityId.trim()] as const)
+        : (["cases", caseId, "financial"] as const),
   },
   worklist: {
     all: ["worklist"] as const,

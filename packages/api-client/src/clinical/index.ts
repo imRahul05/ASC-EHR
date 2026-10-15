@@ -2,5 +2,5 @@
 export * from "./cases";
 export * from "./center";
 export * from "./note";
-export * from "./patients";
-export * from "./post-procedure";
+export * from "./patients.js";
+export * from "./post-procedure.js";

@@ -2,8 +2,12 @@ import { API_ROUTES } from "@asc/config/api";
 import type {
   CaseDetail,
   Consent,
+  CopayCollectionResult,
+  EligibilityCheckResult,
+  FinancialSummary,
   HpDetailResponse,
   PreopAssessmentResult,
+  PriorAuthResult,
   ReadinessCheck,
   ScheduleDay,
   SignConsentResult,
@@ -11,6 +15,7 @@ import type {
   SubmitHpOverrideResult,
   SubmitHpUpdateResult,
 } from "@asc/types";
+import type { CopayCollection, EligibilityCheckRequest, PriorAuthCheck } from "@asc/validation/financial";
 import type { SignConsentInput } from "@asc/validation/consent";
 import type { PreopAssessmentInput } from "@asc/validation/preop";
 import type { HpOverrideInput, HpUpdateNoteInput } from "@asc/validation/hp";
@@ -535,6 +540,97 @@ describe("mock clinical case handlers", () => {
     expect(result.caseId).toBe("case_101");
     expect(result).toHaveProperty("validity");
     expect(result).toHaveProperty("status");
+  });
+
+  it("POST /cases/:id/eligibility/check performs real-time 270/271 inquiry and updates readiness", async () => {
+    const payload: EligibilityCheckRequest = {
+      caseId: "case_101",
+      forceRefresh: true,
+      serviceTypeCode: "33",
+    };
+
+    const res = await postJson(apiUrl(API_ROUTES.caseEligibilityCheck("case_101")), payload);
+    expect(res.status).toBe(200);
+    const result = (await res.json()) as EligibilityCheckResult;
+    expect(result.eligibility.status).toBe("active");
+    expect(result.evaluation.status).toBe("satisfied");
+    expect(result.requestId).toMatch(/^req-270-/);
+    expect(result.responseId).toMatch(/^res-271-/);
+
+    // Verify degraded response (serviceTypeCode 30 general medical only) creates work item
+    const incompleteRes = await postJson(apiUrl(API_ROUTES.caseEligibilityCheck("case_101")), {
+      caseId: "case_101",
+      serviceTypeCode: "30",
+    });
+    expect(incompleteRes.status).toBe(200);
+    const incompleteResult = (await incompleteRes.json()) as EligibilityCheckResult;
+    expect(incompleteResult.eligibility.status).toBe("incomplete");
+    expect(incompleteResult.evaluation.requiresWorkItem).toBe(true);
+  });
+
+  it("GET /cases/:id/financial-summary returns dual GFE estimate and balance remaining", async () => {
+    const res = await get(apiUrl(API_ROUTES.caseFinancialSummary("case_101")));
+    expect(res.status).toBe(200);
+    const summary = (await res.json()) as FinancialSummary;
+    expect(summary.caseId).toBe("case_101");
+    expect(summary.inNetwork).toBe(true);
+    expect(summary.estimate).toHaveProperty("estimatedScreeningPatientOwedCents");
+    expect(summary.estimate).toHaveProperty("estimatedTherapeuticPatientOwedCents");
+    expect(summary.estimate.estimatedScreeningPatientOwedCents).toBe(0); // ACA preventive mandate
+    expect(summary).toHaveProperty("balanceRemainingCents");
+    expect(summary).toHaveProperty("isCleared");
+  });
+
+  it("POST /cases/:id/copay-collected records patient collection and updates readiness", async () => {
+    const payload: CopayCollection = {
+      caseId: "case_101",
+      amountCents: 5000, // $50.00
+      paymentMethod: "credit_card",
+      transactionRef: "TX-998811",
+      notes: "Front desk check-in copay",
+    };
+
+    const res = await postJson(apiUrl(API_ROUTES.caseCopayCollected("case_101")), payload);
+    expect(res.status).toBe(200);
+    const result = (await res.json()) as CopayCollectionResult;
+    expect(result.paidCents).toBe(5000);
+    expect(result.totalCollectedCents).toBe(5000);
+    expect(result.paymentMethod).toBe("credit_card");
+    expect(result.transactionRef).toBe("TX-998811");
+  });
+
+  it("POST /cases/:id/prior-auth revalidates 278 authorization window and flags expired authorizations", async () => {
+    // 1. Valid auth within procedure date window
+    const validPayload: PriorAuthCheck = {
+      authNumber: "AUTH-2026-VAL",
+      status: "approved",
+      validFrom: "2026-01-01",
+      validTo: "2026-12-31",
+      approvedCptCodes: ["45378", "45380", "45385"],
+      approvedUnits: 1,
+    };
+
+    const res = await postJson(apiUrl(API_ROUTES.casePriorAuth("case_101")), validPayload);
+    expect(res.status).toBe(200);
+    const result = (await res.json()) as PriorAuthResult;
+    expect(result.evaluation.status).toBe("satisfied");
+    expect(result.evaluation.isExpired).toBe(false);
+
+    // 2. Expired auth window (Review Focus #2)
+    const expiredPayload: PriorAuthCheck = {
+      authNumber: "AUTH-2024-EXP",
+      status: "approved",
+      validFrom: "2024-01-01",
+      validTo: "2024-06-01", // Past date relative to 2026 case
+      approvedCptCodes: ["45378"],
+      approvedUnits: 1,
+    };
+
+    const expiredRes = await postJson(apiUrl(API_ROUTES.casePriorAuth("case_101")), expiredPayload);
+    expect(expiredRes.status).toBe(200);
+    const expiredResult = (await expiredRes.json()) as PriorAuthResult;
+    expect(expiredResult.evaluation.status).toBe("failed");
+    expect(expiredResult.evaluation.isExpired).toBe(true);
   });
 });
 

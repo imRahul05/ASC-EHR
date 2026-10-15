@@ -101,7 +101,7 @@ export class CasesMockClient extends BaseMockClient {
           appointmentFilter = entry[1];
         } else if (Array.isArray(entry) && entry[0] === "subject" && typeof entry[1] === "string") {
           subjectFilter = entry[1];
-        } else if (Array.isArray(entry) && entry[0] === "patient" && typeof entry[1] === "string") {
+        } else if (Array.isArray(entry) && (entry[0] === "patient" || entry[0] === "beneficiary") && typeof entry[1] === "string") {
           patientFilter = entry[1];
         } else if (Array.isArray(entry) && entry[0] === "encounter" && typeof entry[1] === "string") {
           encounterFilter = entry[1];
@@ -141,10 +141,11 @@ export class CasesMockClient extends BaseMockClient {
         subjectFilter = rawSubject;
         delete copy["subject"];
       }
-      const rawPatient = copy["patient"];
+      const rawPatient = copy["patient"] ?? copy["beneficiary"];
       if (typeof rawPatient === "string") {
         patientFilter = rawPatient;
         delete copy["patient"];
+        delete copy["beneficiary"];
       }
       const rawEncounter = copy["encounter"];
       if (typeof rawEncounter === "string") {
@@ -215,8 +216,12 @@ export class CasesMockClient extends BaseMockClient {
       }
       if (patientFilter !== undefined) {
         filteredEntries = filteredEntries?.filter((e) => {
-          const res = e.resource as { patient?: Reference; subject?: Reference } | undefined;
-          return res?.patient?.reference === patientFilter || res?.subject?.reference === patientFilter;
+          const res = e.resource as { patient?: Reference; subject?: Reference; beneficiary?: Reference } | undefined;
+          return (
+            res?.patient?.reference === patientFilter ||
+            res?.subject?.reference === patientFilter ||
+            res?.beneficiary?.reference === patientFilter
+          );
         });
       }
       if (encounterFilter !== undefined) {

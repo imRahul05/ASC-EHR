@@ -38,6 +38,7 @@ interface GatePanelProps {
   readonly onOpenPreop?: () => void;
   readonly onOpenHpUpdate?: () => void;
   readonly onOpenHpOverride?: () => void;
+  readonly onOpenFinancial?: () => void;
 }
 
 /** Current gate (RuleResult reasons) + the primary "advance phase" action. Server re-checks the same rule. */
@@ -47,6 +48,7 @@ export function GatePanel({
   onOpenPreop,
   onOpenHpUpdate,
   onOpenHpOverride,
+  onOpenFinancial,
 }: GatePanelProps) {
   const [confirmTarget, setConfirmTarget] = useState<CasePhase | null>(null);
   const [gateBlockers, setGateBlockers] = useState<readonly string[]>([]);
@@ -102,6 +104,7 @@ export function GatePanel({
             onOpenPreop={onOpenPreop}
             onOpenHpUpdate={onOpenHpUpdate}
             onOpenHpOverride={onOpenHpOverride}
+            onOpenFinancial={onOpenFinancial}
           />
         )}
         {gate && <GateChecklist result={gate} />}

@@ -33,9 +33,46 @@ export const TIME_OUT_ROLE_LABEL: Readonly<Record<TimeOutRole, string>> = {
   ANESTHESIOLOGIST: "Anesthesia",
 };
 
-/** SCHEDULED → CONFIRMED: insurance eligibility verified. */
-export function confirmGate(patient: Pick<Patient, "coverage">): RuleResult {
-  const status = patient.coverage?.eligibility?.status;
+/**
+ * SCHEDULED → CONFIRMED: insurance eligibility verified (270/271) and prior authorization (278) confirmed.
+ * Cites HIPAA ANSI ASC X12 270/271 and X12 278 standards.
+ */
+export function confirmGate(
+  patientOrChecks: Pick<Patient, "coverage"> | readonly ReadinessCheck[],
+): RuleResult {
+  if (!("coverage" in patientOrChecks)) {
+    const checkByName = mapReadinessChecks(patientOrChecks);
+    const coverage = checkByName.get("coverage");
+    const benefits = checkByName.get("benefits");
+    const auth = checkByName.get("authorization");
+
+    const coverageOk = coverage?.status === "satisfied";
+    const benefitsOk = !benefits || benefits.status === "satisfied";
+    const authOk = !auth || auth.status === "satisfied" || auth.status === "waived";
+
+    return fromChecks([
+      {
+        code: "ELIGIBILITY_ACTIVE",
+        label: "Eligibility verified (270/271)",
+        ok: Boolean(coverageOk && benefitsOk),
+        message: !coverageOk
+          ? coverage?.details?.trim() || "Run an eligibility check before confirming."
+          : !benefitsOk
+            ? benefits?.details?.trim() || "Incomplete benefit response; re-check coverage."
+            : "",
+      },
+      {
+        code: "PRIOR_AUTH_VALID",
+        label: "Prior authorization valid (278)",
+        ok: Boolean(authOk),
+        message: authOk
+          ? ""
+          : auth?.details?.trim() || "Prior authorization required before confirmation.",
+      },
+    ]);
+  }
+
+  const status = patientOrChecks.coverage?.eligibility?.status;
   return fromChecks([
     {
       code: "ELIGIBILITY_ACTIVE",
@@ -45,6 +82,8 @@ export function confirmGate(patient: Pick<Patient, "coverage">): RuleResult {
     },
   ]);
 }
+
+export const evaluateConfirmGate = confirmGate;
 
 /** PRE_OP → READY_FOR_PROCEDURE: H&P current, ASA set, consents signed, holds confirmed, escort, NPO. */
 export function readinessGate(

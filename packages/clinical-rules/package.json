@@ -21,7 +21,11 @@
     "./scheduling/catalog": "./src/scheduling/catalog.ts",
     "./scheduling/conflicts": "./src/scheduling/conflicts.ts",
     "./hp": "./src/hp/validity.ts",
-    "./med-hold": "./src/med-hold/anticoagulation.ts"
+    "./med-hold": "./src/med-hold/anticoagulation.ts",
+    "./financial/eligibility-evaluator": "./src/financial/eligibility-evaluator.ts",
+    "./financial/prior-auth-evaluator": "./src/financial/prior-auth-evaluator.ts",
+    "./financial/gfe-calculator": "./src/financial/gfe-calculator.ts",
+    "./financial": "./src/financial/index.ts"
   },
   "scripts": {
     "lint": "eslint --max-warnings 0",

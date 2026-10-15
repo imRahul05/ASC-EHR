@@ -1,4 +1,5 @@
 import { ZodError } from "zod";
+export type { ZodType, ZodSchema } from "zod";
 
 /** Type guard checking if an error is a ZodError without importing Zod directly in apps (LM-001). */
 export function isZodError(error: unknown): error is ZodError {

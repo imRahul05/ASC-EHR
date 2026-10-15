@@ -18,6 +18,8 @@ export function createExtensionUrls(urls: FhirUrls = fhirUrls) {
     procedureIntent: urls.structureDefinition("procedure-intent"),
     /** On `Provenance`: the AI run that produced a draft. An opaque id, never content. */
     agentExecutionId: urls.structureDefinition("agent-execution-id"),
+    /** On `Encounter`: financial clearance summary, estimates, and prior auth (P22a). */
+    caseFinancial: urls.structureDefinition("case-financial"),
   } as const;
 }
 

@@ -24,7 +24,11 @@
     "./preop": "./src/preop.ts",
     "./hp": "./src/hp.ts",
     "./anticoagulation": "./src/anticoagulation.ts",
-    "./errors": "./src/errors.ts"
+    "./errors": "./src/errors.ts",
+    "./financial/eligibility": "./src/financial/eligibility.ts",
+    "./financial/estimate": "./src/financial/estimate.ts",
+    "./financial/prior-auth": "./src/financial/prior-auth.ts",
+    "./financial": "./src/financial/index.ts"
   },
   "scripts": {
     "lint": "eslint --max-warnings 0",

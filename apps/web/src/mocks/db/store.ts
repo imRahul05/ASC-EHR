@@ -21,12 +21,60 @@ import { newId, patientRef } from "./util";
  */
 let state = createSeedState();
 
+interface CaseFinancialRecord {
+  eligibilityStatus?: "active" | "inactive" | "incomplete" | "error";
+  collectedCents: number;
+  paymentPlanActive: boolean;
+  priorAuth?: {
+    authNumber: string;
+    status: "approved" | "denied" | "pending" | "not_required";
+    validFrom: string;
+    validTo: string;
+    approvedCptCodes: readonly string[];
+    approvedUnits: number;
+  };
+}
+
+const financialRecords = new Map<string, CaseFinancialRecord>();
+
+export function getCaseFinancial(caseId: string): CaseFinancialRecord {
+  let record = financialRecords.get(caseId);
+  if (!record) {
+    const current = state.cases.get(caseId);
+    const patient = current ? state.patients.get(current.patientId) : null;
+    const isInactive = patient?.lastName?.toLowerCase().includes("inactive") || patient?.coverage?.eligibility?.status === "inactive";
+    record = {
+      eligibilityStatus: isInactive ? "inactive" : "active",
+      collectedCents: 0,
+      paymentPlanActive: false,
+      priorAuth: {
+        authNumber: "AUTH-DEMO-01",
+        status: "approved",
+        validFrom: "2024-01-01",
+        validTo: "2026-12-31",
+        approvedCptCodes: ["45378", "45380", "45385", "43235", "43239"],
+        approvedUnits: 1,
+      },
+    };
+    financialRecords.set(caseId, record);
+  }
+  return record;
+}
+
+export function updateCaseFinancial(caseId: string, patch: Partial<CaseFinancialRecord>): CaseFinancialRecord {
+  const current = getCaseFinancial(caseId);
+  const updated = { ...current, ...patch };
+  financialRecords.set(caseId, updated);
+  return updated;
+}
+
 export function db() {
   return state;
 }
 
 export function resetDb(): void {
   state = createSeedState();
+  financialRecords.clear();
 }
 
 // ─── Actor (from the mock bearer token) ─────────────────────────────────────
