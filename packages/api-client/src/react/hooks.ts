@@ -27,6 +27,7 @@ import {
   getCodingQueue,
   getConsent,
   getDashboardSummary,
+  getHpDetail,
   getMyCare,
   getNote,
   getPathology,
@@ -201,6 +202,15 @@ export function useConsent(caseId: string, facilityId?: string | null) {
   return useQuery({
     queryKey: queryKeys.cases.consent(caseId, resolvedFacility),
     queryFn: () => getConsent(caseId, resolvedFacility),
+    enabled: Boolean(caseId),
+  });
+}
+
+export function useHpDetail(caseId: string, facilityId?: string | null) {
+  const resolvedFacility = facilityId?.trim() || undefined;
+  return useQuery({
+    queryKey: queryKeys.cases.hp(caseId, resolvedFacility),
+    queryFn: () => getHpDetail(caseId, resolvedFacility),
     enabled: Boolean(caseId),
   });
 }

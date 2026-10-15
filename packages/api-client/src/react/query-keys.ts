@@ -39,6 +39,10 @@ export const queryKeys = {
     note: (caseId: string) => ["cases", caseId, "note"] as const,
     coding: (caseId: string) => ["cases", caseId, "coding"] as const,
     pathology: (caseId: string) => ["cases", caseId, "pathology"] as const,
+    hp: (caseId: string, facilityId?: string) =>
+      facilityId && facilityId.trim() !== ""
+        ? (["cases", caseId, "hp", facilityId.trim()] as const)
+        : (["cases", caseId, "hp"] as const),
   },
   worklist: {
     all: ["worklist"] as const,

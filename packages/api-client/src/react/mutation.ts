@@ -1,8 +1,16 @@
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { CaseDetail, SignConsentPayload, SignConsentResult } from "@asc/types";
+import type { AnticoagulationAssessmentInput } from "@asc/validation/anticoagulation";
 import type { SignConsentInput } from "@asc/validation/consent";
+import type { HpOverrideInput, HpUpdateNoteInput } from "@asc/validation/hp";
 import type { PreopAssessmentInput } from "@asc/validation/preop";
-import { signConsent, submitPreopAssessment } from "../clinical/cases";
+import {
+  signConsent,
+  submitAnticoagulation,
+  submitHpOverride,
+  submitHpUpdate,
+  submitPreopAssessment,
+} from "../clinical/cases";
 import { getFacilityId } from "../http";
 import { queryKeys } from "./query-keys";
 
@@ -74,4 +82,42 @@ export function useSubmitPreopAssessment(caseId: string, facilityId?: string | n
     },
   );
 }
+
+export function useSubmitHpUpdateMutation(caseId: string, facilityId?: string | null) {
+  const resolvedFacility = facilityId?.trim() || getFacilityId()?.trim() || undefined;
+  return useClinicalMutation(
+    (payload: HpUpdateNoteInput) => submitHpUpdate(caseId, payload, resolvedFacility),
+    (queryClient) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cases.detail(caseId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cases.hp(caseId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.schedule.all });
+    },
+  );
+}
+export const useSubmitHpUpdate = useSubmitHpUpdateMutation;
+
+export function useSubmitHpOverrideMutation(caseId: string, facilityId?: string | null) {
+  const resolvedFacility = facilityId?.trim() || getFacilityId()?.trim() || undefined;
+  return useClinicalMutation(
+    (payload: HpOverrideInput) => submitHpOverride(caseId, payload, resolvedFacility),
+    (queryClient) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cases.detail(caseId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cases.hp(caseId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.schedule.all });
+    },
+  );
+}
+export const useSubmitHpOverride = useSubmitHpOverrideMutation;
+
+export function useSubmitAnticoagulationMutation(caseId: string, facilityId?: string | null) {
+  const resolvedFacility = facilityId?.trim() || getFacilityId()?.trim() || undefined;
+  return useClinicalMutation(
+    (payload: AnticoagulationAssessmentInput) => submitAnticoagulation(caseId, payload, resolvedFacility),
+    (queryClient) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cases.detail(caseId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.schedule.all });
+    },
+  );
+}
+export const useSubmitAnticoagulation = useSubmitAnticoagulationMutation;
 

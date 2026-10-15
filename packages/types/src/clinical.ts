@@ -1343,3 +1343,34 @@ export interface PreopAssessmentResult {
   readonly overallReadiness?: OverallReadiness;
   readonly case?: ProcedureCase;
 }
+
+export interface SubmitHpUpdateResult {
+  readonly ok: true;
+  readonly documentId?: string;
+  readonly readiness?: ReadinessFlags;
+  readonly readinessChecks?: readonly ReadinessCheck[];
+  readonly overallReadiness?: OverallReadiness;
+  readonly case?: ProcedureCase;
+}
+
+export interface SubmitHpOverrideResult {
+  readonly ok: true;
+  readonly readiness?: ReadinessFlags;
+  readonly readinessChecks?: readonly ReadinessCheck[];
+  readonly overallReadiness?: OverallReadiness;
+  readonly case?: ProcedureCase;
+}
+
+export interface SubmitAnticoagulationResult {
+  readonly ok: true;
+  readonly evaluation?: {
+    readonly status: "satisfied" | "pending" | "failed";
+    readonly hasAnticoagulants: boolean;
+    readonly message: string;
+  };
+  readonly observationId?: string;
+  readonly readiness?: ReadinessFlags;
+  readonly readinessChecks?: readonly ReadinessCheck[];
+  readonly overallReadiness?: OverallReadiness;
+  readonly case?: ProcedureCase;
+}
