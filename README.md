@@ -7,7 +7,7 @@
 [![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL%20%2B%20Drizzle%20RLS-336791.svg)](https://orm.drizzle.team/)
 [![Redis & BullMQ](https://img.shields.io/badge/Queue-Redis%20%2B%20BullMQ-d82c20.svg)](https://bullmq.io/)
 [![TypeScript 7.0](<https://img.shields.io/badge/TypeScript-7.0%20Strict%20(No%20Any)-3178c6.svg>)](https://www.typescriptlang.org/)
-[![Status: Phase 1, P17 & P16 Complete](<https://img.shields.io/badge/Delivery-Phase%201%2C%20P17%20%26%20P16%20Complete%20(PR%20%2391)-success.svg>)](PROGRESS.md)
+[![Status: Phase 1 & Phase 2 Complete](<https://img.shields.io/badge/Delivery-Phase%201%20%26%20Phase%202%20Complete%20(PR%20%2393%2C%20%2394)-success.svg>)](PROGRESS.md)
 
 ASC EHR is a clinical-grade, high-throughput **Ambulatory Surgery Center (ASC) Operating System and Electronic Health Record (EHR)** purpose-built specifically for **single-specialty Gastrointestinal (GI) endoscopy facilities**.
 
@@ -23,24 +23,24 @@ flowchart LR
     classDef active fill:#3b82f6,stroke:#1d4ed8,stroke-width:2px,color:#fff,rx:6px,ry:6px
     classDef planned fill:#475569,stroke:#334155,stroke-width:2px,color:#94a3b8,rx:6px,ry:6px
 
-    subgraph Roadmap ["ASC OS Delivery Status · Overall Progress: ~38% (50 / 130 Stories)"]
+    subgraph Roadmap ["ASC OS Delivery Status · Overall Progress: ~58% (76 / 130 Stories)"]
         direction LR
         P1["<b>Phase 1: Intake & Scheduling</b><br/>EP-A · EP-B · EP-C<br/>✅ <b>100% COMPLETE</b>"]:::done
-        P2["<b>Phase 2: Financial & Pre-Op</b><br/>EP-D · EP-E<br/>🔄 <b>65% ACTIVE (EP-E 100%)</b>"]:::active
-        P3["<b>Phase 3: Day of Surgery</b><br/>EP-F · EP-G · EP-H · EP-I<br/>⏳ <b>0% PLANNED</b>"]:::planned
+        P2["<b>Phase 2: Financial & Pre-Op</b><br/>EP-D · EP-E<br/>✅ <b>100% COMPLETE</b>"]:::done
+        P3["<b>Phase 3: Day of Surgery</b><br/>EP-F · EP-G · EP-H · EP-I<br/>🔄 <b>ACTIVE / READY TO START</b>"]:::active
         P4["<b>Phase 4: Coding & Claims</b><br/>EP-J · EP-K<br/>⏳ <b>0% PLANNED</b>"]:::planned
         P5["<b>Phase 5: QAPI & Recall</b><br/>EP-L<br/>📋 <b>0% BACKLOG</b>"]:::planned
 
-        P1 ==> P2 -.-> P3 -.-> P4 -.-> P5
+        P1 ==> P2 ==> P3 -.-> P4 -.-> P5
     end
 ```
 
 ```text
-Total Delivery Progress: [████████░░░░░░░░░░░░] 38% Complete
+Total Delivery Progress: [█████████████░░░░░░░] 58% Complete
 
 Phase 1  [██████████] 100%  COMPLETE  │ Foundation, Intake & Scheduling (PR #84, #85, #87 merged)
-Phase 2  [███████░░░]  65%  ACTIVE    │ Financial Clearance & Pre-Op (EP-E 100% Complete: PR #89, #91; P22a next)
-Phase 3  [░░░░░░░░░░]   0%  PLANNED   │ Day of Surgery, Documentation, Pathology & Scopes
+Phase 2  [██████████] 100%  COMPLETE  │ Financial Clearance, Pre-Op & Hard Gate 1 (PR #89, #91, #93, #94 merged)
+Phase 3  [░░░░░░░░░░]   0%  ACTIVE    │ Day of Surgery, Documentation, Pathology & Scopes (P18, P20 Next)
 Phase 4  [░░░░░░░░░░]   0%  PLANNED   │ Coding Engine, Multiple Endoscopy & Claims Cycle
 Phase 5  [░░░░░░░░░░]   0%  BACKLOG   │ Quality, QAPI & Surveillance Recall Ladder
 ```
@@ -115,7 +115,7 @@ flowchart TD
 | **Monorepo**      | Build & Workspaces  | [![Turborepo](https://img.shields.io/badge/Turborepo-2.11-ef4444.svg)](https://turbo.build/repo) [![pnpm](https://img.shields.io/badge/pnpm-10.26-orange.svg)](https://pnpm.io/)                    | Strict workspace boundaries, package caching, zero circular dependencies                   |
 | **Frontend**      | Clinical Web App    | [![Next.js](https://img.shields.io/badge/Next.js-16.0-black.svg)](https://nextjs.org/) [![React](https://img.shields.io/badge/React-19.0-61dafb.svg)](https://react.dev/)                           | Next.js App Router, Server/Client Components, accessible clinical forms, Whiteboard Kiosk  |
 | **UI Kit**        | Clinical Components | [![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-38bdf8.svg)](https://tailwindcss.com/) [![shadcn](https://img.shields.io/badge/UI-shadcn%20%2B%20Base-black.svg)](https://ui.shadcn.com/) | Arm's-length touch targets ($\ge 44\text{ px}$), high-contrast clinical themes             |
-| **API Server**    | Security Spine API  | [![Fastify](https://img.shields.io/badge/Fastify-5.0-22c55e.svg)](https://fastify.dev/)                                                                                                             | High-performance schema validation, default-deny 5-gate security spine                     |
+| **API Server**    | Security Spine API  | [![Fastify](https://img.shields.io/badge/Fastify-5.0-22c55e.svg)](https://fastify.dev/)                                                                                                             | High-performance schema validation, default-deny 5-gate security spine, declarative routes, lifecycle preHandler hooks (`requireCaseContext`, `requireFacilityContext`, `requireCapabilityHook`, `requireIdempotency`, `validateBody`), domain controllers, centralized `API_ERROR_CODES` & `sendApiError`, upstream circuit resilience, and OpenAPI / Swagger UI at `/docs` |
 | **Clinical Core** | FHIR Datastore      | [![Medplum](https://img.shields.io/badge/Medplum-5.1.42-3b82f6.svg)](https://medplum.com/)                                                                                                          | Self-hosted FHIR R4 engine, OAuth2/OIDC IdP, immutable audit & FHIR subscriptions          |
 | **App Database**  | Multitenant DB      | [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791.svg)](https://www.postgresql.org/) [![Drizzle](https://img.shields.io/badge/Drizzle-0.34-c5f015.svg)](https://orm.drizzle.team/)   | Multi-tenant isolation via PostgreSQL Row-Level Security (`withTenant`), append-only audit |
 | **Job Queues**    | Background Workers  | [![BullMQ](https://img.shields.io/badge/BullMQ-5.53-d82c20.svg)](https://bullmq.io/) [![Redis](https://img.shields.io/badge/Redis-7.2-dc382d.svg)](https://redis.io/)                               | Asynchronous background pipelines (claims, PDF consent, notification sweeps)               |
@@ -208,6 +208,7 @@ Navigate to:
 - **Clinical App**: [http://localhost:3000](http://localhost:3000)
 - **Whiteboard TV Kiosk**: [http://localhost:3000/board](http://localhost:3000/board)
 - **Fastify API Health**: [http://localhost:8000/health](http://localhost:8000/health)
+- **OpenAPI / Swagger UI Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
 - **Medplum Admin Console**: [http://localhost:3003](http://localhost:3003)
 
 ---

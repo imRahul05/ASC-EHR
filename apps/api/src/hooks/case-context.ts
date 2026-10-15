@@ -1,6 +1,9 @@
 import { API_ERROR_CODES, type Capability } from "@asc/types";
 import type { Encounter } from "@medplum/fhirtypes";
 import type { FastifyReply, FastifyRequest } from "fastify";
+import "../auth/augment.js";
+import "../plugins/error-handler.js";
+import "../plugins/medplum.js";
 import { FHIR_ID, resolveFacilityId } from "../routes/route-helpers.js";
 import { findAuthorizedEncounter } from "../services/encounter-lookup.js";
 

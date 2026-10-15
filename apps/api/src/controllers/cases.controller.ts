@@ -4,6 +4,9 @@ import type {
   TransitionCaseInput,
 } from "@asc/validation";
 import type { FastifyReply, FastifyRequest } from "fastify";
+import "../auth/augment.js";
+import "../plugins/error-handler.js";
+import "../plugins/medplum.js";
 
 import { getCaseContext } from "../hooks/case-context.js";
 import { bookCase, createInMemorySchedulingLock } from "../services/case-booking-service.js";

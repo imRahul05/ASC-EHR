@@ -1,5 +1,9 @@
 import { API_ERROR_CODES } from "@asc/types";
 import type { FastifyReply, FastifyRequest } from "fastify";
+import "../auth/augment.js";
+import "../hooks/facility-context.js";
+import "../plugins/error-handler.js";
+import "../plugins/medplum.js";
 import { resolveFacilityId } from "../routes/route-helpers.js";
 import { getWhiteboard } from "../services/whiteboard-service.js";
 

@@ -1,5 +1,11 @@
 import type { IdentityCacheState } from "@asc/authz";
-import type { Capability, Principal, TenantRef } from "@asc/types";
+import type {
+  Capability,
+  FacilityRegistrationLock,
+  FacilitySchedulingLock,
+  Principal,
+  TenantRef,
+} from "@asc/types";
 
 import type { createGuards } from "./guards.js";
 
@@ -13,6 +19,8 @@ declare module "fastify" {
     identityCache?: IdentityCacheState;
     /** Gates 3 and 4: set once a handler has run `requireCapabilityAt` for a resource route. */
     facilityChecked?: boolean;
+    /** Facility context resolved from header, body, query, or preHandler hook. */
+    facilityId?: string;
   }
 
   interface FastifyInstance {
@@ -20,6 +28,10 @@ declare module "fastify" {
     routeAuthInventory(): { method: string; url: string; auth: NonNullable<FastifyContextConfig["auth"]> }[];
     /** Authorization checks for handlers whose facility is only known after loading a resource. */
     guards: ReturnType<typeof createGuards>;
+    /** Distributed facility registration lock for concurrency control. */
+    facilityRegistrationLock?: FacilityRegistrationLock;
+    /** Distributed facility scheduling lock for concurrency control. */
+    facilitySchedulingLock?: FacilitySchedulingLock;
   }
 
   interface FastifyContextConfig {

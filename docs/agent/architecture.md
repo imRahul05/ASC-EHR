@@ -34,10 +34,15 @@ Read this before writing any code. The sole purpose of this monorepo is **centra
 - **UI Components**: Shared from `packages/ui` using shadcn (Base UI, **NOT** Radix).
 
 ### 3. Backend (`apps/api`)
-- **Framework**: Fastify (latest stable).
+- **Framework**: Fastify 5 (latest stable).
 - **Validation**: Zod (shared with frontend via `packages/validation`).
-- **Patterns**: No NestJS, no decorators, no classes for dependency injection. We use pure functions, simple module imports, and Fastify plugins.
-- **Structure**: `routes/` for HTTP endpoints, `schemas/` for Zod/JSON schemas, `services/` for pure business logic.
+- **Patterns**: No NestJS, no class-based DI. Functional and declarative programming patterns; pure functions, module imports, and Fastify plugins.
+- **Layered Structure**:
+  - `routes/`: Thin, declarative HTTP routing plugins declaring paths, methods, auth config, preHandler hooks, and controller delegations.
+  - `hooks/`: Reusable Fastify lifecycle preHandler guards (`requireCaseContext`, `requireFacilityContext`, `requireCapabilityHook`, `requireIdempotency`, `validateBody`, `validateQuery`).
+  - `controllers/`: Domain request orchestration and HTTP response formatting.
+  - `services/`: Pure clinical business logic, Medplum FHIR operations, upstream resilience with retries and circuit breaking.
+  - `plugins/`: Central error handler (`reply.sendApiError(...)` decorator with `API_ERROR_CODES`), OpenAPI / Swagger UI documentation (`/docs`), security headers, rate limiting.
 - **SSE Support**: Server-Sent Events are supported for real-time capabilities.
 
 ### 4. Background Jobs (`apps/worker`)
