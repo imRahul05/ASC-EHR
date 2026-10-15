@@ -9,11 +9,13 @@
     "./capability": "./src/capability.ts",
     "./authz": "./src/authz.ts",
     "./case-stage": "./src/case-stage.ts",
-    "./financial": "./src/financial.ts"
+    "./financial": "./src/financial.ts",
+    "./errors": "./src/errors.ts"
   },
   "scripts": {
     "lint": "eslint --max-warnings 0",
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@asc/eslint-config": "workspace:*",
