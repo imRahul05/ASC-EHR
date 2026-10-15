@@ -31,6 +31,8 @@ declare module "fastify" {
  */
 export function casesRoutes(app: FastifyInstance): Promise<void> {
   // POST /cases — Book a surgical case into an operating room (Phase P15a/P15b)
+  // Note: Creates a new case entity without an existing caseId parameter; therefore uses
+  // validateBody directly rather than createClinicalMutationPipeline (which hydrates existing case context).
   app.post(
     API_ROUTE_PATTERNS.cases,
     {

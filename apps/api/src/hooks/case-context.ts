@@ -7,7 +7,6 @@ import "../plugins/medplum.js";
 import { FHIR_ID, resolveFacilityId } from "../routes/route-helpers.js";
 import { findAuthorizedEncounter } from "../services/encounter-lookup.js";
 
-export { validateBody } from "./validation.js";
 
 declare module "fastify" {
   interface FastifyRequest {
