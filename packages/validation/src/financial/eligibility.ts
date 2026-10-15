@@ -17,7 +17,7 @@ import { z } from "zod";
 
 import { subscriberRelationshipSchema, type SubscriberRelationship } from "../patient.js";
 
-export const FHIR_ID_REGEX = /^[A-Za-z0-9.-]{1,64}$/;
+export const FHIR_ID_REGEX = /^[A-Za-z0-9._-]{1,64}$/;
 
 export const eligibilityStatusSchema = z.enum([
   "active",

@@ -1,7 +1,11 @@
 import {
+  calculateGoodFaithEstimate,
   computeOverallReadiness,
   evaluateAnticoagulationHold,
+  evaluateEligibilityStatus,
+  evaluateFinancialClearance,
   evaluateHpValidity,
+  evaluatePriorAuthValidity,
   findScheduleConflicts,
   TIME_OUT_ROLES,
   toIsoDate,
@@ -19,8 +23,12 @@ import type {
   BookCasePayload,
   CheckInPayload,
   Consent,
+  CopayCollectionResult,
+  EligibilityCheckResult,
+  FinancialSummary,
   HpAssessment,
   HpDetailResponse,
+  PriorAuthResult,
   ProcedureCase,
   ProcedureCode,
   ProcedureEventType,
@@ -42,6 +50,12 @@ import { signConsentSchema, type SignConsentInput } from "@asc/validation/consen
 import { preopAssessmentSchema, type PreopAssessmentInput } from "@asc/validation/preop";
 import { hpOverrideSchema, hpUpdateNoteSchema, type HpOverrideInput, type HpUpdateNoteInput } from "@asc/validation/hp";
 import { anticoagulationAssessmentSchema, type AnticoagulationAssessmentInput } from "@asc/validation/anticoagulation";
+import {
+  copayCollectionSchema,
+  eligibilityCheckRequestSchema,
+  priorAuthCheckSchema,
+  type EligibilityResponse,
+} from "@asc/validation/financial";
 import { http, HttpResponse } from "msw";
 import { buildPreVisitBrief } from "../../db/content";
 import { PROCEDURE_LABEL } from "../../db/seed";
@@ -54,12 +68,14 @@ import {
   caseDetail,
   completeWorkItems,
   db,
+  getCaseFinancial,
   getCaseOrNull,
   refreshReadiness,
   resolveTarget,
   roomsNow,
   setPhase,
   updateCase,
+  updateCaseFinancial,
 } from "../../db/store";
 import { newId, patientRef, staffRef } from "../../db/util";
 import { apiUrl } from "../api-url";
@@ -1004,5 +1020,294 @@ export const caseHandlers = [
     };
 
     return HttpResponse.json(response);
+  }),
+
+  // POST /cases/:caseId/eligibility/check — Real-time X12 270/271 eligibility verification (Phase P22a)
+  // HIPAA ANSI ASC X12 270/271: Real-time electronic healthcare eligibility and benefit inquiry.
+  http.post(apiUrl(P.caseEligibilityCheck), async ({ params, request }) => {
+    await latency();
+    const caseId = param(params.caseId);
+    const current = getCaseOrNull(caseId);
+    if (!current) return caseNotFound(caseId);
+
+    const raw = await body<Record<string, unknown>>(request);
+    const parsed = eligibilityCheckRequestSchema.safeParse({ caseId, ...raw });
+    if (!parsed.success) {
+      return apiError(400, "invalid_payload", "Invalid eligibility check payload", formatZodError(parsed.error).details);
+    }
+
+    const patient = db().patients.get(current.patientId);
+    const isInactive = patient?.lastName?.toLowerCase().includes("inactive") || patient?.coverage?.eligibility?.status === "inactive";
+    const isIncomplete = parsed.data.serviceTypeCode === "30";
+
+    const eligibilityStatus: "active" | "inactive" | "incomplete" = isInactive ? "inactive" : isIncomplete ? "incomplete" : "active";
+    const procedureDate = current.scheduledStart.split("T")[0] ?? toIsoDate(new Date());
+
+    const mockEligibility: EligibilityResponse = {
+      status: eligibilityStatus,
+      planName: patient?.coverage?.payer ?? "Aetna Choice POS II",
+      planType: "PPO",
+      effectiveDate: "2024-01-01",
+      subscriberRelationship: "self",
+      inNetwork: true,
+      individualDeductibleCents: 150000,
+      individualDeductibleRemainingCents: 50000,
+      copayCents: 0,
+      coinsurancePercent: 20,
+      outOfPocketMaxCents: 500000,
+      outOfPocketRemainingCents: 250000,
+      checkedAt: new Date().toISOString(),
+    };
+
+    const evaluation = evaluateEligibilityStatus(mockEligibility, procedureDate);
+
+    if (evaluation.requiresWorkItem) {
+      addWorkItem({
+        type: "eligibility_failed",
+        title: `Verify Endoscopy Benefits: ${current.caseNumber}`,
+        detail: evaluation.reason ?? "Payer 271 response degraded or incomplete for GI endoscopy.",
+        ownerRole: "ADMIN",
+        priority: "high",
+        dueAt: new Date(Date.now() + 24 * 3_600_000).toISOString(),
+        caseId,
+        patientId: patient?.id,
+      });
+    }
+
+    updateCaseFinancial(caseId, {
+      eligibilityStatus,
+    });
+
+    const nextChecks = (current.readinessChecks ?? []).map((c) => {
+      if (c.name === "coverage") {
+        return {
+          ...c,
+          status: evaluation.status,
+          label: "Active eligibility",
+          details: evaluation.reason,
+        };
+      }
+      if (c.name === "benefits") {
+        return {
+          ...c,
+          status: eligibilityStatus === "active" ? ("satisfied" as const) : ("pending" as const),
+          label: "Benefits capture",
+          details: eligibilityStatus === "active" ? "Benefits recorded" : "Incomplete benefit response",
+        };
+      }
+      return c;
+    });
+
+    const nextOverall = computeOverallReadiness(nextChecks);
+    updateCase(caseId, {
+      readinessChecks: nextChecks,
+      overallReadiness: nextOverall,
+      readiness: {
+        ...current.readiness,
+        eligibilityActive: eligibilityStatus === "active",
+      },
+    });
+
+    const result: EligibilityCheckResult = {
+      eligibility: mockEligibility,
+      evaluation,
+      requestId: `req-270-${newId("req")}`,
+      responseId: `res-271-${newId("res")}`,
+    };
+
+    return HttpResponse.json(result);
+  }),
+
+  // GET /cases/:caseId/financial-summary — Full financial clearance summary and dual GFE (Phase P22a)
+  // ACA 42 U.S.C. § 300gg-13 (Preventive mandate) & No Surprises Act 45 CFR § 149 (Dual GFE disclosure).
+  http.get(apiUrl(P.caseFinancialSummary), async ({ params }) => {
+    await latency();
+    const caseId = param(params.caseId);
+    const current = getCaseOrNull(caseId);
+    if (!current) return caseNotFound(caseId);
+
+    const fin = getCaseFinancial(caseId);
+    const patient = db().patients.get(current.patientId);
+
+    const deductibleRemainingCents = 50000;
+    const coinsurancePercent = 20;
+    const copayCents = 0;
+    const outOfPocketRemainingCents = 250000;
+
+    const gfeIntent: "screening" | "diagnostic" | "surveillance" =
+      current.intent === "screening" ? "screening" : current.intent === "surveillance" ? "surveillance" : "diagnostic";
+
+    const estimate = calculateGoodFaithEstimate({
+      cptCode: current.procedure === "COLONOSCOPY" ? "45378" : "43235",
+      intent: gfeIntent,
+      allowableFeeCents: 150000,
+      deductibleRemainingCents,
+      coinsurancePercent,
+      copayCents,
+      preventiveMandateApplies: current.procedure === "COLONOSCOPY" && current.intent === "screening",
+      outOfPocketRemainingCents,
+    });
+
+    const clearance = evaluateFinancialClearance({
+      eligibilityStatus: fin.eligibilityStatus === "active" ? "satisfied" : fin.eligibilityStatus === "inactive" ? "failed" : "pending",
+      priorAuthStatus: fin.priorAuth?.status === "approved" ? "satisfied" : fin.priorAuth?.status === "denied" ? "failed" : "not_required",
+      estimatedPatientOwedCents: estimate.patientResponsibilityCents,
+      collectedCents: fin.collectedCents,
+      hasPaymentPlan: fin.paymentPlanActive,
+    });
+
+    const summary: FinancialSummary = {
+      caseId,
+      eligibilityStatus: fin.eligibilityStatus ?? "active",
+      planName: patient?.coverage?.payer ?? "Aetna Choice POS II",
+      planType: "PPO",
+      inNetwork: true,
+      deductibleCents: 150000,
+      deductibleRemainingCents,
+      copayCents,
+      coinsurancePercent,
+      outOfPocketMaxCents: 500000,
+      outOfPocketRemainingCents,
+      priorAuthStatus: fin.priorAuth?.status ?? "approved",
+      authNumber: fin.priorAuth?.authNumber ?? "AUTH-DEMO-01",
+      estimate: {
+        estimatedScreeningPatientOwedCents: estimate.estimatedScreeningPatientOwedCents,
+        estimatedTherapeuticPatientOwedCents: estimate.estimatedTherapeuticPatientOwedCents,
+        patientResponsibilityCents: estimate.patientResponsibilityCents,
+        preventiveMandateApplies: estimate.preventiveMandateApplies,
+      },
+      collectedCents: fin.collectedCents,
+      balanceRemainingCents: clearance.balanceRemainingCents,
+      hasPaymentPlan: fin.paymentPlanActive,
+      overallStatus:
+        clearance.overallStatus === "cleared"
+          ? ("satisfied" as const)
+          : clearance.overallStatus === "flagged"
+            ? ("pending" as const)
+            : ("failed" as const),
+      isCleared: clearance.isCleared,
+    };
+
+    return HttpResponse.json(summary);
+  }),
+
+  // POST /cases/:caseId/copay-collected — Front-desk copay/deductible collection and payment plan (Phase P22a)
+  // ASC billing compliance: Integer cent receipts and installment payment plan scheduling.
+  http.post(apiUrl(P.caseCopayCollected), async ({ params, request }) => {
+    await latency();
+    const caseId = param(params.caseId);
+    const current = getCaseOrNull(caseId);
+    if (!current) return caseNotFound(caseId);
+
+    const raw = await body<Record<string, unknown>>(request);
+    const parsed = copayCollectionSchema.safeParse({ caseId, ...raw });
+    if (!parsed.success) {
+      return apiError(400, "invalid_payload", "Invalid copay collection payload", formatZodError(parsed.error).details);
+    }
+
+    const fin = getCaseFinancial(caseId);
+    const newTotal = fin.collectedCents + parsed.data.amountCents;
+    const hasPlan = Boolean(parsed.data.paymentPlanDetails) || fin.paymentPlanActive;
+
+    updateCaseFinancial(caseId, {
+      collectedCents: newTotal,
+      paymentPlanActive: hasPlan,
+    });
+
+    const nextChecks = (current.readinessChecks ?? []).map((c) => {
+      if (c.name === "estimate") {
+        return {
+          ...c,
+          status: "satisfied" as const,
+          label: "Good faith estimate",
+          details: `Collected $${(parsed.data.amountCents / 100).toFixed(2)} via ${parsed.data.paymentMethod}`,
+        };
+      }
+      return c;
+    });
+
+    const nextOverall = computeOverallReadiness(nextChecks);
+    updateCase(caseId, {
+      readinessChecks: nextChecks,
+      overallReadiness: nextOverall,
+    });
+
+    const result: CopayCollectionResult = {
+      caseId,
+      paidCents: parsed.data.amountCents,
+      totalCollectedCents: newTotal,
+      paymentMethod: parsed.data.paymentMethod,
+      transactionRef: parsed.data.transactionRef ?? `tx_${Date.now()}`,
+      paymentPlanActive: hasPlan,
+    };
+
+    return HttpResponse.json(result);
+  }),
+
+  // POST /cases/:caseId/prior-auth — Record and revalidate X12 278 prior authorization (Phase P22a)
+  // HIPAA ANSI ASC X12 278: Health care services review, authorization window revalidation on reschedule.
+  http.post(apiUrl(P.casePriorAuth), async ({ params, request }) => {
+    await latency();
+    const caseId = param(params.caseId);
+    const current = getCaseOrNull(caseId);
+    if (!current) return caseNotFound(caseId);
+
+    const raw = await body<Record<string, unknown>>(request);
+    const parsed = priorAuthCheckSchema.safeParse(raw);
+    if (!parsed.success) {
+      return apiError(400, "invalid_payload", "Invalid prior authorization payload", formatZodError(parsed.error).details);
+    }
+
+    const procedureDate = current.scheduledStart.split("T")[0] ?? toIsoDate(new Date());
+    const plannedCpt = current.procedure === "COLONOSCOPY" ? "45378" : current.procedure === "EGD" ? "43235" : "45330";
+
+    const evaluation = evaluatePriorAuthValidity(parsed.data, procedureDate, plannedCpt);
+
+    updateCaseFinancial(caseId, {
+      priorAuth: {
+        authNumber: parsed.data.authNumber,
+        status: parsed.data.status,
+        validFrom: parsed.data.validFrom,
+        validTo: parsed.data.validTo,
+        approvedCptCodes: parsed.data.approvedCptCodes,
+        approvedUnits: parsed.data.approvedUnits,
+      },
+    });
+
+    const authReadinessStatus: ReadinessCheckStatus =
+      evaluation.status === "not_required" ? "satisfied" : evaluation.status;
+
+    const nextChecks = (current.readinessChecks ?? []).map((c) => {
+      if (c.name === "authorization") {
+        return {
+          ...c,
+          status: authReadinessStatus,
+          label: "Prior authorization",
+          details: evaluation.reason,
+        };
+      }
+      return c;
+    });
+
+    const nextOverall = computeOverallReadiness(nextChecks);
+    updateCase(caseId, {
+      readinessChecks: nextChecks,
+      overallReadiness: nextOverall,
+    });
+
+    const result: PriorAuthResult = {
+      priorAuth: {
+        authNumber: parsed.data.authNumber,
+        status: parsed.data.status,
+        validFrom: parsed.data.validFrom,
+        validTo: parsed.data.validTo,
+        approvedCptCodes: parsed.data.approvedCptCodes,
+        approvedUnits: parsed.data.approvedUnits,
+        notes: parsed.data.notes,
+      },
+      evaluation,
+    };
+
+    return HttpResponse.json(result);
   }),
 ];
