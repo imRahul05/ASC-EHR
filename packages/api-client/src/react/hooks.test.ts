@@ -29,3 +29,16 @@ describe("resolveSchedulePlaceholderData", () => {
     expect(result).toBe(dummyDay);
   });
 });
+
+describe("queryKeys.cases.financial", () => {
+  it("formats key without facility", async () => {
+    const { queryKeys } = await import("./query-keys.js");
+    expect(queryKeys.cases.financial("case-1")).toEqual(["cases", "case-1", "financial"]);
+  });
+
+  it("formats key with facility", async () => {
+    const { queryKeys } = await import("./query-keys.js");
+    expect(queryKeys.cases.financial("case-1", "fac-1")).toEqual(["cases", "case-1", "financial", "fac-1"]);
+  });
+});
+

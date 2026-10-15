@@ -220,3 +220,11 @@ export function getHpDetail(caseId: string, facilityId?: string): Promise<HpDeta
     headers: trimmed ? { "x-facility-id": trimmed } : undefined,
   });
 }
+
+export {
+  checkCaseEligibility,
+  collectCopay,
+  getFinancialSummary,
+  recordPriorAuth,
+} from "./financial.js";
+

@@ -1,7 +1,19 @@
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import type { CaseDetail, SignConsentPayload, SignConsentResult } from "@asc/types";
+import type {
+  CaseDetail,
+  CopayCollectionResult,
+  EligibilityCheckResult,
+  PriorAuthResult,
+  SignConsentPayload,
+  SignConsentResult,
+} from "@asc/types";
 import type { AnticoagulationAssessmentInput } from "@asc/validation/anticoagulation";
 import type { SignConsentInput } from "@asc/validation/consent";
+import type {
+  CopayCollection,
+  EligibilityCheckRequest,
+  PriorAuthCheck,
+} from "@asc/validation/financial";
 import type { HpOverrideInput, HpUpdateNoteInput } from "@asc/validation/hp";
 import type { PreopAssessmentInput } from "@asc/validation/preop";
 import {
@@ -11,6 +23,11 @@ import {
   submitHpUpdate,
   submitPreopAssessment,
 } from "../clinical/cases";
+import {
+  checkEligibility,
+  collectCopay,
+  recordPriorAuth,
+} from "../clinical/financial";
 import { getFacilityId } from "../http";
 import { queryKeys } from "./query-keys";
 
@@ -120,4 +137,45 @@ export function useSubmitAnticoagulationMutation(caseId: string, facilityId?: st
   );
 }
 export const useSubmitAnticoagulation = useSubmitAnticoagulationMutation;
+
+export function useCaseEligibilityCheckMutation(caseId: string, facilityId?: string | null) {
+  const resolvedFacility = facilityId?.trim() || getFacilityId()?.trim() || undefined;
+  return useClinicalMutation<EligibilityCheckRequest | undefined, EligibilityCheckResult>(
+    (payload) => checkEligibility(caseId, payload, resolvedFacility),
+    (queryClient) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cases.financial(caseId, resolvedFacility) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cases.detail(caseId, resolvedFacility) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.schedule.all });
+    },
+  );
+}
+export const useCaseEligibilityCheck = useCaseEligibilityCheckMutation;
+export const useCheckCaseEligibility = useCaseEligibilityCheckMutation;
+
+export function useCollectCopayMutation(caseId: string, facilityId?: string | null) {
+  const resolvedFacility = facilityId?.trim() || getFacilityId()?.trim() || undefined;
+  return useClinicalMutation<CopayCollection, CopayCollectionResult>(
+    (payload) => collectCopay(caseId, payload, resolvedFacility),
+    (queryClient) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cases.financial(caseId, resolvedFacility) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cases.detail(caseId, resolvedFacility) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.schedule.all });
+    },
+  );
+}
+export const useCollectCopay = useCollectCopayMutation;
+
+export function useRecordPriorAuthMutation(caseId: string, facilityId?: string | null) {
+  const resolvedFacility = facilityId?.trim() || getFacilityId()?.trim() || undefined;
+  return useClinicalMutation<PriorAuthCheck, PriorAuthResult>(
+    (payload) => recordPriorAuth(caseId, payload, resolvedFacility),
+    (queryClient) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cases.financial(caseId, resolvedFacility) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cases.detail(caseId, resolvedFacility) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.schedule.all });
+    },
+  );
+}
+export const useRecordPriorAuth = useRecordPriorAuthMutation;
+
 

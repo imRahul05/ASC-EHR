@@ -27,6 +27,7 @@ import {
   getCodingQueue,
   getConsent,
   getDashboardSummary,
+  getFinancialSummary,
   getHpDetail,
   getMyCare,
   getNote,
@@ -214,6 +215,16 @@ export function useHpDetail(caseId: string, facilityId?: string | null) {
     enabled: Boolean(caseId),
   });
 }
+
+export function useFinancialSummary(caseId: string, facilityId?: string | null) {
+  const resolvedFacility = facilityId?.trim() || undefined;
+  return useQuery({
+    queryKey: queryKeys.cases.financial(caseId, resolvedFacility),
+    queryFn: () => getFinancialSummary(caseId, resolvedFacility),
+    enabled: Boolean(caseId),
+  });
+}
+
 
 export const useTransitionCase = (caseId: string, facilityId?: string | null) => {
   const resolvedFacility = facilityId?.trim() || undefined;
