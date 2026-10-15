@@ -12,7 +12,7 @@ import {
   transitionGate,
 } from "@asc/clinical-rules";
 import { API_ROUTE_PATTERNS as P } from "@asc/config/api";
-import { API_ERROR_CODES } from "@asc/types";
+import { API_ERROR_CODES } from "@asc/types/errors";
 import type {
   AddImagePayload,
   AddProcedureEventPayload,

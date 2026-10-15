@@ -24,7 +24,8 @@ import {
   evaluatePriorAuthValidity,
   type EligibilityEvaluationResult,
   type PriorAuthEvaluationResult,
-} from "@asc/clinical-rules";
+} from "@asc/clinical-rules/financial";
+
 import {
   buildCoverageEligibilityRequest,
   buildCoverageEligibilityResponse,
