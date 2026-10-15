@@ -280,6 +280,8 @@ export function useAuth() {
       );
       return true;
     } catch {
+      setAccessToken(null);
+      setFacilityId(null);
       return false;
     }
   }, [setIdToken, setSession]);

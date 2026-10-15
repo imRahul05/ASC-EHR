@@ -61,6 +61,38 @@ describe("mock clinical case handlers", () => {
     expect(stored?.stageTimestamps?.arrived).toBeDefined();
   });
 
+  it("POST /cases/:id/transition with lowercase CaseStage returns 200 and updates stage and phase", async () => {
+    // case_105 starts at CONFIRMED / confirmed
+    const response = await post(apiUrl(API_ROUTES.caseTransition("case_105")), {
+      to: "arrived",
+    });
+    expect(response.status).toBe(200);
+    const detail = (await response.json()) as CaseDetail;
+    expect(detail.case.phase).toBe("ARRIVED");
+    expect(detail.case.stage).toBe("arrived");
+    expect(detail.case.timestamps.ARRIVED).toBeDefined();
+    expect(detail.case.stageTimestamps?.arrived).toBeDefined();
+
+    const stored = db().cases.get("case_105");
+    expect(stored?.phase).toBe("ARRIVED");
+    expect(stored?.stage).toBe("arrived");
+  });
+
+  it("POST /cases/:id/transition when transition is disallowed returns 409 with GATE_FAILED code", async () => {
+    // case_105 starts at CONFIRMED; jumping directly to DISCHARGED is disallowed
+    const response = await post(apiUrl(API_ROUTES.caseTransition("case_105")), {
+      to: "DISCHARGED",
+    });
+    expect(response.status).toBe(409);
+    const payload = (await response.json()) as {
+      code: string;
+      message: string;
+      reasons: readonly { code: string; message: string }[];
+    };
+    expect(payload.code).toBe("GATE_FAILED");
+    expect(payload.reasons[0]?.code).toBe("TRANSITION_NOT_ALLOWED");
+  });
+
   it("POST /cases/:id/transition when gate fails returns 409 with GATE_FAILED and reasons array", async () => {
     // case_109 is SCHEDULED with inactive eligibility; transitioning to CONFIRMED fails confirmGate
     const response = await post(apiUrl(API_ROUTES.caseTransition("case_109")), {

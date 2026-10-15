@@ -164,19 +164,22 @@ export function useSchedule(date?: IsoDate, facilityId?: string) {
 export const useBookCase = () => useClinicalMutation(bookCase);
 export const useScheduleConflictCheck = () => useClinicalMutation(checkScheduleConflicts);
 
-export function useCase(caseId: string) {
-  return useQuery({ queryKey: queryKeys.cases.detail(caseId), queryFn: () => getCase(caseId) });
+export function useCase(caseId: string, facilityId?: string) {
+  return useQuery({ queryKey: queryKeys.cases.detail(caseId), queryFn: () => getCase(caseId, facilityId) });
 }
 
 /**
  * Several case details at once (same cache entries as `useCase`), e.g. to follow seeded demo cases.
  * Returns one result per id, in order; `enabled: false` fetches nothing.
  */
-export function useCaseDetails(caseIds: readonly string[], options: { readonly enabled?: boolean } = {}) {
+export function useCaseDetails(
+  caseIds: readonly string[],
+  options: { readonly enabled?: boolean; readonly facilityId?: string } = {},
+) {
   return useQueries({
     queries: caseIds.map((caseId) => ({
       queryKey: queryKeys.cases.detail(caseId),
-      queryFn: () => getCase(caseId),
+      queryFn: () => getCase(caseId, options.facilityId),
       enabled: options.enabled ?? true,
     })),
   });

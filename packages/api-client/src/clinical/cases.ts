@@ -30,8 +30,12 @@ export type BookCaseResponse = BookCaseResult & Partial<ProcedureCase>;
 export function getSchedule(date?: IsoDate, facilityId?: string): Promise<ScheduleDay> {
   const query: Record<string, string> = {};
   if (date) query.date = date;
-  if (facilityId) query.facilityId = facilityId;
-  return http.get(API_ROUTES.schedule, { query: Object.keys(query).length > 0 ? query : undefined });
+  const trimmed = facilityId?.trim();
+  if (trimmed) query.facilityId = trimmed;
+  return http.get(API_ROUTES.schedule, {
+    query: Object.keys(query).length > 0 ? query : undefined,
+    headers: trimmed ? { "x-facility-id": trimmed } : undefined,
+  });
 }
 
 /** Server-side conflict check for a proposed booking (UI also runs findScheduleConflicts locally). */
@@ -50,11 +54,19 @@ export function bookCase(payload: BookCaseInput | BookCasePayload): Promise<Book
 // Gate violations reject with ApiError 409/422 and `code` (e.g. GATE_FAILED) + `details` (reason code → message).
 
 export function getCase(caseId: string, facilityId?: string): Promise<CaseDetail> {
-  return http.get(API_ROUTES.case(caseId), { query: facilityId ? { facilityId } : undefined });
+  const trimmed = facilityId?.trim();
+  return http.get(API_ROUTES.case(caseId), {
+    query: trimmed ? { facilityId: trimmed } : undefined,
+    headers: trimmed ? { "x-facility-id": trimmed } : undefined,
+  });
 }
 
 export function transitionCase(caseId: string, payload: TransitionCasePayload, facilityId?: string): Promise<CaseDetail> {
-  return http.post(API_ROUTES.caseTransition(caseId), payload, { query: facilityId ? { facilityId } : undefined });
+  const trimmed = facilityId?.trim();
+  return http.post(API_ROUTES.caseTransition(caseId), payload, {
+    query: trimmed ? { facilityId: trimmed } : undefined,
+    headers: trimmed ? { "x-facility-id": trimmed } : undefined,
+  });
 }
 
 /** CONFIRMED → ARRIVED (records escort presence / NPO). */

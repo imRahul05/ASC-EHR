@@ -25,11 +25,10 @@ export const notFound = (what: string) => apiError(404, `${what.toUpperCase()}_N
 /** 409 GATE_FAILED with every failing reason (`details`: reason code → message, and structured `reasons` array). */
 export function gateFailed(result: RuleResult, status = 409) {
   const details = Object.fromEntries(result.reasons.map((reason) => [reason.code, reason.message]));
-  const code = result.reasons[0]?.code === "TRANSITION_NOT_ALLOWED" ? "TRANSITION_NOT_ALLOWED" : "GATE_FAILED";
   return apiError(
     status,
-    code,
-    result.reasons[0]?.message ?? "Rule check failed",
+    "GATE_FAILED",
+    result.reasons[0]?.message ?? "Clinical gate rejected transition",
     details,
     result.reasons,
   );

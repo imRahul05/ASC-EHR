@@ -55,8 +55,8 @@ export function authHeaders(): Record<string, string> {
  */
 let activeFacilityId: string | null = null;
 
-export function setFacilityId(token: string | null): void {
-  activeFacilityId = token;
+export function setFacilityId(facilityId: string | null): void {
+  activeFacilityId = facilityId && facilityId.trim() !== "" ? facilityId.trim() : null;
 }
 
 export function getFacilityId(): string | null {

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BookCaseInput } from "@asc/validation/cases/book";
 import { ApiError } from "../http";
-import { bookCase, getCase, getSchedule } from "./cases";
+import { bookCase, getCase, getSchedule, transitionCase } from "./cases";
 
 function stubFetch(response: Response | Error) {
   const fn = vi.fn((_input: string, _init?: RequestInit) =>
@@ -82,15 +82,30 @@ describe("bookCase", () => {
     }
   });
 
-  it("passes facilityId as query parameter to getSchedule when provided", async () => {
+  it("passes facilityId as query parameter and header to getSchedule when provided", async () => {
     const fetchMock = stubFetch(Response.json({ date: "2026-10-15", rooms: [], cases: [] }));
     await getSchedule("2026-10-15", "fac-101");
     expect(fetchMock.mock.calls[0]?.[0]).toBe("http://localhost:4000/schedule?date=2026-10-15&facilityId=fac-101");
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({
+      "x-facility-id": "fac-101",
+    });
   });
 
-  it("passes facilityId as query parameter to getCase when provided", async () => {
+  it("passes facilityId as query parameter and header to getCase when provided", async () => {
     const fetchMock = stubFetch(Response.json({ case: { id: "c-1" } }));
     await getCase("c-1", "fac-101");
     expect(fetchMock.mock.calls[0]?.[0]).toBe("http://localhost:4000/cases/c-1?facilityId=fac-101");
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({
+      "x-facility-id": "fac-101",
+    });
+  });
+
+  it("passes facilityId as query parameter and header to transitionCase when provided", async () => {
+    const fetchMock = stubFetch(Response.json({ case: { id: "c-1", phase: "ARRIVED" } }));
+    await transitionCase("c-1", { to: "ARRIVED" }, "fac-101");
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("http://localhost:4000/cases/c-1/transition?facilityId=fac-101");
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({
+      "x-facility-id": "fac-101",
+    });
   });
 });
