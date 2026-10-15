@@ -1,4 +1,5 @@
-import { formatZodError, preopAssessmentSchema, type PreopAssessmentInput } from "@asc/validation";
+import { API_ERROR_CODES } from "@asc/types";
+import type { PreopAssessmentInput } from "@asc/validation";
 import type { FastifyReply, FastifyRequest } from "fastify";
 
 import { getCaseContext } from "../hooks/case-context.js";
@@ -10,17 +11,7 @@ import { submitPreopAssessment } from "../services/preop-service.js";
 export const preopController = {
   async recordPreopAssessment(request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> {
     const { caseId, facilityId } = getCaseContext(request);
-
-    const parsed = preopAssessmentSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return reply.code(400).send({
-        code: "invalid_payload",
-        message: "Invalid pre-op assessment payload",
-        details: formatZodError(parsed.error),
-      });
-    }
-
-    const body: PreopAssessmentInput = parsed.data;
+    const body = request.body as PreopAssessmentInput;
 
     const result = await submitPreopAssessment({
       medplum: request.medplum,
@@ -32,8 +23,8 @@ export const preopController = {
     });
 
     if (result.status === 404) {
-      return reply.code(404).send({
-        code: result.code,
+      return reply.sendApiError({
+        code: API_ERROR_CODES.NOT_FOUND,
         message: result.message,
       });
     }

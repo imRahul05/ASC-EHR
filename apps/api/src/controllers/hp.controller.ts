@@ -1,13 +1,10 @@
 import { applicableGrants } from "@asc/authz";
 import { PERMITTED_HP_OVERRIDE_ROLES } from "@asc/clinical-rules/gates";
-import {
-  anticoagulationAssessmentSchema,
-  formatZodError,
-  hpOverrideSchema,
-  hpUpdateNoteSchema,
-  type AnticoagulationAssessmentInput,
-  type HpOverrideInput,
-  type HpUpdateNoteInput,
+import { API_ERROR_CODES } from "@asc/types";
+import type {
+  AnticoagulationAssessmentInput,
+  HpOverrideInput,
+  HpUpdateNoteInput,
 } from "@asc/validation";
 import type { FastifyReply, FastifyRequest } from "fastify";
 
@@ -21,17 +18,7 @@ import { getHpDetail, submitHpOverride, submitHpUpdateNote } from "../services/h
 export const hpController = {
   async recordHpUpdate(request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> {
     const { caseId, facilityId } = getCaseContext(request);
-
-    const parsed = hpUpdateNoteSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return reply.code(400).send({
-        code: "invalid_payload",
-        message: "Invalid H&P update note payload",
-        details: formatZodError(parsed.error),
-      });
-    }
-
-    const body: HpUpdateNoteInput = parsed.data;
+    const body = request.body as HpUpdateNoteInput;
 
     const result = await submitHpUpdateNote({
       medplum: request.medplum,
@@ -44,8 +31,8 @@ export const hpController = {
     });
 
     if (result.status === 404) {
-      return reply.code(404).send({
-        code: result.code,
+      return reply.sendApiError({
+        code: API_ERROR_CODES.NOT_FOUND,
         message: result.message,
       });
     }
@@ -55,26 +42,18 @@ export const hpController = {
 
   async recordHpOverride(request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> {
     const { caseId, facilityId } = getCaseContext(request);
+    const body = request.body as HpOverrideInput;
 
-    const parsed = hpOverrideSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return reply.code(400).send({
-        code: "invalid_payload",
-        message: "Invalid H&P override payload",
-        details: formatZodError(parsed.error),
-      });
-    }
-
-    const body: HpOverrideInput = parsed.data;
-
-    // Enforce role restriction: only attending physician or medical director can override H&P
-    const grants = request.principal ? applicableGrants(request.principal, facilityId) : [];
-    const userRoles = grants.flatMap((g) => g.roleKeys);
-    const isAuthorizedPhysician = userRoles.some((r) => PERMITTED_HP_OVERRIDE_ROLES.includes(r));
-
-    if (!isAuthorizedPhysician) {
-      return reply.code(403).send({
-        code: "forbidden",
+    const roles = request.principal
+      ? applicableGrants(request.principal, facilityId).flatMap((g) => g.roleKeys)
+      : [];
+    const hasPermittedRole = roles.some((role) =>
+      PERMITTED_HP_OVERRIDE_ROLES.includes(role),
+    );
+    if (!hasPermittedRole) {
+      return reply.sendApiError({
+        code: API_ERROR_CODES.FORBIDDEN,
+        status: 403,
         message: "H&P override requires attending physician or medical director role",
       });
     }
@@ -86,20 +65,19 @@ export const hpController = {
       input: body,
       logger: request.log,
       actorId: request.principal?.id,
-      actorName: body.practitionerName,
-      actorRole: userRoles.find((r) => PERMITTED_HP_OVERRIDE_ROLES.includes(r)),
     });
 
     if (result.status === 403) {
-      return reply.code(403).send({
-        code: result.code,
+      return reply.sendApiError({
+        code: API_ERROR_CODES.FORBIDDEN,
+        status: 403,
         message: result.message,
       });
     }
 
     if (result.status === 404) {
-      return reply.code(404).send({
-        code: result.code,
+      return reply.sendApiError({
+        code: API_ERROR_CODES.NOT_FOUND,
         message: result.message,
       });
     }
@@ -107,41 +85,7 @@ export const hpController = {
     return reply.code(200).send(result);
   },
 
-  async recordAnticoagulation(request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> {
-    const { caseId, facilityId } = getCaseContext(request);
-
-    const parsed = anticoagulationAssessmentSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return reply.code(400).send({
-        code: "invalid_payload",
-        message: "Invalid anticoagulation assessment payload",
-        details: formatZodError(parsed.error),
-      });
-    }
-
-    const body: AnticoagulationAssessmentInput = parsed.data;
-
-    const result = await submitAnticoagulationAssessment({
-      medplum: request.medplum,
-      facilityId,
-      caseId,
-      input: body,
-      logger: request.log,
-      assessorId: request.principal?.id,
-      assessorName: body.assessorName,
-    });
-
-    if (result.status === 404) {
-      return reply.code(404).send({
-        code: result.code,
-        message: result.message,
-      });
-    }
-
-    return reply.code(200).send(result);
-  },
-
-  async getHp(request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> {
+  async getHpDetail(request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> {
     const { caseId, facilityId } = getCaseContext(request);
 
     const result = await getHpDetail({
@@ -151,12 +95,42 @@ export const hpController = {
     });
 
     if (result.status === 404) {
-      return reply.code(404).send({
-        code: result.code,
+      return reply.sendApiError({
+        code: API_ERROR_CODES.NOT_FOUND,
         message: result.message,
       });
     }
 
     return reply.code(200).send(result.data);
+  },
+
+  async getHp(request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> {
+    return hpController.getHpDetail(request, reply);
+  },
+
+  async recordAnticoagulation(
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ): Promise<FastifyReply> {
+    const { caseId, facilityId } = getCaseContext(request);
+    const body = request.body as AnticoagulationAssessmentInput;
+
+    const result = await submitAnticoagulationAssessment({
+      medplum: request.medplum,
+      facilityId,
+      caseId,
+      input: body,
+      logger: request.log,
+      assessorId: request.principal?.id,
+    });
+
+    if (result.status === 404) {
+      return reply.sendApiError({
+        code: API_ERROR_CODES.NOT_FOUND,
+        message: result.message,
+      });
+    }
+
+    return reply.code(200).send(result);
   },
 };

@@ -62,6 +62,14 @@ const errorHandlerPlugin: FastifyPluginAsync = (app: FastifyInstance): Promise<v
       });
     }
 
+    if (fastifyError.statusCode === 503 || fastifyError.name === "MedplumUnavailableError") {
+      return reply.sendApiError({
+        code: API_ERROR_CODES.UNAVAILABLE,
+        status: 503,
+        message: fastifyError.message,
+      });
+    }
+
     request.log.error({ errorName: error.name, message: error.message }, "Unhandled error caught by central handler");
     return reply.sendApiError({
       code: API_ERROR_CODES.INTERNAL_ERROR,
