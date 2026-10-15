@@ -42,6 +42,10 @@ export {
 export * from "./cases/book.js";
 export * from "./cases/transition.js";
 
+// Informed consent and pre-op nursing intake contracts (Phase P17)
+export * from "./consent.js";
+export * from "./preop.js";
+
 // Principal, grants, role templates and GET /me (authorization contracts)
 export * from "./authz.js";
 
