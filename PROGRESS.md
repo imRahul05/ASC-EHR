@@ -19,9 +19,9 @@
 
 | Updated        | 2026-10-15                                                                       |
 | -------------- | -------------------------------------------------------------------------------- |
-| Current wave   | 3 (Phase 2 Clinical Readiness)                                                   |
+| Current wave   | 4 (Phase 3 Day of Surgery & Procedure Room)                                      |
 | In progress    | —                                                                                |
-| Ready to start | P18, P20, P08, P09, P10, P12, P00b, P01, P06, P22b                              |
+| Ready to start | P18 (Intra-Op Room Capture & Gate 2), P20 (AIMS Flowsheet), P19, P21, P22b, P08  |
 | Blocked        | P13 soft-blocked on Q-MS1 (fallback allowed)                                     |
 | Go-live target | November 15, 2026 (Software Freeze) / January 2027 (Facility Opening)            |
 
@@ -31,10 +31,10 @@
 >
 > - **EP-A** (Foundation: Auth, Identity, Audit) [DONE]: P00–P05, P06
 > - **EP-B** (Referral Intake & Registration) [DONE for Phase 1]: P14a/b, P24 (Inbound Fax / eCW)
-> - **EP-C** (Scheduling & Whiteboard) [DONE]: P15a/b, P15c (Live Backend APIs)
-> - **EP-D** (Financial Clearance): P14a/b (Eligibility intake), P22a (270/271 Monitor, 278 Auth, Estimates & Collection)
-> - **EP-E** (Pre-Operative Readiness & Hard Gates): P07 (Gates core) [DONE], P11 (Questionnaires), P16 (H&P & Med-Hold) [DONE], P17 (Pre-Op & Consent) [DONE]
-> - **EP-F** (Day of Surgery Flow): P18 (Room capture), P20 (AIMS flowsheet), P21 (PACU & discharge)
+> - **EP-C** (Scheduling & Whiteboard) [DONE]: P15a/b, P15c/P15c.2 (Live Backend APIs & Workspace Wiring)
+> - **EP-D** (Financial Clearance) [DONE]: P14a/b (Eligibility intake), P22a (270/271 Monitor, 278 Auth, Estimates & Collection - PR #93)
+> - **EP-E** (Pre-Operative Readiness & Hard Gates) [DONE]: P07 (Gates core), P11 (Questionnaires), P16 (H&P & Med-Hold - PR #91), P17 (Pre-Op & Consent - PR #89)
+> - **EP-F** (Day of Surgery Flow) [ACTIVE / READY]: P18 (Room capture & Hard Gate 2), P20 (AIMS flowsheet), P21 (PACU & discharge)
 > - **EP-G** (Clinical Documentation & Procedure Notes): P13 (Record engine), P19 (Note pipeline & sign)
 > - **EP-H** (Specimens & Pathology Closed-Loop): P23 (Pathology loop & open-specimen register)
 > - **EP-I** (Scope Reprocessing & Hang-Time Lock): P25 (168-hr hang time, infection query)
@@ -67,9 +67,9 @@
 | P15c.2 | EP-C        | Case Workspace Wiring & Lockstep Mocks (facility context in @asc/api-client, React Query cache scoping, MSW mock byte-for-byte lockstep with Fastify) | done | P15c | Antigravity | `feat/case-workspace-wiring-and-mocks` | [#87](https://github.com/imRahul05/ASC-EHR/pull/87) | 2026-10-15 | 2026-10-15 |
 | P16  | EP-E        | Pre-procedure H&P review, update note & anticoagulation rule engine                                                | done                               | P07, P15b                | Antigravity               | `feat/hp-medhold`                                                       | [#91](https://github.com/imRahul05/ASC-EHR/pull/91)                                                                                                 | 2026-10-15 | 2026-10-15 |
 | P17  | EP-E        | Pre-op nursing, digital tablet consent (SignaturePad + PDF) & Gate 1                                               | done                               | P07, P15b                | Antigravity               | `feat/preop-consent-gate1`                                              | [#89](https://github.com/imRahul05/ASC-EHR/pull/89)                                                                                                 | 2026-10-15 | 2026-10-15 |
-| P18  | EP-F        | Procedure capture                                                                                                  | pending                            | P15c, P10                |                           |                                                                         |                                                                                                                                                     |            |            |
+| P18  | EP-F        | Procedure capture                                                                                                  | ready                              | P15c                     |                           |                                                                         |                                                                                                                                                     |            |            |
 | P19  | EP-G        | Procedure-note pipeline                                                                                            | pending                            | P18, P13, P08, P12       |                           |                                                                         |                                                                                                                                                     |            |            |
-| P20  | EP-F        | AIMS flowsheet                                                                                                     | pending                            | P15c, P09                |                           |                                                                         |                                                                                                                                                     |            |            |
+| P20  | EP-F        | AIMS flowsheet                                                                                                     | ready                              | P15c, P09                |                           |                                                                         |                                                                                                                                                     |            |            |
 | P21  | EP-F        | PACU + discharge                                                                                                   | pending                            | P11, P20                 |                           |                                                                         |                                                                                                                                                     |            |            |
 | P22a | EP-D        | Financial clearance: 270/271 eligibility monitor, 278 auth revalidation, Good-Faith Estimates & patient collection | done                               | P14b, P15c               | Antigravity               | `feat/p22a-financial-clearance`                                         | [#93](https://github.com/imRahul05/ASC-EHR/pull/93)                                                                                                | 2026-10-15 | 2026-10-15 |
 | P22b | EP-J / EP-K | Coding engine, multiple endoscopy rules, coder queue, 837 claim export                                             | pending                            | P19, P08                 |                           |                                                                         |                                                                                                                                                     |            |            |
@@ -194,17 +194,26 @@ Full lists: [implementation plan §6](docs/plan/implementation-plan.md#6-cross-p
 
 ## 5. Next up
 
-1. **Phase 2 Delivery & Financial Clearance (Immediate Active Sprint)**:
-   - **Priority 1: P22a Financial Clearance & X12 EDI Clearinghouse Integration (`EP-D`)**:
-     - 3-point 270/271 eligibility monitor (booking, 7 days out, 06:00 day of procedure).
-     - 278 prior authorization revalidation on reschedule, Good-Faith Estimates delivery, and copay collection.
-     - Autonomous financial clearance flag before procedure day.
-   - **Priority 2: Phase 3 Day-of-Surgery Preparation (`EP-F`)**:
-     - **P18** Procedure room capture (intra-op events, specimens, images, STT).
-     - **P20** AIMS anesthesia flowsheet (offline-safe, vitals trends).
-2. **Phase 2 Complete Milestones (EP-E Pre-Op Readiness 100% Complete)**:
-   - ✅ **P17 Pre-Op Nursing, Digital Tablet Consent & Hard Gate 1**: Touchscreen informed consent with signature hash, bedside pre-op intake, NPO violation checks, Hard Gate 1 lockout (PR #89 merged).
-   - ✅ **P16 Pre-Procedure H&P Review & Anticoagulation Rule Engine**: CMS 42 CFR § 416.52 30-day H&P validity engine, mandatory day-of interval update note, ASGE 2022 bleeding risk & hold engine, Gate 1 physician override (PR #91 merged).
+1. **Phase 3 Day-of-Surgery & Procedure Room (Immediate Active Sprint)**:
+   - **Priority 1: Architectural Hardening & Pre-Handler Pipeline Factory** ([#99](https://github.com/imRahul05/ASC-EHR/issues/99), [#96](https://github.com/imRahul05/ASC-EHR/issues/96)):
+     - Composite `createClinicalMutationPipeline` factory unifying auth, idempotency, versioning, context, and validation.
+     - Mandatory `If-Match` with TanStack Query auto-recovery toast on concurrent edits.
+   - **Priority 2: P18 Intra-Op Procedure Room Capture & Clinical Hard Gate 2 (`EP-F`)**:
+     - Procedure room entry (`preop → in_room`) and milestone timestamp tracking (`in_room`, `anesthesia_start`, `scope_in`, `scope_out`, `anesthesia_stop`, `out_of_room`).
+     - **Clinical Hard Gate 2 (The Multi-Role Timeout)**: Tri-role attestation (Surgeon MD, Anesthesia CRNA/MD, Circulator RN) validating patient identity, procedure, consent, anesthesia clearance, and equipment readiness.
+     - Scope assignment and 168-hr sterile hang-time lock verification (zero override).
+   - **Priority 3: P20 AIMS Anesthesia Flowsheet (`EP-F`)**:
+     - Continuous 5-minute interval vitals flowsheet (SBP, DBP, HR, SpO2, EtCO2).
+     - Sedation & medication dosing log (Propofol, Fentanyl, Midazolam).
+     - ASA Physical Status & Mallampati airway classification.
+   - **Priority 4: P19 Endoscopy Procedure Note Pipeline & Discrete Findings (`EP-G`)**:
+     - Discrete polyp findings (Paris classification, size, anatomical landmark).
+     - Boston Bowel Preparation Scale (BBPS 0–9).
+     - Cecal withdrawal timer ($\ge 6$ minutes ASGE quality benchmark).
+     - Attending physician note attestation and digital signature.
+2. **Completed Phase Milestones (Phase 1 & Phase 2 100% Complete)**:
+   - ✅ **Phase 1 (EP-A, EP-B, EP-C)**: Foundation, Auth, Registration with Duplicates, Scheduling & Whiteboard TV (PR #75, #77, #78, #79, #84, #85, #87).
+   - ✅ **Phase 2 (EP-D, EP-E)**: Pre-Op Nursing & Informed Touchscreen Consent (PR #89), H&P Review & Anticoagulation Engine (PR #91), Real-Time Financial Clearance 270/271/278/GFE (PR #93), Centralized API Errors, Idempotency, Concurrency, Upstream Resilience & Swagger UI (PR #94).
 3. **Supporting Domain Packages Ready to Start**:
    - **P08** Terminology + FSH Profiles (`EP-A` / `EP-G`): GI clinical concepts, code systems, ValueSets (unblocked by P02, P03).
    - **P09** `@asc/ui` Clinical Kit (`EP-A`): Core clinical presentational components, app shell, patient banner.
