@@ -18,6 +18,8 @@ import {
 import { TabHint } from "../guide/tab-hint";
 import { CASE_TABS } from "./case-tabs";
 import { ConsentModal } from "./components/consent-modal";
+import { HpOverrideModal } from "./components/hp-override-modal";
+import { HpUpdateModal } from "./components/hp-update-modal";
 import { PreopIntakeDrawer } from "./components/preop-intake-drawer";
 import { GatePanel } from "./gate-panel";
 import { PhaseHistory } from "./phase-history";
@@ -29,6 +31,8 @@ interface CaseWorkspaceProps {
 
 const INTENT_LABEL = { screening: "Screening", surveillance: "Surveillance", diagnostic: "Diagnostic", therapeutic: "Therapeutic" } as const;
 
+type ActiveModal = "consent" | "preop" | "hpUpdate" | "hpOverride" | null;
+
 /**
  * Case workspace shell: patient banner, phase stepper, gate panel with the "advance phase" action,
  * and the workflow tabs (state in `?tab=`). Tabs own their content (features/case/tabs/*).
@@ -36,8 +40,7 @@ const INTENT_LABEL = { screening: "Screening", surveillance: "Surveillance", dia
 export function CaseWorkspace({ caseId }: CaseWorkspaceProps) {
   const query = useCase(caseId);
   const { tab, setTab } = useCaseTab(query.data?.case.phase);
-  const [consentOpen, setConsentOpen] = useState(false);
-  const [preopOpen, setPreopOpen] = useState(false);
+  const [activeModal, setActiveModal] = useState<ActiveModal>(null);
 
   if (query.isPending) return <LoadingSkeleton variant="detail" />;
   if (query.isError) {
@@ -104,8 +107,10 @@ export function CaseWorkspace({ caseId }: CaseWorkspaceProps) {
         <aside className="space-y-4">
           <GatePanel
             detail={detail}
-            onOpenConsent={() => setConsentOpen(true)}
-            onOpenPreop={() => setPreopOpen(true)}
+            onOpenConsent={() => setActiveModal("consent")}
+            onOpenPreop={() => setActiveModal("preop")}
+            onOpenHpUpdate={() => setActiveModal("hpUpdate")}
+            onOpenHpOverride={() => setActiveModal("hpOverride")}
           />
           <PhaseHistory procedureCase={procedureCase} />
         </aside>
@@ -113,8 +118,8 @@ export function CaseWorkspace({ caseId }: CaseWorkspaceProps) {
 
       <ConsentModal
         caseId={caseId}
-        open={consentOpen}
-        onOpenChange={setConsentOpen}
+        open={activeModal === "consent"}
+        onOpenChange={(open) => setActiveModal(open ? "consent" : null)}
         procedureName={procedureCase.procedureLabel}
         procedureCode={procedureCase.procedure}
         performingPhysicianName={procedureCase.team.surgeon.name}
@@ -124,10 +129,29 @@ export function CaseWorkspace({ caseId }: CaseWorkspaceProps) {
 
       <PreopIntakeDrawer
         caseId={caseId}
-        open={preopOpen}
-        onOpenChange={setPreopOpen}
+        open={activeModal === "preop"}
+        onOpenChange={(open) => setActiveModal(open ? "preop" : null)}
         patientName={procedureCase.patient.displayName}
         defaultEscort={detail.patient.escort}
+        onSuccess={() => void query.refetch()}
+      />
+
+      <HpUpdateModal
+        caseId={caseId}
+        facilityId="main"
+        open={activeModal === "hpUpdate"}
+        onOpenChange={(open) => setActiveModal(open ? "hpUpdate" : null)}
+        patientName={procedureCase.patient.displayName}
+        hpDate={detail.hp?.performedAt ?? detail.hp?.signedAt ?? undefined}
+        onSuccess={() => void query.refetch()}
+      />
+
+      <HpOverrideModal
+        caseId={caseId}
+        facilityId="main"
+        open={activeModal === "hpOverride"}
+        onOpenChange={(open) => setActiveModal(open ? "hpOverride" : null)}
+        patientName={procedureCase.patient.displayName}
         onSuccess={() => void query.refetch()}
       />
     </div>

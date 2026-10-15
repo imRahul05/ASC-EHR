@@ -13,9 +13,17 @@ interface StageStepperProps {
   readonly detail: CaseDetail;
   readonly onOpenConsent?: () => void;
   readonly onOpenPreop?: () => void;
+  readonly onOpenHpUpdate?: () => void;
+  readonly onOpenHpOverride?: () => void;
 }
 
-export function StageStepper({ detail, onOpenConsent, onOpenPreop }: StageStepperProps) {
+export function StageStepper({
+  detail,
+  onOpenConsent,
+  onOpenPreop,
+  onOpenHpUpdate,
+  onOpenHpOverride,
+}: StageStepperProps) {
   const [gateBlockers, setGateBlockers] = useState<readonly string[]>([]);
   const transition = useTransitionCase(detail.case.id);
 
@@ -136,6 +144,8 @@ export function StageStepper({ detail, onOpenConsent, onOpenPreop }: StageSteppe
           reasons={gateBlockers}
           onOpenConsent={onOpenConsent}
           onOpenPreop={onOpenPreop}
+          onOpenHpUpdate={onOpenHpUpdate}
+          onOpenHpOverride={onOpenHpOverride}
         />
       )}
     </SectionCard>

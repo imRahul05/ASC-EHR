@@ -44,4 +44,23 @@ describe("GateBlockerAlert", () => {
     expect(html).toContain("data-testid=\"gate-resolve-preop-button\"");
     expect(html).toContain("Open Pre-Op Bay");
   });
+
+  it("renders action buttons for day-of update note and physician override when hp handlers are provided", () => {
+    const onOpenHpUpdate = vi.fn();
+    const onOpenHpOverride = vi.fn();
+
+    const html = renderToStaticMarkup(
+      <GateBlockerAlert
+        reasons={["GATE1_HP"]}
+        onOpenHpUpdate={onOpenHpUpdate}
+        onOpenHpOverride={onOpenHpOverride}
+      />,
+    );
+
+    expect(html).toContain("data-testid=\"gate-resolve-hp-update-button\"");
+    expect(html).toContain("Sign Day-of Update Note");
+    expect(html).toContain("data-testid=\"gate-resolve-hp-override-button\"");
+    expect(html).toContain("Physician Override");
+  });
 });
+

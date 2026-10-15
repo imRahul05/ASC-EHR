@@ -7,10 +7,12 @@ interface GateBlockerAlertProps {
   readonly reasons: readonly string[];
   readonly onOpenConsent?: () => void;
   readonly onOpenPreop?: () => void;
+  readonly onOpenHpUpdate?: () => void;
+  readonly onOpenHpOverride?: () => void;
   readonly className?: string;
 }
 
-const REASON_MAPPING: Record<string, { title: string; description: string; action?: "consent" | "preop" }> = {
+const REASON_MAPPING: Record<string, { title: string; description: string; action?: "consent" | "preop" | "hp" }> = {
   GATE1_CONSENT: {
     title: "Informed Consent Required",
     description: "Informed consent must be digitally signed and procedure code verified before entering pre-op. Consent CANNOT be waived by any role.",
@@ -21,9 +23,9 @@ const REASON_MAPPING: Record<string, { title: string; description: string; actio
     description: "Two-identifier patient wristband and verbal verification must be completed at arrival. Identity CANNOT be waived.",
   },
   GATE1_HP: {
-    title: "History & Physical (H&P) Incomplete",
-    description: "Valid H&P within 30 days must be completed and attested by the attending physician before entering pre-op.",
-    action: "preop",
+    title: "History & Physical (H&P) Incomplete or Expired",
+    description: "Valid H&P within 30 days must be completed and attested with a day-of interval update note by an attending physician, or clinically overridden.",
+    action: "hp",
   },
 };
 
@@ -31,6 +33,8 @@ export function GateBlockerAlert({
   reasons,
   onOpenConsent,
   onOpenPreop,
+  onOpenHpUpdate,
+  onOpenHpOverride,
   className,
 }: GateBlockerAlertProps) {
   if (reasons.length === 0) return null;
@@ -38,8 +42,11 @@ export function GateBlockerAlert({
   const hasConsentBlocker = reasons.some(
     (r) => r === "GATE1_CONSENT" || /consent/i.test(r),
   );
+  const hasHpBlocker = reasons.some(
+    (r) => r === "GATE1_HP" || /hp/i.test(r),
+  );
   const hasPreopBlocker = reasons.some(
-    (r) => r === "GATE1_HP" || /prep|npo|vitals|iv/i.test(r),
+    (r) => /prep|npo|vitals|iv/i.test(r) || (r === "GATE1_HP" && !onOpenHpUpdate && !onOpenHpOverride),
   );
 
   return (
@@ -79,11 +86,11 @@ export function GateBlockerAlert({
         })}
       </div>
 
-      {/* Zero waiver notice */}
+      {/* Policy notice */}
       <div className="flex items-center gap-2 rounded bg-muted/60 p-2 text-[11px] text-muted-foreground">
         <AlertTriangle className="size-3.5 shrink-0 text-warning" aria-hidden />
         <span>
-          Policy AC-D-12-4 &amp; AC-F-02-3: Consent and Identity checks have a strict zero-waiver policy. No role (including Administrator) may waive these gates.
+          Policy AC-D-12-4 &amp; AC-F-02-3: Consent and Identity checks have a strict zero-waiver policy. H&amp;P check can only be waived by an Attending Physician or Medical Director with clinical justification.
         </span>
       </div>
 
@@ -98,6 +105,29 @@ export function GateBlockerAlert({
           >
             <FileSignature className="size-4" aria-hidden />
             Sign Informed Consent
+          </Button>
+        )}
+        {hasHpBlocker && onOpenHpUpdate && (
+          <Button
+            size="sm"
+            onClick={onOpenHpUpdate}
+            className="min-h-11 flex items-center gap-1.5"
+            data-testid="gate-resolve-hp-update-button"
+          >
+            <FileSignature className="size-4" aria-hidden />
+            Sign Day-of Update Note
+          </Button>
+        )}
+        {hasHpBlocker && onOpenHpOverride && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onOpenHpOverride}
+            className="min-h-11 flex items-center gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10"
+            data-testid="gate-resolve-hp-override-button"
+          >
+            <ShieldAlert className="size-4" aria-hidden />
+            Physician Override
           </Button>
         )}
         {hasPreopBlocker && onOpenPreop && (
