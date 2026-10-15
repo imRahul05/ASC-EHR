@@ -17,6 +17,7 @@ import { registerMedplum } from "./plugins/medplum.js";
 import { registerRateLimit, registerSecurityHeaders } from "./plugins/security.js";
 import { registerRoutes } from "./routes/index.js";
 import type { FacilityRegistrationLock, FacilitySchedulingLock } from "@asc/types";
+import { registerSwagger } from "./plugins/swagger.js";
 import { createInMemoryRegistrationLock } from "./routes/patients.js";
 import { createInMemorySchedulingLock } from "./routes/cases.js";
 
@@ -48,6 +49,11 @@ interface AppOptions {
   readonly facilityRegistrationLock?: FacilityRegistrationLock | undefined;
   /** Custom facility scheduling lock override (for tests). */
   readonly facilitySchedulingLock?: FacilitySchedulingLock | undefined;
+  /**
+   * Enable OpenAPI specification and Swagger UI interactive documentation at `/docs`.
+   * Typically enabled in non-production environments and disabled in production.
+   */
+  readonly enableSwagger?: boolean | undefined;
 }
 
 export async function buildApp({
@@ -63,6 +69,7 @@ export async function buildApp({
   tenantDb,
   facilityRegistrationLock,
   facilitySchedulingLock,
+  enableSwagger = false,
 }: AppOptions) {
   assertIdentityAllowed(identity, production);
   const app = Fastify({
@@ -145,6 +152,10 @@ export async function buildApp({
     });
   } else {
     app.decorate("facilitySchedulingLock", createInMemorySchedulingLock());
+  }
+
+  if (enableSwagger) {
+    await registerSwagger(app);
   }
 
   registerRoutes(app);

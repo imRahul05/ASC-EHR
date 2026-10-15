@@ -395,5 +395,16 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **How to check:** `pnpm turbo run lint check-types test`.
 - **Guarded by:** `packages/types/src/errors.test.ts`, `apps/api/src/plugins/error-handler.test.ts`, `apps/api/src/hooks/case-context.test.ts`, `apps/api/src/routes/*.test.ts`, `apps/web/src/mocks/handlers/cases.test.ts`.
 
-
-
+### LM-035 — Sequence idempotency after authorization, reconcile idempotency replay with fail-closed facility guards, and support default-deny public documentation routes
+- **Seen:** 3 · 2026-10-15 · Centralized Error Handling, Concurrency & API Layering Hardening (`apps/api`, `packages/logger`)
+- **What went wrong:**
+  1. Placing `requireIdempotency` hook before `requireCapabilityHook` allowed unauthenticated callers to potentially replay cached operations or trigger cache lookups before capability verification. Furthermore, when `requireIdempotency` replayed a cached response for a resource-scoped route (`auth.facility.from === "resource"`), the request bypassed the route handler where `request.facilityChecked = true` is normally set, causing the Fastify `onSend` fail-closed guard to overwrite the 200 replay with HTTP 500 (`handler answered a resource route without requireCapabilityAt`).
+  2. Registering OpenAPI / Swagger documentation plugins (`@fastify/swagger`, `@fastify/swagger-ui`) under a strict default-deny regime (`default-deny.ts`) caused the app to throw at startup because Swagger UI registers internal routes (`/docs`, `/docs/json`, `/docs/static/*`) without an explicit `config.auth` declaration.
+  3. Sensitive patient identifiers (SSN, member ID, patient name, digital signature canvas data) were at risk of serialization in standard HTTP access logs during clinical intake or consent submission without centralized redaction.
+- **Rule:**
+  1. In Fastify route definitions, `requireCapabilityHook` must strictly precede `requireIdempotency`.
+  2. Idempotency replay mechanisms must set `request.facilityChecked = true` when short-circuiting handler execution so downstream `onSend` security assertions are satisfied.
+  3. Default-deny route interceptors must recognize documentation prefixes (e.g. `route.url.startsWith("/docs")`) and mark them as `auth: { mode: "public" }`. Swagger UI should be conditionally mounted (enabled in non-production environments and disabled in production by default).
+  4. Redact sensitive clinical and demographic attributes at logger initialization (`loggerOptions.redact` in `@asc/logger` covering `*.ssn`, `*.memberId`, `req.body.patient.name`, `req.body.signatureData`).
+- **How to check:** `pnpm turbo run check-types lint test build`.
+- **Guarded by:** `apps/api/src/hooks/idempotency.test.ts`, `apps/api/src/plugins/swagger.test.ts`, `apps/api/src/auth/default-deny.test.ts`, `packages/logger/src/index.test.ts`.
