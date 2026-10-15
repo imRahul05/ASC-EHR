@@ -4,7 +4,7 @@ import type { FastifyInstance } from "fastify";
 
 import { capabilityAtResource } from "../auth/route-auth.js";
 import { preopController } from "../controllers/preop.controller.js";
-import { requireCapabilityHook, requireCaseContext, validateBody } from "../hooks/case-context.js";
+import { createClinicalMutationPipeline } from "../hooks/pipeline.js";
 
 /**
  * Pre-Op Nursing Routes (Phase P17 / EP-E, EP-F)
@@ -20,11 +20,11 @@ export function preopRoutes(app: FastifyInstance): Promise<void> {
     API_ROUTE_PATTERNS.casePreopAssessment,
     {
       config: capabilityAtResource("procedure.document"),
-      preHandler: [
-        requireCapabilityHook("procedure.document"),
-        requireCaseContext,
-        validateBody(preopAssessmentSchema, "Invalid pre-op assessment payload."),
-      ],
+      preHandler: createClinicalMutationPipeline({
+        capability: "procedure.document",
+        schema: preopAssessmentSchema,
+        errorMessage: "Invalid pre-op assessment payload.",
+      }),
     },
     (request, reply) => preopController.recordPreopAssessment(request, reply)
   );

@@ -8,7 +8,10 @@ import type { FastifyInstance } from "fastify";
 
 import { capabilityAtResource } from "../auth/route-auth.js";
 import { hpController } from "../controllers/hp.controller.js";
-import { requireCapabilityHook, requireCaseContext, validateBody } from "../hooks/case-context.js";
+import {
+  createClinicalMutationPipeline,
+  createClinicalQueryPipeline,
+} from "../hooks/pipeline.js";
 
 /**
  * History & Physical (H&P) & Anticoagulation Routes (Phase P16 / EP-E, EP-F)
@@ -25,11 +28,10 @@ export function hpRoutes(app: FastifyInstance): Promise<void> {
     API_ROUTE_PATTERNS.caseHpUpdate,
     {
       config: capabilityAtResource("procedure.document"),
-      preHandler: [
-        requireCapabilityHook("procedure.document"),
-        requireCaseContext,
-        validateBody(hpUpdateNoteSchema),
-      ],
+      preHandler: createClinicalMutationPipeline({
+        capability: "procedure.document",
+        schema: hpUpdateNoteSchema,
+      }),
     },
     (request, reply) => hpController.recordHpUpdate(request, reply)
   );
@@ -39,11 +41,10 @@ export function hpRoutes(app: FastifyInstance): Promise<void> {
     API_ROUTE_PATTERNS.caseHpOverride,
     {
       config: capabilityAtResource("case.advance"),
-      preHandler: [
-        requireCapabilityHook("case.advance"),
-        requireCaseContext,
-        validateBody(hpOverrideSchema),
-      ],
+      preHandler: createClinicalMutationPipeline({
+        capability: "case.advance",
+        schema: hpOverrideSchema,
+      }),
     },
     (request, reply) => hpController.recordHpOverride(request, reply)
   );
@@ -53,11 +54,10 @@ export function hpRoutes(app: FastifyInstance): Promise<void> {
     API_ROUTE_PATTERNS.caseAnticoagulation,
     {
       config: capabilityAtResource("procedure.document"),
-      preHandler: [
-        requireCapabilityHook("procedure.document"),
-        requireCaseContext,
-        validateBody(anticoagulationAssessmentSchema),
-      ],
+      preHandler: createClinicalMutationPipeline({
+        capability: "procedure.document",
+        schema: anticoagulationAssessmentSchema,
+      }),
     },
     (request, reply) => hpController.recordAnticoagulation(request, reply)
   );
@@ -67,7 +67,7 @@ export function hpRoutes(app: FastifyInstance): Promise<void> {
     API_ROUTE_PATTERNS.caseHp,
     {
       config: capabilityAtResource("case.read"),
-      preHandler: [requireCapabilityHook("case.read"), requireCaseContext],
+      preHandler: createClinicalQueryPipeline({ capability: "case.read" }),
     },
     (request, reply) => hpController.getHp(request, reply)
   );

@@ -5,9 +5,11 @@ import type { FastifyInstance } from "fastify";
 
 import { capabilityAtResource } from "../auth/route-auth.js";
 import { casesController } from "../controllers/cases.controller.js";
-import { requireCapabilityHook, requireCaseContext, validateBody } from "../hooks/case-context.js";
-
-import { requireIdempotency } from "../hooks/idempotency.js";
+import {
+  createClinicalMutationPipeline,
+  createClinicalQueryPipeline,
+} from "../hooks/pipeline.js";
+import { validateBody } from "../hooks/validation.js";
 
 // export
 export { classifyMedplumReadError } from "../services/medplum-error-classifier.js";
@@ -43,7 +45,7 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
     API_ROUTE_PATTERNS.case,
     {
       config: capabilityAtResource("case.read"),
-      preHandler: [requireCapabilityHook("case.read"), requireCaseContext],
+      preHandler: createClinicalQueryPipeline({ capability: "case.read" }),
     },
     (request, reply) => casesController.getCase(request, reply)
   );
@@ -53,12 +55,11 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
     API_ROUTE_PATTERNS.caseTransition,
     {
       config: capabilityAtResource("case.advance"),
-      preHandler: [
-        requireCapabilityHook("case.advance"),
-        requireIdempotency,
-        validateBody(transitionCaseSchema, "Invalid case transition payload"),
-        requireCaseContext,
-      ],
+      preHandler: createClinicalMutationPipeline({
+        capability: "case.advance",
+        schema: transitionCaseSchema,
+        errorMessage: "Invalid case transition payload",
+      }),
     },
     (request, reply) => casesController.transitionCase(request, reply)
   );

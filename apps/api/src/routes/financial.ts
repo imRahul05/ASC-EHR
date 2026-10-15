@@ -3,9 +3,10 @@ import type { FastifyInstance } from "fastify";
 
 import { capabilityAtResource } from "../auth/route-auth.js";
 import { financialController } from "../controllers/financial.controller.js";
-import { requireCapabilityHook, requireCaseContext } from "../hooks/case-context.js";
-
-import { requireIdempotency } from "../hooks/idempotency.js";
+import {
+  createClinicalMutationPipeline,
+  createClinicalQueryPipeline,
+} from "../hooks/pipeline.js";
 
 /**
  * Financial Clearance & Eligibility Routes (Phase P22a / EP-D)
@@ -22,7 +23,9 @@ export function financialRoutes(app: FastifyInstance): Promise<void> {
     API_ROUTE_PATTERNS.caseEligibilityCheck,
     {
       config: capabilityAtResource("patient.eligibility.check"),
-      preHandler: [requireCapabilityHook("patient.eligibility.check"), requireCaseContext],
+      preHandler: createClinicalMutationPipeline({
+        capability: "patient.eligibility.check",
+      }),
     },
     (request, reply) => financialController.checkEligibility(request, reply)
   );
@@ -32,7 +35,7 @@ export function financialRoutes(app: FastifyInstance): Promise<void> {
     API_ROUTE_PATTERNS.caseFinancialSummary,
     {
       config: capabilityAtResource("case.read"),
-      preHandler: [requireCapabilityHook("case.read"), requireCaseContext],
+      preHandler: createClinicalQueryPipeline({ capability: "case.read" }),
     },
     (request, reply) => financialController.getFinancialSummary(request, reply)
   );
@@ -42,18 +45,21 @@ export function financialRoutes(app: FastifyInstance): Promise<void> {
     API_ROUTE_PATTERNS.caseCopayCollected,
     {
       config: capabilityAtResource("patient.register"),
-      preHandler: [requireIdempotency, requireCapabilityHook("patient.register"), requireCaseContext],
+      preHandler: createClinicalMutationPipeline({
+        capability: "patient.register",
+      }),
     },
     (request, reply) => financialController.recordCopay(request, reply)
   );
-
 
   // POST /cases/:caseId/prior-auth — Record and revalidate X12 278 prior authorization
   app.post(
     API_ROUTE_PATTERNS.casePriorAuth,
     {
       config: capabilityAtResource("patient.eligibility.check"),
-      preHandler: [requireCapabilityHook("patient.eligibility.check"), requireCaseContext],
+      preHandler: createClinicalMutationPipeline({
+        capability: "patient.eligibility.check",
+      }),
     },
     (request, reply) => financialController.revalidatePriorAuth(request, reply)
   );

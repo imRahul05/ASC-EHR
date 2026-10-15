@@ -101,7 +101,7 @@ export function createClinicalMutationPipeline<
   TInput = TOutput,
 >(
   options: ClinicalMutationPipelineOptions<TOutput, TDef, TInput>,
-): readonly PipelineHook[] {
+): PipelineHook[] {
   const hooks: PipelineHook[] = [];
 
   // Step 1: Verify capability before touching database or cache (LM-034, LM-035)
@@ -142,7 +142,7 @@ export function createClinicalQueryPipeline<
   TInput = TOutput,
 >(
   options: ClinicalQueryPipelineOptions<TOutput, TDef, TInput>,
-): readonly PipelineHook[] {
+): PipelineHook[] {
   const hooks: PipelineHook[] = [];
 
   // Step 1: Verify capability before accessing case data
