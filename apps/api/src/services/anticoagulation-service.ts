@@ -2,7 +2,8 @@ import { forFacility } from "@asc/api-client/server";
 import {
   evaluateAnticoagulationHold,
   type AnticoagulationEvaluationResult,
-} from "@asc/clinical-rules";
+  type AnticoagulantHoldRecommendation,
+} from "@asc/clinical-rules/med-hold";
 import {
   buildAnticoagulationObservation,
   caseReadinessExtension,
@@ -125,7 +126,7 @@ export async function submitAnticoagulationAssessment(params: {
     procedureBleedingRisk: input.procedureBleedingRisk,
     hasAnticoagulants: input.hasAnticoagulants,
     status: evaluation.status,
-    recommendations: evaluation.recommendations.map((rec) => {
+    recommendations: evaluation.recommendations.map((rec: AnticoagulantHoldRecommendation) => {
       const medItem = input.medications.find((m) => m.medicationId === rec.medicationId);
       return {
         medicationId: rec.medicationId,

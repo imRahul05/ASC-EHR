@@ -1,5 +1,5 @@
 import { applicableGrants, grantedFacilityIds } from "@asc/authz";
-import { PERMITTED_HP_OVERRIDE_ROLES } from "@asc/clinical-rules";
+import { PERMITTED_HP_OVERRIDE_ROLES } from "@asc/clinical-rules/gates";
 import { API_ROUTE_PATTERNS } from "@asc/config";
 import type { FacilitySchedulingLock } from "@asc/types";
 import {

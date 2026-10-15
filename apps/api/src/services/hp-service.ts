@@ -1,5 +1,6 @@
 import { forFacility } from "@asc/api-client/server";
-import { PERMITTED_HP_OVERRIDE_ROLES, evaluateHpValidity } from "@asc/clinical-rules";
+import { PERMITTED_HP_OVERRIDE_ROLES } from "@asc/clinical-rules/gates";
+import { evaluateHpValidity } from "@asc/clinical-rules/hp";
 import {
   buildHpUpdateDocumentReference,
   caseReadinessExtension,
