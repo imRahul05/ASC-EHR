@@ -7,7 +7,7 @@
 [![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL%20%2B%20Drizzle%20RLS-336791.svg)](https://orm.drizzle.team/)
 [![Redis & BullMQ](https://img.shields.io/badge/Queue-Redis%20%2B%20BullMQ-d82c20.svg)](https://bullmq.io/)
 [![TypeScript 7.0](<https://img.shields.io/badge/TypeScript-7.0%20Strict%20(No%20Any)-3178c6.svg>)](https://www.typescriptlang.org/)
-[![Status: Phase 1 Complete](<https://img.shields.io/badge/Delivery-Phase%201%20Complete%20(PR%20%2384%20%26%20%2385)-success.svg>)](PROGRESS.md)
+[![Status: Phase 1 Complete](<https://img.shields.io/badge/Delivery-Phase%201%20Complete%20(PR%20%2384%2C%20%2385%2C%20%2387)-success.svg>)](PROGRESS.md)
 
 ASC EHR is a clinical-grade, high-throughput **Ambulatory Surgery Center (ASC) Operating System and Electronic Health Record (EHR)** purpose-built specifically for **single-specialty Gastrointestinal (GI) endoscopy facilities**.
 
@@ -38,7 +38,7 @@ flowchart LR
 ```text
 Total Delivery Progress: [██████░░░░░░░░░░░░░░] 28% Complete
 
-Phase 1  [██████████] 100%  COMPLETE  │ Foundation, Intake & Scheduling (PR #84 & #85 merged)
+Phase 1  [██████████] 100%  COMPLETE  │ Foundation, Intake & Scheduling (PR #84, #85, #87 merged)
 Phase 2  [███░░░░░░░]  28%  ACTIVE    │ Financial Clearance & Pre-Op Readiness (P17, P16, P22a)
 Phase 3  [░░░░░░░░░░]   0%  PLANNED   │ Day of Surgery, Documentation, Pathology & Scopes
 Phase 4  [░░░░░░░░░░]   0%  PLANNED   │ Coding Engine, Multiple Endoscopy & Claims Cycle
