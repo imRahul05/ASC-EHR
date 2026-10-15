@@ -80,13 +80,13 @@ function ScheduleBoardView() {
   const pathname = usePathname();
   const params = useSearchParams();
   const now = useNow();
-  const { facilityId } = useActiveFacility();
+  const { facilityId, hasFacility } = useActiveFacility();
   const [date, setDate] = useState(todayIsoDate);
   const [sheet, setSheet] = useState<SheetState>(() => ({
     open: params.get("book") === "1",
     defaults: { patientId: params.get("patient") ?? undefined, referralId: params.get("referral") ?? undefined },
   }));
-  const query = useSchedule(date, facilityId ?? undefined);
+  const query = useSchedule(date, facilityId, { enabled: hasFacility });
 
   const openSheet = (defaults: BookCaseDefaults) => setSheet({ open: true, defaults: { date, ...defaults } });
   const onSheetOpenChange = (open: boolean) => {

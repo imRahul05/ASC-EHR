@@ -1,4 +1,4 @@
-import { isCaseStage, medHoldCheck, nextPhase, PHASE_LABEL, stageFromPhase, timeOutGate } from "@asc/clinical-rules";
+import { isCaseStage, medHoldCheck, nextPhase, PHASE_LABEL, timeOutGate } from "@asc/clinical-rules";
 import type {
   AuditActor,
   ClinicalTimelineEvent,
@@ -135,16 +135,66 @@ const STAGE_TO_PHASE: Readonly<Record<CaseStage, CasePhase>> = {
   no_show: "NO_SHOW",
 };
 
+const PHASE_TO_STAGE: Readonly<Record<CasePhase, CaseStage>> = {
+  SCHEDULED: "scheduled",
+  CONFIRMED: "confirmed",
+  ARRIVED: "arrived",
+  PRE_OP: "preop",
+  READY_FOR_PROCEDURE: "in_room",
+  IN_PROCEDURE: "procedure_start",
+  RECOVERY: "pacu",
+  READY_FOR_DISCHARGE: "pacu",
+  DISCHARGED: "discharged",
+  CHART_COMPLETE: "discharged",
+  CODED: "discharged",
+  EXPORTED: "discharged",
+  CLOSED: "discharged",
+  CANCELLED: "cancelled",
+  NO_SHOW: "no_show",
+};
+
 export function phaseFromStage(stage: CaseStage): CasePhase {
   return STAGE_TO_PHASE[stage];
+}
+
+export function resolveTarget(target: string): {
+  readonly canonicalTarget: CasePhase | CaseStage;
+  readonly stage: CaseStage;
+  readonly phase: CasePhase;
+} {
+  const trimmed = target.trim();
+  const normalized = trimmed.toLowerCase().replaceAll("-", "_");
+  if (isCaseStage(normalized as CasePhase | CaseStage)) {
+    const stage = normalized as CaseStage;
+    return {
+      canonicalTarget: stage,
+      stage,
+      phase: STAGE_TO_PHASE[stage],
+    };
+  }
+
+  const upper = trimmed.toUpperCase().replaceAll("-", "_");
+  if (Object.hasOwn(PHASE_TO_STAGE, upper)) {
+    const phase = upper as CasePhase;
+    return {
+      canonicalTarget: phase,
+      stage: PHASE_TO_STAGE[phase],
+      phase,
+    };
+  }
+
+  return {
+    canonicalTarget: trimmed as CasePhase | CaseStage,
+    stage: "scheduled",
+    phase: "SCHEDULED",
+  };
 }
 
 export function setPhase(caseId: string, target: CasePhase | CaseStage, actor: AuditActor, reason?: string): void {
   const current = state.cases.get(caseId);
   if (!current) return;
 
-  const targetStage: CaseStage = isCaseStage(target) ? target : stageFromPhase(target);
-  const targetPhase: CasePhase = isCaseStage(target) ? phaseFromStage(target) : target;
+  const { canonicalTarget, stage: targetStage, phase: targetPhase } = resolveTarget(String(target));
   const now = new Date().toISOString();
 
   state.cases.set(caseId, {
@@ -156,7 +206,7 @@ export function setPhase(caseId: string, target: CasePhase | CaseStage, actor: A
     ...(reason && (targetPhase === "CANCELLED" || targetPhase === "NO_SHOW") ? { cancelReason: reason } : {}),
   });
   const fromLabel = PHASE_LABEL[current.phase] ?? current.phase;
-  const toLabel = isCaseStage(target) ? target : (PHASE_LABEL[target] ?? target);
+  const toLabel = isCaseStage(canonicalTarget) ? canonicalTarget : (PHASE_LABEL[canonicalTarget] ?? canonicalTarget);
   audit(actor, "case.transition", { type: "ProcedureCase", id: caseId }, `${current.caseNumber} ${fromLabel} → ${toLabel}`);
 }
 

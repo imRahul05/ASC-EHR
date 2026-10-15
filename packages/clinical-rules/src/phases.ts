@@ -279,7 +279,7 @@ export const STAGE_FROM_PHASE: Readonly<Record<CasePhase, CaseStage>> = {
   CONFIRMED: "confirmed",
   ARRIVED: "arrived",
   PRE_OP: "preop",
-  READY_FOR_PROCEDURE: "preop",
+  READY_FOR_PROCEDURE: "in_room",
   IN_PROCEDURE: "procedure_start",
   RECOVERY: "pacu",
   READY_FOR_DISCHARGE: "pacu",

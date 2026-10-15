@@ -24,11 +24,14 @@ export const queryKeys = {
   },
   schedule: {
     all: ["schedule"] as const,
-    day: (date?: IsoDate, facilityId?: string) => ["schedule", date ?? "today", facilityId ?? ""] as const,
+    day: (date?: IsoDate, facilityId?: string) => ["schedule", date ?? "today", facilityId?.trim() ?? ""] as const,
   },
   cases: {
     all: ["cases"] as const,
-    detail: (caseId: string) => ["cases", caseId, "detail"] as const,
+    detail: (caseId: string, facilityId?: string) =>
+      facilityId && facilityId.trim() !== ""
+        ? (["cases", caseId, "detail", facilityId.trim()] as const)
+        : (["cases", caseId, "detail"] as const),
     note: (caseId: string) => ["cases", caseId, "note"] as const,
     coding: (caseId: string) => ["cases", caseId, "coding"] as const,
     pathology: (caseId: string) => ["cases", caseId, "pathology"] as const,

@@ -45,7 +45,7 @@ describe("http", () => {
 
   it("maps an error body to ApiError", async () => {
     stubFetch(Response.json({ message: "Invalid credentials", code: "AUTH_INVALID" }, { status: 401 }));
-    const error = await http.post("/auth/login", {}).catch((e: unknown) => e);
+    const error = await http.post("/auth/login", {}).catch((e: Error) => e);
     expect(error).toBeInstanceOf(ApiError);
     expect(error).toMatchObject({ status: 401, message: "Invalid credentials", code: "AUTH_INVALID" });
   });

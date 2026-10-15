@@ -1,5 +1,5 @@
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
-import type { AuditQuery, IsoDate, PatientSearchQuery, ScheduleDay, WorklistQuery } from "@asc/types";
+import type { AuditQuery, IsoDate, PatientSearchQuery, ScheduleDay, TransitionCasePayload, WorklistQuery } from "@asc/types";
 import {
   addAnesthesiaEntry,
   addImage,
@@ -149,14 +149,20 @@ export function resolveSchedulePlaceholderData(
   return (previousFacilityId ?? "") === (targetFacilityId ?? "") ? previousData : undefined;
 }
 
-export function useSchedule(date?: IsoDate, facilityId?: string) {
+export function useSchedule(
+  date?: IsoDate,
+  facilityId?: string | null,
+  options: { readonly enabled?: boolean } = {},
+) {
+  const resolvedFacility = facilityId?.trim() || undefined;
   return useQuery({
-    queryKey: queryKeys.schedule.day(date, facilityId),
-    queryFn: () => getSchedule(date, facilityId),
+    queryKey: queryKeys.schedule.day(date, resolvedFacility),
+    queryFn: () => getSchedule(date, resolvedFacility),
+    enabled: options.enabled ?? true,
     placeholderData: (previousData, previousQuery) => {
       const prevKey = previousQuery?.queryKey;
       const prevFacility = Array.isArray(prevKey) && typeof prevKey[2] === "string" ? prevKey[2] : undefined;
-      return resolveSchedulePlaceholderData(previousData, prevFacility, facilityId);
+      return resolveSchedulePlaceholderData(previousData, prevFacility, resolvedFacility);
     },
   });
 }
@@ -164,8 +170,12 @@ export function useSchedule(date?: IsoDate, facilityId?: string) {
 export const useBookCase = () => useClinicalMutation(bookCase);
 export const useScheduleConflictCheck = () => useClinicalMutation(checkScheduleConflicts);
 
-export function useCase(caseId: string, facilityId?: string) {
-  return useQuery({ queryKey: queryKeys.cases.detail(caseId), queryFn: () => getCase(caseId, facilityId) });
+export function useCase(caseId: string, facilityId?: string | null) {
+  const resolvedFacility = facilityId?.trim() || undefined;
+  return useQuery({
+    queryKey: queryKeys.cases.detail(caseId, resolvedFacility),
+    queryFn: () => getCase(caseId, resolvedFacility),
+  });
 }
 
 /**
@@ -174,18 +184,26 @@ export function useCase(caseId: string, facilityId?: string) {
  */
 export function useCaseDetails(
   caseIds: readonly string[],
-  options: { readonly enabled?: boolean; readonly facilityId?: string } = {},
+  options: { readonly enabled?: boolean; readonly facilityId?: string | null } = {},
 ) {
+  const resolvedFacility = options.facilityId?.trim() || undefined;
   return useQueries({
     queries: caseIds.map((caseId) => ({
-      queryKey: queryKeys.cases.detail(caseId),
-      queryFn: () => getCase(caseId, options.facilityId),
+      queryKey: queryKeys.cases.detail(caseId, resolvedFacility),
+      queryFn: () => getCase(caseId, resolvedFacility),
       enabled: options.enabled ?? true,
     })),
   });
 }
 
-export const useTransitionCase = (caseId: string) => useCaseCommand(caseId, transitionCase);
+export const useTransitionCase = (caseId: string, facilityId?: string | null) => {
+  const resolvedFacility = facilityId?.trim() || undefined;
+  return useCaseCommand(
+    caseId,
+    (id, payload: TransitionCasePayload) => transitionCase(id, payload, resolvedFacility),
+    resolvedFacility,
+  );
+};
 export const useCheckIn = (caseId: string) => useCaseCommand(caseId, checkInCase);
 export const useSaveHp = (caseId: string) => useCaseCommand(caseId, saveHp);
 export const useSavePreOp = (caseId: string) => useCaseCommand(caseId, savePreOp);
