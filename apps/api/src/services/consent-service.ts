@@ -152,7 +152,7 @@ export async function signConsent(params: {
   await forFacility(medplum, facilityId).update(updatedEncounter);
 
   logger.info(
-    { caseId, consentId: createdConsent.id, signerName: input.signerName, consentStatus },
+    { caseId, consentId: createdConsent.id, signerRelationship: input.signerRelationship, consentStatus },
     "informed consent signed and case readiness updated",
   );
 

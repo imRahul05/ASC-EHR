@@ -213,7 +213,7 @@ export function PreopIntakeDrawer({
       toast.success("Pre-op intake assessment recorded");
       onOpenChange(false);
       onSuccess?.();
-    } catch (err: unknown) {
+    } catch (err) {
       const message = err instanceof ApiError ? err.message : "Failed to record pre-op intake";
       setLocalError(message);
       toast.error(message);

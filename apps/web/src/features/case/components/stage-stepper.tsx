@@ -36,7 +36,7 @@ export function StageStepper({ detail, onOpenConsent, onOpenPreop }: StageSteppe
     try {
       const updated = await transition.mutateAsync({ to: targetPhase });
       toast.success(`${updated.case.caseNumber} advanced to ${targetStage}`);
-    } catch (err: unknown) {
+    } catch (err) {
       if (err instanceof ApiError && (err.status === 409 || err.code === "GATE_FAILED")) {
         const extractedReasons: string[] = [];
         if (err.reasons) {

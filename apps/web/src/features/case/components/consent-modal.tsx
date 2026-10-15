@@ -124,7 +124,7 @@ export function ConsentModal({
       toast.success("Informed consent recorded and verified");
       handleClose(false);
       onSuccess?.();
-    } catch (err: unknown) {
+    } catch (err) {
       const message = err instanceof ApiError ? err.message : "Failed to record consent";
       setForm((prev) => ({ ...prev, localError: message }));
       toast.error(message);
