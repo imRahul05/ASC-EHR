@@ -8,6 +8,7 @@ import { HpExamCard } from "../pre-procedure/hp-exam-card";
 import { MedicationHoldsCard } from "../pre-procedure/medication-holds-card";
 import { PrevisitBriefCard } from "../pre-procedure/previsit-brief-card";
 import { useHpForm } from "../pre-procedure/use-hp-form";
+import { FinancialClearanceCard } from "../financial/financial-clearance-card";
 
 interface PreProcedureTabProps {
   readonly caseId: string;
@@ -39,6 +40,7 @@ function PreProcedureContent({ detail }: { readonly detail: CaseDetail }) {
 
   return (
     <div className="space-y-4" data-testid="case-tab-pre-procedure" data-case-id={detail.case.id}>
+      <FinancialClearanceCard caseId={detail.case.id} />
       <PrevisitBriefCard
         brief={brief}
         patient={detail.patient}

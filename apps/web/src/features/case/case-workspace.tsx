@@ -111,6 +111,7 @@ export function CaseWorkspace({ caseId }: CaseWorkspaceProps) {
             onOpenPreop={() => setActiveModal("preop")}
             onOpenHpUpdate={() => setActiveModal("hpUpdate")}
             onOpenHpOverride={() => setActiveModal("hpOverride")}
+            onOpenFinancial={() => setTab("pre-procedure")}
           />
           <PhaseHistory procedureCase={procedureCase} />
         </aside>
