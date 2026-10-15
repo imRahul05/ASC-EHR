@@ -1,17 +1,11 @@
 import { API_ROUTE_PATTERNS } from "@asc/config";
 import type { FacilitySchedulingLock } from "@asc/types";
-import {
-  bookCaseSchema,
-  formatZodError,
-  transitionCaseSchema,
-  type BookCaseInput,
-} from "@asc/validation";
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { transitionCaseSchema } from "@asc/validation";
+import type { FastifyInstance } from "fastify";
 
 import { capabilityAtResource } from "../auth/route-auth.js";
-import { bookCase, createInMemorySchedulingLock } from "../services/case-booking-service.js";
-import { getCaseDetail, transitionCase } from "../services/case-read-service.js";
-import { FHIR_ID, resolveFacilityId } from "./route-helpers.js";
+import { casesController } from "../controllers/cases.controller.js";
+import { requireCapabilityHook, requireCaseContext, validateBody } from "../hooks/case-context.js";
 
 export { classifyMedplumReadError } from "../services/medplum-error-classifier.js";
 export { createInMemorySchedulingLock } from "../services/case-booking-service.js";
@@ -22,16 +16,6 @@ declare module "fastify" {
   }
 }
 
-interface CaseRouteParams {
-  readonly caseId: string;
-}
-
-interface CaseQuery {
-  readonly facilityId?: string;
-}
-
-const defaultFallbackLock = createInMemorySchedulingLock();
-
 /**
  * Core Case Management Routes (Phase P15a/P15b/P15c / EP-C)
  *
@@ -41,169 +25,35 @@ const defaultFallbackLock = createInMemorySchedulingLock();
  * - Hard-gated clinical lifecycle transitions (Gate 1 and Gate 2 validation)
  */
 export function casesRoutes(app: FastifyInstance): Promise<void> {
-  const schedulingLock = app.facilitySchedulingLock ?? defaultFallbackLock;
-
   // POST /cases — Book a surgical case into an operating room (Phase P15a/P15b)
   app.post(
     API_ROUTE_PATTERNS.cases,
     { config: capabilityAtResource("schedule.manage") },
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const parsed = bookCaseSchema.safeParse(request.body);
-      if (!parsed.success) {
-        return reply.code(400).send({
-          code: "invalid_payload",
-          message: "Invalid case booking payload",
-          details: formatZodError(parsed.error),
-        });
-      }
-
-      const body: BookCaseInput = parsed.data;
-      const facilityId = body.facilityId.trim();
-
-      if (!(await app.guards.requireCapabilityAt(request, reply, "schedule.manage", facilityId))) {
-        return reply;
-      }
-
-      const tenantId = request.tenant?.tenantId;
-      if (!tenantId) {
-        return reply.code(403).send({
-          code: "forbidden",
-          message: "Tenant context is required",
-        });
-      }
-
-      const rawHeaderKey = request.headers["x-idempotency-key"] ?? request.headers["idempotency-key"];
-      const headerIdempotencyKey =
-        typeof rawHeaderKey === "string" && rawHeaderKey.trim().length > 0
-          ? rawHeaderKey.trim()
-          : undefined;
-
-      const result = await bookCase({
-        medplum: request.medplum,
-        schedulingLock,
-        tenantId,
-        facilityId,
-        body,
-        headerIdempotencyKey,
-        logger: request.log,
-      });
-
-      return reply.code(result.status).send(
-        "data" in result
-          ? result.data
-          : {
-              code: result.code,
-              message: result.message,
-              ...("details" in result ? { details: result.details } : {}),
-              ...("reasons" in result ? { reasons: result.reasons } : {}),
-            },
-      );
-    },
+    (request, reply) => casesController.bookCase(request, reply)
   );
 
   // GET /cases/:caseId — Fully hydrated Case Workspace detail bundle
-  app.get<{ Params: CaseRouteParams; Querystring: CaseQuery }>(
+  app.get(
     API_ROUTE_PATTERNS.case,
-    { config: capabilityAtResource("case.read") },
-    async (request: FastifyRequest<{ Params: CaseRouteParams; Querystring: CaseQuery }>, reply: FastifyReply) => {
-      const { caseId } = request.params;
-      const facilityId = resolveFacilityId(request);
-
-      if (!facilityId) {
-        return reply.code(400).send({
-          code: "facility_required",
-          message: "Facility context is required to view a case",
-        });
-      }
-
-      if (!FHIR_ID.test(caseId)) {
-        return reply.code(400).send({
-          code: "invalid_case_id",
-          message: "Invalid case ID format",
-        });
-      }
-
-      if (!(await app.guards.requireCapabilityAt(request, reply, "case.read", facilityId))) {
-        return reply;
-      }
-
-      const detail = await getCaseDetail({
-        medplum: request.medplum,
-        facilityId,
-        caseId,
-      });
-
-      if (!detail) {
-        return reply.code(404).send({
-          code: "not_found",
-          message: `Case ${caseId} not found`,
-        });
-      }
-
-      return reply.code(200).send(detail);
+    {
+      config: capabilityAtResource("case.read"),
+      preHandler: [requireCapabilityHook("case.read"), requireCaseContext],
     },
+    (request, reply) => casesController.getCase(request, reply)
   );
 
   // POST /cases/:caseId/transition — Validates and executes physical stage transitions
-  app.post<{ Params: CaseRouteParams; Querystring: CaseQuery }>(
+  app.post(
     API_ROUTE_PATTERNS.caseTransition,
-    { config: capabilityAtResource("case.advance") },
-    async (request: FastifyRequest<{ Params: CaseRouteParams; Querystring: CaseQuery }>, reply: FastifyReply) => {
-      const { caseId } = request.params;
-      const facilityId = resolveFacilityId(request);
-
-      if (!facilityId) {
-        return reply.code(400).send({
-          code: "facility_required",
-          message: "Facility context is required to transition a case",
-        });
-      }
-
-      if (!FHIR_ID.test(caseId)) {
-        return reply.code(400).send({
-          code: "invalid_case_id",
-          message: "Invalid case ID format",
-        });
-      }
-
-      if (!(await app.guards.requireCapabilityAt(request, reply, "case.advance", facilityId))) {
-        return reply;
-      }
-
-      const parsed = transitionCaseSchema.safeParse(request.body);
-      if (!parsed.success) {
-        return reply.code(400).send({
-          code: "invalid_payload",
-          message: "Invalid case transition payload",
-          details: formatZodError(parsed.error),
-        });
-      }
-
-      const result = await transitionCase({
-        medplum: request.medplum,
-        facilityId,
-        caseId,
-        input: parsed.data,
-        logger: request.log,
-      });
-
-      if (result.status === 404) {
-        return reply.code(404).send({
-          code: result.code,
-          message: result.message,
-        });
-      }
-
-      if (result.status === 409) {
-        return reply.code(409).send({
-          code: result.code,
-          message: result.message,
-          reasons: result.reasons,
-        });
-      }
-
-      return reply.code(200).send(result.data);
+    {
+      config: capabilityAtResource("case.advance"),
+      preHandler: [
+        requireCapabilityHook("case.advance"),
+        validateBody(transitionCaseSchema, "Invalid case transition payload"),
+        requireCaseContext,
+      ],
     },
+    (request, reply) => casesController.transitionCase(request, reply)
   );
 
   return Promise.resolve();

@@ -1,285 +1,9 @@
 import { API_ROUTE_PATTERNS } from "@asc/config";
-import {
-  copayCollectionSchema,
-  eligibilityCheckRequestSchema,
-  formatZodError,
-  priorAuthCheckSchema,
-} from "@asc/validation";
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance } from "fastify";
 
 import { capabilityAtResource } from "../auth/route-auth.js";
-import { financialClearanceService } from "../services/financial-clearance-service.js";
-import { FHIR_ID, resolveFacilityId } from "./route-helpers.js";
-
-interface CaseRouteParams {
-  readonly caseId: string;
-}
-
-interface CaseQuery {
-  readonly facilityId?: string;
-}
-
-interface EligibilityCheckPayload {
-  readonly forceRefresh?: boolean;
-  readonly serviceTypeCode?: string;
-}
-
-interface CopayBodyPayload {
-  readonly amountCents?: number;
-  readonly paymentMethod?: string;
-  readonly transactionRef?: string;
-  readonly paymentPlanDetails?: {
-    readonly monthlyCents?: number;
-    readonly numberOfMonths?: number;
-    readonly firstDueDate?: string;
-  };
-  readonly notes?: string;
-}
-
-interface PriorAuthPayload {
-  readonly authNumber?: string;
-  readonly status?: string;
-  readonly validFrom?: string;
-  readonly validTo?: string;
-  readonly approvedCptCodes?: readonly string[];
-  readonly approvedUnits?: number;
-  readonly notes?: string;
-}
-
-/**
-/**
- * Controller: Real-time X12 270/271 eligibility verification
- */
-async function handleCheckEligibility(
-  request: FastifyRequest<{ Params: CaseRouteParams; Querystring: CaseQuery; Body: EligibilityCheckPayload }>,
-  reply: FastifyReply,
-  app: FastifyInstance
-): Promise<FastifyReply> {
-  const { caseId } = request.params;
-  const facilityId = resolveFacilityId(request);
-
-  if (!facilityId) {
-    return reply.code(400).send({
-      code: "facility_required",
-      message: "Facility context is required to check eligibility",
-    });
-  }
-
-  if (!FHIR_ID.test(caseId)) {
-    return reply.code(400).send({
-      code: "invalid_case_id",
-      message: "Invalid case ID format",
-    });
-  }
-
-  if (!(await app.guards.requireCapabilityAt(request, reply, "patient.eligibility.check", facilityId))) {
-    return reply;
-  }
-
-  const body = request.body ?? {};
-  const parsed = eligibilityCheckRequestSchema.safeParse({
-    caseId,
-    ...body,
-  });
-
-  if (!parsed.success) {
-    return reply.code(400).send({
-      code: "invalid_payload",
-      message: "Invalid eligibility check payload",
-      details: formatZodError(parsed.error),
-    });
-  }
-
-  const result = await financialClearanceService.checkEligibility({
-    medplum: request.medplum,
-    facilityId,
-    caseId,
-    input: parsed.data,
-    logger: request.log,
-  });
-
-  if (result.status === 404) {
-    return reply.code(404).send({
-      code: result.code,
-      message: result.message,
-    });
-  }
-
-  return reply.code(200).send(result.data);
-}
-
-/**
- * Controller: Full financial clearance summary and dual GFE
- */
-async function handleGetFinancialSummary(
-  request: FastifyRequest<{ Params: CaseRouteParams; Querystring: CaseQuery }>,
-  reply: FastifyReply,
-  app: FastifyInstance
-): Promise<FastifyReply> {
-  const { caseId } = request.params;
-  const facilityId = resolveFacilityId(request);
-
-  if (!facilityId) {
-    return reply.code(400).send({
-      code: "facility_required",
-      message: "Facility context is required to retrieve financial summary",
-    });
-  }
-
-  if (!FHIR_ID.test(caseId)) {
-    return reply.code(400).send({
-      code: "invalid_case_id",
-      message: "Invalid case ID format",
-    });
-  }
-
-  if (!(await app.guards.requireCapabilityAt(request, reply, "case.read", facilityId))) {
-    return reply;
-  }
-
-  const result = await financialClearanceService.getFinancialSummary({
-    medplum: request.medplum,
-    facilityId,
-    caseId,
-    logger: request.log,
-  });
-
-  if (result.status === 404) {
-    return reply.code(404).send({
-      code: result.code,
-      message: result.message,
-    });
-  }
-
-  return reply.code(200).send(result.data);
-}
-
-/**
- * Controller: Front-desk copay/deductible collection and payment plan with idempotency
- */
-async function handleCollectCopay(
-  request: FastifyRequest<{ Params: CaseRouteParams; Querystring: CaseQuery; Body: CopayBodyPayload }>,
-  reply: FastifyReply,
-  app: FastifyInstance
-): Promise<FastifyReply> {
-  const { caseId } = request.params;
-  const facilityId = resolveFacilityId(request);
-
-  if (!facilityId) {
-    return reply.code(400).send({
-      code: "facility_required",
-      message: "Facility context is required to record copay collection",
-    });
-  }
-
-  if (!FHIR_ID.test(caseId)) {
-    return reply.code(400).send({
-      code: "invalid_case_id",
-      message: "Invalid case ID format",
-    });
-  }
-
-  if (!(await app.guards.requireCapabilityAt(request, reply, "patient.register", facilityId))) {
-    return reply;
-  }
-
-  const rawHeaderKey = request.headers["x-idempotency-key"] ?? request.headers["idempotency-key"];
-  const headerIdempotencyKey =
-    typeof rawHeaderKey === "string" && rawHeaderKey.trim().length > 0
-      ? rawHeaderKey.trim()
-      : undefined;
-
-  const body = request.body ?? {};
-  const parsed = copayCollectionSchema.safeParse({
-    caseId,
-    ...body,
-    transactionRef: body.transactionRef ?? headerIdempotencyKey,
-  });
-
-  if (!parsed.success) {
-    return reply.code(400).send({
-      code: "invalid_payload",
-      message: "Invalid copay collection payload",
-      details: formatZodError(parsed.error),
-    });
-  }
-
-  const result = await financialClearanceService.collectCopay({
-    medplum: request.medplum,
-    facilityId,
-    caseId,
-    input: parsed.data,
-    actorId: request.principal?.id,
-    logger: request.log,
-  });
-
-  if (result.status === 404) {
-    return reply.code(404).send({
-      code: result.code,
-      message: result.message,
-    });
-  }
-
-  return reply.code(200).send(result.data);
-}
-
-/**
- * Controller: Record and revalidate X12 278 prior authorization
- */
-async function handleRecordPriorAuth(
-  request: FastifyRequest<{ Params: CaseRouteParams; Querystring: CaseQuery; Body: PriorAuthPayload }>,
-  reply: FastifyReply,
-  app: FastifyInstance
-): Promise<FastifyReply> {
-  const { caseId } = request.params;
-  const facilityId = resolveFacilityId(request);
-
-  if (!facilityId) {
-    return reply.code(400).send({
-      code: "facility_required",
-      message: "Facility context is required to record prior authorization",
-    });
-  }
-
-  if (!FHIR_ID.test(caseId)) {
-    return reply.code(400).send({
-      code: "invalid_case_id",
-      message: "Invalid case ID format",
-    });
-  }
-
-  if (!(await app.guards.requireCapabilityAt(request, reply, "patient.eligibility.check", facilityId))) {
-    return reply;
-  }
-
-  const body = request.body ?? {};
-  const parsed = priorAuthCheckSchema.safeParse(body);
-
-  if (!parsed.success) {
-    return reply.code(400).send({
-      code: "invalid_payload",
-      message: "Invalid prior authorization payload",
-      details: formatZodError(parsed.error),
-    });
-  }
-
-  const result = await financialClearanceService.recordPriorAuth({
-    medplum: request.medplum,
-    facilityId,
-    caseId,
-    input: parsed.data,
-    logger: request.log,
-  });
-
-  if (result.status === 404) {
-    return reply.code(404).send({
-      code: result.code,
-      message: result.message,
-    });
-  }
-
-  return reply.code(200).send(result.data);
-}
+import { financialController } from "../controllers/financial.controller.js";
+import { requireCapabilityHook, requireCaseContext } from "../hooks/case-context.js";
 
 /**
  * Financial Clearance & Eligibility Routes (Phase P22a / EP-D)
@@ -292,31 +16,43 @@ async function handleRecordPriorAuth(
  */
 export function financialRoutes(app: FastifyInstance): Promise<void> {
   // POST /cases/:caseId/eligibility/check — Real-time X12 270/271 eligibility verification
-  app.post<{ Params: CaseRouteParams; Querystring: CaseQuery; Body: EligibilityCheckPayload }>(
+  app.post(
     API_ROUTE_PATTERNS.caseEligibilityCheck,
-    { config: capabilityAtResource("patient.eligibility.check") },
-    (request, reply) => handleCheckEligibility(request, reply, app)
+    {
+      config: capabilityAtResource("patient.eligibility.check"),
+      preHandler: [requireCapabilityHook("patient.eligibility.check"), requireCaseContext],
+    },
+    (request, reply) => financialController.checkEligibility(request, reply)
   );
 
   // GET /cases/:caseId/financial-summary — Full financial clearance summary and dual GFE
-  app.get<{ Params: CaseRouteParams; Querystring: CaseQuery }>(
+  app.get(
     API_ROUTE_PATTERNS.caseFinancialSummary,
-    { config: capabilityAtResource("case.read") },
-    (request, reply) => handleGetFinancialSummary(request, reply, app)
+    {
+      config: capabilityAtResource("case.read"),
+      preHandler: [requireCapabilityHook("case.read"), requireCaseContext],
+    },
+    (request, reply) => financialController.getFinancialSummary(request, reply)
   );
 
   // POST /cases/:caseId/copay-collected — Front-desk copay/deductible collection and payment plan
-  app.post<{ Params: CaseRouteParams; Querystring: CaseQuery; Body: CopayBodyPayload }>(
+  app.post(
     API_ROUTE_PATTERNS.caseCopayCollected,
-    { config: capabilityAtResource("patient.register") },
-    (request, reply) => handleCollectCopay(request, reply, app)
+    {
+      config: capabilityAtResource("patient.register"),
+      preHandler: [requireCapabilityHook("patient.register"), requireCaseContext],
+    },
+    (request, reply) => financialController.recordCopay(request, reply)
   );
 
   // POST /cases/:caseId/prior-auth — Record and revalidate X12 278 prior authorization
-  app.post<{ Params: CaseRouteParams; Querystring: CaseQuery; Body: PriorAuthPayload }>(
+  app.post(
     API_ROUTE_PATTERNS.casePriorAuth,
-    { config: capabilityAtResource("patient.eligibility.check") },
-    (request, reply) => handleRecordPriorAuth(request, reply, app)
+    {
+      config: capabilityAtResource("patient.eligibility.check"),
+      preHandler: [requireCapabilityHook("patient.eligibility.check"), requireCaseContext],
+    },
+    (request, reply) => financialController.revalidatePriorAuth(request, reply)
   );
 
   return Promise.resolve();
