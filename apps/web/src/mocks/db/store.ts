@@ -1,4 +1,4 @@
-import { isCaseStage, medHoldCheck, nextPhase, PHASE_LABEL, timeOutGate } from "@asc/clinical-rules";
+import { computeOverallReadiness, isCaseStage, medHoldCheck, nextPhase, PHASE_LABEL, timeOutGate } from "@asc/clinical-rules";
 import type {
   AuditActor,
   ClinicalTimelineEvent,
@@ -103,6 +103,26 @@ export function refreshReadiness(caseId: string): void {
   const hp = state.hp.get(caseId);
   const consents = state.consents.get(caseId) ?? [];
   const timeOut = state.timeOut.get(caseId);
+  const consentsSigned = consents.length > 0 && consents.every((consent) => consent.status === "signed");
+  const hpSigned = hp?.status === "signed";
+  const escortConfirmed = patient.escort?.confirmed ?? false;
+
+  let nextChecks = current.readinessChecks;
+  if (nextChecks) {
+    nextChecks = nextChecks.map((check) => {
+      if (check.name === "consent" && check.status !== "failed" && check.status !== "waived") {
+        return consentsSigned ? { ...check, status: "satisfied" } : check;
+      }
+      if (check.name === "hp" && check.status !== "waived") {
+        return hpSigned ? { ...check, status: "satisfied" } : check;
+      }
+      if (check.name === "escort" && check.status !== "waived") {
+        return escortConfirmed ? { ...check, status: "satisfied" } : check;
+      }
+      return check;
+    });
+  }
+
   state.cases.set(caseId, {
     ...current,
     patient: patientRef(patient),
@@ -110,13 +130,14 @@ export function refreshReadiness(caseId: string): void {
     readiness: {
       ...current.readiness,
       eligibilityActive: patient.coverage?.eligibility?.status === "active",
-      hpCurrent: hp?.status === "signed",
+      hpCurrent: hpSigned,
       asaSet: hp?.asa != null,
-      consentsSigned: consents.length > 0 && consents.every((consent) => consent.status === "signed"),
+      consentsSigned,
       holdsConfirmed: (hp?.holdsReviewed ?? false) && medHoldCheck(patient.medications).ok,
-      escortConfirmed: patient.escort?.confirmed ?? false,
+      escortConfirmed,
       timeOutComplete: timeOut ? timeOutGate(timeOut).ok : false,
     },
+    ...(nextChecks ? { readinessChecks: nextChecks, overallReadiness: computeOverallReadiness(nextChecks) } : {}),
   });
 }
 
