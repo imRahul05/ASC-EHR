@@ -1,5 +1,5 @@
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
-import type { AuditQuery, IsoDate, PatientSearchQuery, WorklistQuery } from "@asc/types";
+import type { AuditQuery, IsoDate, PatientSearchQuery, ScheduleDay, WorklistQuery } from "@asc/types";
 import {
   addAnesthesiaEntry,
   addImage,
@@ -137,11 +137,27 @@ export const useConvertReferral = (referralId: string) =>
 
 // ─── Schedule & case workspace ──────────────────────────────────────────────
 
+/**
+ * Prevents cross-facility patient schedule leakage when switching active facilities:
+ * only retains previousData if the previous query's facilityId matches the target facilityId.
+ */
+export function resolveSchedulePlaceholderData(
+  previousData: ScheduleDay | undefined,
+  previousFacilityId: string | undefined,
+  targetFacilityId: string | undefined,
+): ScheduleDay | undefined {
+  return (previousFacilityId ?? "") === (targetFacilityId ?? "") ? previousData : undefined;
+}
+
 export function useSchedule(date?: IsoDate, facilityId?: string) {
   return useQuery({
     queryKey: queryKeys.schedule.day(date, facilityId),
     queryFn: () => getSchedule(date, facilityId),
-    placeholderData: keepPreviousData,
+    placeholderData: (previousData, previousQuery) => {
+      const prevKey = previousQuery?.queryKey;
+      const prevFacility = Array.isArray(prevKey) && typeof prevKey[2] === "string" ? prevKey[2] : undefined;
+      return resolveSchedulePlaceholderData(previousData, prevFacility, facilityId);
+    },
   });
 }
 

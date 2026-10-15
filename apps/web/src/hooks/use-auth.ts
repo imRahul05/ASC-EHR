@@ -157,6 +157,7 @@ export function useAuth() {
             return { status: "complete" };
           } catch (error) {
             setAccessToken(null);
+            setFacilityId(null);
             void logoutWebSession();
             throw error;
           }
