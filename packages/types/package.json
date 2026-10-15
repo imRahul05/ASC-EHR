@@ -8,7 +8,8 @@
     ".": "./src/index.ts",
     "./capability": "./src/capability.ts",
     "./authz": "./src/authz.ts",
-    "./case-stage": "./src/case-stage.ts"
+    "./case-stage": "./src/case-stage.ts",
+    "./financial": "./src/financial.ts"
   },
   "scripts": {
     "lint": "eslint --max-warnings 0",
