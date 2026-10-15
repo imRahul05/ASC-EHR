@@ -7,6 +7,7 @@
 | Unblocks | P17 (Pre-Op & Consent), P16 (H&P & Anticoagulation), P18 (Intra-Op Capture) |
 | Source mix | Fastify 5 (`apps/api`) + Medplum FHIR R4 (`Appointment`, `Encounter`, `Patient`, `ServiceRequest`) + `@asc/api-client` + MSW mock handler alignment |
 | Requirements | EP-C (Story C.1, C.2, C.3) & `[REQ-5:158-204]`, `[REQ-10:480-510]` |
+| Status | 100% COMPLETE (PR #84, PR #85, PR #87 merged) |
 | Branch | `phase/P15c-case-workspace-api` |
 
 ---
@@ -73,10 +74,10 @@ flowchart TD
 
 ## 4. Acceptance Criteria
 
-- [ ] `GET /schedule?date=YYYY-MM-DD` returns 200 with all cases booked for the facility.
-- [ ] `GET /cases/:id` returns 200 with hydrated Case details (Patient, Appointment, Encounter, Stage).
-- [ ] `POST /cases/:id/transition` successfully transitions stage and logs `AuditEvent`.
-- [ ] "Book Case" button in `apps/web` is active immediately on login without manual switcher selection.
-- [ ] Visiting `/schedule` and `/cases/[caseId]` works identically with `NEXT_PUBLIC_API_MOCKING=enabled` and with live `apps/api`.
-- [ ] Strict type safety: Zero `any`, zero `unknown`.
-- [ ] 100% green tests across `apps/api`, `packages/api-client`, and `apps/web`.
+- [x] `GET /schedule?date=YYYY-MM-DD` returns 200 with all cases booked for the facility.
+- [x] `GET /cases/:id` returns 200 with hydrated Case details (Patient, Appointment, Encounter, Stage).
+- [x] `POST /cases/:id/transition` successfully transitions stage and logs `AuditEvent`.
+- [x] "Book Case" button in `apps/web` is active immediately on login without manual switcher selection.
+- [x] Visiting `/schedule` and `/cases/[caseId]` works identically with `NEXT_PUBLIC_API_MOCKING=enabled` and with live `apps/api`.
+- [x] Strict type safety: Zero `any`, zero `unknown`.
+- [x] 100% green tests across `apps/api`, `packages/api-client`, and `apps/web`.

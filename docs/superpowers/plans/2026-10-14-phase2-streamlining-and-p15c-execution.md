@@ -69,9 +69,9 @@ flowchart LR
 - **`me.facilities`** answers: *"Where are you authorized to work?"* (Facility memberships).
 - `me.facilities` is the **sole source of truth** for accessible work locations. Do not derive active working facility from `grantedFacilityIds()`.
 
-- [ ] **Step 1: Write failing regression test in `auth.store.test.ts`**
+- [x] **Step 1: Write failing regression test in `auth.store.test.ts`**
   Verify that when an admin user logs in with `scope: "all"` and `me.facilities = [{ id: "org-1", name: "Metro GI ASC" }]`, `resolveActiveFacility(me)` resolves to `"org-1"` and is never `null`.
-- [ ] **Step 2: Implement `resolveActiveFacility(me, persistedId)` in `auth.store.ts`**
+- [x] **Step 2: Implement `resolveActiveFacility(me, persistedId)` in `auth.store.ts`**
   ```ts
   export function resolveActiveFacility(
     facilities: readonly { readonly id: string; readonly name: string }[],
@@ -84,13 +84,13 @@ flowchart LR
     return validIds[0] ?? null;
   }
   ```
-- [ ] **Step 3: Implement `useActiveFacility()` hook**
+- [x] **Step 3: Implement `useActiveFacility()` hook**
   In `apps/web/src/hooks/use-active-facility.ts`, export a hook that returns `{ activeFacilityId, facility, hasFacility: boolean }`. If `facilityId` is `null` (misconfigured account with zero facilities), return a clear blocked status so components render a *"No facility assigned. Please contact your center administrator"* state rather than propagating a nullable ID to mutation forms.
-- [ ] **Step 4: Hide manual `FacilitySwitcher` when single facility exists**
+- [x] **Step 4: Hide manual `FacilitySwitcher` when single facility exists**
   In `app-header.tsx`, render `FacilitySwitcher` only when `facilities.length > 1`.
-- [ ] **Step 5: Run tests to verify pass**
+- [x] **Step 5: Run tests to verify pass**
   Run: `pnpm --filter @asc/web test auth.store.test.ts`
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
   Commit: `fix(web): resolve active facility from me.facilities and add useActiveFacility hook`
 
 ---
@@ -103,15 +103,15 @@ flowchart LR
 - Modify: `apps/web/src/lib/personas.ts`
 - Test: `apps/web/src/components/shell/nav-config.test.ts`
 
-- [ ] **Step 1: Write failing test in `nav-config.test.ts`**
+- [x] **Step 1: Write failing test in `nav-config.test.ts`**
   Assert that navigation items for clinical staff do not include `/my-care` or portal self-read links.
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
   Run: `pnpm --filter @asc/web test nav-config.test.ts`
-- [ ] **Step 3: Unmount route and navigation links**
+- [x] **Step 3: Unmount route and navigation links**
   Prefix the directory with underscore `_my-care` so Next.js ignores it. Remove `my-care` entries from `NAV_ITEMS` and `workspaces.ts`. Remove `demo-patient` from `PERSONAS`.
-- [ ] **Step 4: Verify test passes and build succeeds**
+- [x] **Step 4: Verify test passes and build succeeds**
   Run: `pnpm --filter @asc/web test && pnpm --filter @asc/web check-types`
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   Commit: `refactor(web): unmount dormant patient portal routes while preserving features`
 
 ---
@@ -122,14 +122,14 @@ flowchart LR
 - Modify: `packages/db/src/audit-store.ts`
 - Test: `packages/db/src/tenant.test.ts`
 
-- [ ] **Step 1: Write test verifying direct parameterized queries**
+- [x] **Step 1: Write test verifying direct parameterized queries**
   Ensure database queries execute directly using standard Drizzle transactions without invoking `SELECT set_config('app.tenant_id', ...)`.
-- [ ] **Step 2: Run test to verify behavior**
+- [x] **Step 2: Run test to verify behavior**
   Run: `pnpm --filter @asc/db test`
-- [ ] **Step 3: Update `tenant.ts` to export direct query interface**
+- [x] **Step 3: Update `tenant.ts` to export direct query interface**
   Preserve `tenant_id` and `facility_id` columns in schemas, but allow `withTenant` to execute without the Postgres session hook.
-- [ ] **Step 4: Update `audit-store.ts` to default `facility_id` / `tenant_id` without throwing `AuditTenantMissingError`**
-- [ ] **Step 5: Run tests and commit**
+- [x] **Step 4: Update `audit-store.ts` to default `facility_id` / `tenant_id` without throwing `AuditTenantMissingError`**
+- [x] **Step 5: Run tests and commit**
   Commit: `refactor(db): streamline query execution removing connection-pinned session hooks`
 
 ---
@@ -140,15 +140,15 @@ flowchart LR
 - Test: `apps/api/src/routes/schedule.test.ts`
 - Modify: `apps/api/src/routes/index.ts`
 
-- [ ] **Step 1: Write failing integration test for `GET /schedule`**
+- [x] **Step 1: Write failing integration test for `GET /schedule`**
   Verify `GET /schedule?date=2026-10-14&facilityId=org-1` returns HTTP 200 with date-bounded appointments and encounters.
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
   Run: `pnpm --filter @asc/api test schedule.test.ts`
-- [ ] **Step 3: Implement `GET /schedule` handler**
+- [x] **Step 3: Implement `GET /schedule` handler**
   Query Medplum for Appointments with date bounds (`ge${startOfDayIso}`, `le${endOfDayIso}`) and resolve associated patient displays and procedure names using shared defaults from `@asc/clinical-rules`.
-- [ ] **Step 4: Run test to verify pass**
+- [x] **Step 4: Run test to verify pass**
   Run: `pnpm --filter @asc/api test schedule.test.ts`
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   Commit: `feat(api): implement date-bounded GET /schedule endpoint`
 
 ---
@@ -158,15 +158,15 @@ flowchart LR
 - Modify: `apps/api/src/routes/cases.ts`
 - Test: `apps/api/src/routes/cases.test.ts`
 
-- [ ] **Step 1: Write failing integration tests**
+- [x] **Step 1: Write failing integration tests**
   Test `GET /cases/:id` returns hydrated Case bundle. Test `POST /cases/:id/transition` validates stage progression and writes `AuditEvent`.
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
   Run: `pnpm --filter @asc/api test cases.test.ts`
-- [ ] **Step 3: Implement `GET /cases/:id`**
+- [x] **Step 3: Implement `GET /cases/:id`**
   Read Encounter, Appointment, Patient, and ServiceRequest in parallel; compute current physical stage and return structured Case detail.
-- [ ] **Step 4: Implement `POST /cases/:id/transition`**
+- [x] **Step 4: Implement `POST /cases/:id/transition`**
   Validate target stage transition against allowed transitions; update Encounter status; record transition timestamp and audit event.
-- [ ] **Step 5: Run tests and commit**
+- [x] **Step 5: Run tests and commit**
   Commit: `feat(api): implement case read and stage transition endpoints`
 
 ---
@@ -178,11 +178,11 @@ flowchart LR
 - Modify: `apps/web/src/features/schedule/hooks/use-schedule.ts`
 - Test: `packages/api-client/src/cases.test.ts`
 
-- [ ] **Step 1: Export API client methods `getCase(id)` and `getSchedule(date, facilityId)`**
-- [ ] **Step 2: Wire `useCase` and `useSchedule` in `apps/web`**
+- [x] **Step 1: Export API client methods `getCase(id)` and `getSchedule(date, facilityId)`**
+- [x] **Step 2: Wire `useCase` and `useSchedule` in `apps/web`**
   Connect React Query hooks to `@asc/api-client`.
-- [ ] **Step 3: Verify Case Workspace (`/cases/[caseId]`) loads live case data**
-- [ ] **Step 4: Commit**
+- [x] **Step 3: Verify Case Workspace (`/cases/[caseId]`) loads live case data**
+- [x] **Step 4: Commit**
   Commit: `feat(web): wire case workspace and schedule hooks to api client`
 
 ---
@@ -193,22 +193,22 @@ flowchart LR
 - Modify: `apps/web/src/mocks/handlers/schedule.ts`
 - Test: `apps/web/src/mocks/handlers.test.ts`
 
-- [ ] **Step 1: Synchronize MSW mock response schemas with `apps/api` contracts**
-- [ ] **Step 2: Verify both mock mode (`NEXT_PUBLIC_API_MOCKING=enabled`) and live API mode function identically**
-- [ ] **Step 3: Run full web tests**
+- [x] **Step 1: Synchronize MSW mock response schemas with `apps/api` contracts**
+- [x] **Step 2: Verify both mock mode (`NEXT_PUBLIC_API_MOCKING=enabled`) and live API mode function identically**
+- [x] **Step 3: Run full web tests**
   Run: `pnpm --filter @asc/web test`
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   Commit: `test(web): synchronize msw mock handlers with live api contracts`
 
 ---
 
 ### Task 8: Full Monorepo Typecheck, Lint & Integration Gate
-- [ ] **Step 1: Run turbo lint across all workspaces**
+- [x] **Step 1: Run turbo lint across all workspaces**
   Run: `pnpm turbo run lint`
-- [ ] **Step 2: Run turbo check-types across all workspaces**
+- [x] **Step 2: Run turbo check-types across all workspaces**
   Run: `pnpm turbo run check-types`
-- [ ] **Step 3: Run all test suites across all packages**
+- [x] **Step 3: Run all test suites across all packages**
   Run: `pnpm turbo run test`
-- [ ] **Step 4: Update `PROGRESS.md` with P15c completion**
-- [ ] **Step 5: Commit and finalize PR**
+- [x] **Step 4: Update `PROGRESS.md` with P15c completion**
+- [x] **Step 5: Commit and finalize PR**
   Commit: `chore: verify type safety, linting, and tests across monorepo`
