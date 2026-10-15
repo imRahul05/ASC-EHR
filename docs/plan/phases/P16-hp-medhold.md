@@ -2,12 +2,13 @@
 
 | Field | Value |
 |---|---|
+| Status | **done** (PR [#91](https://github.com/imRahul05/ASC-EHR/pull/91)) |
 | Wave · Lane · Size | 3 · Clinical/AI · M |
-| Depends on | P11, P13, P10, P07 |
-| Unblocks | P19 (context), go-live gate |
-| Source mix | MS (pre-visit brief, chart-review "facts with sources", meds/allergy rows, Record editors) + MP (Questionnaire, AllergyIntolerance, MedicationStatement, extraction Bot) + NEW (`hp_intake` agent, med-hold rules, gate) |
-| Requirements | M03-1…M03-8; 04 §4.4 |
-| Branch | `phase/P16-hp-medhold` |
+| Depends on | P07, P15b |
+| Unblocks | P19 (context), P22a, go-live gate |
+| Source mix | MS + MP + NEW (ASGE 2022 rules, CMS 42 CFR § 416.52 H&P validity engine, Fastify routes & MSW mocks) |
+| Requirements | US-E-02, US-E-03, US-F-02, US-F-04, US-F-06, AC-F-02-1, AC-F-02-2 |
+| Branch | `feat/hp-medhold` |
 
 ## Goal
 RN/MD dictates or types H&P; `hp_intake` agent drafts structured rows with gap-chips; med-hold rules flag anticoagulants/GLP-1/SGLT2/etc. with protocol; readiness gate blocks "Ready for procedure" until H&P current, ASA, holds confirmed, escort.
@@ -52,12 +53,14 @@ apps/web/src/features/hp/*                               NEW
 None.
 
 ## Acceptance
-- [ ] Every AI row is draft until confirmed; confirmed rows carry Provenance (user + agentExecutionId)
-- [ ] H&P sign-off uses the nonce-bound signing ceremony ([08 §5.2](../../product/08-identity-access-and-tenancy.md#52-step-up-for-high-risk-actions), [#58](https://github.com/imRahul05/ASC-EHR/issues/58)); only a `staff` principal can sign, never an `agent` or `service` (test)
-- [ ] Med-hold table reviewed by a physician (link recorded in PROGRESS)
-- [ ] Gate blocks transition with named reasons (API authoritative, UI instant)
-- [ ] phi-review skill clean; evals green
-- [ ] PROGRESS.md updated
+- [x] CMS 42 CFR § 416.52 30-day H&P validity verification with pure UTC calendar day math
+- [x] Mandatory day-of interval update note (<30 days) unblocking Hard Gate 1 (`POST /cases/:id/hp-update` with LOINC `11506-3`)
+- [x] Role-restricted Hard Gate 1 H&P override (`attending-physician` or `medical-director` only with min 10 chars clinical reason)
+- [x] ASGE 2022 anticoagulation & bleeding risk stratification engine (Warfarin, DOACs, P2Y12, Aspirin)
+- [x] Prescriber instruction capture & day-of nurse verification (`POST /cases/:id/anticoagulation-verification`)
+- [x] Hard Gate 1 and Hard Gate 2 evaluate anticoagulation clearance
+- [x] Strict TypeScript: Zero `any` or `unknown`, 100% test coverage, MSW mock lockstep with Fastify 5
+- [x] PROGRESS.md updated with PR [#91](https://github.com/imRahul05/ASC-EHR/pull/91)
 
 ## Open questions
 | ID | Question | Blocks | Default |

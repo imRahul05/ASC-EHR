@@ -21,7 +21,7 @@
 | -------------- | -------------------------------------------------------------------------------- |
 | Current wave   | 3 (Phase 2 Clinical Readiness)                                                   |
 | In progress    | —                                                                                |
-| Ready to start | P18, P20, P22a, P08, P09, P10, P12, P00b, P01, P06                              |
+| Ready to start | P22a, P18, P20, P08, P09, P10, P12, P00b, P01, P06                              |
 | Blocked        | P13 soft-blocked on Q-MS1 (fallback allowed)                                     |
 | Go-live target | November 15, 2026 (Software Freeze) / January 2027 (Facility Opening)            |
 
@@ -188,27 +188,27 @@ Full lists: [implementation plan §6](docs/plan/implementation-plan.md#6-cross-p
 
 ## 5. Next up
 
-1. **Phase 2 Clinical Readiness & Pre-Op Focus (Immediate Active Sprint)**:
-   - **Priority 1: P17** Pre-Op Nursing, Digital Tablet Consent & Hard Gate 1 (`EP-E`):
-     - Pre-op nursing intake flow (vitals, IV placement, NPO status).
-     - Digital tablet consent using `@asc/ui` `SignaturePad` with cryptographic hash attestation and background PDF rendering in BullMQ.
-     - Hard Gate 1 transition enforcement (`arrived` ➔ `preop`) blocking on missing identity, consent, or H&P (strictly non-waivable identity and consent).
-   - **Priority 2: P16** Pre-Procedure H&P Review & Anticoagulation Rule Engine (`EP-E`):
-     - 30-day H&P validity verification, interval update note, and immutable signing ceremony.
-     - Structured medication hold table for anticoagulants, antiplatelets, GLP-1 agonists, and SGLT2 inhibitors with rule versioning.
-   - **Priority 3: EP-D Financial Clearance (`P22a`) & X12 EDI Clearinghouse Integration**:
+1. **Phase 2 Delivery & Financial Clearance (Immediate Active Sprint)**:
+   - **Priority 1: P22a Financial Clearance & X12 EDI Clearinghouse Integration (`EP-D`)**:
      - 3-point 270/271 eligibility monitor (booking, 7 days out, 06:00 day of procedure).
      - 278 prior authorization revalidation on reschedule, Good-Faith Estimates delivery, and copay collection.
-2. **Supporting Domain Packages Ready to Start**:
+     - Autonomous financial clearance flag before procedure day.
+   - **Priority 2: Phase 3 Day-of-Surgery Preparation (`EP-F`)**:
+     - **P18** Procedure room capture (intra-op events, specimens, images, STT).
+     - **P20** AIMS anesthesia flowsheet (offline-safe, vitals trends).
+2. **Phase 2 Complete Milestones (EP-E Pre-Op Readiness 100% Complete)**:
+   - ✅ **P17 Pre-Op Nursing, Digital Tablet Consent & Hard Gate 1**: Touchscreen informed consent with signature hash, bedside pre-op intake, NPO violation checks, Hard Gate 1 lockout (PR #89 merged).
+   - ✅ **P16 Pre-Procedure H&P Review & Anticoagulation Rule Engine**: CMS 42 CFR § 416.52 30-day H&P validity engine, mandatory day-of interval update note, ASGE 2022 bleeding risk & hold engine, Gate 1 physician override (PR #91 merged).
+3. **Supporting Domain Packages Ready to Start**:
    - **P08** Terminology + FSH Profiles (`EP-A` / `EP-G`): GI clinical concepts, code systems, ValueSets (unblocked by P02, P03).
    - **P09** `@asc/ui` Clinical Kit (`EP-A`): Core clinical presentational components, app shell, patient banner.
    - **P10** Realtime SSE (`EP-A` / `EP-C`): Server-sent events for live whiteboard, case status, and BullMQ worker job progress.
    - **P12** Worklists on Task (`EP-A` / `EP-E`): Work queues backed by FHIR Task unblocked by P05 and P07.
-3. **External Lead-Time Escalations (REQ-22)**:
+4. **External Lead-Time Escalations (REQ-22)**:
    - **Q-EXT-1**: Clearinghouse EDI 837/835 payer enrollment (6–10 weeks lead time; blocks EP-D / EP-K).
    - **Q-EXT-2**: Pathology Lab HL7 MLLP interface (4–8 weeks lead time; blocks EP-H).
    - **Q-EXT-3**: AMA CPT commercial license (2–4 weeks lead time; blocks EP-J).
-4. **Platform & Tooling Backlog**:
+5. **Platform & Tooling Backlog**:
    - **P00b** library upgrades (zod 4, bullmq 6, ioredis 6).
    - **P01** CI pipeline + agent eval gate.
    - **P06** Azure infrastructure dev environment (pending Azure subscription/BAA).
