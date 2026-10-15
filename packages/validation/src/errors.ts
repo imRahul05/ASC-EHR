@@ -2,8 +2,15 @@ import { ZodError } from "zod";
 export type { ZodType, ZodSchema } from "zod";
 
 /** Type guard checking if an error is a ZodError without importing Zod directly in apps (LM-001). */
-export function isZodError(error: unknown): error is ZodError {
-  return error instanceof ZodError;
+export function isZodError(error: Error | object | null | undefined): error is ZodError {
+  return (
+    error instanceof ZodError ||
+    (error !== null &&
+      typeof error === "object" &&
+      (error as Error).name === "ZodError" &&
+      "issues" in error &&
+      Array.isArray((error as ZodError).issues))
+  );
 }
 
 export interface FormattedValidationError {

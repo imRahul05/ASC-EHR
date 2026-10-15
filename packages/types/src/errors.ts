@@ -27,9 +27,21 @@ export const API_ERROR_CODES = {
 
 export type ApiErrorCode = (typeof API_ERROR_CODES)[keyof typeof API_ERROR_CODES];
 
+import type { ConflictReason } from "./api.js";
+import type { DuplicateMatchResult } from "./clinical.js";
+
 export interface ErrorDefinition {
   readonly status: number;
   readonly defaultMessage: string;
+}
+
+export interface SendApiErrorOptions {
+  readonly code: ApiErrorCode;
+  readonly status?: number;
+  readonly message?: string;
+  readonly details?: Record<string, string>;
+  readonly duplicateMatch?: DuplicateMatchResult;
+  readonly reasons?: readonly ConflictReason[];
 }
 
 export const API_ERROR_REGISTRY: Record<ApiErrorCode, ErrorDefinition> = {
