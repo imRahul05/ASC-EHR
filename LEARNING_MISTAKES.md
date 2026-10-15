@@ -408,3 +408,16 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
   4. Redact sensitive clinical and demographic attributes at logger initialization (`loggerOptions.redact` in `@asc/logger` covering `*.ssn`, `*.memberId`, `req.body.patient.name`, `req.body.signatureData`).
 - **How to check:** `pnpm turbo run check-types lint test build`.
 - **Guarded by:** `apps/api/src/hooks/idempotency.test.ts`, `apps/api/src/plugins/swagger.test.ts`, `apps/api/src/auth/default-deny.test.ts`, `packages/logger/src/index.test.ts`.
+
+### LM-036 — Fastify module augmentation completeness and explicit import discipline in isolated build environments
+- **Seen:** 3 · 2026-10-15 · PR #100 Vercel build fix (`apps/api/src/controllers/`, `apps/api/src/auth/augment.ts`)
+- **What went wrong:**
+  1. Module augmentations (`declare module "fastify"`) were fragmented across multiple separate files (`hooks/facility-context.ts`, `routes/patients.ts`, `routes/cases.ts`). While `request.tenant` and `request.principal` were declared in `src/auth/augment.ts`, `request.facilityId` was only declared in `hooks/facility-context.ts`.
+  2. Newly extracted controllers (`patients.controller.ts`, `schedule.controller.ts`, `whiteboard.controller.ts`) accessed `request.facilityId`, `request.medplum`, and `reply.sendApiError` without importing `facility-context.js` or `augment.js`.
+  3. While a monolithic project `tsc --noEmit` loads all files under `src/` simultaneously, isolated build pipelines (such as Vercel's `@vercel/node` transpilation and single-entrypoint compiler runners) compile files by tracing their specific import trees. Because the controllers never imported `facility-context.ts`, TypeScript failed with `TS2339: Property 'facilityId' does not exist on type 'FastifyRequest'`.
+- **Rule:**
+  1. Keep Fastify core request/instance augmentations centralized in `apps/api/src/auth/augment.ts`, declaring `facilityId?: string;` alongside `tenant`, `principal`, and distributed locks (`facilityRegistrationLock`, `facilitySchedulingLock`).
+  2. Controllers and hooks that access Fastify extensions (`request.facilityId`, `request.medplum`, `reply.sendApiError`) must explicitly import `../auth/augment.js`, `../plugins/error-handler.js`, and `../plugins/medplum.js` so their types are resolvable in both monolithic and isolated compilation graphs.
+- **How to check:** `pnpm --filter api exec tsc src/controllers/*.ts --noEmit --ignoreConfig --skipLibCheck` and `pnpm turbo run lint check-types test build`.
+- **Guarded by:** `apps/api/src/auth/augment.ts`, `apps/api/src/controllers/*.ts`.
+

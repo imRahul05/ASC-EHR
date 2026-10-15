@@ -1,6 +1,9 @@
 import { API_ERROR_CODES } from "@asc/types";
 import type { SignConsentInput } from "@asc/validation";
 import type { FastifyReply, FastifyRequest } from "fastify";
+import "../auth/augment.js";
+import "../plugins/error-handler.js";
+import "../plugins/medplum.js";
 
 import { getCaseContext } from "../hooks/case-context.js";
 import { getConsent, signConsent } from "../services/consent-service.js";

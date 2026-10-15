@@ -5,6 +5,9 @@ import type {
   PriorAuthCheck,
 } from "@asc/validation";
 import type { FastifyReply, FastifyRequest } from "fastify";
+import "../auth/augment.js";
+import "../plugins/error-handler.js";
+import "../plugins/medplum.js";
 
 import { getCaseContext } from "../hooks/case-context.js";
 import { financialClearanceService } from "../services/financial-clearance-service.js";

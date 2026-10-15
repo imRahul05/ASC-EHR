@@ -1,5 +1,6 @@
 import { grantedFacilityIds } from "@asc/authz";
 import type { FastifyRequest } from "fastify";
+import "../auth/augment.js";
 
 export const FHIR_ID = /^[A-Za-z0-9._-]{1,64}$/;
 
