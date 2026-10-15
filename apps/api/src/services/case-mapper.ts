@@ -326,8 +326,8 @@ export function buildProcedureCaseFromFhir(params: {
     consentsSigned: isCheckSatisfiedOrWaived(checkMap.get("consent")),
     holdsConfirmed: isCheckSatisfiedOrWaived(checkMap.get("anticoagulation")),
     escortConfirmed: isCheckSatisfiedOrWaived(checkMap.get("escort")),
-    npoConfirmed: false,
-    ivPlaced: false,
+    npoConfirmed: isCheckSatisfiedOrWaived(checkMap.get("prep")),
+    ivPlaced: Boolean(encounter?.extension?.some((e) => e.url?.includes("preop-iv-placement"))),
     timeOutComplete: false,
   };
 

@@ -78,6 +78,8 @@ export class CasesMockClient extends BaseMockClient {
     let accountFilter: string | undefined;
     let appointmentFilter: string | undefined;
     let subjectFilter: string | undefined;
+    let patientFilter: string | undefined;
+    let encounterFilter: string | undefined;
     let identifierFilter: string | undefined;
     let idFilter: string | undefined;
     let countFilter: number | undefined;
@@ -99,6 +101,10 @@ export class CasesMockClient extends BaseMockClient {
           appointmentFilter = entry[1];
         } else if (Array.isArray(entry) && entry[0] === "subject" && typeof entry[1] === "string") {
           subjectFilter = entry[1];
+        } else if (Array.isArray(entry) && entry[0] === "patient" && typeof entry[1] === "string") {
+          patientFilter = entry[1];
+        } else if (Array.isArray(entry) && entry[0] === "encounter" && typeof entry[1] === "string") {
+          encounterFilter = entry[1];
         } else if (Array.isArray(entry) && entry[0] === "identifier" && typeof entry[1] === "string") {
           identifierFilter = entry[1];
         } else if (Array.isArray(entry) && (entry[0] === "_id" || entry[0] === "id") && typeof entry[1] === "string") {
@@ -129,6 +135,21 @@ export class CasesMockClient extends BaseMockClient {
       if (typeof rawDate === "string") {
         dateFilter = rawDate;
         delete copy["date"];
+      }
+      const rawSubject = copy["subject"];
+      if (typeof rawSubject === "string") {
+        subjectFilter = rawSubject;
+        delete copy["subject"];
+      }
+      const rawPatient = copy["patient"];
+      if (typeof rawPatient === "string") {
+        patientFilter = rawPatient;
+        delete copy["patient"];
+      }
+      const rawEncounter = copy["encounter"];
+      if (typeof rawEncounter === "string") {
+        encounterFilter = rawEncounter;
+        delete copy["encounter"];
       }
       const rawIdentifier = copy["identifier"];
       if (typeof rawIdentifier === "string") {
@@ -190,6 +211,18 @@ export class CasesMockClient extends BaseMockClient {
         filteredEntries = filteredEntries?.filter((e) => {
           const enc = e.resource as Encounter | undefined;
           return enc?.subject?.reference === subjectFilter;
+        });
+      }
+      if (patientFilter !== undefined) {
+        filteredEntries = filteredEntries?.filter((e) => {
+          const res = e.resource as { patient?: Reference; subject?: Reference } | undefined;
+          return res?.patient?.reference === patientFilter || res?.subject?.reference === patientFilter;
+        });
+      }
+      if (encounterFilter !== undefined) {
+        filteredEntries = filteredEntries?.filter((e) => {
+          const res = e.resource as { encounter?: Reference } | undefined;
+          return res?.encounter?.reference === encounterFilter;
         });
       }
       if (identifierFilter !== undefined) {
