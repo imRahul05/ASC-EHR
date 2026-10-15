@@ -9,6 +9,7 @@ const optionalText = z.string().trim().max(200);
 
 export const sexSchema = z.enum(["F", "M", "X"]);
 export const subscriberRelationshipSchema = z.enum(["self", "spouse", "child", "other"]);
+export type SubscriberRelationship = z.infer<typeof subscriberRelationshipSchema>;
 
 export const patientRegistrationSchema = z
   .object({
