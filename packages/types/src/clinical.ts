@@ -1273,3 +1273,45 @@ export interface UpdatePrepItemPayload {
 }
 
 export type UpdateEscortPayload = Omit<Escort, "present">;
+
+export interface ConsentRecord {
+  readonly id: string;
+  readonly caseId: string;
+  readonly patientId: string;
+  readonly status: "active" | "draft" | "rejected" | "inactive";
+  readonly procedureName: string;
+  readonly procedureCode: string;
+  readonly signerName: string;
+  readonly signerRelationship: string;
+  readonly signedAt: IsoDateTime;
+  readonly signatureSha256: string;
+  readonly consentFormVersion: string;
+}
+
+export interface SignConsentResult {
+  readonly ok: true;
+  readonly consent: ConsentRecord;
+  readonly readiness?: ReadinessFlags;
+  readonly readinessChecks?: readonly ReadinessCheck[];
+  readonly overallReadiness?: OverallReadiness;
+  readonly case?: ProcedureCase;
+}
+
+export interface PreopAssessmentResult {
+  readonly ok: true;
+  readonly caseId?: string;
+  readonly vitals: {
+    readonly sbp: number;
+    readonly dbp: number;
+    readonly hr: number;
+    readonly rr: number;
+    readonly spo2: number;
+    readonly tempC: number;
+    readonly heightInches?: number;
+    readonly weightLbs?: number;
+  };
+  readonly readiness?: ReadinessFlags;
+  readonly readinessChecks?: readonly ReadinessCheck[];
+  readonly overallReadiness?: OverallReadiness;
+  readonly case?: ProcedureCase;
+}

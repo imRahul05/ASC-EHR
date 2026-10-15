@@ -1,5 +1,7 @@
 import { API_ROUTES } from "@asc/config/api";
-import type { CaseDetail, ScheduleDay } from "@asc/types";
+import type { CaseDetail, Consent, PreopAssessmentResult, ReadinessCheck, ScheduleDay, SignConsentResult } from "@asc/types";
+import type { SignConsentInput } from "@asc/validation/consent";
+import type { PreopAssessmentInput } from "@asc/validation/preop";
 import { setupServer } from "msw/node";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db, resetDb } from "../db/store";
@@ -20,6 +22,19 @@ const post = (url: string, payload: { readonly to: string; readonly reason?: str
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+
+const postJson = <T>(url: string, payload: T) =>
+  fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+const VALID_PNG_SIGNATURE =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAKAAAABaCAYAAAA7W3NRAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAGVSURBVHhe7dsxEcAwDMCwhz95r0mBh7cUM4oAC3C815z37e9z1uW1r1r7er/z2d/nrMsr3wI=";
+
+const TRANSPARENT_1X1_PNG =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
 describe("mock clinical case handlers", () => {
   it("GET /schedule with ?facilityId=... returns status 200 with ScheduleDay", async () => {
@@ -206,5 +221,209 @@ describe("mock clinical case handlers", () => {
     expect(response.status).toBe(400);
     const payload = (await response.json()) as { code: string; message: string };
     expect(payload.code).toBe("invalid_payload");
+  });
+
+  it("POST /cases/:id/consent signs consent and sets readiness check to satisfied", async () => {
+    const payload: SignConsentInput = {
+      caseId: "case_105",
+      facilityId: "fac-metro",
+      procedureName: "Colonoscopy",
+      procedureCode: "COLONOSCOPY",
+      performingPhysicianName: "Dr. Jane Corwin",
+      signerName: "Robert Miller",
+      signerRelationship: "patient",
+      signatureDataUrl: VALID_PNG_SIGNATURE,
+      consentFormVersion: "v1.0",
+      risksAcknowledged: true,
+    };
+
+    const res = await postJson(apiUrl(API_ROUTES.caseConsent("case_105")), payload);
+    expect(res.status).toBe(200);
+    const result = (await res.json()) as SignConsentResult;
+    expect(result.ok).toBe(true);
+    expect(result.consent.status).toBe("signed");
+    expect(result.consent.signerName).toBe("Robert Miller");
+
+    const checks: readonly ReadinessCheck[] = result.readinessChecks ?? [];
+    const consentCheck = checks.find((c) => c.name === "consent");
+    expect(consentCheck?.status).toBe("satisfied");
+
+    // Verify GET /cases/:id/consent retrieves it
+    const getRes = await get(apiUrl(API_ROUTES.caseConsent("case_105")));
+    expect(getRes.status).toBe(200);
+    const retrieved = (await getRes.json()) as Consent;
+    expect(retrieved.signerName).toBe("Robert Miller");
+    expect(retrieved.status).toBe("signed");
+  });
+
+  it("POST /cases/:id/consent rejects empty/transparent signature with 400", async () => {
+    const payload: SignConsentInput = {
+      caseId: "case_105",
+      facilityId: "fac-metro",
+      procedureName: "Colonoscopy",
+      procedureCode: "COLONOSCOPY",
+      performingPhysicianName: "Dr. Jane Corwin",
+      signerName: "Robert Miller",
+      signerRelationship: "patient",
+      signatureDataUrl: TRANSPARENT_1X1_PNG,
+      consentFormVersion: "v1.0",
+      risksAcknowledged: true,
+    };
+
+    const res = await postJson(apiUrl(API_ROUTES.caseConsent("case_105")), payload);
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { code: string; message: string };
+    expect(body.code).toBe("invalid_payload");
+  });
+
+  it("POST /cases/:id/consent flags readiness check as failed on procedure mismatch (AC-E-09-2)", async () => {
+    // case_105 is scheduled for COLONOSCOPY; sign for EGD (43239)
+    const payload: SignConsentInput = {
+      caseId: "case_105",
+      facilityId: "fac-metro",
+      procedureName: "Esophagogastroduodenoscopy",
+      procedureCode: "43239",
+      performingPhysicianName: "Dr. Jane Corwin",
+      signerName: "Robert Miller",
+      signerRelationship: "patient",
+      signatureDataUrl: VALID_PNG_SIGNATURE,
+      consentFormVersion: "v1.0",
+      risksAcknowledged: true,
+    };
+
+    const res = await postJson(apiUrl(API_ROUTES.caseConsent("case_105")), payload);
+    expect(res.status).toBe(200);
+    const result = (await res.json()) as SignConsentResult;
+    expect(result.ok).toBe(true);
+
+    const checks: readonly ReadinessCheck[] = result.readinessChecks ?? [];
+    const consentCheck = checks.find((c) => c.name === "consent");
+    expect(consentCheck?.status).toBe("failed");
+    expect(consentCheck?.details).toMatch(/mismatch/i);
+  });
+
+  it("GET /cases/:id/consent returns null when no consent has been signed", async () => {
+    const res = await get(apiUrl(API_ROUTES.caseConsent("case_105")));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Consent | null;
+    expect(body).toBeNull();
+  });
+
+  it("POST /cases/:id/preop-assessment saves vitals, records IV placement, and updates readiness", async () => {
+    const payload: PreopAssessmentInput = {
+      caseId: "case_105",
+      facilityId: "fac-metro",
+      vitals: {
+        sbp: 120,
+        dbp: 80,
+        hr: 72,
+        rr: 16,
+        spo2: 99,
+        tempC: 36.8,
+        heightInches: 70,
+        weightLbs: 175,
+      },
+      iv: {
+        site: "left_forearm",
+        gauge: 20,
+        attempts: 1,
+      },
+      npo: {
+        solidFoodHoursAgo: 8,
+        clearLiquidsHoursAgo: 3,
+        confirmed: true,
+      },
+      escort: {
+        name: "Jane Miller",
+        phone: "(555) 123-4567",
+        relationship: "Spouse",
+        confirmedPresent: true,
+      },
+      allergiesReviewed: true,
+      belongingsSecured: true,
+    };
+
+    const res = await postJson(apiUrl(API_ROUTES.casePreopAssessment("case_105")), payload);
+    expect(res.status).toBe(200);
+    const result = (await res.json()) as PreopAssessmentResult;
+    expect(result.ok).toBe(true);
+    expect(result.vitals.sbp).toBe(120);
+    expect(result.vitals.dbp).toBe(80);
+    expect(result.readiness?.ivPlaced).toBe(true);
+    expect(result.readiness?.npoConfirmed).toBe(true);
+    expect(result.readiness?.escortConfirmed).toBe(true);
+
+    const checks: readonly ReadinessCheck[] = result.readinessChecks ?? [];
+    const prepCheck = checks.find((c) => c.name === "prep");
+    expect(prepCheck?.status).toBe("satisfied");
+    const escortCheck = checks.find((c) => c.name === "escort");
+    expect(escortCheck?.status).toBe("satisfied");
+  });
+
+  it("POST /cases/:id/preop-assessment flags prep check as failed on NPO solid food violation (< 6 hours)", async () => {
+    const payload: PreopAssessmentInput = {
+      caseId: "case_105",
+      facilityId: "fac-metro",
+      vitals: {
+        sbp: 120,
+        dbp: 80,
+        hr: 72,
+        rr: 16,
+        spo2: 99,
+        tempC: 36.8,
+      },
+      iv: {
+        site: "left_forearm",
+        gauge: 20,
+        attempts: 1,
+      },
+      npo: {
+        solidFoodHoursAgo: 4, // Violation: < 6 hours
+        clearLiquidsHoursAgo: 3,
+        confirmed: true,
+      },
+      escort: {
+        name: "Jane Miller",
+        phone: "(555) 123-4567",
+        relationship: "Spouse",
+        confirmedPresent: true,
+      },
+      allergiesReviewed: true,
+      belongingsSecured: true,
+    };
+
+    const res = await postJson(apiUrl(API_ROUTES.casePreopAssessment("case_105")), payload);
+    expect(res.status).toBe(200);
+    const result = (await res.json()) as PreopAssessmentResult;
+    expect(result.ok).toBe(true);
+
+    const checks: readonly ReadinessCheck[] = result.readinessChecks ?? [];
+    const prepCheck = checks.find((c) => c.name === "prep");
+    expect(prepCheck?.status).toBe("failed");
+    expect(prepCheck?.details).toMatch(/violation/i);
+  });
+
+  it("POST /cases/:id/transition to preop rejects with 409 GATE_FAILED when consent was attempted to be waived (AC-D-12-4, AC-F-02-3)", async () => {
+    // Transition case_105 to arrived first
+    await post(apiUrl(API_ROUTES.caseTransition("case_105")), { to: "arrived" });
+
+    // Inject waiver attempt on non-waivable consent check
+    const current = db().cases.get("case_105");
+    if (current) {
+      db().cases.set("case_105", {
+        ...current,
+        readinessChecks: [
+          { name: "identity", label: "Patient identity", status: "satisfied" },
+          { name: "consent", label: "Informed consent", status: "waived" },
+          { name: "hp", label: "History & physical", status: "satisfied" },
+        ],
+      });
+    }
+
+    const res = await post(apiUrl(API_ROUTES.caseTransition("case_105")), { to: "preop" });
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { code: string; message: string; reasons: readonly { code: string; message: string }[] };
+    expect(body.code).toBe("GATE_FAILED");
+    expect(body.reasons.some((r) => r.code === "GATE1_CONSENT")).toBe(true);
   });
 });

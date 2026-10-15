@@ -1,5 +1,8 @@
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import type { CaseDetail } from "@asc/types";
+import type { CaseDetail, SignConsentPayload, SignConsentResult } from "@asc/types";
+import type { SignConsentInput } from "@asc/validation/consent";
+import type { PreopAssessmentInput } from "@asc/validation/preop";
+import { signConsent, submitPreopAssessment } from "../clinical/cases";
 import { getFacilityId } from "../http";
 import { queryKeys } from "./query-keys";
 
@@ -43,3 +46,32 @@ export function useCaseCommand<TPayload>(
     },
   );
 }
+
+export function useSignConsent(caseId: string, facilityId?: string | null) {
+  const resolvedFacility = facilityId?.trim() || getFacilityId()?.trim() || undefined;
+  return useClinicalMutation<SignConsentInput | SignConsentPayload, SignConsentResult | CaseDetail>(
+    (payload: SignConsentInput | SignConsentPayload) => {
+      if ("consentFormVersion" in payload) {
+        return signConsent(caseId, payload, resolvedFacility);
+      }
+      return signConsent(caseId, payload, resolvedFacility);
+    },
+    (queryClient) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cases.detail(caseId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cases.consent(caseId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.schedule.all });
+    },
+  );
+}
+
+export function useSubmitPreopAssessment(caseId: string, facilityId?: string | null) {
+  const resolvedFacility = facilityId?.trim() || getFacilityId()?.trim() || undefined;
+  return useClinicalMutation(
+    (payload: PreopAssessmentInput) => submitPreopAssessment(caseId, payload, resolvedFacility),
+    (queryClient) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cases.detail(caseId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.schedule.all });
+    },
+  );
+}
+

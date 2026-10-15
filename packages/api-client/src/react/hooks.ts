@@ -25,6 +25,7 @@ import {
   getCase,
   getCoding,
   getCodingQueue,
+  getConsent,
   getDashboardSummary,
   getMyCare,
   getNote,
@@ -52,7 +53,6 @@ import {
   searchPatients,
   sendResultLetter,
   setSurveillance,
-  signConsent,
   signNote,
   transitionCase,
   updateCodingStatus,
@@ -196,6 +196,15 @@ export function useCaseDetails(
   });
 }
 
+export function useConsent(caseId: string, facilityId?: string | null) {
+  const resolvedFacility = facilityId?.trim() || undefined;
+  return useQuery({
+    queryKey: queryKeys.cases.consent(caseId, resolvedFacility),
+    queryFn: () => getConsent(caseId, resolvedFacility),
+    enabled: Boolean(caseId),
+  });
+}
+
 export const useTransitionCase = (caseId: string, facilityId?: string | null) => {
   const resolvedFacility = facilityId?.trim() || undefined;
   return useCaseCommand(
@@ -208,7 +217,6 @@ export const useCheckIn = (caseId: string) => useCaseCommand(caseId, checkInCase
 export const useSaveHp = (caseId: string) => useCaseCommand(caseId, saveHp);
 export const useSavePreOp = (caseId: string) => useCaseCommand(caseId, savePreOp);
 export const useSaveVitals = (caseId: string) => useCaseCommand(caseId, saveVitals);
-export const useSignConsent = (caseId: string) => useCaseCommand(caseId, signConsent);
 export const useAttestTimeOut = (caseId: string) => useCaseCommand(caseId, attestTimeOut);
 export const useAddProcedureEvent = (caseId: string) => useCaseCommand(caseId, addProcedureEvent);
 export const useRecordBbps = (caseId: string) => useCaseCommand(caseId, recordBbps);

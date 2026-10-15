@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ApiError } from "@asc/api-client";
 import { useCase } from "@asc/api-client/react";
 import { formatTime24, formatWeekday } from "@asc/clinical-rules/time";
@@ -16,6 +17,8 @@ import {
 } from "@asc/ui";
 import { TabHint } from "../guide/tab-hint";
 import { CASE_TABS } from "./case-tabs";
+import { ConsentModal } from "./components/consent-modal";
+import { PreopIntakeDrawer } from "./components/preop-intake-drawer";
 import { GatePanel } from "./gate-panel";
 import { PhaseHistory } from "./phase-history";
 import { useCaseTab } from "./use-case-tab";
@@ -33,6 +36,8 @@ const INTENT_LABEL = { screening: "Screening", surveillance: "Surveillance", dia
 export function CaseWorkspace({ caseId }: CaseWorkspaceProps) {
   const query = useCase(caseId);
   const { tab, setTab } = useCaseTab(query.data?.case.phase);
+  const [consentOpen, setConsentOpen] = useState(false);
+  const [preopOpen, setPreopOpen] = useState(false);
 
   if (query.isPending) return <LoadingSkeleton variant="detail" />;
   if (query.isError) {
@@ -97,10 +102,34 @@ export function CaseWorkspace({ caseId }: CaseWorkspaceProps) {
         </Tabs>
 
         <aside className="space-y-4">
-          <GatePanel detail={detail} />
+          <GatePanel
+            detail={detail}
+            onOpenConsent={() => setConsentOpen(true)}
+            onOpenPreop={() => setPreopOpen(true)}
+          />
           <PhaseHistory procedureCase={procedureCase} />
         </aside>
       </div>
+
+      <ConsentModal
+        caseId={caseId}
+        open={consentOpen}
+        onOpenChange={setConsentOpen}
+        procedureName={procedureCase.procedureLabel}
+        procedureCode={procedureCase.procedure}
+        performingPhysicianName={procedureCase.team.surgeon.name}
+        patientName={procedureCase.patient.displayName}
+        onSuccess={() => void query.refetch()}
+      />
+
+      <PreopIntakeDrawer
+        caseId={caseId}
+        open={preopOpen}
+        onOpenChange={setPreopOpen}
+        patientName={procedureCase.patient.displayName}
+        defaultEscort={detail.patient.escort}
+        onSuccess={() => void query.refetch()}
+      />
     </div>
   );
 }

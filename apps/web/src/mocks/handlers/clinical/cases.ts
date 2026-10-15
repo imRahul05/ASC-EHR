@@ -1,4 +1,4 @@
-import { findScheduleConflicts, TIME_OUT_ROLES, toIsoDate, transitionGate } from "@asc/clinical-rules";
+import { computeOverallReadiness, findScheduleConflicts, TIME_OUT_ROLES, toIsoDate, transitionGate } from "@asc/clinical-rules";
 import { API_ROUTE_PATTERNS as P } from "@asc/config/api";
 import type {
   AddImagePayload,
@@ -10,16 +10,24 @@ import type {
   BbpsScore,
   BookCasePayload,
   CheckInPayload,
+  Consent,
   HpAssessment,
   ProcedureCase,
+  ProcedureCode,
   ProcedureEventType,
+  ReadinessCheck,
+  ReadinessCheckStatus,
   SaveHpPayload,
   SavePreOpPayload,
   SaveVitalsPayload,
   ScheduleDay,
   SignConsentPayload,
   TransitionCasePayload,
+  VitalsEntry,
 } from "@asc/types";
+import { formatZodError } from "@asc/validation/errors";
+import { signConsentSchema, type SignConsentInput } from "@asc/validation/consent";
+import { preopAssessmentSchema, type PreopAssessmentInput } from "@asc/validation/preop";
 import { http, HttpResponse } from "msw";
 import { buildPreVisitBrief } from "../../db/content";
 import { PROCEDURE_LABEL } from "../../db/seed";
@@ -74,6 +82,37 @@ function requirePhase(caseId: string, allowed: readonly ProcedureCase["phase"][]
     return apiError(409, "INVALID_PHASE", `Cannot ${action} while the case is ${current.phase.toLowerCase().replaceAll("_", " ")}.`);
   }
   return null;
+}
+
+function isProcedureCodeMismatch(caseProcedure: ProcedureCode, inputCode: string): boolean {
+  const normalized = inputCode.trim().toUpperCase();
+  if (normalized === caseProcedure) return false;
+
+  // Colonoscopy CPTs: 45378, 45380, 45385, etc.
+  if (caseProcedure === "COLONOSCOPY") {
+    if (normalized.startsWith("4537") || normalized.startsWith("4538") || normalized.startsWith("4539")) {
+      return false;
+    }
+    return true;
+  }
+  // EGD CPTs: 43235, 43239, 43248, etc.
+  if (caseProcedure === "EGD") {
+    if (normalized.startsWith("432")) {
+      return false;
+    }
+    return true;
+  }
+  // FLEX_SIG: 45330, etc.
+  if (caseProcedure === "FLEX_SIG") {
+    if (normalized.startsWith("4533")) {
+      return false;
+    }
+    return true;
+  }
+  if (caseProcedure === "EGD_COLONOSCOPY") {
+    return false;
+  }
+  return false;
 }
 
 function applyAnesthesiaEntry(record: AnesthesiaRecord, payload: AnesthesiaEntryPayload, actor: ReturnType<typeof actorFrom>): AnesthesiaRecord {
@@ -377,6 +416,207 @@ export const caseHandlers = [
       { ...payload, id: newId("vit"), caseId, recordedAt: payload.recordedAt ?? new Date().toISOString(), recordedBy: actorFrom(request).ref },
     ]);
     return detailResponse(caseId);
+  }),
+
+  http.post(apiUrl(P.casePreopAssessment), async ({ params, request }) => {
+    await latency();
+    const caseId = param(params.caseId);
+    const current = getCaseOrNull(caseId);
+    if (!current) return caseNotFound(caseId);
+
+    const rawPayload = await body<PreopAssessmentInput>(request);
+    const parsed = preopAssessmentSchema.safeParse(rawPayload);
+    if (!parsed.success) {
+      return apiError(400, "invalid_payload", "Invalid pre-op assessment payload", formatZodError(parsed.error).details);
+    }
+    const payload = parsed.data;
+    const state = db();
+    const actor = actorFrom(request);
+    const nowIso = new Date().toISOString();
+
+    const npoPassed =
+      payload.npo.solidFoodHoursAgo >= 6 &&
+      payload.npo.clearLiquidsHoursAgo >= 2 &&
+      payload.npo.confirmed;
+
+    const prepCheckStatus: ReadinessCheckStatus = npoPassed ? "satisfied" : "failed";
+    const prepDetails = npoPassed
+      ? `NPO confirmed: solids ${payload.npo.solidFoodHoursAgo}h ago, clear liquids ${payload.npo.clearLiquidsHoursAgo}h ago`
+      : `NPO violation: solids ${payload.npo.solidFoodHoursAgo}h (< 6h) or clear liquids ${payload.npo.clearLiquidsHoursAgo}h (< 2h)`;
+
+    const escortCheckStatus: ReadinessCheckStatus = payload.escort.confirmedPresent ? "satisfied" : "pending";
+    const escortDetails = payload.escort.confirmedPresent
+      ? `Escort confirmed: ${payload.escort.name} (${payload.escort.phone})`
+      : `Escort unconfirmed: ${payload.escort.name} (${payload.escort.phone})`;
+
+    const vitalsEntry: VitalsEntry = {
+      id: newId("vit"),
+      caseId,
+      context: "pre_op",
+      recordedAt: nowIso,
+      sbp: payload.vitals.sbp,
+      dbp: payload.vitals.dbp,
+      hr: payload.vitals.hr,
+      rr: payload.vitals.rr,
+      spo2: payload.vitals.spo2,
+      tempC: payload.vitals.tempC,
+      recordedBy: actor.ref,
+    };
+    state.vitals.set(caseId, [...(state.vitals.get(caseId) ?? []), vitalsEntry]);
+
+    const patient = state.patients.get(current.patientId);
+    if (patient) {
+      state.patients.set(patient.id, {
+        ...patient,
+        escort: {
+          name: payload.escort.name,
+          phone: payload.escort.phone,
+          relationship: payload.escort.relationship,
+          confirmed: payload.escort.confirmedPresent,
+          present: payload.escort.confirmedPresent,
+        },
+      });
+    }
+
+    const existingChecks: readonly ReadinessCheck[] = current.readinessChecks ?? [
+      { name: "identity", label: "Patient identity", status: "satisfied" },
+      { name: "hp", label: "History & physical", status: "satisfied" },
+      { name: "consent", label: "Informed consent", status: "satisfied" },
+    ];
+
+    const updatedPrepCheck: ReadinessCheck = {
+      name: "prep",
+      label: "Bowel preparation",
+      status: prepCheckStatus,
+      details: prepDetails,
+    };
+
+    const updatedEscortCheck: ReadinessCheck = {
+      name: "escort",
+      label: "Responsible escort",
+      status: escortCheckStatus,
+      details: escortDetails,
+    };
+
+    const nextChecks: readonly ReadinessCheck[] = [
+      ...existingChecks.filter((c) => c.name !== "prep" && c.name !== "escort"),
+      updatedPrepCheck,
+      updatedEscortCheck,
+    ];
+
+    const nextOverall = computeOverallReadiness(nextChecks);
+
+    updateCase(caseId, {
+      readinessChecks: nextChecks,
+      overallReadiness: nextOverall,
+      readiness: {
+        ...current.readiness,
+        npoConfirmed: npoPassed,
+        prepConfirmed: npoPassed,
+        escortConfirmed: payload.escort.confirmedPresent,
+        ivPlaced: true,
+      },
+    });
+
+    audit(actor, "preop.assessment", { type: "ProcedureCase", id: caseId }, `Pre-op assessment recorded (NPO: ${prepCheckStatus}, Escort: ${escortCheckStatus}, IV placed)`);
+
+    return HttpResponse.json({
+      status: 200,
+      ok: true,
+      vitals: vitalsEntry,
+      readiness: getCaseOrNull(caseId)?.readiness,
+      readinessChecks: nextChecks,
+      overallReadiness: nextOverall,
+    });
+  }),
+
+  http.post(apiUrl(P.caseConsent), async ({ params, request }) => {
+    await latency();
+    const caseId = param(params.caseId);
+    const current = getCaseOrNull(caseId);
+    if (!current) return caseNotFound(caseId);
+
+    const rawPayload = await body<SignConsentInput>(request);
+    const parsed = signConsentSchema.safeParse(rawPayload);
+    if (!parsed.success) {
+      return apiError(400, "invalid_payload", "Invalid consent payload", formatZodError(parsed.error).details);
+    }
+    const payload = parsed.data;
+    const state = db();
+    const actor = actorFrom(request);
+
+    const isMismatch = isProcedureCodeMismatch(current.procedure, payload.procedureCode);
+    const consentStatus: ReadinessCheckStatus = isMismatch ? "failed" : "satisfied";
+    const consentDetails = isMismatch
+      ? `Procedure mismatch: signed for ${payload.procedureName} (${payload.procedureCode}), scheduled for ${current.procedureLabel}`
+      : `Signed by ${payload.signerName} (${payload.signerRelationship})`;
+
+    const mappedConsent: Consent = {
+      id: newId("cns"),
+      caseId,
+      kind: "procedure",
+      title: payload.procedureName,
+      summary: `Informed consent for ${payload.procedureName} performed by ${payload.performingPhysicianName}`,
+      status: "signed",
+      signerName: payload.signerName,
+      signedAt: new Date().toISOString(),
+      signatureDataUrl: payload.signatureDataUrl,
+    };
+
+    const existingConsents = state.consents.get(caseId) ?? [];
+    state.consents.set(caseId, [
+      mappedConsent,
+      ...existingConsents.filter((c) => c.kind !== "procedure"),
+    ]);
+
+    const existingChecks: readonly ReadinessCheck[] = current.readinessChecks ?? [
+      { name: "identity", label: "Patient identity", status: "satisfied" },
+      { name: "hp", label: "History & physical", status: "satisfied" },
+    ];
+
+    const updatedConsentCheck: ReadinessCheck = {
+      name: "consent",
+      label: "Informed consent",
+      status: consentStatus,
+      details: consentDetails,
+    };
+
+    const nextChecks: readonly ReadinessCheck[] = [
+      ...existingChecks.filter((c) => c.name !== "consent"),
+      updatedConsentCheck,
+    ];
+
+    const nextOverall = computeOverallReadiness(nextChecks);
+
+    updateCase(caseId, {
+      readinessChecks: nextChecks,
+      overallReadiness: nextOverall,
+      readiness: {
+        ...current.readiness,
+        consentsSigned: consentStatus === "satisfied",
+      },
+    });
+
+    audit(actor, "consent.sign", { type: "Consent", id: mappedConsent.id }, `Informed consent signed by ${payload.signerName} (${consentStatus})`);
+
+    return HttpResponse.json({
+      status: 200,
+      ok: true,
+      consent: mappedConsent,
+      readiness: getCaseOrNull(caseId)?.readiness,
+      readinessChecks: nextChecks,
+      overallReadiness: nextOverall,
+    });
+  }),
+
+  http.get(apiUrl(P.caseConsent), async ({ params }) => {
+    await latency();
+    const caseId = param(params.caseId);
+    const current = getCaseOrNull(caseId);
+    if (!current) return caseNotFound(caseId);
+    const consents = db().consents.get(caseId) ?? [];
+    const procedureConsent = consents.find((c) => c.kind === "procedure" && c.status === "signed");
+    return HttpResponse.json(procedureConsent ?? null);
   }),
 
   http.post(apiUrl(P.caseConsentSign), async ({ params, request }) => {

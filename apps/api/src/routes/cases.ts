@@ -4,14 +4,20 @@ import type { FacilitySchedulingLock } from "@asc/types";
 import {
   bookCaseSchema,
   formatZodError,
+  preopAssessmentSchema,
+  signConsentSchema,
   transitionCaseSchema,
   type BookCaseInput,
+  type PreopAssessmentInput,
+  type SignConsentInput,
 } from "@asc/validation";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import { capabilityAtResource } from "../auth/route-auth.js";
 import { bookCase, createInMemorySchedulingLock } from "../services/case-booking-service.js";
 import { getCaseDetail, transitionCase } from "../services/case-read-service.js";
+import { getConsent, signConsent } from "../services/consent-service.js";
+import { submitPreopAssessment } from "../services/preop-service.js";
 
 export { classifyMedplumReadError } from "../services/medplum-error-classifier.js";
 export { createInMemorySchedulingLock } from "../services/case-booking-service.js";
@@ -30,7 +36,7 @@ interface CaseQuery {
   readonly facilityId?: string;
 }
 
-const FHIR_ID = /^[A-Za-z0-9.-]{1,64}$/;
+const FHIR_ID = /^[A-Za-z0-9._-]{1,64}$/;
 
 function resolveFacilityId(
   request: FastifyRequest<{ Querystring: CaseQuery }>,
@@ -223,6 +229,153 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
       }
 
       return reply.code(200).send(result.data);
+    },
+  );
+
+  // POST /cases/:caseId/consent — Digital tablet informed consent capture (Phase P17)
+  app.post<{ Params: CaseRouteParams; Querystring: CaseQuery }>(
+    API_ROUTE_PATTERNS.caseConsent,
+    { config: capabilityAtResource("consent.collect") },
+    async (request: FastifyRequest<{ Params: CaseRouteParams; Querystring: CaseQuery }>, reply: FastifyReply) => {
+      const { caseId } = request.params;
+      const parsed = signConsentSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({
+          code: "invalid_payload",
+          message: "Invalid consent payload",
+          details: formatZodError(parsed.error),
+        });
+      }
+
+      const body: SignConsentInput = parsed.data;
+      const facilityId = resolveFacilityId(request, body.facilityId);
+
+      if (!facilityId) {
+        return reply.code(400).send({
+          code: "facility_required",
+          message: "Facility context is required to sign consent",
+        });
+      }
+
+      if (!FHIR_ID.test(caseId)) {
+        return reply.code(400).send({
+          code: "invalid_case_id",
+          message: "Invalid case ID format",
+        });
+      }
+
+      if (!(await app.guards.requireCapabilityAt(request, reply, "consent.collect", facilityId))) {
+        return reply;
+      }
+
+      const result = await signConsent({
+        medplum: request.medplum,
+        facilityId,
+        caseId,
+        input: body,
+        logger: request.log,
+      });
+
+      if (result.status === 404) {
+        return reply.code(404).send({
+          code: result.code,
+          message: result.message,
+        });
+      }
+
+      return reply.code(200).send(result);
+    },
+  );
+
+  // GET /cases/:caseId/consent — Retrieve informed consent for case
+  app.get<{ Params: CaseRouteParams; Querystring: CaseQuery }>(
+    API_ROUTE_PATTERNS.caseConsent,
+    { config: capabilityAtResource("case.read") },
+    async (request: FastifyRequest<{ Params: CaseRouteParams; Querystring: CaseQuery }>, reply: FastifyReply) => {
+      const { caseId } = request.params;
+      const facilityId = resolveFacilityId(request);
+
+      if (!facilityId) {
+        return reply.code(400).send({
+          code: "facility_required",
+          message: "Facility context is required to retrieve consent",
+        });
+      }
+
+      if (!FHIR_ID.test(caseId)) {
+        return reply.code(400).send({
+          code: "invalid_case_id",
+          message: "Invalid case ID format",
+        });
+      }
+
+      if (!(await app.guards.requireCapabilityAt(request, reply, "case.read", facilityId))) {
+        return reply;
+      }
+
+      const consent = await getConsent({
+        medplum: request.medplum,
+        facilityId,
+        caseId,
+      });
+
+      return reply.code(200).send(consent);
+    },
+  );
+
+  // POST /cases/:caseId/preop-assessment — Pre-op bay nursing assessment (Phase P17)
+  app.post<{ Params: CaseRouteParams; Querystring: CaseQuery }>(
+    API_ROUTE_PATTERNS.casePreopAssessment,
+    { config: capabilityAtResource("procedure.document") },
+    async (request: FastifyRequest<{ Params: CaseRouteParams; Querystring: CaseQuery }>, reply: FastifyReply) => {
+      const { caseId } = request.params;
+      const parsed = preopAssessmentSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({
+          code: "invalid_payload",
+          message: "Invalid pre-op assessment payload",
+          details: formatZodError(parsed.error),
+        });
+      }
+
+      const body: PreopAssessmentInput = parsed.data;
+      const facilityId = resolveFacilityId(request, body.facilityId);
+
+      if (!facilityId) {
+        return reply.code(400).send({
+          code: "facility_required",
+          message: "Facility context is required to submit pre-op assessment",
+        });
+      }
+
+      if (!FHIR_ID.test(caseId)) {
+        return reply.code(400).send({
+          code: "invalid_case_id",
+          message: "Invalid case ID format",
+        });
+      }
+
+      if (!(await app.guards.requireCapabilityAt(request, reply, "procedure.document", facilityId))) {
+        return reply;
+      }
+
+      const result = await submitPreopAssessment({
+        medplum: request.medplum,
+        facilityId,
+        caseId,
+        input: body,
+        logger: request.log,
+        performerId: request.principal?.id,
+      });
+
+      if (result.status === 404) {
+        return reply.code(404).send({
+          code: result.code,
+          message: result.message,
+        });
+      }
+
+      return reply.code(200).send(result);
     },
   );
 

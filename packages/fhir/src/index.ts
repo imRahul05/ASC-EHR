@@ -17,3 +17,5 @@ export * from "./builders/task.js";
 export * from "./builders/coverage.js";
 export * from "./builders/related-person.js";
 export * from "./builders/service-request.js";
+export * from "./builders/consent.js";
+export * from "./builders/preop.js";
