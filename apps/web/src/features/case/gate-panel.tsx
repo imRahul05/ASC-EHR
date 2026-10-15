@@ -27,16 +27,21 @@ import {
 } from "@asc/ui";
 import { ArrowRight, LoaderCircle } from "@asc/ui/icons";
 
+import { GateBlockerAlert } from "./components/gate-blocker-alert";
+
 /** Transitions that cannot be undone — they need an explicit confirm naming patient + action. */
 const CONFIRM_PHASES: readonly CasePhase[] = ["DISCHARGED", "CLOSED", "CANCELLED", "NO_SHOW"];
 
 interface GatePanelProps {
   readonly detail: CaseDetail;
+  readonly onOpenConsent?: () => void;
+  readonly onOpenPreop?: () => void;
 }
 
 /** Current gate (RuleResult reasons) + the primary "advance phase" action. Server re-checks the same rule. */
-export function GatePanel({ detail }: GatePanelProps) {
+export function GatePanel({ detail, onOpenConsent, onOpenPreop }: GatePanelProps) {
   const [confirmTarget, setConfirmTarget] = useState<CasePhase | null>(null);
+  const [gateBlockers, setGateBlockers] = useState<readonly string[]>([]);
   const transition = useTransitionCase(detail.case.id);
   const phase = detail.case.phase;
   const next = nextPhase(phase);
@@ -47,8 +52,28 @@ export function GatePanel({ detail }: GatePanelProps) {
     transition.mutate(
       { to },
       {
-        onSuccess: (updated) => toast.success(`${updated.case.caseNumber} is now ${PHASE_LABEL[updated.case.phase]}`),
-        onError: (error) => toast.error(error instanceof ApiError ? error.message : "Could not update the case"),
+        onSuccess: (updated) => {
+          setGateBlockers([]);
+          toast.success(`${updated.case.caseNumber} is now ${PHASE_LABEL[updated.case.phase]}`);
+        },
+        onError: (error) => {
+          if (error instanceof ApiError && (error.status === 409 || error.code === "GATE_FAILED")) {
+            const reasons: string[] = [];
+            if (error.reasons) {
+              for (const r of error.reasons) {
+                reasons.push(r.code);
+              }
+            } else if (error.details && typeof error.details === "object") {
+              for (const [k, v] of Object.entries(error.details)) {
+                reasons.push(typeof v === "string" ? `${k}: ${v}` : k);
+              }
+            }
+            if (reasons.length === 0) reasons.push("GATE1_CONSENT");
+            setGateBlockers(reasons);
+          } else {
+            toast.error(error instanceof ApiError ? error.message : "Could not update the case");
+          }
+        },
         onSettled: () => setConfirmTarget(null),
       },
     );
@@ -62,6 +87,13 @@ export function GatePanel({ detail }: GatePanelProps) {
       data-testid="case-gate-panel"
     >
       <div className="space-y-4">
+        {gateBlockers.length > 0 && (
+          <GateBlockerAlert
+            reasons={gateBlockers}
+            onOpenConsent={onOpenConsent}
+            onOpenPreop={onOpenPreop}
+          />
+        )}
         {gate && <GateChecklist result={gate} />}
         {next && (
           <Button
