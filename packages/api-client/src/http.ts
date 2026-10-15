@@ -49,6 +49,25 @@ export function authHeaders(): Record<string, string> {
   return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
 }
 
+/**
+ * Facility ID of the active clinic/ASC context, held in memory only (never browser storage, LM-004).
+ * Set by the app when a facility is selected or resolved, cleared on logout.
+ */
+let activeFacilityId: string | null = null;
+
+export function setFacilityId(facilityId: string | null): void {
+  activeFacilityId = facilityId && facilityId.trim() !== "" ? facilityId.trim() : null;
+}
+
+export function getFacilityId(): string | null {
+  return activeFacilityId;
+}
+
+/** x-facility-id header for multi-facility API routing (omitted when no facility is active). */
+export function facilityHeaders(): Record<string, string> {
+  return activeFacilityId ? { "x-facility-id": activeFacilityId } : {};
+}
+
 /** Appends `path` to the API base URL, keeping any base path (e.g. a proxy under `/api`). */
 export function buildUrl(path: string, query?: RequestOptions["query"]): string {
   const base = getPublicApiUrl().replace(/\/+$/, "");
@@ -88,7 +107,13 @@ async function request<T>(method: HttpMethod, path: string, body?: unknown, opti
     response = await fetch(buildUrl(path, options.query), {
       method,
       signal,
-      headers: { Accept: "application/json", "Content-Type": "application/json", ...authHeaders(), ...options.headers },
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        ...authHeaders(),
+        ...facilityHeaders(),
+        ...options.headers,
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch (error) {

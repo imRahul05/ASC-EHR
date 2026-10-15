@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { CaseDetail } from "@asc/types";
+import { getFacilityId } from "../http";
 import { queryKeys } from "./query-keys";
 
 /**
@@ -26,10 +27,19 @@ export function useClinicalMutation<TVariables, TData>(
   });
 }
 
-/** Case command bound to one case: writes the returned CaseDetail into the cache, then invalidates. */
-export function useCaseCommand<TPayload>(caseId: string, command: (caseId: string, payload: TPayload) => Promise<CaseDetail>) {
+export function useCaseCommand<TPayload>(
+  caseId: string,
+  command: (caseId: string, payload: TPayload) => Promise<CaseDetail>,
+  facilityId?: string,
+) {
+  const resolvedFacility = facilityId?.trim() || getFacilityId()?.trim() || undefined;
   return useClinicalMutation(
     (payload: TPayload) => command(caseId, payload),
-    (queryClient, detail) => queryClient.setQueryData(queryKeys.cases.detail(caseId), detail),
+    (queryClient, detail) => {
+      queryClient.setQueryData(queryKeys.cases.detail(caseId, resolvedFacility), detail);
+      if (resolvedFacility) {
+        queryClient.setQueryData(queryKeys.cases.detail(caseId), detail);
+      }
+    },
   );
 }

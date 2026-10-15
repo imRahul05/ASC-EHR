@@ -21,12 +21,17 @@ export function apiError(
 }
 
 export const notFound = (what: string) => apiError(404, `${what.toUpperCase()}_NOT_FOUND`, `${what} not found`);
+export const caseNotFound = (caseId: string) => apiError(404, "not_found", `Case ${caseId} not found`);
 
-/** 422 GATE_FAILED with every failing reason (`details`: reason code → message). */
-export function gateFailed(result: RuleResult, status = 422) {
-  const details = Object.fromEntries(result.reasons.map((reason) => [reason.code, reason.message]));
-  const code = result.reasons[0]?.code === "TRANSITION_NOT_ALLOWED" ? "TRANSITION_NOT_ALLOWED" : "GATE_FAILED";
-  return apiError(code === "TRANSITION_NOT_ALLOWED" ? 409 : status, code, result.reasons[0]?.message ?? "Rule check failed", details);
+/** 409 GATE_FAILED matching Fastify byte-for-byte ({ code: "GATE_FAILED", message, reasons }). */
+export function gateFailed(result: RuleResult, status = 409) {
+  return apiError(
+    status,
+    "GATE_FAILED",
+    result.reasons[0]?.message ?? "Clinical gate rejected transition",
+    undefined,
+    result.reasons,
+  );
 }
 
 /** Realistic latency (150–400 ms). */
@@ -45,5 +50,5 @@ export async function body<T>(request: Request): Promise<T> {
 /** Responds with the current CaseDetail (or 404). */
 export function detailResponse(caseId: string) {
   const detail: CaseDetail | null = caseDetail(caseId);
-  return detail ? HttpResponse.json(detail) : notFound("Case");
+  return detail ? HttpResponse.json(detail) : caseNotFound(caseId);
 }

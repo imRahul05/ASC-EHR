@@ -1,4 +1,4 @@
-import { isPhaseAtLeast, LEGACY_PHASE_ORDER, STOPPED_PHASES } from "@asc/clinical-rules";
+import { isPhaseAtLeast, LEGACY_PHASE_ORDER, stageFromPhase, STOPPED_PHASES } from "@asc/clinical-rules";
 import type {
   AldreteScore,
   AnesthesiaRecord,
@@ -350,7 +350,9 @@ function seedCase(state: DemoState, spec: CaseSpec, nowMs: number, nowIso: strin
     durationMin: spec.durationMin,
     team: { surgeon: staffRef(surgeon), anesthesia: staffRef(anesthesiaProvider), nurse: staffRef(nurse) },
     phase: spec.phase,
+    stage: stageFromPhase(spec.phase),
     timestamps,
+    stageTimestamps: { [stageFromPhase(spec.phase)]: timestamps[spec.phase] ?? new Date().toISOString() },
     readiness: {
       prepConfirmed: reached("CONFIRMED"),
       eligibilityActive: eligibilityStatus === "active",

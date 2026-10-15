@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, buildUrl, http } from "./http";
+import { ApiError, buildUrl, http, setAccessToken, setFacilityId } from "./http";
 
 function stubFetch(response: Response | Error) {
   const fn = vi.fn((_input: string, _init?: RequestInit) =>
@@ -11,6 +11,8 @@ function stubFetch(response: Response | Error) {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  setFacilityId(null);
+  setAccessToken(null);
 });
 
 describe("http", () => {
@@ -26,9 +28,26 @@ describe("http", () => {
     expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ email: "a@b.c" }));
   });
 
+  it("injects x-facility-id header when setFacilityId is configured", async () => {
+    setFacilityId("fac-omega");
+    const fetchMock = stubFetch(Response.json({ ok: true }));
+    await http.get("/schedule");
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({
+      "x-facility-id": "fac-omega",
+    });
+    setFacilityId(null);
+  });
+
+  it("omits x-facility-id header when facilityId is null", async () => {
+    setFacilityId(null);
+    const fetchMock = stubFetch(Response.json({ ok: true }));
+    await http.get("/schedule");
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).not.toHaveProperty("x-facility-id");
+  });
+
   it("maps an error body to ApiError", async () => {
     stubFetch(Response.json({ message: "Invalid credentials", code: "AUTH_INVALID" }, { status: 401 }));
-    const error = await http.post("/auth/login", {}).catch((e: unknown) => e);
+    const error = await http.post("/auth/login", {}).catch((e: Error) => e);
     expect(error).toBeInstanceOf(ApiError);
     expect(error).toMatchObject({ status: 401, message: "Invalid credentials", code: "AUTH_INVALID" });
   });

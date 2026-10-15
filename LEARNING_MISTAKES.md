@@ -364,4 +364,15 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **How to check:** `pnpm turbo run check-types lint test build`.
 - **Guarded by:** `apps/api/src/routes/cases.test.ts`, `apps/api/src/routes/cases-lock.test.ts`, `apps/api/src/routes/whiteboard.test.ts`, `apps/web/src/features/whiteboard/whiteboard-board.test.tsx`, `packages/clinical-rules/src/time.test.ts`, `packages/fhir/src/builders/appointment.test.ts`.
 
+### LM-033 — Scoping TanStack Query placeholderData across facility switches and resetting facility context on login failures
+- **Seen:** 2 · 2026-10-15 · `feat/case-workspace-wiring-and-mocks` (Phase P15c.2)
+- **What went wrong:**
+  1. `useSchedule` used `placeholderData: keepPreviousData`. In multi-site contexts, switching active facilities kept the previous facility's schedule visible during loading, leaking clinical case data across facility boundaries.
+  2. In `use-auth.ts`, the `loginWithCredentials` error catch block reset `setAccessToken(null)` and cleared web session cookies, but omitted `setFacilityId(null)`, risking stale facility state in `@asc/api-client`'s module memory.
+- **Rule:**
+  1. Never use unconditional `placeholderData: keepPreviousData` on queries scoped by facility or tenant. Use a key-aware resolver (`resolveSchedulePlaceholderData`) that returns `previousData` only when the facility matches and `undefined` when switching facilities.
+  2. Authentication failure handlers and logout routines must reset all module-scoped auth and facility context (`setAccessToken(null)`, `setFacilityId(null)`).
+- **How to check:** `pnpm turbo run test`.
+- **Guarded by:** `packages/api-client/src/react/hooks.test.ts`, `apps/web/src/hooks/use-auth.ts`.
+
 

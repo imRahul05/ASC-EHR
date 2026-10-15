@@ -1,5 +1,5 @@
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
-import type { AuditQuery, IsoDate, PatientSearchQuery, WorklistQuery } from "@asc/types";
+import type { AuditQuery, IsoDate, PatientSearchQuery, ScheduleDay, TransitionCasePayload, WorklistQuery } from "@asc/types";
 import {
   addAnesthesiaEntry,
   addImage,
@@ -137,32 +137,73 @@ export const useConvertReferral = (referralId: string) =>
 
 // ─── Schedule & case workspace ──────────────────────────────────────────────
 
-export function useSchedule(date?: IsoDate) {
-  return useQuery({ queryKey: queryKeys.schedule.day(date), queryFn: () => getSchedule(date), placeholderData: keepPreviousData });
+/**
+ * Prevents cross-facility patient schedule leakage when switching active facilities:
+ * only retains previousData if the previous query's facilityId matches the target facilityId.
+ */
+export function resolveSchedulePlaceholderData(
+  previousData: ScheduleDay | undefined,
+  previousFacilityId: string | undefined,
+  targetFacilityId: string | undefined,
+): ScheduleDay | undefined {
+  return (previousFacilityId ?? "") === (targetFacilityId ?? "") ? previousData : undefined;
+}
+
+export function useSchedule(
+  date?: IsoDate,
+  facilityId?: string | null,
+  options: { readonly enabled?: boolean } = {},
+) {
+  const resolvedFacility = facilityId?.trim() || undefined;
+  return useQuery({
+    queryKey: queryKeys.schedule.day(date, resolvedFacility),
+    queryFn: () => getSchedule(date, resolvedFacility),
+    enabled: options.enabled ?? true,
+    placeholderData: (previousData, previousQuery) => {
+      const prevKey = previousQuery?.queryKey;
+      const prevFacility = Array.isArray(prevKey) && typeof prevKey[2] === "string" ? prevKey[2] : undefined;
+      return resolveSchedulePlaceholderData(previousData, prevFacility, resolvedFacility);
+    },
+  });
 }
 
 export const useBookCase = () => useClinicalMutation(bookCase);
 export const useScheduleConflictCheck = () => useClinicalMutation(checkScheduleConflicts);
 
-export function useCase(caseId: string) {
-  return useQuery({ queryKey: queryKeys.cases.detail(caseId), queryFn: () => getCase(caseId) });
+export function useCase(caseId: string, facilityId?: string | null) {
+  const resolvedFacility = facilityId?.trim() || undefined;
+  return useQuery({
+    queryKey: queryKeys.cases.detail(caseId, resolvedFacility),
+    queryFn: () => getCase(caseId, resolvedFacility),
+  });
 }
 
 /**
  * Several case details at once (same cache entries as `useCase`), e.g. to follow seeded demo cases.
  * Returns one result per id, in order; `enabled: false` fetches nothing.
  */
-export function useCaseDetails(caseIds: readonly string[], options: { readonly enabled?: boolean } = {}) {
+export function useCaseDetails(
+  caseIds: readonly string[],
+  options: { readonly enabled?: boolean; readonly facilityId?: string | null } = {},
+) {
+  const resolvedFacility = options.facilityId?.trim() || undefined;
   return useQueries({
     queries: caseIds.map((caseId) => ({
-      queryKey: queryKeys.cases.detail(caseId),
-      queryFn: () => getCase(caseId),
+      queryKey: queryKeys.cases.detail(caseId, resolvedFacility),
+      queryFn: () => getCase(caseId, resolvedFacility),
       enabled: options.enabled ?? true,
     })),
   });
 }
 
-export const useTransitionCase = (caseId: string) => useCaseCommand(caseId, transitionCase);
+export const useTransitionCase = (caseId: string, facilityId?: string | null) => {
+  const resolvedFacility = facilityId?.trim() || undefined;
+  return useCaseCommand(
+    caseId,
+    (id, payload: TransitionCasePayload) => transitionCase(id, payload, resolvedFacility),
+    resolvedFacility,
+  );
+};
 export const useCheckIn = (caseId: string) => useCaseCommand(caseId, checkInCase);
 export const useSaveHp = (caseId: string) => useCaseCommand(caseId, saveHp);
 export const useSavePreOp = (caseId: string) => useCaseCommand(caseId, savePreOp);

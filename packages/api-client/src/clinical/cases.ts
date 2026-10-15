@@ -26,9 +26,16 @@ export type BookCaseResponse = BookCaseResult & Partial<ProcedureCase>;
 
 // ─── Schedule ───────────────────────────────────────────────────────────────
 
-/** Day board: rooms + cases on `date` (`YYYY-MM-DD`, default today). */
-export function getSchedule(date?: IsoDate): Promise<ScheduleDay> {
-  return http.get(API_ROUTES.schedule, { query: date ? { date } : undefined });
+/** Day board: rooms + cases on `date` (`YYYY-MM-DD`, default today), optionally scoped by `facilityId`. */
+export function getSchedule(date?: IsoDate, facilityId?: string): Promise<ScheduleDay> {
+  const query: Record<string, string> = {};
+  if (date) query.date = date;
+  const trimmed = facilityId?.trim();
+  if (trimmed) query.facilityId = trimmed;
+  return http.get(API_ROUTES.schedule, {
+    query: Object.keys(query).length > 0 ? query : undefined,
+    headers: trimmed ? { "x-facility-id": trimmed } : undefined,
+  });
 }
 
 /** Server-side conflict check for a proposed booking (UI also runs findScheduleConflicts locally). */
@@ -46,12 +53,20 @@ export function bookCase(payload: BookCaseInput | BookCasePayload): Promise<Book
 // Every command returns the refreshed CaseDetail so hooks can write it straight into the cache.
 // Gate violations reject with ApiError 409/422 and `code` (e.g. GATE_FAILED) + `details` (reason code → message).
 
-export function getCase(caseId: string): Promise<CaseDetail> {
-  return http.get(API_ROUTES.case(caseId));
+export function getCase(caseId: string, facilityId?: string): Promise<CaseDetail> {
+  const trimmed = facilityId?.trim();
+  return http.get(API_ROUTES.case(caseId), {
+    query: trimmed ? { facilityId: trimmed } : undefined,
+    headers: trimmed ? { "x-facility-id": trimmed } : undefined,
+  });
 }
 
-export function transitionCase(caseId: string, payload: TransitionCasePayload): Promise<CaseDetail> {
-  return http.post(API_ROUTES.caseTransition(caseId), payload);
+export function transitionCase(caseId: string, payload: TransitionCasePayload, facilityId?: string): Promise<CaseDetail> {
+  const trimmed = facilityId?.trim();
+  return http.post(API_ROUTES.caseTransition(caseId), payload, {
+    query: trimmed ? { facilityId: trimmed } : undefined,
+    headers: trimmed ? { "x-facility-id": trimmed } : undefined,
+  });
 }
 
 /** CONFIRMED → ARRIVED (records escort presence / NPO). */

@@ -19,6 +19,7 @@ import {
   type RoomTimeGridItem,
 } from "@asc/ui";
 import { CalendarPlus, ChevronLeft, ChevronRight } from "@asc/ui/icons";
+import { useActiveFacility } from "../../hooks/use-active-facility";
 import { BookCaseSheet } from "./book-case-sheet";
 import { ASC_ROOMS, CLINIC_END_HOUR, CLINIC_START_HOUR } from "./schedule-options";
 
@@ -79,12 +80,13 @@ function ScheduleBoardView() {
   const pathname = usePathname();
   const params = useSearchParams();
   const now = useNow();
+  const { facilityId, hasFacility } = useActiveFacility();
   const [date, setDate] = useState(todayIsoDate);
   const [sheet, setSheet] = useState<SheetState>(() => ({
     open: params.get("book") === "1",
     defaults: { patientId: params.get("patient") ?? undefined, referralId: params.get("referral") ?? undefined },
   }));
-  const query = useSchedule(date);
+  const query = useSchedule(date, facilityId, { enabled: hasFacility });
 
   const openSheet = (defaults: BookCaseDefaults) => setSheet({ open: true, defaults: { date, ...defaults } });
   const onSheetOpenChange = (open: boolean) => {
@@ -154,11 +156,17 @@ function ScheduleBoardView() {
         )}
       </div>
 
-      {query.isPending && <LoadingSkeleton variant="table" rows={8} />}
-      {query.isError && !day && (
+      {!hasFacility && (
+        <ErrorState
+          title="No active facility selected"
+          message="Please select an assigned facility to view the surgical schedule."
+        />
+      )}
+      {hasFacility && query.isPending && <LoadingSkeleton variant="table" rows={8} />}
+      {hasFacility && query.isError && !day && (
         <ErrorState title="Could not load the schedule" message="Check your connection and try again." onRetry={() => void query.refetch()} />
       )}
-      {day && (
+      {hasFacility && day && (
         <>
           {active.length === 0 && (
             <p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground" data-testid="schedule-empty">

@@ -1,3 +1,4 @@
+import { setFacilityId } from "@asc/api-client";
 import type { AuthSession, Principal } from "@asc/types";
 import type { MeResponse } from "@asc/validation/authz";
 import { create } from "zustand";
@@ -51,21 +52,28 @@ const SIGNED_OUT: Pick<AuthState, "session" | "idToken" | "principal" | "facilit
 
 export const useAuthStore = create<AuthState>()((set, get) => ({
   ...SIGNED_OUT,
-  setSession: (session, me, sessionStartedAt) =>
+  setSession: (session, me, sessionStartedAt) => {
+    const facilityId = resolveActiveFacility(me.facilities, get().facilityId);
+    setFacilityId(facilityId);
     set({
       session,
       sessionStartedAt: sessionStartedAt ?? get().sessionStartedAt ?? Date.now(),
       principal: me.principal,
       facilities: me.facilities,
-      facilityId: resolveActiveFacility(me.facilities, get().facilityId),
+      facilityId,
       workspaceKey: null,
-    }),
+    });
+  },
   setIdToken: (idToken) => set({ idToken }),
   selectFacility: (facilityId) => {
     if (get().facilityId !== facilityId && get().facilities.some((f) => f.id === facilityId)) {
+      setFacilityId(facilityId);
       set({ facilityId, workspaceKey: null });
     }
   },
   selectWorkspace: (workspaceKey) => set({ workspaceKey }),
-  clearSession: () => set(SIGNED_OUT),
+  clearSession: () => {
+    setFacilityId(null);
+    set(SIGNED_OUT);
+  },
 }));

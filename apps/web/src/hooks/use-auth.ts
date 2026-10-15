@@ -14,6 +14,7 @@ import {
   logoutWebSession,
   refreshWebAuthToken,
   setAccessToken,
+  setFacilityId,
 } from "@asc/api-client";
 import { queryKeys } from "@asc/api-client/react";
 import { getPublicMedplumClientId, isApiMockingEnabled } from "@asc/config/public-env";
@@ -55,7 +56,6 @@ export function useAuth() {
   const facilityId = useAuthStore((state) => state.facilityId);
   const setSession = useAuthStore((state) => state.setSession);
   const setIdToken = useAuthStore((state) => state.setIdToken);
-  const selectFacility = useAuthStore((state) => state.selectFacility);
   const clearSession = useAuthStore((state) => state.clearSession);
 
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -74,6 +74,7 @@ export function useAuth() {
         setSession(next, me, sessionStartedAt);
       } catch (error) {
         setAccessToken(null);
+        setFacilityId(null);
         void logoutWebSession();
         throw error;
       }
@@ -155,14 +156,22 @@ export function useAuth() {
             return { status: "complete" };
           } catch (error) {
             setAccessToken(null);
+            setFacilityId(null);
             void logoutWebSession();
             throw error;
           }
         }
 
-        const sessionData = await loginWithCredentials(credentials);
-        await startSession(sessionData);
-        return { status: "complete" };
+        try {
+          const sessionData = await loginWithCredentials(credentials);
+          await startSession(sessionData);
+          return { status: "complete" };
+        } catch (error) {
+          setAccessToken(null);
+          setFacilityId(null);
+          void logoutWebSession();
+          throw error;
+        }
       } finally {
         setIsLoggingIn(false);
       }
@@ -238,6 +247,7 @@ export function useAuth() {
           );
         } catch (error) {
           setAccessToken(null);
+          setFacilityId(null);
           void logoutWebSession();
           throw error;
         }
@@ -251,7 +261,11 @@ export function useAuth() {
   const restoreSession = useCallback(async (): Promise<boolean> => {
     try {
       const tokens = await refreshWebAuthToken();
-      if (!tokens.accessToken) return false;
+      if (!tokens.accessToken) {
+        setAccessToken(null);
+        setFacilityId(null);
+        return false;
+      }
       const medplum = getBrowserMedplumClient();
       if (medplum !== undefined) {
         medplum.setAccessToken(tokens.accessToken);
@@ -276,9 +290,24 @@ export function useAuth() {
       );
       return true;
     } catch {
+      setAccessToken(null);
+      setFacilityId(null);
       return false;
     }
   }, [setIdToken, setSession]);
+
+  const selectFacility = useCallback(
+    (newFacilityId: string) => {
+      const store = useAuthStore.getState();
+      if (store.facilityId !== newFacilityId) {
+        store.selectFacility(newFacilityId);
+        void queryClient.invalidateQueries({
+          predicate: (query) => query.queryKey[0] !== queryKeys.auth.all[0],
+        });
+      }
+    },
+    [queryClient],
+  );
 
   const demoLogin = useMutation({
     mutationFn: (presetId: DemoPersonaId) => {
@@ -289,6 +318,10 @@ export function useAuth() {
     },
     onSuccess: (sessionData) => {
       void startSession(sessionData);
+    },
+    onError: () => {
+      setAccessToken(null);
+      setFacilityId(null);
     },
   });
 
@@ -313,6 +346,7 @@ export function useAuth() {
       // Ignore network failure on cookie clearing
     }
     setAccessToken(null);
+    setFacilityId(null);
     setIdToken(null);
     clearPendingCodeVerifier();
     clearSession();

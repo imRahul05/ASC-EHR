@@ -33,7 +33,16 @@ export function getWhiteboard(params?: {
   readonly facilityId?: string;
 }): Promise<WhiteboardBoard> {
   const query = params ? toQuery(params) : undefined;
-  return http.get(API_ROUTES.whiteboard, query !== undefined ? { query } : undefined);
+  const resolvedFacility = params?.facilityId?.trim();
+  return http.get(
+    API_ROUTES.whiteboard,
+    query !== undefined || resolvedFacility !== undefined
+      ? {
+          query,
+          headers: resolvedFacility ? { "x-facility-id": resolvedFacility } : undefined,
+        }
+      : undefined,
+  );
 }
 
 /** Quality metrics with 30 days of history. */

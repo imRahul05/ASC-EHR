@@ -34,13 +34,14 @@ import {
   db,
   getCaseOrNull,
   refreshReadiness,
+  resolveTarget,
   roomsNow,
   setPhase,
   updateCase,
 } from "../../db/store";
 import { newId, patientRef, staffRef } from "../../db/util";
 import { apiUrl } from "../api-url";
-import { apiError, body, detailResponse, gateFailed, latency, notFound, param } from "./respond";
+import { apiError, body, caseNotFound, detailResponse, gateFailed, latency, notFound, param } from "./respond";
 
 /** Events that may be recorded once per case. */
 const SINGLE_EVENTS: readonly ProcedureEventType[] = [
@@ -264,16 +265,23 @@ export const caseHandlers = [
     await latency();
     const caseId = param(params.caseId);
     const detail = caseDetail(caseId);
-    if (!detail) return notFound("Case");
-    const { to, reason } = await body<TransitionCasePayload>(request);
+    if (!detail) return caseNotFound(caseId);
+    const payload = await body<TransitionCasePayload>(request);
+    if (!payload?.to || typeof payload.to !== "string" || payload.to.trim() === "") {
+      return apiError(400, "invalid_payload", "Invalid case transition payload");
+    }
+    const { to, reason } = payload;
     const actor = actorFrom(request);
-    const result = transitionGate(detail, to);
+    const { canonicalTarget, stage, phase } = resolveTarget(to);
+    const result = transitionGate(detail, canonicalTarget);
     if (!result.ok) {
       audit(actor, "case.transition", { type: "ProcedureCase", id: caseId }, `${detail.case.caseNumber} → ${to} blocked (${result.reasons[0]?.code ?? "rule"})`, "denied");
       return gateFailed(result);
     }
-    setPhase(caseId, to, actor, reason);
-    if (to === "READY_FOR_PROCEDURE") completeWorkItems((item) => item.caseId === caseId && item.type === "med_hold_review");
+    setPhase(caseId, canonicalTarget, actor, reason);
+    if (phase === "READY_FOR_PROCEDURE" || stage === "in_room") {
+      completeWorkItems((item) => item.caseId === caseId && item.type === "med_hold_review");
+    }
     autoAdvance(caseId, actor);
     return detailResponse(caseId);
   }),
