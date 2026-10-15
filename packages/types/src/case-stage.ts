@@ -48,6 +48,7 @@ export interface ReadinessCheck {
   readonly label: string;
   readonly details?: string;
   readonly waivedBy?: string;
+  readonly waivedRole?: string;
   readonly waivedAt?: string;
   readonly waiverReason?: string;
 }

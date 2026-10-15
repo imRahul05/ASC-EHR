@@ -22,6 +22,7 @@ function check(
     readonly label?: string;
     readonly details?: string;
     readonly waivedBy?: string;
+    readonly waivedRole?: string;
     readonly waivedAt?: string;
     readonly waiverReason?: string;
   } = {},
@@ -32,6 +33,7 @@ function check(
     label: overrides.label ?? name,
     details: overrides.details,
     waivedBy: overrides.waivedBy,
+    waivedRole: overrides.waivedRole,
     waivedAt: overrides.waivedAt,
     waiverReason: overrides.waiverReason,
   };
@@ -236,6 +238,57 @@ describe("Hard Gate 1 (arrived ➔ preop)", () => {
     expect(reason?.message).toContain("cannot be waived");
   });
 
+  it("rejects hp waiver when role is not attending-physician or medical-director", () => {
+    const checks: readonly ReadinessCheck[] = [
+      check("identity", "satisfied"),
+      check("consent", "satisfied"),
+      check("hp", "waived", {
+        waivedBy: "Nurse Kelly",
+        waivedRole: "nurse",
+        waiverReason: "Patient verbally cleared by phone earlier this morning",
+      }),
+    ];
+
+    const result = evaluateGate1(checks);
+    expect(result.ok).toBe(false);
+    const reason = result.reasons.find((r) => r.code === "GATE1_HP");
+    expect(reason).toBeDefined();
+    expect(reason?.message).toContain("only be waived or overridden by an attending physician or medical director");
+  });
+
+  it("permits hp waiver by attending-physician with valid clinical override reason", () => {
+    const checks: readonly ReadinessCheck[] = [
+      check("identity", "satisfied"),
+      check("consent", "satisfied"),
+      check("hp", "waived", {
+        waivedBy: "Dr. Roberts",
+        waivedRole: "attending-physician",
+        waiverReason: "Comprehensive exam performed in private office 32 days ago; patient examined in pre-op today, stable, cleared for procedure.",
+      }),
+    ];
+
+    const result = evaluateGate1(checks);
+    expect(result.ok).toBe(true);
+    expect(result.reasons).toHaveLength(0);
+  });
+
+  it("rejects hp waiver if reason is too short (< 10 chars)", () => {
+    const checks: readonly ReadinessCheck[] = [
+      check("identity", "satisfied"),
+      check("consent", "satisfied"),
+      check("hp", "waived", {
+        waivedBy: "Dr. Roberts",
+        waivedRole: "attending-physician",
+        waiverReason: "ok",
+      }),
+    ];
+
+    const result = evaluateGate1(checks);
+    expect(result.ok).toBe(false);
+    const reason = result.reasons.find((r) => r.code === "GATE1_HP");
+    expect(reason?.message).toContain("minimum 10 characters");
+  });
+
   it("falls back to default message when details is empty or whitespace", () => {
     const checks: readonly ReadinessCheck[] = [
       check("identity", "failed", { details: "   " }),
@@ -308,6 +361,38 @@ describe("Hard Gate 2 (preop ➔ in_room)", () => {
     const failedResult = evaluateGate2(withFailed);
     expect(failedResult.ok).toBe(false);
     expect(failedResult.reasons.some((r) => r.code === "GATE2_ANTICOAGULATION")).toBe(true);
+  });
+
+  it("evaluates Gate 2 using AnticoagulationEvaluationResult directly", () => {
+    const checks: readonly ReadinessCheck[] = [
+      check("anesthesia_clearance", "satisfied"),
+      check("equipment", "satisfied"),
+      check("escort", "satisfied"),
+    ];
+
+    const satisfiedEval = {
+      status: "satisfied" as const,
+      hasAnticoagulants: true,
+      recommendations: [],
+      missingPrescriberInstructions: [],
+      unconfirmedPatientHolds: [],
+      message: "Holds confirmed.",
+    };
+    expect(evaluateGate2(checks, satisfiedEval).ok).toBe(true);
+
+    const pendingEval = {
+      status: "pending" as const,
+      hasAnticoagulants: true,
+      recommendations: [],
+      missingPrescriberInstructions: ["med-1"],
+      unconfirmedPatientHolds: [],
+      message: "Prescriber hold instructions missing.",
+    };
+    const pendingResult = evaluateGate2(checks, pendingEval);
+    expect(pendingResult.ok).toBe(false);
+    expect(pendingResult.reasons.find((r) => r.code === "GATE2_ANTICOAGULATION")?.message).toBe(
+      "Prescriber hold instructions missing.",
+    );
   });
 });
 
