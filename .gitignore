@@ -42,3 +42,6 @@ yarn-error.log*
 
 # Graphify artifacts
 graphify-out/
+
+# Superpowers artifacts
+.superpowers/
