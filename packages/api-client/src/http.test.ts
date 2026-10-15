@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, buildUrl, http, setFacilityId } from "./http";
+import { ApiError, buildUrl, http, setAccessToken, setFacilityId } from "./http";
 
 function stubFetch(response: Response | Error) {
   const fn = vi.fn((_input: string, _init?: RequestInit) =>
@@ -11,6 +11,8 @@ function stubFetch(response: Response | Error) {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  setFacilityId(null);
+  setAccessToken(null);
 });
 
 describe("http", () => {

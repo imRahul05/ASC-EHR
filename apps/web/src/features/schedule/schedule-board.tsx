@@ -156,11 +156,17 @@ function ScheduleBoardView() {
         )}
       </div>
 
-      {query.isPending && <LoadingSkeleton variant="table" rows={8} />}
-      {query.isError && !day && (
+      {!hasFacility && (
+        <ErrorState
+          title="No active facility selected"
+          message="Please select an assigned facility to view the surgical schedule."
+        />
+      )}
+      {hasFacility && query.isPending && <LoadingSkeleton variant="table" rows={8} />}
+      {hasFacility && query.isError && !day && (
         <ErrorState title="Could not load the schedule" message="Check your connection and try again." onRetry={() => void query.refetch()} />
       )}
-      {day && (
+      {hasFacility && day && (
         <>
           {active.length === 0 && (
             <p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground" data-testid="schedule-empty">

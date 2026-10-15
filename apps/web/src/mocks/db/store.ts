@@ -157,12 +157,12 @@ export function phaseFromStage(stage: CaseStage): CasePhase {
   return STAGE_TO_PHASE[stage];
 }
 
-export function resolveTarget(target: string): {
+export function resolveTarget(target?: string | null): {
   readonly canonicalTarget: CasePhase | CaseStage;
   readonly stage: CaseStage;
   readonly phase: CasePhase;
 } {
-  const trimmed = target.trim();
+  const trimmed = (target ?? "").trim();
   const normalized = trimmed.toLowerCase().replaceAll("-", "_");
   if (isCaseStage(normalized as CasePhase | CaseStage)) {
     const stage = normalized as CaseStage;

@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { CaseDetail } from "@asc/types";
+import { getFacilityId } from "../http";
 import { queryKeys } from "./query-keys";
 
 /**
@@ -31,7 +32,7 @@ export function useCaseCommand<TPayload>(
   command: (caseId: string, payload: TPayload) => Promise<CaseDetail>,
   facilityId?: string,
 ) {
-  const resolvedFacility = facilityId?.trim() || undefined;
+  const resolvedFacility = facilityId?.trim() || getFacilityId()?.trim() || undefined;
   return useClinicalMutation(
     (payload: TPayload) => command(caseId, payload),
     (queryClient, detail) => {

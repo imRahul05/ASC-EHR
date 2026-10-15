@@ -266,7 +266,11 @@ export const caseHandlers = [
     const caseId = param(params.caseId);
     const detail = caseDetail(caseId);
     if (!detail) return caseNotFound(caseId);
-    const { to, reason } = await body<TransitionCasePayload>(request);
+    const payload = await body<TransitionCasePayload>(request);
+    if (!payload?.to || typeof payload.to !== "string" || payload.to.trim() === "") {
+      return apiError(400, "invalid_payload", "Invalid case transition payload");
+    }
+    const { to, reason } = payload;
     const actor = actorFrom(request);
     const { canonicalTarget, stage, phase } = resolveTarget(to);
     const result = transitionGate(detail, canonicalTarget);

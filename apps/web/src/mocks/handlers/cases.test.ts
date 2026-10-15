@@ -196,4 +196,15 @@ describe("mock clinical case handlers", () => {
     expect(payload.reasons[0]?.code).toBe("ELIGIBILITY_ACTIVE");
     expect(payload.details).toBeUndefined();
   });
+
+  it("POST /cases/:id/transition returns 400 invalid_payload when body is empty or missing 'to'", async () => {
+    const response = await fetch(apiUrl(API_ROUTES.caseTransition("case_105")), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(response.status).toBe(400);
+    const payload = (await response.json()) as { code: string; message: string };
+    expect(payload.code).toBe("invalid_payload");
+  });
 });
