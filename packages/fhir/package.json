@@ -13,6 +13,7 @@
     "./case-stage": "./src/case-stage.ts",
     "./case-readiness": "./src/case-readiness.ts",
     "./extensions": "./src/extensions.ts",
+    "./financial": "./src/financial.ts",
     "./builders/*": "./src/builders/*.ts"
   },
   "scripts": {

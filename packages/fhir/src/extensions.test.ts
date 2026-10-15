@@ -23,6 +23,7 @@ describe("extension urls", () => {
       casePhase: "https://fhir.wybit.io/asc/StructureDefinition/case-phase",
       procedureIntent: "https://fhir.wybit.io/asc/StructureDefinition/procedure-intent",
       agentExecutionId: "https://fhir.wybit.io/asc/StructureDefinition/agent-execution-id",
+      caseFinancial: "https://fhir.wybit.io/asc/StructureDefinition/case-financial",
     });
   });
 });
