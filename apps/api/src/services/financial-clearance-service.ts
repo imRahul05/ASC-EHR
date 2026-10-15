@@ -8,6 +8,10 @@
  * 4. Front-desk copay collection receipts and installment payment plan recording.
  * 5. HIPAA X12 278 prior authorization revalidation on case rescheduling or CPT change.
  *
+ * Strict Multi-Tenancy Guard:
+ * All Encounter lookups are validated against the authorized facility context via `findAuthorizedEncounter`.
+ * Cross-tenant access attempts return 404 to eliminate tenant leakage.
+ *
  * All financial amounts are stored as integer cents to avoid floating-point errors.
  * Strictly zero PHI logged to server logs.
  */
@@ -19,6 +23,7 @@ import {
   evaluateFinancialClearance,
   evaluatePriorAuthValidity,
   type EligibilityEvaluationResult,
+  type PriorAuthEvaluationResult,
 } from "@asc/clinical-rules";
 import {
   buildCoverageEligibilityRequest,
@@ -29,7 +34,11 @@ import {
   createExtensionUrls,
   fhirUrls,
 } from "@asc/fhir";
-import type { ClearinghouseAdapter } from "@asc/types";
+import type {
+  ClearinghouseAdapter,
+  CopayCollectionResult,
+  FinancialSummary,
+} from "@asc/types";
 import type {
   CopayCollection,
   EligibilityCheckRequest,
@@ -37,10 +46,11 @@ import type {
   PriorAuthCheck,
 } from "@asc/validation";
 import type { MedplumClient } from "@medplum/core";
-import type { Encounter, Extension } from "@medplum/fhirtypes";
+import type { Encounter, Extension, Patient } from "@medplum/fhirtypes";
 import type { FastifyBaseLogger } from "fastify";
 
 import { MockClearinghouseAdapter } from "./clearinghouse/mock-clearinghouse-adapter.js";
+import { findAuthorizedEncounter } from "./encounter-lookup.js";
 
 const DEFAULT_CLEARINGHOUSE = new MockClearinghouseAdapter();
 
@@ -134,6 +144,58 @@ function upsertFinancialExtension(
   ];
 }
 
+type CheckEligibilityServiceResult =
+  | {
+      readonly status: 200;
+      readonly data: {
+        readonly eligibility: EligibilityResponse;
+        readonly evaluation: EligibilityEvaluationResult;
+        readonly requestId: string;
+        readonly responseId: string;
+      };
+    }
+  | {
+      readonly status: 404;
+      readonly code: "not_found";
+      readonly message: string;
+    };
+
+type GetFinancialSummaryServiceResult =
+  | {
+      readonly status: 200;
+      readonly data: FinancialSummary;
+    }
+  | {
+      readonly status: 404;
+      readonly code: "not_found";
+      readonly message: string;
+    };
+
+type CollectCopayServiceResult =
+  | {
+      readonly status: 200;
+      readonly data: CopayCollectionResult;
+    }
+  | {
+      readonly status: 404;
+      readonly code: "not_found";
+      readonly message: string;
+    };
+
+type RecordPriorAuthServiceResult =
+  | {
+      readonly status: 200;
+      readonly data: {
+        readonly priorAuth: PriorAuthCheck;
+        readonly evaluation: PriorAuthEvaluationResult;
+      };
+    }
+  | {
+      readonly status: 404;
+      readonly code: "not_found";
+      readonly message: string;
+    };
+
 export class FinancialClearanceService {
   constructor(private readonly clearinghouse: ClearinghouseAdapter = DEFAULT_CLEARINGHOUSE) {}
 
@@ -143,22 +205,39 @@ export class FinancialClearanceService {
     caseId: string;
     input: EligibilityCheckRequest;
     logger: FastifyBaseLogger;
-  }): Promise<{
-    eligibility: EligibilityResponse;
-    evaluation: EligibilityEvaluationResult;
-    requestId: string;
-    responseId: string;
-  }> {
+  }): Promise<CheckEligibilityServiceResult> {
     const { medplum, facilityId, caseId, input, logger } = params;
-    const facilityClient = forFacility(medplum, facilityId);
+    const encounter = await findAuthorizedEncounter(medplum, facilityId, caseId);
 
-    const encounter = await medplum.readResource("Encounter", caseId);
-    if (!encounter.subject?.reference) {
-      throw Object.assign(new Error(`Patient reference missing on case ${caseId}`), { statusCode: 404 });
+    if (!encounter) {
+      return {
+        status: 404,
+        code: "not_found",
+        message: `Case ${caseId} not found or does not belong to facility ${facilityId}`,
+      };
     }
 
+    if (!encounter.subject?.reference) {
+      return {
+        status: 404,
+        code: "not_found",
+        message: `Patient reference missing on case ${caseId}`,
+      };
+    }
+
+    const facilityClient = forFacility(medplum, facilityId);
     const patientId = encounter.subject.reference.replace(/^Patient\//, "");
-    const patient = await medplum.readResource("Patient", patientId);
+
+    let patient: Patient | null;
+    try {
+      patient = await medplum.readResource("Patient", patientId);
+    } catch {
+      const patients = await medplum.searchResources("Patient", [
+        ["_id", patientId],
+        ["_count", "1"],
+      ]).catch(() => []);
+      patient = patients[0] ?? null;
+    }
 
     // Read linked coverage
     const coverages = await medplum.searchResources("Coverage", [
@@ -168,18 +247,22 @@ export class FinancialClearanceService {
     const coverage = coverages[0];
     const coverageId = coverage?.id ?? "coverage-default";
     const memberId = coverage?.subscriberId ?? "MEMBER-12345";
+    const payerId =
+      coverage?.payor?.[0]?.identifier?.value ??
+      coverage?.payor?.[0]?.display ??
+      facilityId;
 
     const scheduledDate = encounter.period?.start?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
-    const patientFirstName = patient.name?.[0]?.given?.[0] ?? "Patient";
-    const patientLastName = patient.name?.[0]?.family ?? "LastName";
-    const patientDob = patient.birthDate ?? "1980-01-01";
+    const patientFirstName = patient?.name?.[0]?.given?.[0] ?? "Patient";
+    const patientLastName = patient?.name?.[0]?.family ?? "LastName";
+    const patientDob = patient?.birthDate ?? "1980-01-01";
 
     logger.info({ caseId, facilityId }, "Executing real-time eligibility check via clearinghouse");
 
     // Call clearinghouse adapter
     const eligibility = await this.clearinghouse.checkEligibility({
       memberId,
-      payerId: facilityId,
+      payerId,
       patientDob,
       patientFirstName,
       patientLastName,
@@ -268,10 +351,13 @@ export class FinancialClearanceService {
     await facilityClient.update(encounter);
 
     return {
-      eligibility,
-      evaluation,
-      requestId: createdReq.id ?? "",
-      responseId: createdRes.id ?? "",
+      status: 200,
+      data: {
+        eligibility,
+        evaluation,
+        requestId: createdReq.id ?? "",
+        responseId: createdRes.id ?? "",
+      },
     };
   }
 
@@ -280,9 +366,17 @@ export class FinancialClearanceService {
     facilityId: string;
     caseId: string;
     logger: FastifyBaseLogger;
-  }) {
-    const { medplum, caseId } = params;
-    const encounter = await medplum.readResource("Encounter", caseId);
+  }): Promise<GetFinancialSummaryServiceResult> {
+    const { medplum, facilityId, caseId } = params;
+    const encounter = await findAuthorizedEncounter(medplum, facilityId, caseId);
+
+    if (!encounter) {
+      return {
+        status: 404,
+        code: "not_found",
+        message: `Case ${caseId} not found or does not belong to facility ${facilityId}`,
+      };
+    }
 
     const finState = parseFinancialExtension(encounter);
 
@@ -298,18 +392,19 @@ export class FinancialClearanceService {
 
     const latestResp = responses[0];
     const benefitItem = latestResp?.insurance?.[0]?.item?.[0];
+
     const deductibleBenefit = benefitItem?.benefit?.find((b) => b.type?.coding?.[0]?.code === "deductible");
     const copayBenefit = benefitItem?.benefit?.find((b) => b.type?.coding?.[0]?.code === "copay");
     const coinsuranceBenefit = benefitItem?.benefit?.find((b) => b.type?.coding?.[0]?.code === "coinsurance");
     const oopBenefit = benefitItem?.benefit?.find((b) => b.type?.coding?.[0]?.code === "benefit");
 
-    const deductibleCents = Math.round((deductibleBenefit?.allowedMoney?.value ?? 1500) * 100);
-    const deductibleUsedCents = Math.round((deductibleBenefit?.usedMoney?.value ?? 1000) * 100);
+    const deductibleCents = Math.max(0, Math.round((deductibleBenefit?.allowedMoney?.value ?? 0) * 100));
+    const deductibleUsedCents = Math.max(0, Math.round((deductibleBenefit?.usedMoney?.value ?? 0) * 100));
     const deductibleRemainingCents = Math.max(0, deductibleCents - deductibleUsedCents);
-    const copayCents = Math.round((copayBenefit?.allowedMoney?.value ?? 0) * 100);
+    const copayCents = Math.max(0, Math.round((copayBenefit?.allowedMoney?.value ?? 0) * 100));
     const coinsurancePercent = coinsuranceBenefit?.allowedUnsignedInt ?? 20;
-    const outOfPocketMaxCents = Math.round((oopBenefit?.allowedMoney?.value ?? 5000) * 100);
-    const outOfPocketUsedCents = Math.round((oopBenefit?.usedMoney?.value ?? 2500) * 100);
+    const outOfPocketMaxCents = Math.max(0, Math.round((oopBenefit?.allowedMoney?.value ?? 0) * 100));
+    const outOfPocketUsedCents = Math.max(0, Math.round((oopBenefit?.usedMoney?.value ?? 0) * 100));
     const outOfPocketRemainingCents = Math.max(0, outOfPocketMaxCents - outOfPocketUsedCents);
 
     // Calculate dual GFE under ACA 42 U.S.C. § 300gg-13
@@ -338,30 +433,38 @@ export class FinancialClearanceService {
     });
 
     return {
-      caseId,
-      eligibilityStatus: isInforce ? "active" : finState.eligibilityStatus ?? "pending",
-      planName: "Aetna Choice POS II",
-      planType: "PPO",
-      inNetwork: true,
-      deductibleCents,
-      deductibleRemainingCents,
-      copayCents,
-      coinsurancePercent,
-      outOfPocketMaxCents,
-      outOfPocketRemainingCents,
-      priorAuthStatus: finState.priorAuthStatus ?? "approved",
-      authNumber: finState.priorAuthNumber ?? "AUTH-DEFAULT",
-      estimate: {
-        estimatedScreeningPatientOwedCents: estimate.estimatedScreeningPatientOwedCents,
-        estimatedTherapeuticPatientOwedCents: estimate.estimatedTherapeuticPatientOwedCents,
-        patientResponsibilityCents: estimate.patientResponsibilityCents,
-        preventiveMandateApplies: estimate.preventiveMandateApplies,
+      status: 200,
+      data: {
+        caseId,
+        eligibilityStatus: isInforce ? "active" : (finState.eligibilityStatus as "active" | "inactive" | "incomplete" | "error" | "pending" | undefined) ?? "pending",
+        planName: "Aetna Choice POS II",
+        planType: "PPO",
+        inNetwork: true,
+        deductibleCents,
+        deductibleRemainingCents,
+        copayCents,
+        coinsurancePercent,
+        outOfPocketMaxCents,
+        outOfPocketRemainingCents,
+        priorAuthStatus: finState.priorAuthStatus ?? "approved",
+        authNumber: finState.priorAuthNumber ?? "AUTH-DEFAULT",
+        estimate: {
+          estimatedScreeningPatientOwedCents: estimate.estimatedScreeningPatientOwedCents,
+          estimatedTherapeuticPatientOwedCents: estimate.estimatedTherapeuticPatientOwedCents,
+          patientResponsibilityCents: estimate.patientResponsibilityCents,
+          preventiveMandateApplies: estimate.preventiveMandateApplies,
+        },
+        collectedCents: finState.collectedCents ?? 0,
+        balanceRemainingCents: clearance.balanceRemainingCents,
+        hasPaymentPlan: Boolean(finState.paymentPlanActive),
+        overallStatus:
+          clearance.overallStatus === "cleared"
+            ? ("satisfied" as const)
+            : clearance.overallStatus === "flagged"
+              ? ("pending" as const)
+              : ("failed" as const),
+        isCleared: clearance.isCleared,
       },
-      collectedCents: finState.collectedCents ?? 0,
-      balanceRemainingCents: clearance.balanceRemainingCents,
-      hasPaymentPlan: Boolean(finState.paymentPlanActive),
-      overallStatus: clearance.overallStatus,
-      isCleared: clearance.isCleared,
     };
   }
 
@@ -372,11 +475,19 @@ export class FinancialClearanceService {
     input: CopayCollection;
     actorId?: string;
     logger: FastifyBaseLogger;
-  }) {
+  }): Promise<CollectCopayServiceResult> {
     const { medplum, facilityId, caseId, input, logger } = params;
-    const facilityClient = forFacility(medplum, facilityId);
+    const encounter = await findAuthorizedEncounter(medplum, facilityId, caseId);
 
-    const encounter = await medplum.readResource("Encounter", caseId);
+    if (!encounter) {
+      return {
+        status: 404,
+        code: "not_found",
+        message: `Case ${caseId} not found or does not belong to facility ${facilityId}`,
+      };
+    }
+
+    const facilityClient = forFacility(medplum, facilityId);
     const current = parseFinancialExtension(encounter);
 
     const newCollected = (current.collectedCents ?? 0) + input.amountCents;
@@ -404,12 +515,15 @@ export class FinancialClearanceService {
     await facilityClient.update(encounter);
 
     return {
-      caseId,
-      paidCents: input.amountCents,
-      totalCollectedCents: newCollected,
-      paymentMethod: input.paymentMethod,
-      transactionRef: input.transactionRef ?? `tx_${Date.now()}`,
-      paymentPlanActive: hasPlan,
+      status: 200,
+      data: {
+        caseId,
+        paidCents: input.amountCents,
+        totalCollectedCents: newCollected,
+        paymentMethod: input.paymentMethod,
+        transactionRef: input.transactionRef ?? `tx_${Date.now()}`,
+        paymentPlanActive: hasPlan,
+      },
     };
   }
 
@@ -419,11 +533,19 @@ export class FinancialClearanceService {
     caseId: string;
     input: PriorAuthCheck;
     logger: FastifyBaseLogger;
-  }) {
+  }): Promise<RecordPriorAuthServiceResult> {
     const { medplum, facilityId, caseId, input, logger } = params;
-    const facilityClient = forFacility(medplum, facilityId);
+    const encounter = await findAuthorizedEncounter(medplum, facilityId, caseId);
 
-    const encounter = await medplum.readResource("Encounter", caseId);
+    if (!encounter) {
+      return {
+        status: 404,
+        code: "not_found",
+        message: `Case ${caseId} not found or does not belong to facility ${facilityId}`,
+      };
+    }
+
+    const facilityClient = forFacility(medplum, facilityId);
     const scheduledDate = encounter.period?.start?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
 
     // Read planned CPT from ServiceRequest
@@ -474,8 +596,11 @@ export class FinancialClearanceService {
     await facilityClient.update(encounter);
 
     return {
-      priorAuth: input,
-      evaluation,
+      status: 200,
+      data: {
+        priorAuth: input,
+        evaluation,
+      },
     };
   }
 }

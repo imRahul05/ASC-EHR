@@ -291,4 +291,63 @@ describe("Financial clearance routes in Fastify API", () => {
       expect(body.evaluation.reason).toContain("outside authorization window");
     });
   });
+
+  describe("Security & Multi-Tenant Edge Cases", () => {
+    it("returns 404 when caseId does not exist", async () => {
+      const mockMedplum = new MockClient();
+      built = await setupApp(mockMedplum);
+
+      const res = await built.app.inject({
+        method: "GET",
+        url: "/cases/non-existent-case-999/financial-summary",
+        headers: { ...bearer(tokenStaff), "x-facility-id": facilityId },
+      });
+
+      expect(res.statusCode).toBe(404);
+      const body = res.json();
+      expect(body.code).toBe("not_found");
+    });
+
+    it("prevents cross-facility tenant data leakage (returns 404 when case belongs to another facility)", async () => {
+      const mockMedplum = new MockClient();
+      built = await setupApp(mockMedplum);
+
+      // Seed encounter under a DIFFERENT facility: "fac-other-99"
+      const clientOther = forFacility(mockMedplum, "fac-other-99");
+      await clientOther.create<Encounter>({
+        resourceType: "Encounter",
+        id: "case-other-facility-1",
+        status: "planned",
+        class: { code: "AMB" },
+        serviceProvider: { reference: "Organization/fac-other-99" },
+      });
+
+      // Attempt to access from facilityId ("fac-fin-1")
+      const res = await built.app.inject({
+        method: "GET",
+        url: "/cases/case-other-facility-1/financial-summary",
+        headers: { ...bearer(tokenStaff), "x-facility-id": facilityId },
+      });
+
+      expect(res.statusCode).toBe(404);
+      const body = res.json();
+      expect(body.code).toBe("not_found");
+      expect(body.message).toContain("not found or does not belong to facility");
+    });
+
+    it("returns 400 if case ID is malformed", async () => {
+      const mockMedplum = new MockClient();
+      built = await setupApp(mockMedplum);
+
+      const res = await built.app.inject({
+        method: "GET",
+        url: "/cases/case!invalid$char/financial-summary",
+        headers: { ...bearer(tokenStaff), "x-facility-id": facilityId },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().code).toBe("invalid_case_id");
+    });
+  });
 });
+
