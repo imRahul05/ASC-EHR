@@ -32,6 +32,10 @@ export const queryKeys = {
       facilityId && facilityId.trim() !== ""
         ? (["cases", caseId, "detail", facilityId.trim()] as const)
         : (["cases", caseId, "detail"] as const),
+    consent: (caseId: string, facilityId?: string) =>
+      facilityId && facilityId.trim() !== ""
+        ? (["cases", caseId, "consent", facilityId.trim()] as const)
+        : (["cases", caseId, "consent"] as const),
     note: (caseId: string) => ["cases", caseId, "note"] as const,
     coding: (caseId: string) => ["cases", caseId, "coding"] as const,
     pathology: (caseId: string) => ["cases", caseId, "pathology"] as const,

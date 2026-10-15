@@ -10,16 +10,21 @@ import type {
   CaseDetail,
   CheckInPayload,
   ConflictCheckResult,
+  ConsentRecord,
   IsoDate,
+  PreopAssessmentResult,
   ProcedureCase,
   SaveHpPayload,
   SavePreOpPayload,
   SaveVitalsPayload,
   ScheduleDay,
   SignConsentPayload,
+  SignConsentResult,
   TransitionCasePayload,
 } from "@asc/types";
 import type { BookCaseInput, BookCaseResult } from "@asc/validation/cases/book";
+import type { SignConsentInput } from "@asc/validation/consent";
+import type { PreopAssessmentInput } from "@asc/validation/preop";
 import { http } from "../http";
 
 export type BookCaseResponse = BookCaseResult & Partial<ProcedureCase>;
@@ -87,8 +92,52 @@ export function saveVitals(caseId: string, payload: SaveVitalsPayload): Promise<
   return http.post(API_ROUTES.caseVitals(caseId), payload);
 }
 
-export function signConsent(caseId: string, payload: SignConsentPayload): Promise<CaseDetail> {
-  return http.post(API_ROUTES.caseConsentSign(caseId), payload);
+export function signConsent(
+  caseId: string,
+  payload: SignConsentInput,
+  facilityId?: string,
+): Promise<SignConsentResult>;
+export function signConsent(
+  caseId: string,
+  payload: SignConsentPayload,
+  facilityId?: string,
+): Promise<CaseDetail>;
+export function signConsent(
+  caseId: string,
+  payload: SignConsentInput | SignConsentPayload,
+  facilityId?: string,
+): Promise<SignConsentResult | CaseDetail> {
+  const trimmed = facilityId?.trim();
+  if ("consentFormVersion" in payload) {
+    return http.post(API_ROUTES.caseConsent(caseId), payload, {
+      query: trimmed ? { facilityId: trimmed } : undefined,
+      headers: trimmed ? { "x-facility-id": trimmed } : undefined,
+    });
+  }
+  return http.post(API_ROUTES.caseConsentSign(caseId), payload, {
+    query: trimmed ? { facilityId: trimmed } : undefined,
+    headers: trimmed ? { "x-facility-id": trimmed } : undefined,
+  });
+}
+
+export function getConsent(caseId: string, facilityId?: string): Promise<ConsentRecord | null> {
+  const trimmed = facilityId?.trim();
+  return http.get(API_ROUTES.caseConsent(caseId), {
+    query: trimmed ? { facilityId: trimmed } : undefined,
+    headers: trimmed ? { "x-facility-id": trimmed } : undefined,
+  });
+}
+
+export function submitPreopAssessment(
+  caseId: string,
+  payload: PreopAssessmentInput,
+  facilityId?: string,
+): Promise<PreopAssessmentResult> {
+  const trimmed = facilityId?.trim();
+  return http.post(API_ROUTES.casePreopAssessment(caseId), payload, {
+    query: trimmed ? { facilityId: trimmed } : undefined,
+    headers: trimmed ? { "x-facility-id": trimmed } : undefined,
+  });
 }
 
 /** One role's time-out attestation; the case is timeOutComplete once all three roles attest. */
