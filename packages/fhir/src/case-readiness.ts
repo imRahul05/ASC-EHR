@@ -126,6 +126,7 @@ export function caseReadinessExtension(check: ReadinessCheck, urls: FhirUrls = f
       { url: "label", valueString: check.label },
       ...(check.details !== undefined ? [{ url: "details", valueString: check.details }] : []),
       ...(check.waivedBy !== undefined ? [{ url: "waivedBy", valueString: check.waivedBy }] : []),
+      ...(check.waivedRole !== undefined ? [{ url: "waivedRole", valueString: check.waivedRole }] : []),
       ...(check.waivedAt !== undefined ? [{ url: "waivedAt", valueDateTime: instant(check.waivedAt, "waivedAt") }] : []),
       ...(check.waiverReason !== undefined ? [{ url: "waiverReason", valueString: check.waiverReason }] : []),
     ],
@@ -165,6 +166,7 @@ export function readCaseReadiness(
     let label: string | undefined;
     let details: string | undefined;
     let waivedBy: string | undefined;
+    let waivedRole: string | undefined;
     let waivedAt: string | undefined;
     let waiverReason: string | undefined;
 
@@ -179,6 +181,8 @@ export function readCaseReadiness(
         details = sub.valueString;
       } else if (sub.url === "waivedBy" && sub.valueString) {
         waivedBy = sub.valueString;
+      } else if (sub.url === "waivedRole" && sub.valueString) {
+        waivedRole = sub.valueString;
       } else if (sub.url === "waivedAt" && sub.valueDateTime) {
         waivedAt = sub.valueDateTime;
       } else if (sub.url === "waiverReason" && sub.valueString) {
@@ -193,6 +197,7 @@ export function readCaseReadiness(
         label,
         ...(details !== undefined ? { details } : {}),
         ...(waivedBy !== undefined ? { waivedBy } : {}),
+        ...(waivedRole !== undefined ? { waivedRole } : {}),
         ...(waivedAt !== undefined ? { waivedAt } : {}),
         ...(waiverReason !== undefined ? { waiverReason } : {}),
       });

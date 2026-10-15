@@ -64,6 +64,7 @@ describe("caseReadinessExtension and readCaseReadiness", () => {
         label: "Prior authorization on file",
         details: "Payer confirmed not required for diagnostic procedure",
         waivedBy: "practitioner-123",
+        waivedRole: "attending-physician",
         waivedAt: "2026-10-12T09:00:00Z",
         waiverReason: "Payer written confirmation on file",
       },
