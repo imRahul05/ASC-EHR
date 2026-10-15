@@ -1,6 +1,8 @@
 import { API_ERROR_CODES, type ApiErrorPayload } from "@asc/types";
 import { signConsentSchema } from "@asc/validation";
+import type { Encounter } from "@medplum/fhirtypes";
 import Fastify from "fastify";
+
 import { describe, expect, it } from "vitest";
 import { forFacility } from "@asc/api-client/server";
 import { registerErrorHandler } from "../plugins/error-handler.js";
@@ -115,12 +117,13 @@ describe("case-context and validation hooks", () => {
     const app = Fastify();
     await app.register(registerErrorHandler);
     const mockMedplum = new MockClient();
-    const created = await forFacility(mockMedplum, "fac-1").create({
+    const created = await forFacility(mockMedplum, "fac-1").create<Encounter>({
       resourceType: "Encounter",
       id: "enc-123",
       status: "planned",
       class: { code: "AMB" },
     });
+
     const expectedEtag = `W/"${created.meta?.versionId}"`;
 
     app.decorateRequest("medplum", { getter: () => mockMedplum });

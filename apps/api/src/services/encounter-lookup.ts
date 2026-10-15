@@ -1,6 +1,8 @@
 import type { MedplumClient } from "@medplum/core";
 import type { Encounter } from "@medplum/fhirtypes";
 
+import { withUpstreamResilience } from "./upstream-resilience.js";
+
 /**
  * Finds an Encounter by caseId and verifies that it is scoped to the specified facilityId.
  *
@@ -22,14 +24,17 @@ export async function findAuthorizedEncounter(
 
   let encounter: Encounter | null;
   try {
-    encounter = await medplum.readResource("Encounter", caseId);
+    encounter = await withUpstreamResilience(() => medplum.readResource("Encounter", caseId));
   } catch {
-    const found = await medplum.searchResources("Encounter", [
-      ["_id", caseId],
-      ["_count", "1"],
-    ]).catch(() => []);
+    const found = await withUpstreamResilience(() =>
+      medplum.searchResources("Encounter", [
+        ["_id", caseId],
+        ["_count", "1"],
+      ])
+    ).catch(() => []);
     encounter = found[0] ?? null;
   }
+
 
   if (!encounter) {
     return null;
