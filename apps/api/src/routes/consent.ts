@@ -6,6 +6,8 @@ import { capabilityAtResource } from "../auth/route-auth.js";
 import { consentController } from "../controllers/consent.controller.js";
 import { requireCapabilityHook, requireCaseContext, validateBody } from "../hooks/case-context.js";
 
+import { requireIdempotency } from "../hooks/idempotency.js";
+
 /**
  * Informed Consent Routes (Phase P17 / EP-E, EP-F)
  *
@@ -21,6 +23,7 @@ export function consentRoutes(app: FastifyInstance): Promise<void> {
     {
       config: capabilityAtResource("consent.collect"),
       preHandler: [
+        requireIdempotency,
         requireCapabilityHook("consent.collect"),
         requireCaseContext,
         validateBody(signConsentSchema, "Invalid consent payload."),
@@ -28,6 +31,7 @@ export function consentRoutes(app: FastifyInstance): Promise<void> {
     },
     (request, reply) => consentController.signConsent(request, reply)
   );
+
 
   // GET /cases/:caseId/consent — Retrieve informed consent for case
   app.get(

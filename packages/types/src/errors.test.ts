@@ -18,7 +18,9 @@ describe("API_ERROR_CODES and API_ERROR_REGISTRY", () => {
     expect(API_ERROR_CODES.NOT_FOUND).toBe("not_found");
     expect(API_ERROR_CODES.GATE_FAILED).toBe("GATE_FAILED");
     expect(API_ERROR_CODES.CONFLICT).toBe("conflict");
+    expect(API_ERROR_CODES.CONCURRENCY_CONFLICT).toBe("concurrency_conflict");
     expect(API_ERROR_CODES.FORBIDDEN).toBe("forbidden");
+
     expect(API_ERROR_CODES.UNAUTHENTICATED).toBe("unauthenticated");
   });
 

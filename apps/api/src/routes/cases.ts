@@ -7,6 +7,9 @@ import { capabilityAtResource } from "../auth/route-auth.js";
 import { casesController } from "../controllers/cases.controller.js";
 import { requireCapabilityHook, requireCaseContext, validateBody } from "../hooks/case-context.js";
 
+import { requireIdempotency } from "../hooks/idempotency.js";
+
+// export
 export { classifyMedplumReadError } from "../services/medplum-error-classifier.js";
 export { createInMemorySchedulingLock } from "../services/case-booking-service.js";
 
@@ -52,12 +55,15 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
       config: capabilityAtResource("case.advance"),
       preHandler: [
         requireCapabilityHook("case.advance"),
+        requireIdempotency,
         validateBody(transitionCaseSchema, "Invalid case transition payload"),
         requireCaseContext,
       ],
     },
     (request, reply) => casesController.transitionCase(request, reply)
   );
+
+
 
   return Promise.resolve();
 }

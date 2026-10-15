@@ -10,6 +10,9 @@ import { capabilityAtResource } from "../auth/route-auth.js";
 import { patientsController } from "../controllers/patients.controller.js";
 import { validateBody, validateQuery } from "../hooks/validation.js";
 
+import { requireIdempotency } from "../hooks/idempotency.js";
+
+// export
 export {
   createInMemoryRegistrationLock,
   defaultFallbackLock,
@@ -53,12 +56,13 @@ export function patientsRoutes(app: FastifyInstance): Promise<void> {
     API_ROUTE_PATTERNS.patientsRegister,
     {
       config: capabilityAtResource("patient.register"),
-      preHandler: [validateBody(registerPatientSchema)],
+      preHandler: [requireIdempotency, validateBody(registerPatientSchema)],
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       return patientsController.registerPatient(request, reply);
     },
   );
+
 
   return Promise.resolve();
 }

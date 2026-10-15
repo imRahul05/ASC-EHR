@@ -2,8 +2,12 @@ import { API_ERROR_CODES, type ApiErrorPayload } from "@asc/types";
 import { signConsentSchema } from "@asc/validation";
 import Fastify from "fastify";
 import { describe, expect, it } from "vitest";
+import { forFacility } from "@asc/api-client/server";
 import { registerErrorHandler } from "../plugins/error-handler.js";
+import { CasesMockClient as MockClient } from "../testing/mock-medplum.js";
 import { requireCaseContext } from "./case-context.js";
+
+
 import { validateBody } from "./validation.js";
 
 describe("case-context and validation hooks", () => {
@@ -76,4 +80,68 @@ describe("case-context and validation hooks", () => {
     expect(res.json()).toEqual({ ok: true, data: validPayload });
     await app.close();
   });
+
+  it("rejects with 409 concurrency_conflict when If-Match version does not match encounter", async () => {
+    const app = Fastify();
+    await app.register(registerErrorHandler);
+    const mockMedplum = new MockClient();
+    await forFacility(mockMedplum, "fac-1").create({
+      resourceType: "Encounter",
+      id: "enc-123",
+      status: "planned",
+      class: { code: "AMB" },
+    });
+
+    app.decorateRequest("medplum", { getter: () => mockMedplum });
+
+    app.post("/cases/:caseId/test", { preHandler: [requireCaseContext] }, () => Promise.resolve({ ok: true }));
+    await app.ready();
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/cases/enc-123/test",
+      headers: {
+        "x-facility-id": "fac-1",
+        "if-match": 'W/"999"',
+      },
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json<ApiErrorPayload>()).toMatchObject({ code: API_ERROR_CODES.CONCURRENCY_CONFLICT });
+    await app.close();
+  });
+
+  it("succeeds and emits ETag header when If-Match matches encounter version", async () => {
+    const app = Fastify();
+    await app.register(registerErrorHandler);
+    const mockMedplum = new MockClient();
+    const created = await forFacility(mockMedplum, "fac-1").create({
+      resourceType: "Encounter",
+      id: "enc-123",
+      status: "planned",
+      class: { code: "AMB" },
+    });
+    const expectedEtag = `W/"${created.meta?.versionId}"`;
+
+    app.decorateRequest("medplum", { getter: () => mockMedplum });
+
+    app.post("/cases/:caseId/test", { preHandler: [requireCaseContext] }, () => Promise.resolve({ ok: true }));
+    await app.ready();
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/cases/enc-123/test",
+      headers: {
+        "x-facility-id": "fac-1",
+        "if-match": expectedEtag,
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["etag"]).toBe(expectedEtag);
+    await app.close();
+  });
+
+
 });
+

@@ -14,7 +14,9 @@ export const API_ERROR_CODES = {
   PRIMARY_PHYSICIAN_NOT_FOUND: "primary_physician_not_found",
   ANESTHESIOLOGIST_NOT_FOUND: "anesthesiologist_not_found",
   CONFLICT: "conflict",
+  CONCURRENCY_CONFLICT: "concurrency_conflict",
   GATE_FAILED: "GATE_FAILED",
+
   IDEMPOTENCY_KEY_CONFLICT: "idempotency_key_conflict",
   DUPLICATE_MRN_CONFLICT: "duplicate_mrn_conflict",
   DUPLICATE_PATIENT_DETECTED: "duplicate_patient_detected",
@@ -60,7 +62,9 @@ export const API_ERROR_REGISTRY: Record<ApiErrorCode, ErrorDefinition> = {
   [API_ERROR_CODES.PRIMARY_PHYSICIAN_NOT_FOUND]: { status: 404, defaultMessage: "Primary physician not found." },
   [API_ERROR_CODES.ANESTHESIOLOGIST_NOT_FOUND]: { status: 404, defaultMessage: "Anesthesiologist not found." },
   [API_ERROR_CODES.CONFLICT]: { status: 409, defaultMessage: "A conflict occurred while processing the request." },
+  [API_ERROR_CODES.CONCURRENCY_CONFLICT]: { status: 409, defaultMessage: "Resource has been modified concurrently. Please refetch latest state before retrying." },
   [API_ERROR_CODES.GATE_FAILED]: { status: 409, defaultMessage: "Clinical gate rejected the transition." },
+
   [API_ERROR_CODES.IDEMPOTENCY_KEY_CONFLICT]: { status: 409, defaultMessage: "Idempotency key was used with conflicting parameters." },
   [API_ERROR_CODES.DUPLICATE_MRN_CONFLICT]: { status: 409, defaultMessage: "A patient with this MRN already exists at this facility." },
   [API_ERROR_CODES.DUPLICATE_PATIENT_DETECTED]: { status: 409, defaultMessage: "Potential duplicate patient detected." },

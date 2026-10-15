@@ -62,5 +62,27 @@ export async function requireCaseContext(request: FastifyRequest, reply: Fastify
     });
     return;
   }
+
+  const ifMatchHeader = request.headers["if-match"];
+  if (typeof ifMatchHeader === "string" && ifMatchHeader.trim() !== "") {
+    const rawExpected = ifMatchHeader.trim();
+    const match = rawExpected.match(/^(?:W\/)?"?([^"]+)"?$/);
+    const expectedVersion = match ? match[1] : rawExpected;
+    const currentVersion = encounter.meta?.versionId;
+    if (currentVersion && expectedVersion !== "*" && expectedVersion !== currentVersion) {
+      reply.sendApiError({
+        code: API_ERROR_CODES.CONCURRENCY_CONFLICT,
+        status: 409,
+        message: `Case ${caseId} has been modified concurrently (upstream version W/"${currentVersion}" != expected W/"${expectedVersion}"). Please refetch latest case state.`,
+      });
+      return;
+    }
+  }
+
+  if (encounter.meta?.versionId) {
+    reply.header("ETag", `W/"${encounter.meta.versionId}"`);
+  }
+
   request.caseContext = { caseId, facilityId, encounter };
 }
+
