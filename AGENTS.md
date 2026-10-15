@@ -14,6 +14,7 @@ To keep this file intentionally minimal and extensible, all detailed guidance, r
 5. **On finish:** update `PROGRESS.md` (status, PR, next up) in the same branch.
 6. **When corrected** by the user, a reviewer, lint or tests: fix it **and** add or update an entry in `LEARNING_MISTAKES.md` in the same commit.
 7. **Open decisions go to GitHub issues.** When work is blocked on, or a spike/review produces, a decision that belongs to a person (architecture, policy, external access), open one issue per decision (label `question`: context, options, your recommendation, what it blocks, links to the ADR/plan and PR) and link it from the `PROGRESS.md` §4 row, so the decision-maker can be tagged and track it in one place. The ADR/plan keeps the detail; the issue is how a human finds and answers it.
+8. **Cite US regulations & explain logic in comments:** Whenever code implements or enforces US healthcare regulations, federal conditions of coverage, or clinical guidelines (e.g., CMS 42 CFR § 416.52, ACA 42 U.S.C. § 300gg-13, No Surprises Act 45 CFR § 149, ASGE 2022 guidelines, HIPAA ANSI ASC X12 EDI standards), you MUST cite the specific regulation, section number, and clinical rationale in JSDoc/code comments. Furthermore, all non-trivial domain logic, financial calculations, and state-machine transitions must be explained with comments detailing the rationale, assumptions, and edge cases handled (with strictly zero PHI in comments).
 
 ## 📚 Agent Guidance Directory
 
