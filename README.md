@@ -7,7 +7,7 @@
 [![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL%20%2B%20Drizzle%20RLS-336791.svg)](https://orm.drizzle.team/)
 [![Redis & BullMQ](https://img.shields.io/badge/Queue-Redis%20%2B%20BullMQ-d82c20.svg)](https://bullmq.io/)
 [![TypeScript 7.0](<https://img.shields.io/badge/TypeScript-7.0%20Strict%20(No%20Any)-3178c6.svg>)](https://www.typescriptlang.org/)
-[![Status: Phase 1 & P17 Complete](<https://img.shields.io/badge/Delivery-Phase%201%20%26%20P17%20Complete%20(PR%20%2389)-success.svg>)](PROGRESS.md)
+[![Status: Phase 1, P17 & P16 Complete](<https://img.shields.io/badge/Delivery-Phase%201%2C%20P17%20%26%20P16%20Complete%20(PR%20%2391)-success.svg>)](PROGRESS.md)
 
 ASC EHR is a clinical-grade, high-throughput **Ambulatory Surgery Center (ASC) Operating System and Electronic Health Record (EHR)** purpose-built specifically for **single-specialty Gastrointestinal (GI) endoscopy facilities**.
 
@@ -23,10 +23,10 @@ flowchart LR
     classDef active fill:#3b82f6,stroke:#1d4ed8,stroke-width:2px,color:#fff,rx:6px,ry:6px
     classDef planned fill:#475569,stroke:#334155,stroke-width:2px,color:#94a3b8,rx:6px,ry:6px
 
-    subgraph Roadmap ["ASC OS Delivery Status · Overall Progress: ~29% (37 / 130 Stories)"]
+    subgraph Roadmap ["ASC OS Delivery Status · Overall Progress: ~38% (50 / 130 Stories)"]
         direction LR
         P1["<b>Phase 1: Intake & Scheduling</b><br/>EP-A · EP-B · EP-C<br/>✅ <b>100% COMPLETE</b>"]:::done
-        P2["<b>Phase 2: Financial & Pre-Op</b><br/>EP-D · EP-E<br/>🔄 <b>35% ACTIVE</b>"]:::active
+        P2["<b>Phase 2: Financial & Pre-Op</b><br/>EP-D · EP-E<br/>🔄 <b>65% ACTIVE (EP-E 100%)</b>"]:::active
         P3["<b>Phase 3: Day of Surgery</b><br/>EP-F · EP-G · EP-H · EP-I<br/>⏳ <b>0% PLANNED</b>"]:::planned
         P4["<b>Phase 4: Coding & Claims</b><br/>EP-J · EP-K<br/>⏳ <b>0% PLANNED</b>"]:::planned
         P5["<b>Phase 5: QAPI & Recall</b><br/>EP-L<br/>📋 <b>0% BACKLOG</b>"]:::planned
@@ -36,10 +36,10 @@ flowchart LR
 ```
 
 ```text
-Total Delivery Progress: [██████░░░░░░░░░░░░░░] 29% Complete
+Total Delivery Progress: [████████░░░░░░░░░░░░] 38% Complete
 
 Phase 1  [██████████] 100%  COMPLETE  │ Foundation, Intake & Scheduling (PR #84, #85, #87 merged)
-Phase 2  [████░░░░░░]  35%  ACTIVE    │ Financial Clearance & Pre-Op Readiness (P17 merged, P16 next)
+Phase 2  [███████░░░]  65%  ACTIVE    │ Financial Clearance & Pre-Op (EP-E 100% Complete: PR #89, #91; P22a next)
 Phase 3  [░░░░░░░░░░]   0%  PLANNED   │ Day of Surgery, Documentation, Pathology & Scopes
 Phase 4  [░░░░░░░░░░]   0%  PLANNED   │ Coding Engine, Multiple Endoscopy & Claims Cycle
 Phase 5  [░░░░░░░░░░]   0%  BACKLOG   │ Quality, QAPI & Surveillance Recall Ladder
