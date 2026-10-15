@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const FHIR_ID = /^[A-Za-z0-9.-]{1,64}$/;
+const FHIR_ID = /^[A-Za-z0-9._-]{1,64}$/;
 const DATA_URL_PNG_PREFIX = "data:image/png;base64,";
 
 // Known 1x1 transparent PNG base64 strings

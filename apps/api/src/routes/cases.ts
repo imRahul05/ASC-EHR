@@ -36,7 +36,7 @@ interface CaseQuery {
   readonly facilityId?: string;
 }
 
-const FHIR_ID = /^[A-Za-z0-9.-]{1,64}$/;
+const FHIR_ID = /^[A-Za-z0-9._-]{1,64}$/;
 
 function resolveFacilityId(
   request: FastifyRequest<{ Querystring: CaseQuery }>,

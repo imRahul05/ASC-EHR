@@ -1291,12 +1291,15 @@ export interface ConsentRecord {
 export interface SignConsentResult {
   readonly ok: true;
   readonly consent: ConsentRecord;
+  readonly readiness?: ReadinessFlags;
+  readonly readinessChecks?: readonly ReadinessCheck[];
+  readonly overallReadiness?: OverallReadiness;
   readonly case?: ProcedureCase;
 }
 
 export interface PreopAssessmentResult {
   readonly ok: true;
-  readonly caseId: string;
+  readonly caseId?: string;
   readonly vitals: {
     readonly sbp: number;
     readonly dbp: number;
@@ -1307,5 +1310,8 @@ export interface PreopAssessmentResult {
     readonly heightInches?: number;
     readonly weightLbs?: number;
   };
+  readonly readiness?: ReadinessFlags;
+  readonly readinessChecks?: readonly ReadinessCheck[];
+  readonly overallReadiness?: OverallReadiness;
   readonly case?: ProcedureCase;
 }

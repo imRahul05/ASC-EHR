@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const FHIR_ID = /^[A-Za-z0-9.-]{1,64}$/;
+const FHIR_ID = /^[A-Za-z0-9._-]{1,64}$/;
 const PHONE = /^[+()\d\s.-]{7,20}$/;
 
 export const ivSiteSchema = z.enum([
