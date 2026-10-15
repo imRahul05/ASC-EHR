@@ -1,4 +1,5 @@
-import { API_ERROR_CODES, type ApiErrorPayload } from "@asc/types";
+import { API_ERROR_CODES, createGateBlockerError, type ApiErrorPayload } from "@asc/types";
+
 import { signConsentSchema } from "@asc/validation";
 import Fastify from "fastify";
 import { describe, expect, it } from "vitest";
@@ -59,6 +60,23 @@ describe("error-handler plugin and sendApiError helper", () => {
     expect(json.code).toBe("invalid_payload");
     expect(json.message).toBe("Invalid request payload.");
     expect(json.details).toHaveProperty("caseId");
+    await app.close();
+  });
+
+  it("catches thrown DomainError and dispatches corresponding sendApiError response", async () => {
+    const app = Fastify();
+    await app.register(registerErrorHandler);
+    app.get("/test-domain-error", () => {
+      throw createGateBlockerError([{ code: "consent_unsigned", message: "Consent required" }]);
+    });
+    await app.ready();
+
+    const res = await app.inject({ method: "GET", url: "/test-domain-error" });
+    expect(res.statusCode).toBe(409);
+    const json = res.json<ApiErrorPayload>();
+    expect(json.code).toBe("GATE_FAILED");
+    expect(json.message).toBe("Clinical gate rejected the transition.");
+    expect(json.reasons).toEqual([{ code: "consent_unsigned", message: "Consent required" }]);
     await app.close();
   });
 });

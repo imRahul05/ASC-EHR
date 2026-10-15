@@ -48,6 +48,22 @@ describe("redaction", () => {
     expect(line).toMatchObject({ dob: R, password: R, prompt: R });
   });
 
+  it("redacts insurance identifiers and signature canvas data", () => {
+    const line = logOne({
+      memberId: "W123456789",
+      subscriberId: "SUB-987",
+      signatureData: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
+      canvasData: "vector-points-raw",
+    });
+    expect(line).toMatchObject({
+      memberId: R,
+      subscriberId: R,
+      signatureData: R,
+      canvasData: R,
+    });
+  });
+
+
   it("redacts nested keys at depths 1-4", () => {
     const line = logOne({
       patient: { dob: "1970-01-01" },
@@ -66,10 +82,10 @@ describe("redaction", () => {
 
   it("redacts inside arrays (FHIR-style)", () => {
     const line = logOne({
-      resource: { telecom: [{ value: "555" }], text: { div: "<div>narrative</div>" } },
+      resource: { telecom: [{ value: "555-0199" }], text: { div: "<div>narrative</div>" } },
       bundle: [{ resource: { address: [{ line: ["1 Main St"] }] } }],
     });
-    expect(JSON.stringify(line)).not.toMatch(/555|narrative|Main St/);
+    expect(JSON.stringify(line)).not.toMatch(/555-0199|narrative|Main St/);
   });
 
   it("redacts hyphenated header keys at any depth", () => {

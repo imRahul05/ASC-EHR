@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { API_ERROR_CODES, API_ERROR_REGISTRY, type ApiErrorCode } from "./errors.js";
+import {
+  API_ERROR_CODES,
+  API_ERROR_REGISTRY,
+  createDomainError,
+  createEntityNotFoundError,
+  createGateBlockerError,
+  isDomainError,
+  type ApiErrorCode,
+} from "./errors.js";
+
 
 describe("API_ERROR_CODES and API_ERROR_REGISTRY", () => {
   it("defines standard error codes with expected string literals", () => {
@@ -34,4 +43,39 @@ describe("API_ERROR_CODES and API_ERROR_REGISTRY", () => {
     expect(API_ERROR_REGISTRY[API_ERROR_CODES.GATE_FAILED].status).toBe(409);
     expect(API_ERROR_REGISTRY[API_ERROR_CODES.INTERNAL_ERROR].status).toBe(500);
   });
+
+  describe("DomainError", () => {
+    it("creates domain error with registry status and default message", () => {
+      const err = createDomainError(API_ERROR_CODES.NOT_FOUND);
+      expect(err.message).toBe("Resource not found.");
+      expect(err.status).toBe(404);
+      expect(err.code).toBe("not_found");
+      expect(isDomainError(err)).toBe(true);
+    });
+
+    it("creates entity not found error with custom entity type and ID", () => {
+      const err = createEntityNotFoundError("Case", "case-123");
+      expect(err.message).toBe("Case 'case-123' not found");
+      expect(err.status).toBe(404);
+      expect(err.code).toBe("not_found");
+      expect(isDomainError(err)).toBe(true);
+    });
+
+    it("creates gate blocker error with structured reasons", () => {
+      const reasons = [{ code: "consent_unsigned", message: "Consent required" }];
+      const err = createGateBlockerError(reasons);
+      expect(err.status).toBe(409);
+      expect(err.code).toBe("GATE_FAILED");
+      expect(err.reasons).toEqual(reasons);
+      expect(isDomainError(err)).toBe(true);
+    });
+
+    it("type guard returns false for regular errors or non-objects", () => {
+      expect(isDomainError(new Error("regular error"))).toBe(false);
+      expect(isDomainError(null)).toBe(false);
+      expect(isDomainError(undefined)).toBe(false);
+      expect(isDomainError({ code: "not_found" })).toBe(false);
+    });
+  });
 });
+

@@ -38,7 +38,13 @@ export const SENSITIVE_KEYS = [
   "prompt",
   "modelOutput",
   "messages",
-  "transcript",
+  // Insurance identifiers
+  "memberId",
+  "subscriberId",
+  // Clinical touch/canvas signatures
+  "signatureData",
+  "signatureImage",
+  "canvasData",
   // FHIR clinical content
   "text", // FHIR narrative (Resource.text)
   "contained",

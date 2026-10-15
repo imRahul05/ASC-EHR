@@ -1,6 +1,7 @@
 import {
   API_ERROR_CODES,
   API_ERROR_REGISTRY,
+  isDomainError,
   type ApiErrorPayload,
   type SendApiErrorOptions,
 } from "@asc/types";
@@ -41,9 +42,21 @@ const errorHandlerPlugin: FastifyPluginAsync = (app: FastifyInstance): Promise<v
   });
 
   app.setErrorHandler((error: Error, request: FastifyRequest, reply: FastifyReply) => {
+    if (isDomainError(error)) {
+      return reply.sendApiError({
+        code: error.code,
+        status: error.status,
+        message: error.message,
+        details: error.details,
+        duplicateMatch: error.duplicateMatch,
+        reasons: error.reasons,
+      });
+    }
+
     if (isZodError(error)) {
       return reply.code(400).send(formatZodError(error));
     }
+
 
     const fastifyError = error as FastifyErrorWithStatus;
     if (fastifyError.code === "FST_ERR_CTP_INVALID_MEDIA_TYPE" || fastifyError.code === "FST_ERR_CTP_EMPTY_JSON_BODY") {

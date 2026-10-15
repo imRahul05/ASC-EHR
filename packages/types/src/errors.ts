@@ -70,3 +70,54 @@ export const API_ERROR_REGISTRY: Record<ApiErrorCode, ErrorDefinition> = {
   [API_ERROR_CODES.UNAVAILABLE]: { status: 503, defaultMessage: "Service temporarily unavailable." },
   [API_ERROR_CODES.UPSTREAM_SERVICE_UNAVAILABLE]: { status: 503, defaultMessage: "Upstream clinical data service is temporarily unavailable." },
 };
+
+export interface DomainError extends Error {
+  readonly _tag: "DomainError";
+  readonly code: ApiErrorCode;
+  readonly status: number;
+  readonly details?: Record<string, string>;
+  readonly duplicateMatch?: DuplicateMatchResult;
+  readonly reasons?: readonly ConflictReason[];
+}
+
+export function createDomainError(
+  code: ApiErrorCode,
+  options?: {
+    readonly message?: string;
+    readonly status?: number;
+    readonly details?: Record<string, string>;
+    readonly duplicateMatch?: DuplicateMatchResult;
+    readonly reasons?: readonly ConflictReason[];
+  },
+): DomainError {
+  const definition = API_ERROR_REGISTRY[code];
+  const message = options?.message ?? definition.defaultMessage;
+  const baseError = new Error(message);
+  return Object.assign(baseError, {
+    _tag: "DomainError" as const,
+    code,
+    status: options?.status ?? definition.status,
+    details: options?.details,
+    duplicateMatch: options?.duplicateMatch,
+    reasons: options?.reasons,
+  });
+}
+
+export function isDomainError(error: Error | object | null | undefined): error is DomainError {
+  if (!error || typeof error !== "object") return false;
+  return "_tag" in error && error._tag === "DomainError" && "code" in error && typeof error.code === "string";
+}
+
+export function createEntityNotFoundError(entityType: string, id: string): DomainError {
+  return createDomainError(API_ERROR_CODES.NOT_FOUND, {
+    message: `${entityType} '${id}' not found`,
+  });
+}
+
+export function createGateBlockerError(reasons: readonly ConflictReason[]): DomainError {
+  return createDomainError(API_ERROR_CODES.GATE_FAILED, {
+    message: "Clinical gate rejected the transition.",
+    reasons,
+  });
+}
+
