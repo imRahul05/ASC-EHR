@@ -20,6 +20,11 @@ import type { SignConsentInput } from "@asc/validation/consent";
 import type { PreopAssessmentInput } from "@asc/validation/preop";
 import type { HpOverrideInput, HpUpdateNoteInput } from "@asc/validation/hp";
 import type { AnticoagulationAssessmentInput } from "@asc/validation/anticoagulation";
+import type {
+  AssignScopeInput,
+  Gate2OverrideInput,
+  SignTimeOutInput,
+} from "@asc/validation/procedure-capture";
 import { setupServer } from "msw/node";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db, resetDb } from "../db/store";
@@ -631,6 +636,76 @@ describe("mock clinical case handlers", () => {
     const expiredResult = (await expiredRes.json()) as PriorAuthResult;
     expect(expiredResult.evaluation.status).toBe("failed");
     expect(expiredResult.evaluation.isExpired).toBe(true);
+  });
+
+  it("POST /cases/:id/scope assigns endoscope and enforces 168h hang-time window", async () => {
+    const validScope: AssignScopeInput = {
+      scopeSerial: "OLY-CF-901",
+      scopeModel: "CF-H190L",
+      reprocessedAt: "2026-10-15T08:00:00Z",
+      assignedAt: "2026-10-16T08:00:00Z", // 24 hours hang time
+      leakTestResult: "PASS",
+      cycleOutcome: "PASS",
+    };
+
+    const res = await postJson(apiUrl(API_ROUTES.caseScope("case_107")), validScope);
+    expect(res.status).toBe(200);
+    const detail = (await res.json()) as CaseDetail;
+    expect(detail.scopeAssignment?.scopeSerial).toBe("OLY-CF-901");
+    expect(detail.scopeAssignment?.withinHangTimeWindow).toBe(true);
+    expect(detail.scopeAssignment?.hangTimeHours).toBe(24);
+
+    // Over 168 hours hang-time violation
+    const expiredScope: AssignScopeInput = {
+      scopeSerial: "OLY-CF-EXPIRED",
+      reprocessedAt: "2026-10-01T08:00:00Z",
+      assignedAt: "2026-10-16T08:00:00Z", // > 168 hours
+      leakTestResult: "PASS",
+      cycleOutcome: "PASS",
+    };
+
+    const expRes = await postJson(apiUrl(API_ROUTES.caseScope("case_107")), expiredScope);
+    expect(expRes.status).toBe(200);
+    const expDetail = (await expRes.json()) as CaseDetail;
+    expect(expDetail.scopeAssignment?.withinHangTimeWindow).toBe(false);
+
+    // Override must fail when scope lock violation exists
+    const overrideAttempt: Gate2OverrideInput = {
+      reason: "Emergency case proceed immediately without delay",
+      actorName: "Dr. Gregory",
+      actorRole: "SURGEON",
+    };
+    const lockRes = await postJson(apiUrl(API_ROUTES.caseGate2Override("case_107")), overrideAttempt);
+    expect(lockRes.status).toBe(409);
+    const lockErr = (await lockRes.json()) as { code: string };
+    expect(lockErr.code).toBe("SCOPE_LOCK_VIOLATION");
+  });
+
+  it("POST /cases/:id/time-out records multi-role participant acknowledgement", async () => {
+    const timeOutPayload: SignTimeOutInput = {
+      checklist: {
+        patientIdentity: true,
+        procedureConfirmed: true,
+        consentVerified: true,
+        allergiesReviewed: true,
+        equipmentReady: true,
+        anticoagulationReviewed: true,
+        siteAndLateralityConfirmed: true,
+        prophylaxisReviewed: true,
+        anticipatedIssuesReviewed: true,
+      },
+      participants: [
+        { userId: "usr_doc", name: "Dr. Alice", role: "endoscopist" },
+        { userId: "usr_nurse", name: "Bob RN", role: "circulating_rn" },
+        { userId: "usr_anes", name: "Carol CRNA", role: "anesthesia" },
+      ],
+    };
+
+    const res = await postJson(apiUrl(API_ROUTES.caseTimeOut("case_104")), timeOutPayload);
+    expect(res.status).toBe(200);
+    const detail = (await res.json()) as CaseDetail;
+    expect(detail.timeOut.attestations.length).toBe(3);
+    expect(detail.timeOut.completedAt).toBeDefined();
   });
 });
 
