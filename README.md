@@ -6,8 +6,8 @@
 [![Medplum 5.1.42](https://img.shields.io/badge/FHIR%20R4-Medplum%205.1.42-3b82f6.svg)](https://medplum.com/)
 [![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL%20%2B%20Drizzle%20RLS-336791.svg)](https://orm.drizzle.team/)
 [![Redis & BullMQ](https://img.shields.io/badge/Queue-Redis%20%2B%20BullMQ-d82c20.svg)](https://bullmq.io/)
-[![TypeScript 7.0](<https://img.shields.io/badge/TypeScript-7.0%20Strict%20(No%20Any)-3178c6.svg>)](https://www.typescriptlang.org/)
-[![Status: Phase 1 & Phase 2 Complete](<https://img.shields.io/badge/Delivery-Phase%201%20%26%20Phase%202%20Complete%20(PR%20%2393%2C%20%2394%2C%20%23101)-success.svg>)](PROGRESS.md)
+[![TypeScript 7.0](https://img.shields.io/badge/TypeScript-7.0%20Strict%20%28No%20Any%29-3178c6.svg)](https://www.typescriptlang.org/)
+[![Status: Core Spine Complete](https://img.shields.io/badge/Delivery-Core%20Spine%20Complete%20%28PR%20%2393%2C%20%2394%2C%20%23101%29-success.svg)](PROGRESS.md)
 
 ASC EHR is a clinical-grade, high-throughput **Ambulatory Surgery Center (ASC) Operating System and Electronic Health Record (EHR)** purpose-built specifically for **single-specialty Gastrointestinal (GI) endoscopy facilities**.
 
@@ -23,10 +23,10 @@ flowchart LR
     classDef active fill:#3b82f6,stroke:#1d4ed8,stroke-width:2px,color:#fff,rx:6px,ry:6px
     classDef planned fill:#475569,stroke:#334155,stroke-width:2px,color:#94a3b8,rx:6px,ry:6px
 
-    subgraph Roadmap ["ASC OS Delivery Status · Overall Progress: ~58% (76 / 130 Stories)"]
+    subgraph Roadmap ["ASC OS Delivery Status · Overall Progress: ~25% (~32 / 130 Stories Fully Wired End-to-End; ~45 UI Mocked)"]
         direction LR
-        P1["<b>Phase 1: Intake & Scheduling</b><br/>EP-A · EP-B · EP-C<br/>✅ <b>100% COMPLETE</b>"]:::done
-        P2["<b>Phase 2: Financial & Pre-Op</b><br/>EP-D · EP-E<br/>✅ <b>100% COMPLETE</b>"]:::done
+        P1["<b>Phase 1: Intake & Scheduling</b><br/>EP-A · EP-B · EP-C<br/>✅ <b>Core Spine Complete</b>"]:::done
+        P2["<b>Phase 2: Financial & Pre-Op</b><br/>EP-D · EP-E<br/>✅ <b>Core Spine Complete</b>"]:::done
         P3["<b>Phase 3: Day of Surgery</b><br/>EP-F · EP-G · EP-H · EP-I<br/>🔄 <b>ACTIVE / READY TO START</b>"]:::active
         P4["<b>Phase 4: Coding & Claims</b><br/>EP-J · EP-K<br/>⏳ <b>0% PLANNED</b>"]:::planned
         P5["<b>Phase 5: QAPI & Recall</b><br/>EP-L<br/>📋 <b>0% BACKLOG</b>"]:::planned
@@ -36,13 +36,13 @@ flowchart LR
 ```
 
 ```text
-Total Delivery Progress: [█████████████░░░░░░░] 58% Complete
+Total Delivery Progress: [█████░░░░░░░░░░░░░░░] ~25% End-to-End Wired (~32 / 130 Stories Fully Wired; ~45 UI Mocked)
 
-Phase 1  [██████████] 100%  COMPLETE  │ Foundation, Intake & Scheduling (PR #84, #85, #87 merged)
-Phase 2  [██████████] 100%  COMPLETE  │ Financial Clearance, Pre-Op & Hard Gate 1 (PR #89, #91, #93, #94, #101 merged)
-Phase 3  [░░░░░░░░░░]   0%  ACTIVE    │ Day of Surgery, Documentation, Pathology & Scopes (P18, P20 Next)
-Phase 4  [░░░░░░░░░░]   0%  PLANNED   │ Coding Engine, Multiple Endoscopy & Claims Cycle
-Phase 5  [░░░░░░░░░░]   0%  BACKLOG   │ Quality, QAPI & Surveillance Recall Ladder
+Phase 1  [████████░░] Core Spine Complete │ Foundation, Intake & Scheduling (PR #75, #77, #78, #79, #84, #85, #87; remaining in P12, P24, P26)
+Phase 2  [████████░░] Core Spine Complete │ Financial Clearance, Pre-Op & Hard Gate 1 (PR #89, #91, #93, #94, #101; remaining in P11, P12, P20)
+Phase 3  [░░░░░░░░░░]   0%  ACTIVE        │ Day of Surgery, Documentation, Pathology & Scopes (P18, P20 Next)
+Phase 4  [░░░░░░░░░░]   0%  PLANNED       │ Coding Engine, Multiple Endoscopy & Claims Cycle
+Phase 5  [░░░░░░░░░░]   0%  BACKLOG       │ Quality, QAPI & Surveillance Recall Ladder
 ```
 
 > 📖 **Detailed Sprint Tracking:** See [PROGRESS.md](PROGRESS.md) for granular task breakdowns, daily commits, and blocking lead-time items. See [docs/plan/implementation-plan.md](docs/plan/implementation-plan.md) for the master phase architecture.

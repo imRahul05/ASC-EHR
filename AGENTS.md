@@ -59,6 +59,7 @@ Dev-time skills (`.claude/skills/`, never loaded at runtime): `create-agent`, `c
 
 ### 8. Product Requirements & Target Architecture (GI ASC)
 **Consult when:** Building any clinical feature, choosing between Medplum / MindScript reuse / new code, or modelling FHIR data.
+👉 [Read Master Requirements](docs/product/master-requirements.md) + [Master Build Specification](docs/product/master-build-specification.md) — *authoritative Oct 7, 2026 master specifications (REQ-1–REQ-22, EP-A–EP-M).*
 👉 [Read Phase-wise Implementation Plan](docs/plan/implementation-plan.md) — *27 short phases with dependency matrices, target file tree, Medplum/npm versions; live status in [`PROGRESS.md`](PROGRESS.md).*
 👉 [Read Product Requirements & Architecture](docs/product/README.md)
 *(Covers phased requirements, build/reuse/Medplum matrix, target architecture, end-to-end Mermaid flows, delivery plan).*
