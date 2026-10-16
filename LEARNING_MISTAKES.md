@@ -58,6 +58,7 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 26. Neutralize registration TOCTOU race conditions: serialize in-flight duplicate-check-and-write critical sections per facility using an in-flight queue lock, use FHIR conditional create (ifNoneExist) for MRN, and verify transaction response status to reject duplicate creation with HTTP 409. (LM-030)
 27. Scheduling & UI controls: OptionSelect uses explicit nullish check for empty string values; appointment conflict queries use bounded 24h windows (string[][] QueryTypes in Medplum) instead of single-day UTC slices; mock handlers fail fast rather than reassigning patient IDs; Whiteboard in-use room tiles match active procedure phases only; add 30-min grace period and calendar rollover validation for case scheduling. (LM-031)
 28. Distributed scheduling & timezone safety: serialize concurrent booking conflict checks with PostgreSQL transaction advisory locks ('facility-scheduling'); zero side-effect patient verification (read-only 404/403); pin all calendar date/time calculations to facility timezone (facilityDateTimeToIso, isoToFacilityTime); unlink case navigation and omit clinical flags on public Whiteboard TV displays; gate room tiles with isRoomOccupyingPhase. (LM-032)
+29. Composite pre-handler pipelines & scoped idempotency: never pass raw hook arrays on clinical endpoints; enforce canonical fail-closed sequence (capability -> idempotency with facilityChecked -> If-Match -> case context hydration -> Zod body validation); scope idempotency keys by tenant/method/route/caseId; use clinicalMutationRoute/clinicalQueryRoute to eliminate capability drift. (LM-037, LM-038)
 
 ---
 
@@ -432,5 +433,17 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
   3. Tests exercising body validation on clinical case routes must seed the target case in Medplum so the request legitimately reaches payload validation.
 - **How to check:** `pnpm turbo run check-types lint test build`.
 - **Guarded by:** `apps/api/src/hooks/pipeline.test.ts`, `apps/api/src/routes/*.test.ts`.
+
+### LM-038 — Composite Idempotency Key Scoping & Fastify Route Helper Capability Parity
+- **Seen:** 3 · 2026-10-16 · PR #101 (`apps/api/src/hooks/idempotency.ts`, `apps/api/src/hooks/pipeline.ts`)
+- **What went wrong:**
+  1. The idempotency cache key used only the raw client-provided header value (`key = getIdempotencyKey(request)`). If two different patients, cases, or routes presented identical client-generated keys (or across tenants), cache lookup returned the cached response of a different case, creating a severe data integrity and HIPAA privacy risk (45 CFR § 164.312).
+  2. Declaring capability requirements separately in `config: { auth: { capability: "..." } }` and inside `preHandler: createClinicalMutationPipeline({ capability: "..." })` allowed developer oversight where the two capability declarations could diverge or become desynchronized.
+- **Rule:**
+  1. Idempotency cache keys MUST always be compositely scoped: `${tenantId}:${method}:${routeUrl}:${caseId ?? ""}:${rawKey}`. Never trust or cache raw client keys globally.
+  2. Use `clinicalMutationRoute` and `clinicalQueryRoute` route definition helpers. They bind `config.auth.capability` and the preHandler pipeline from a single capability argument, eliminating capability drift by construction.
+- **How to check:** `pnpm turbo run check-types lint test build`.
+- **Guarded by:** `apps/api/src/hooks/idempotency.test.ts`, `apps/api/src/hooks/pipeline.test.ts`.
+
 
 
