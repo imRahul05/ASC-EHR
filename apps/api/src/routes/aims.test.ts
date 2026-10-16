@@ -1,7 +1,7 @@
 import { forFacility } from "@asc/api-client/server";
 import { facilityGrant, staffPrincipal } from "@asc/authz/testing";
 import { caseReadinessExtensions, caseStageExtension } from "@asc/fhir";
-import type { AnesthesiaRecord } from "@asc/types";
+import type { AnesthesiaRecord, CaseDetail } from "@asc/types";
 import type { Encounter, Patient } from "@medplum/fhirtypes";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -272,8 +272,45 @@ describe("AIMS Anesthesia Routes (Phase P20 / REQ-10, US-E-05, US-F-08, US-F-09)
       });
 
       expect(res.statusCode).toBe(200);
-      const record = res.json<AnesthesiaRecord>();
-      expect(record.sedationStart).toBe("2026-10-16T08:15:00.000Z");
+      const detail = res.json<CaseDetail>();
+      expect(detail.case.id).toBe("case-gate-pass");
+      expect(detail.anesthesia.sedationStart).toBe("2026-10-16T08:15:00.000Z");
+    });
+
+    it("rejects self-witnessed controlled substance waste (DEA 21 CFR § 1304.22(c))", async () => {
+      const mockMedplum = new MockClient();
+      built = await setupApp(mockMedplum);
+      await seedCase(mockMedplum, "case-self-witness");
+
+      const res = await built.app.inject({
+        method: "POST",
+        url: "/cases/case-self-witness/anesthesia",
+        headers: {
+          ...bearer(tokenAnes),
+          "x-facility-id": facilityId,
+        },
+        payload: {
+          kind: "dose",
+          drug: "fentanyl",
+          amount: 50,
+          unit: "mcg",
+          at: "2026-10-16T08:18:00.000Z",
+          waste: {
+            drug: "fentanyl",
+            administeredAmount: 50,
+            wastedAmount: 50,
+            unit: "mcg",
+            witnessedBy: { id: userAnes, name: "Staff (user-anes-1)", initials: "ST" },
+            witnessedAt: "2026-10-16T08:18:00.000Z",
+            reason: "Attempted self-witnessing",
+          },
+        },
+      });
+
+      expect(res.statusCode).toBe(409);
+      const body = res.json<{ code: string; message: string }>();
+      expect(body.code).toBe("GATE_FAILED");
+      expect(body.message).toContain("Self-witnessing of controlled substance waste is prohibited");
     });
 
     it("records drug dose with dual-witness controlled substance waste (DEA 21 CFR § 1304.22(c))", async () => {
@@ -307,12 +344,12 @@ describe("AIMS Anesthesia Routes (Phase P20 / REQ-10, US-E-05, US-F-08, US-F-09)
       });
 
       expect(res.statusCode).toBe(200);
-      const record = res.json<AnesthesiaRecord>();
-      expect(record.doses).toHaveLength(1);
-      expect(record.doses[0]?.drug).toBe("fentanyl");
-      expect(record.doses[0]?.amount).toBe(50);
-      expect(record.doses[0]?.waste?.wastedAmount).toBe(50);
-      expect(record.doses[0]?.waste?.witnessedBy.name).toBe("Sarah Miller, RN");
+      const detail = res.json<CaseDetail>();
+      expect(detail.anesthesia.doses).toHaveLength(1);
+      expect(detail.anesthesia.doses[0]?.drug).toBe("fentanyl");
+      expect(detail.anesthesia.doses[0]?.amount).toBe(50);
+      expect(detail.anesthesia.doses[0]?.waste?.wastedAmount).toBe(50);
+      expect(detail.anesthesia.doses[0]?.waste?.witnessedBy.name).toBe("Sarah Miller, RN");
     });
 
     it("records 5-minute flowsheet vitals including EtCO2 capnography", async () => {
@@ -345,10 +382,10 @@ describe("AIMS Anesthesia Routes (Phase P20 / REQ-10, US-E-05, US-F-08, US-F-09)
       });
 
       expect(res.statusCode).toBe(200);
-      const record = res.json<AnesthesiaRecord>();
-      expect(record.vitals).toHaveLength(1);
-      expect(record.vitals[0]?.etco2).toBe(36);
-      expect(record.vitals[0]?.hr).toBe(74);
+      const detail = res.json<CaseDetail>();
+      expect(detail.anesthesia.vitals).toHaveLength(1);
+      expect(detail.anesthesia.vitals[0]?.etco2).toBe(36);
+      expect(detail.anesthesia.vitals[0]?.hr).toBe(74);
     });
 
     it("records airway events (e.g. jaw thrust maneuver)", async () => {
@@ -372,10 +409,10 @@ describe("AIMS Anesthesia Routes (Phase P20 / REQ-10, US-E-05, US-F-08, US-F-09)
       });
 
       expect(res.statusCode).toBe(200);
-      const record = res.json<AnesthesiaRecord>();
-      expect(record.airwayEvents).toHaveLength(1);
-      expect(record.airwayEvents[0]?.type).toBe("jaw_thrust");
-      expect(record.airwayEvents[0]?.note).toContain("Transient snoring");
+      const detail = res.json<CaseDetail>();
+      expect(detail.anesthesia.airwayEvents).toHaveLength(1);
+      expect(detail.anesthesia.airwayEvents[0]?.type).toBe("jaw_thrust");
+      expect(detail.anesthesia.airwayEvents[0]?.note).toContain("Transient snoring");
     });
   });
 
@@ -458,6 +495,80 @@ describe("AIMS Anesthesia Routes (Phase P20 / REQ-10, US-E-05, US-F-08, US-F-09)
       const result2 = res2.json<{ syncedCount: number; duplicateCount: number }>();
       expect(result2.syncedCount).toBe(1);
       expect(result2.duplicateCount).toBe(2);
+    });
+
+    it("rejects batch with self-witnessed narcotic waste (DEA 21 CFR § 1304.22(c))", async () => {
+      const mockMedplum = new MockClient();
+      built = await setupApp(mockMedplum);
+      await seedCase(mockMedplum, "case-batch-self-witness");
+
+      const res = await built.app.inject({
+        method: "POST",
+        url: "/cases/case-batch-self-witness/aims/batch",
+        headers: {
+          ...bearer(tokenAnes),
+          "x-facility-id": facilityId,
+        },
+        payload: {
+          entries: [
+            {
+              clientId: "44444444-4444-4444-8444-444444444444",
+              recordedAt: "2026-10-16T08:10:00.000Z",
+              payload: {
+                kind: "dose" as const,
+                drug: "fentanyl" as const,
+                amount: 50,
+                unit: "mcg" as const,
+                waste: {
+                  drug: "fentanyl" as const,
+                  administeredAmount: 50,
+                  wastedAmount: 50,
+                  unit: "mcg" as const,
+                  witnessedBy: { id: userAnes, name: "Staff (user-anes-1)", initials: "ST" },
+                  witnessedAt: "2026-10-16T08:10:00.000Z",
+                },
+              },
+            },
+          ],
+        },
+      });
+
+      expect(res.statusCode).toBe(409);
+      const body = res.json<{ code: string; message: string }>();
+      expect(body.code).toBe("GATE_FAILED");
+      expect(body.message).toContain("Self-witnessing of controlled substance waste is prohibited");
+    });
+
+    it("rejects batch sedation start when pre-anesthesia evaluation is missing (CMS 42 CFR § 416.42(a))", async () => {
+      const mockMedplum = new MockClient();
+      built = await setupApp(mockMedplum);
+      await seedCase(mockMedplum, "case-batch-sedation-unassessed");
+
+      const res = await built.app.inject({
+        method: "POST",
+        url: "/cases/case-batch-sedation-unassessed/aims/batch",
+        headers: {
+          ...bearer(tokenAnes),
+          "x-facility-id": facilityId,
+        },
+        payload: {
+          entries: [
+            {
+              clientId: "55555555-5555-4555-8555-555555555555",
+              recordedAt: "2026-10-16T08:10:00.000Z",
+              payload: {
+                kind: "sedation" as const,
+                edge: "start" as const,
+              },
+            },
+          ],
+        },
+      });
+
+      expect(res.statusCode).toBe(409);
+      const body = res.json<{ code: string; message: string }>();
+      expect(body.code).toBe("GATE_FAILED");
+      expect(body.message).toContain("Pre-anesthesia evaluation must be completed before starting sedation");
     });
   });
 });

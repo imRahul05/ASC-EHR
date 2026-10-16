@@ -261,15 +261,101 @@ describe("aims.schema (Phase P20, US-E-05, US-F-08, US-F-09)", () => {
       });
       expect(setup.kind).toBe("setup");
     });
+
+    it("accepts valid controlled substance waste matching drug, unit, and administeredAmount", () => {
+      const doseWithWaste = anesthesiaEntrySchema.parse({
+        kind: "dose",
+        drug: "fentanyl",
+        amount: 50,
+        unit: "mcg",
+        at: "2026-10-16T08:15:00.000Z",
+        waste: {
+          drug: "fentanyl",
+          administeredAmount: 50,
+          wastedAmount: 50,
+          unit: "mcg",
+          witnessedBy: {
+            id: "nurse-456",
+            name: "Sarah Jenkins, RN",
+            initials: "SJ",
+          },
+          witnessedAt: "2026-10-16T08:16:00.000Z",
+          reason: "Partial vial discarded",
+        },
+      });
+      expect(doseWithWaste.kind).toBe("dose");
+      if (doseWithWaste.kind === "dose") {
+        expect(doseWithWaste.waste?.wastedAmount).toBe(50);
+      }
+    });
+
+    it("rejects dose entry if waste drug does not match dose drug", () => {
+      expect(() =>
+        anesthesiaEntrySchema.parse({
+          kind: "dose",
+          drug: "fentanyl",
+          amount: 50,
+          unit: "mcg",
+          waste: {
+            drug: "midazolam",
+            administeredAmount: 50,
+            wastedAmount: 50,
+            unit: "mcg",
+            witnessedBy: { id: "nurse-456", name: "Sarah Jenkins, RN", initials: "SJ" },
+            witnessedAt: "2026-10-16T08:16:00.000Z",
+          },
+        }),
+      ).toThrow("Wasted drug must match the administered drug");
+    });
+
+    it("rejects dose entry if waste unit does not match dose unit", () => {
+      expect(() =>
+        anesthesiaEntrySchema.parse({
+          kind: "dose",
+          drug: "midazolam",
+          amount: 2,
+          unit: "mg",
+          waste: {
+            drug: "midazolam",
+            administeredAmount: 2,
+            wastedAmount: 3,
+            unit: "mcg",
+            witnessedBy: { id: "nurse-456", name: "Sarah Jenkins, RN", initials: "SJ" },
+            witnessedAt: "2026-10-16T08:16:00.000Z",
+          },
+        }),
+      ).toThrow("Wasted dose unit must match the administered dose unit");
+    });
+
+    it("rejects dose entry if waste administeredAmount does not match dose amount", () => {
+      expect(() =>
+        anesthesiaEntrySchema.parse({
+          kind: "dose",
+          drug: "fentanyl",
+          amount: 50,
+          unit: "mcg",
+          waste: {
+            drug: "fentanyl",
+            administeredAmount: 25,
+            wastedAmount: 75,
+            unit: "mcg",
+            witnessedBy: { id: "nurse-456", name: "Sarah Jenkins, RN", initials: "SJ" },
+            witnessedAt: "2026-10-16T08:16:00.000Z",
+          },
+        }),
+      ).toThrow("Wasted administered amount must match the dose amount");
+    });
   });
 
   describe("aimsBatchSchema (NFR-14 Offline Batch Synchronization)", () => {
-    it("accepts valid batch of offline entries", () => {
+    it("accepts valid batch of offline entries with facilityId and userId", () => {
       const batch = aimsBatchSchema.parse({
         entries: [
           {
             clientId: "c28fa485-8025-46b5-9e32-2d1f7362a933",
             caseId: "case-123",
+            facilityId: "facility-main",
+            userId: "anesth-789",
             payload: {
               kind: "sedation",
               edge: "start",
@@ -293,6 +379,8 @@ describe("aims.schema (Phase P20, US-E-05, US-F-08, US-F-09)", () => {
 
       expect(batch.entries).toHaveLength(2);
       expect(batch.entries[0]?.clientId).toBe("c28fa485-8025-46b5-9e32-2d1f7362a933");
+      expect(batch.entries[0]?.facilityId).toBe("facility-main");
+      expect(batch.entries[0]?.userId).toBe("anesth-789");
     });
 
     it("rejects empty batch (minimum 1 entry)", () => {

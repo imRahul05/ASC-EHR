@@ -1378,6 +1378,8 @@ export type AnesthesiaEntryPayload =
 export interface AimsBatchEntry {
   readonly clientId: string; // UUID generated offline for idempotency
   readonly caseId?: string;
+  readonly facilityId?: string;
+  readonly userId?: string;
   readonly payload: AnesthesiaEntryPayload;
   readonly recordedAt: string;
 }

@@ -192,6 +192,7 @@ function applyAnesthesiaEntry(
             route: "IV",
             at: payload.at ?? now,
             by: actor.ref,
+            ...(payload.waste ? { waste: payload.waste } : {}),
           },
         ],
       };
@@ -1013,6 +1014,28 @@ export const caseHandlers = [
     const payload = await body<AnesthesiaEntryPayload>(request);
     const actor = actorFrom(request);
 
+    if (payload.kind === "dose" && payload.waste) {
+      if (payload.waste.witnessedBy.id === actor.id) {
+        return HttpResponse.json(
+          {
+            code: "GATE_FAILED",
+            message:
+              "Self-witnessing of controlled substance waste is prohibited under DEA 21 CFR § 1304.22(c)",
+            reasons: [
+              {
+                ruleId: "DEA_DUAL_WITNESS_REQUIRED",
+                ruleName: "DEA Dual Witness Waste Requirement",
+                summary: "Self-witnessing of controlled substance waste is prohibited (DEA 21 CFR § 1304.22(c))",
+                details: `Administering clinician (${actor.id}) cannot act as the disposal witness.`,
+                blocking: true,
+              },
+            ],
+          },
+          { status: 409 },
+        );
+      }
+    }
+
     if (payload.kind === "sedation" && payload.edge === "start") {
       const readiness = evaluatePreAnesthesiaReadiness(record.preAssessment ?? undefined);
       if (!readiness.ok) {
@@ -1040,6 +1063,9 @@ export const caseHandlers = [
       airwayNotes: payload.airwayNotes,
       lastOralIntakeIso: payload.lastOralIntakeIso,
       npoStatusSatisfied: payload.npoStatusSatisfied,
+      ...(payload.medicalDirectorCleared !== undefined
+        ? { medicalDirectorCleared: payload.medicalDirectorCleared }
+        : {}),
       assessedAt: payload.assessedAt ?? new Date().toISOString(),
       assessedBy: payload.assessedBy ?? actor.ref,
     };
@@ -1075,13 +1101,45 @@ export const caseHandlers = [
     const actor = actorFrom(request);
     let record = detail.anesthesia;
 
+    for (const entry of raw.entries ?? []) {
+      if (entry.payload.kind === "dose" && entry.payload.waste) {
+        if (entry.payload.waste.witnessedBy.id === actor.id) {
+          return HttpResponse.json(
+            {
+              code: "GATE_FAILED",
+              message:
+                "Self-witnessing of controlled substance waste is prohibited under DEA 21 CFR § 1304.22(c)",
+              reasons: [
+                {
+                  ruleId: "DEA_DUAL_WITNESS_REQUIRED",
+                  ruleName: "DEA Dual Witness Waste Requirement",
+                  summary: "Self-witnessing of controlled substance waste is prohibited (DEA 21 CFR § 1304.22(c))",
+                  details: `Administering clinician (${actor.id}) cannot act as the disposal witness in entry ${entry.clientId}.`,
+                  blocking: true,
+                },
+              ],
+            },
+            { status: 409 },
+          );
+        }
+      }
+
+      if (entry.payload.kind === "sedation" && entry.payload.edge === "start") {
+        const readiness = evaluatePreAnesthesiaReadiness(record.preAssessment ?? undefined);
+        if (!readiness.ok) {
+          return gateFailed(readiness);
+        }
+      }
+    }
+
     let syncedCount = 0;
     let duplicateCount = 0;
 
     for (const entry of raw.entries ?? []) {
       const isDuplicate =
         record.doses.some((d) => d.id === entry.clientId) ||
-        record.vitals.some((v) => v.id === entry.clientId);
+        record.vitals.some((v) => v.id === entry.clientId) ||
+        record.airwayEvents.some((a) => a.id === entry.clientId);
 
       if (isDuplicate) {
         duplicateCount++;

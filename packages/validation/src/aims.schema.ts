@@ -45,6 +45,7 @@ export const preAnesthesiaAssessmentSchema = z.object({
   airwayNotes: z.string().trim().max(500, "Airway notes cannot exceed 500 characters").optional(),
   lastOralIntakeIso: z.string().datetime("Last oral intake must be a valid ISO datetime"),
   npoStatusSatisfied: z.boolean(),
+  medicalDirectorCleared: z.boolean().optional(),
   assessedAt: z.string().datetime("Assessed at must be a valid ISO datetime").optional(),
   assessedBy: staffRefSchema.optional(),
 });
@@ -156,18 +157,46 @@ export const anesthesiaSetupEntrySchema = z.object({
 });
 export type AnesthesiaSetupEntryInput = z.infer<typeof anesthesiaSetupEntrySchema>;
 
-export const anesthesiaEntrySchema = z.discriminatedUnion("kind", [
+const baseAnesthesiaEntrySchema = z.discriminatedUnion("kind", [
   anesthesiaDoseEntrySchema,
   anesthesiaVitalsEntrySchema,
   anesthesiaAirwayEventEntrySchema,
   anesthesiaSedationEntrySchema,
   anesthesiaSetupEntrySchema,
 ]);
+
+export const anesthesiaEntrySchema = baseAnesthesiaEntrySchema.superRefine((val, ctx) => {
+  if (val.kind === "dose" && val.waste) {
+    if (val.waste.drug !== val.drug) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Wasted drug must match the administered drug",
+        path: ["waste", "drug"],
+      });
+    }
+    if (val.waste.unit !== val.unit) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Wasted dose unit must match the administered dose unit",
+        path: ["waste", "unit"],
+      });
+    }
+    if (val.waste.administeredAmount !== val.amount) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Wasted administered amount must match the dose amount",
+        path: ["waste", "administeredAmount"],
+      });
+    }
+  }
+});
 export type AnesthesiaEntryInput = z.infer<typeof anesthesiaEntrySchema>;
 
 export const aimsBatchEntrySchema = z.object({
   clientId: z.string().uuid("Client ID must be a valid UUID"),
   caseId: z.string().optional(),
+  facilityId: z.string().optional(),
+  userId: z.string().optional(),
   payload: anesthesiaEntrySchema,
   recordedAt: z.string().datetime("Recorded at must be a valid ISO datetime"),
 });

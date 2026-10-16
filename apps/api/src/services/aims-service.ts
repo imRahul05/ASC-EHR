@@ -29,6 +29,7 @@ import type {
   AimsBatchSyncResult,
   AirwayEvent,
   AnesthesiaRecord,
+  CaseDetail,
   DrugDose,
   PreAnesthesiaAssessment,
   ProcedureEvent,
@@ -44,7 +45,7 @@ import type {
   PreAnesthesiaAssessmentInput,
 } from "@asc/validation";
 import type { MedplumClient } from "@medplum/core";
-import type { Encounter, Extension } from "@medplum/fhirtypes";
+import type { Encounter, Extension, MedicationAdministration, Observation } from "@medplum/fhirtypes";
 import type { FastifyBaseLogger } from "fastify";
 import { getCaseDetail } from "./case-read-service.js";
 
@@ -91,7 +92,7 @@ export async function recordAnesthesiaEntry(params: {
   actor: StaffRef;
   logger: FastifyBaseLogger;
   clientId?: string;
-}): Promise<AimsResult<AnesthesiaRecord>> {
+}): Promise<AimsResult<CaseDetail>> {
   const { medplum, facilityId, caseId, input, actor, logger, clientId } = params;
 
   const currentDetail = await getCaseDetail({ medplum, facilityId, caseId });
@@ -101,6 +102,29 @@ export async function recordAnesthesiaEntry(params: {
 
   const patientId = currentDetail.patient.id;
   const facilityClient = forFacility(medplum, facilityId);
+
+  // DEA 21 CFR § 1304.22(c): Controlled substance waste disposal requires dual-witness verification.
+  // The administering clinician cannot witness their own narcotic waste disposal.
+  if (input.kind === "dose" && input.waste) {
+    if (input.waste.witnessedBy.id === actor.id) {
+      logger.warn(
+        { caseId, actorId: actor.id, witnessId: input.waste.witnessedBy.id },
+        "Controlled substance waste blocked: self-witnessing is prohibited under DEA 21 CFR § 1304.22(c)",
+      );
+      return {
+        status: 409,
+        code: "GATE_FAILED",
+        message:
+          "Self-witnessing of controlled substance waste is prohibited under DEA 21 CFR § 1304.22(c)",
+        reasons: [
+          {
+            code: "DEA_DUAL_WITNESS_REQUIRED",
+            message: `Administering clinician (${actor.id}) cannot act as the disposal witness (DEA 21 CFR § 1304.22(c)).`,
+          },
+        ],
+      };
+    }
+  }
 
   // Hard gate check: pre-anesthesia evaluation required before sedation start (CMS 42 CFR § 416.42(a))
   if (input.kind === "sedation" && input.edge === "start") {
@@ -168,7 +192,10 @@ export async function recordAnesthesiaEntry(params: {
       at: input.at ?? new Date().toISOString(),
       note: input.note,
     };
-    const obs = buildAirwayEventObservation(event, caseId, facilityId, patientId);
+    const obs = buildAirwayEventObservation(event, caseId, facilityId, {
+      patientId,
+      clientId,
+    });
     await facilityClient.create(obs);
   } else if (input.kind === "sedation") {
     const eventType: ProcedureEventType =
@@ -185,6 +212,7 @@ export async function recordAnesthesiaEntry(params: {
       caseId,
       patientId,
       event,
+      clientId,
     });
     await facilityClient.create(obs);
   }
@@ -192,7 +220,7 @@ export async function recordAnesthesiaEntry(params: {
   const updatedDetail = await getCaseDetail({ medplum, facilityId, caseId });
   return {
     status: 200,
-    data: updatedDetail?.anesthesia ?? currentDetail.anesthesia,
+    data: updatedDetail ?? currentDetail,
   };
 }
 
@@ -302,6 +330,50 @@ export async function syncAimsBatch(params: {
   const patientId = currentDetail.patient.id;
   const facilityClient = forFacility(medplum, facilityId);
 
+  // 1. Validate batch entries before performing writes
+  for (const entry of input.entries) {
+    // DEA 21 CFR § 1304.22(c): dual-witness requirement for controlled substance waste
+    if (entry.payload.kind === "dose" && entry.payload.waste) {
+      if (entry.payload.waste.witnessedBy.id === actor.id) {
+        logger.warn(
+          { caseId, actorId: actor.id, entryClientId: entry.clientId },
+          "Batch controlled substance waste blocked: self-witnessing is prohibited under DEA 21 CFR § 1304.22(c)",
+        );
+        return {
+          status: 409,
+          code: "GATE_FAILED",
+          message:
+            "Self-witnessing of controlled substance waste is prohibited under DEA 21 CFR § 1304.22(c)",
+          reasons: [
+            {
+              code: "DEA_DUAL_WITNESS_REQUIRED",
+              message: `Administering clinician (${actor.id}) cannot act as the disposal witness in entry ${entry.clientId} (DEA 21 CFR § 1304.22(c)).`,
+            },
+          ],
+        };
+      }
+    }
+
+    // CMS 42 CFR § 416.42(a): pre-anesthesia evaluation required before sedation start
+    if (entry.payload.kind === "sedation" && entry.payload.edge === "start") {
+      const preAssessment = currentDetail.anesthesia.preAssessment;
+      const readiness = evaluatePreAnesthesiaReadiness(preAssessment ?? undefined);
+      if (!readiness.ok) {
+        logger.warn(
+          { caseId, reasons: readiness.reasons, entryClientId: entry.clientId },
+          "Batch sedation start blocked: pre-anesthesia evaluation missing or incomplete",
+        );
+        return {
+          status: 409,
+          code: "GATE_FAILED",
+          message:
+            "Pre-anesthesia evaluation must be completed before starting sedation (CMS 42 CFR § 416.42(a))",
+          reasons: readiness.reasons,
+        };
+      }
+    }
+  }
+
   // Gather existing clientIds from MedicationAdministration and Observation resources
   const [existingObs, existingMedAdmins] = await Promise.all([
     medplum
@@ -329,6 +401,7 @@ export async function syncAimsBatch(params: {
 
   let syncedCount = 0;
   let duplicateCount = 0;
+  const resourcesToCreate: Array<MedicationAdministration | Observation> = [];
 
   for (const entry of input.entries) {
     if (existingClientIds.has(entry.clientId)) {
@@ -354,7 +427,7 @@ export async function syncAimsBatch(params: {
         entry.clientId,
         patientId,
       );
-      await facilityClient.create(res);
+      resourcesToCreate.push(res);
     } else if (entry.payload.kind === "vitals") {
       const vitalsEntry: VitalsEntry = {
         id: `vit-${randomUUID()}`,
@@ -379,7 +452,7 @@ export async function syncAimsBatch(params: {
         patientId,
       );
       for (const obs of obsList) {
-        await facilityClient.create(obs);
+        resourcesToCreate.push(obs);
       }
     } else if (entry.payload.kind === "airway_event") {
       const airwayEvent: AirwayEvent = {
@@ -388,8 +461,11 @@ export async function syncAimsBatch(params: {
         at: entry.payload.at ?? entry.recordedAt,
         note: entry.payload.note,
       };
-      const obs = buildAirwayEventObservation(airwayEvent, caseId, facilityId, patientId);
-      await facilityClient.create(obs);
+      const obs = buildAirwayEventObservation(airwayEvent, caseId, facilityId, {
+        patientId,
+        clientId: entry.clientId,
+      });
+      resourcesToCreate.push(obs);
     } else if (entry.payload.kind === "sedation") {
       const eventType: ProcedureEventType =
         entry.payload.edge === "start" ? "SEDATION_START" : "SEDATION_END";
@@ -405,12 +481,20 @@ export async function syncAimsBatch(params: {
         caseId,
         patientId,
         event,
+        clientId: entry.clientId,
       });
-      await facilityClient.create(obs);
+      resourcesToCreate.push(obs);
     }
 
     existingClientIds.add(entry.clientId);
     syncedCount++;
+  }
+
+  // Execute resource creation in concurrent chunks to avoid HTTP socket exhaustion (SEC-05)
+  const CHUNK_SIZE = 10;
+  for (let i = 0; i < resourcesToCreate.length; i += CHUNK_SIZE) {
+    const chunk = resourcesToCreate.slice(i, i + CHUNK_SIZE);
+    await Promise.all(chunk.map((res) => facilityClient.create(res)));
   }
 
   logger.info({ caseId, syncedCount, duplicateCount }, "AIMS offline batch sync completed");
