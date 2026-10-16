@@ -1,12 +1,14 @@
 "use client";
 
-import { useIsMutating } from "@tanstack/react-query";
 import { useAddAnesthesiaEntry } from "@asc/api-client/react";
-import { ANESTHESIA_TECHNIQUE_LABEL, formatTime24 } from "@asc/clinical-rules";
+import { findMonitoringGaps } from "@asc/clinical-rules/aims/intervals";
+import { ANESTHESIA_TECHNIQUE_LABEL } from "@asc/clinical-rules/procedure-labels";
+import { formatTime24 } from "@asc/clinical-rules/time";
 import type { CaseDetail } from "@asc/types";
-import { Badge, Button, ElapsedTime, OfflineQueueBadge, toast, useOnlineStatus } from "@asc/ui";
+import { Badge, Button, ElapsedTime, toast } from "@asc/ui";
 import { CircleStop, Play } from "@asc/ui/icons";
 import { notifyError } from "../notify-error";
+import { AimsOfflineQueueBadge } from "./offline-queue-badge";
 
 interface AnesthesiaHeaderProps {
   readonly detail: CaseDetail;
@@ -15,11 +17,10 @@ interface AnesthesiaHeaderProps {
 
 /** Provider, technique, ASA, sedation start/end with running sedation time, and the offline-queue pill. */
 export function AnesthesiaHeader({ detail, editable }: AnesthesiaHeaderProps) {
-  const online = useOnlineStatus();
-  const queued = useIsMutating();
   const add = useAddAnesthesiaEntry(detail.case.id);
   const record = detail.anesthesia;
-  const asa = detail.case.asa ?? detail.hp?.asa ?? null;
+  const asa = record.preAssessment?.asaClass ?? detail.case.asa ?? detail.hp?.asa ?? null;
+  const monitoringGaps = findMonitoringGaps(record.vitals, record.sedationStart, record.sedationEnd);
 
   const sedation = (edge: "start" | "end") =>
     add.mutate(
@@ -67,9 +68,19 @@ export function AnesthesiaHeader({ detail, editable }: AnesthesiaHeaderProps) {
             )}
           </dd>
         </div>
+        {monitoringGaps.length > 0 && (
+          <div>
+            <dt className="text-xs text-destructive">ASA Monitoring</dt>
+            <dd>
+              <Badge variant="destructive" className="font-semibold text-xs" data-testid="anesthesia-monitoring-gaps">
+                {monitoringGaps.length} gap{monitoringGaps.length > 1 ? "s" : ""} (&gt;5m)
+              </Badge>
+            </dd>
+          </div>
+        )}
       </dl>
       <div className="flex flex-wrap items-center gap-2">
-        <OfflineQueueBadge online={online} queued={queued} />
+        <AimsOfflineQueueBadge caseId={detail.case.id} />
         {editable && !record.sedationStart && (
           <Button className="h-11" disabled={add.isPending} onClick={() => sedation("start")} data-testid="anesthesia-sedation-start">
             <Play /> Start sedation

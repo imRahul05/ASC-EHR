@@ -1,7 +1,7 @@
 "use client";
 
 import { useCase } from "@asc/api-client/react";
-import { isPhaseAtLeast, STOPPED_PHASES } from "@asc/clinical-rules";
+import { isPhaseAtLeast, STOPPED_PHASES } from "@asc/clinical-rules/phases";
 import type { CasePhase } from "@asc/types";
 import { EmptyState, ErrorState, LoadingSkeleton, OfflineBanner, SectionCard } from "@asc/ui";
 import { Syringe } from "@asc/ui/icons";
@@ -9,6 +9,7 @@ import { AirwayPanel } from "../anesthesia/airway-panel";
 import { AnesthesiaHeader } from "../anesthesia/anesthesia-header";
 import { DrugLog } from "../anesthesia/drug-log";
 import { FlowsheetGrid } from "../anesthesia/flowsheet-grid";
+import { PreAnesthesiaCard } from "../anesthesia/pre-anesthesia-card";
 import { VitalsEntryForm } from "../anesthesia/vitals-entry-form";
 import { VitalsTrends } from "../anesthesia/vitals-trends";
 
@@ -44,6 +45,7 @@ export function AnesthesiaTab({ caseId }: AnesthesiaTabProps) {
   return (
     <div className="@container space-y-4" data-testid="case-tab-anesthesia">
       <OfflineBanner />
+      <PreAnesthesiaCard caseId={caseId} record={record} editable={editable} />
       <AnesthesiaHeader detail={detail} editable={editable} />
       <VitalsTrends vitals={record.vitals} />
       <SectionCard

@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { useAddAnesthesiaEntry } from "@asc/api-client/react";
-import { ANESTHESIA_DRUG_LABEL, formatTime24 } from "@asc/clinical-rules";
+import { evaluateCumulativeDoses } from "@asc/clinical-rules/aims/dose-limits";
+import { ANESTHESIA_DRUG_LABEL } from "@asc/clinical-rules/procedure-labels";
+import { formatTime24 } from "@asc/clinical-rules/time";
 import type { AnesthesiaDrug, AnesthesiaRecord } from "@asc/types";
 import { Button, EmptyState, Input, OptionSelect, SectionCard, toast } from "@asc/ui";
-import { Pill, Plus } from "@asc/ui/icons";
+import { AlertTriangle, Pill, Plus } from "@asc/ui/icons";
 import { notifyError } from "../notify-error";
 import { DRUG_PRESETS, DRUGS, roundDose } from "./flowsheet-model";
 
@@ -32,6 +34,7 @@ export function DrugLog({ record, editable }: DrugLogProps) {
     drug,
     total: roundDose(record.doses.filter((dose) => dose.drug === drug).reduce((sum, dose) => sum + dose.amount, 0)),
   })).filter((item) => item.total > 0);
+  const doseWarnings = evaluateCumulativeDoses(record.doses);
   const amount = Number(custom.amount);
   const amountValid = custom.amount !== "" && Number.isFinite(amount) && amount > 0 && amount <= MAX_AMOUNT;
 
@@ -106,6 +109,20 @@ export function DrugLog({ record, editable }: DrugLogProps) {
               </Button>
             </form>
           </>
+        )}
+
+        {doseWarnings.length > 0 && (
+          <div className="space-y-1.5" data-testid="anesthesia-dose-warnings">
+            {doseWarnings.map((warning) => (
+              <div
+                key={warning.drug}
+                className="flex items-center gap-2 rounded-lg border border-warning/50 bg-warning/10 p-2.5 text-xs text-warning-foreground"
+              >
+                <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
+                <span>{warning.message}</span>
+              </div>
+            ))}
+          </div>
         )}
 
         {totals.length > 0 && (

@@ -6,6 +6,7 @@ import type {
   EligibilityCheckResult,
   FinancialSummary,
   HpDetailResponse,
+  PreAnesthesiaAssessment,
   PreopAssessmentResult,
   PriorAuthResult,
   ReadinessCheck,
@@ -20,6 +21,7 @@ import type { SignConsentInput } from "@asc/validation/consent";
 import type { PreopAssessmentInput } from "@asc/validation/preop";
 import type { HpOverrideInput, HpUpdateNoteInput } from "@asc/validation/hp";
 import type { AnticoagulationAssessmentInput } from "@asc/validation/anticoagulation";
+import type { PreAnesthesiaAssessmentInput } from "@asc/validation/aims.schema";
 import type {
   AssignScopeInput,
   Gate2OverrideInput,
@@ -706,6 +708,75 @@ describe("mock clinical case handlers", () => {
     const detail = (await res.json()) as CaseDetail;
     expect(detail.timeOut.attestations.length).toBe(3);
     expect(detail.timeOut.completedAt).toBeDefined();
+  });
+
+  it("POST /cases/:id/anesthesia with sedation start rejects with 409 GATE_FAILED if pre-assessment is missing", async () => {
+    const res = await postJson(apiUrl(API_ROUTES.caseAnesthesia("case_104")), {
+      kind: "sedation",
+      edge: "start",
+    });
+    expect(res.status).toBe(409);
+    const errorBody = (await res.json()) as { code: string; message: string };
+    expect(errorBody.code).toBe("GATE_FAILED");
+    expect(errorBody.message).toContain("Pre-anesthesia medical evaluation must be completed immediately prior to sedation");
+  });
+
+  it("POST /cases/:id/anesthesia/pre-assessment records evaluation and clears sedation gate", async () => {
+    const preAssessment: PreAnesthesiaAssessmentInput = {
+      asaClass: 2,
+      mallampati: 2,
+      airwayNotes: "Dentition intact, neck flexible",
+      lastOralIntakeIso: new Date(Date.now() - 36000000).toISOString(),
+      npoStatusSatisfied: true,
+    };
+
+    const preRes = await postJson(apiUrl(API_ROUTES.casePreAnesthesia("case_104")), preAssessment);
+    expect(preRes.status).toBe(200);
+    const recorded = (await preRes.json()) as PreAnesthesiaAssessment;
+    expect(recorded.asaClass).toBe(2);
+    expect(recorded.mallampati).toBe(2);
+
+    const sedationRes = await postJson(apiUrl(API_ROUTES.caseAnesthesia("case_104")), {
+      kind: "sedation",
+      edge: "start",
+    });
+    expect(sedationRes.status).toBe(200);
+    const detail = (await sedationRes.json()) as CaseDetail;
+    expect(detail.anesthesia.sedationStart).toBeDefined();
+  });
+
+  it("POST /cases/:id/aims/batch processes offline entries with deduplication", async () => {
+    const batch = {
+      entries: [
+        {
+          clientId: "aims-offline-1",
+          caseId: "case_104",
+          payload: { kind: "dose" as const, drug: "propofol" as const, amount: 100, unit: "mg" as const },
+          recordedAt: new Date().toISOString(),
+        },
+        {
+          clientId: "aims-offline-2",
+          caseId: "case_104",
+          payload: {
+            kind: "vitals" as const,
+            vitals: { hr: 75, sbp: 120, dbp: 80, spo2: 99, rr: 16, etco2: 38, tempC: 36.6, context: "intra" as const },
+          },
+          recordedAt: new Date().toISOString(),
+        },
+      ],
+    };
+
+    const res1 = await postJson(apiUrl(API_ROUTES.caseAimsBatch("case_104")), batch);
+    expect(res1.status).toBe(200);
+    const summary1 = (await res1.json()) as { syncedCount: number; duplicateCount: number };
+    expect(summary1.syncedCount).toBe(2);
+    expect(summary1.duplicateCount).toBe(0);
+
+    const res2 = await postJson(apiUrl(API_ROUTES.caseAimsBatch("case_104")), batch);
+    expect(res2.status).toBe(200);
+    const summary2 = (await res2.json()) as { syncedCount: number; duplicateCount: number };
+    expect(summary2.syncedCount).toBe(0);
+    expect(summary2.duplicateCount).toBe(2);
   });
 });
 

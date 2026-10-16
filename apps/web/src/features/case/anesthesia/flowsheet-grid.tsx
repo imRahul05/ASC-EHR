@@ -1,9 +1,11 @@
 "use client";
 
-import { AIRWAY_EVENT_LABEL, ANESTHESIA_DRUG_LABEL, formatTime24 } from "@asc/clinical-rules";
+import { findMonitoringGaps } from "@asc/clinical-rules/aims/intervals";
+import { AIRWAY_EVENT_LABEL, ANESTHESIA_DRUG_LABEL } from "@asc/clinical-rules/procedure-labels";
+import { formatTime24 } from "@asc/clinical-rules/time";
 import type { AnesthesiaRecord } from "@asc/types";
 import { cn, EmptyState, useNow } from "@asc/ui";
-import { TableProperties } from "@asc/ui/icons";
+import { AlertTriangle, TableProperties } from "@asc/ui/icons";
 import { columnOf, DRUG_PRESETS, DRUGS, FLOWSHEET_INTERVAL_MIN, flowsheetColumns, roundDose, VITAL_ROWS } from "./flowsheet-model";
 
 interface FlowsheetGridProps {
@@ -34,8 +36,22 @@ export function FlowsheetGrid({ record, live }: FlowsheetGridProps) {
   const usedDrugs = DRUGS.filter((drug) => record.doses.some((dose) => dose.drug === drug));
   const airway = byColumn(record.airwayEvents, (event) => event.at);
 
+  const monitoringGaps = findMonitoringGaps(record.vitals, record.sedationStart, record.sedationEnd);
+
   return (
-    <div className="overflow-x-auto rounded-xl border border-border bg-card" data-testid="anesthesia-flowsheet">
+    <div className="space-y-3">
+      {monitoringGaps.length > 0 && (
+        <div
+          className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-2.5 text-xs text-destructive-foreground"
+          data-testid="flowsheet-gap-alert"
+        >
+          <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
+          <span>
+            ASA Monitoring Gap: {monitoringGaps.length} interval{monitoringGaps.length > 1 ? "s" : ""} exceeded the mandatory 5-minute vitals recording limit.
+          </span>
+        </div>
+      )}
+      <div className="overflow-x-auto rounded-xl border border-border bg-card" data-testid="anesthesia-flowsheet">
       <table className="w-full border-collapse">
         <caption className="sr-only">Anesthesia flowsheet in {FLOWSHEET_INTERVAL_MIN}-minute columns</caption>
         <thead>
@@ -102,5 +118,6 @@ export function FlowsheetGrid({ record, live }: FlowsheetGridProps) {
         </tbody>
       </table>
     </div>
-  );
+  </div>
+);
 }
