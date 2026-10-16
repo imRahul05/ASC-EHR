@@ -27,13 +27,13 @@
 
 ## 2. Phase board
 
-> **Master Epic Mapping (`build_specification.md` §3):**
+> **Master Epic Mapping ([`master-build-specification.md`](docs/product/master-build-specification.md) §3):**
 >
-> - **EP-A** (Foundation: Auth, Identity, Audit) [DONE]: P00–P05, P06
-> - **EP-B** (Referral Intake & Registration) [DONE for Phase 1]: P14a/b, P24 (Inbound Fax / eCW)
-> - **EP-C** (Scheduling & Whiteboard) [DONE]: P15a/b, P15c/P15c.2 (Live Backend APIs & Workspace Wiring)
-> - **EP-D** (Financial Clearance) [DONE]: P14a/b (Eligibility intake), P22a (270/271 Monitor, 278 Auth, Estimates & Collection - PR #93)
-> - **EP-E** (Pre-Operative Readiness & Hard Gates) [DONE]: P07 (Gates core), P11 (Questionnaires), P16 (H&P & Med-Hold - PR #91), P17 (Pre-Op & Consent - PR #89)
+> - **EP-A** (Foundation: Auth, Identity, Audit) [Core Spine Complete]: P00–P05, P06 (remaining in P00b, P01, P08, P09, P10, P12, P26)
+> - **EP-B** (Referral Intake & Registration) [Core Spine Complete]: P14a/b (remaining in P12, P24)
+> - **EP-C** (Scheduling & Whiteboard) [Core Spine Complete]: P15a/b, P15c/P15c.2 (Live Backend APIs & Workspace Wiring; remaining in P15d)
+> - **EP-D** (Financial Clearance) [Core Spine Complete]: P14a/b (Eligibility intake), P22a (270/271 Monitor, 278 Auth, Estimates & Collection - PR #93; remaining in P12)
+> - **EP-E** (Pre-Operative Readiness & Hard Gates) [Core Spine Complete]: P07 (Gates core), P16 (H&P & Med-Hold - PR #91), P17 (Pre-Op & Consent - PR #89; remaining in P11, P12, P20)
 > - **EP-F** (Day of Surgery Flow) [ACTIVE / READY]: P18 (Room capture & Hard Gate 2), P20 (AIMS flowsheet), P21 (PACU & discharge)
 > - **EP-G** (Clinical Documentation & Procedure Notes): P13 (Record engine), P19 (Note pipeline & sign)
 > - **EP-H** (Specimens & Pathology Closed-Loop): P23 (Pathology loop & open-specimen register)
@@ -189,32 +189,35 @@ Work completed before this plan existed, grouped from git history (`origin/main`
 | Q-API-IFMATCH   | Enforce FHIR Optimistic Concurrency (`If-Match`) on Case Mutations with UI Conflict Resolution ([#96](https://github.com/imRahul05/ASC-EHR/issues/96))                                                                                                                                                                                                                                   | clinical state machines, concurrent OR/preop edits                           | clinical + eng        | open: mandatory `If-Match` on transitions with TanStack Query auto-refetch toast                                                                                                                                                                                                                                                             |
 | Q-API-CIRCUIT   | Circuit Breaker for Upstream Medplum FHIR & Clearinghouse Resiliency ([#97](https://github.com/imRahul05/ASC-EHR/issues/97))                                                                                                                                                                                                                                                             | upstream service fault-tolerance                                            | platform / eng        | open: 3-state circuit breaker (`Closed`, `Open`, `Half-Open`) failing fast in 0ms on outages                                                                                                                                                                                                                                                |
 | Q-API-DOCS      | Defense-in-Depth Hardening for OpenAPI / Swagger UI Documentation ([#98](https://github.com/imRahul05/ASC-EHR/issues/98))                                                                                                                                                                                                                                                                | API security, staging exposure                                              | security / eng        | open: production dead-code strip, staging basic auth / staff token requirement                                                                                                                                                                                                                                                              |
-| Q-API-PIPELINE  | Composite Route Pre-Handler Pipeline to Eliminate Hook Ordering Fragility ([#99](https://github.com/imRahul05/ASC-EHR/issues/99))                                                                                                                                                                                                                                                        | API routes, security guards                                                 | eng lead              | open: `createClinicalMutationPipeline` factory unifying auth, idempotency, versioning, context, and validation                                                                                                                                                                                                                             |
+| Q-API-PIPELINE  | Composite Route Pre-Handler Pipeline to Eliminate Hook Ordering Fragility ([#99](https://github.com/imRahul05/ASC-EHR/issues/99))                                                                                                                                                                                          | API routes, security guards                                                 | eng lead              | **decided 2026-10-16, closed (PR #101):** `createClinicalMutationPipeline` and `createClinicalQueryPipeline` factories unifying auth, idempotency, versioning, context, and validation                                                                                                                                                  |
 
 Full lists: [implementation plan §6](docs/plan/implementation-plan.md#6-cross-phase-open-questions), each phase file, [05 §5.4](docs/product/05-delivery-plan.md), [06 §7](docs/product/06-mindscript-integration.md#7-open-questions-for-the-mindscript-team).
 
 ## 5. Next up
 
-1. **Phase 3 Day-of-Surgery & Procedure Room (Immediate Active Sprint)**:
-   - **Priority 1: Architectural Hardening & Pre-Handler Pipeline Factory** ([#99](https://github.com/imRahul05/ASC-EHR/issues/99), [#96](https://github.com/imRahul05/ASC-EHR/issues/96)):
-     - Composite `createClinicalMutationPipeline` factory unifying auth, idempotency, versioning, context, and validation.
-     - Mandatory `If-Match` with TanStack Query auto-recovery toast on concurrent edits.
-   - **Priority 2: P18 Intra-Op Procedure Room Capture & Clinical Hard Gate 2 (`EP-F`)**:
+1. **Phase 3 Day-of-Surgery & Immediate Sprint Priorities**:
+   - **Priority 1: P18 Intra-Op Procedure Room Capture & Clinical Hard Gate 2 (`EP-F`)**:
      - Procedure room entry (`preop → in_room`) and milestone timestamp tracking (`in_room`, `anesthesia_start`, `scope_in`, `scope_out`, `anesthesia_stop`, `out_of_room`).
      - **Clinical Hard Gate 2 (The Multi-Role Timeout)**: Tri-role attestation (Surgeon MD, Anesthesia CRNA/MD, Circulator RN) validating patient identity, procedure, consent, anesthesia clearance, and equipment readiness.
      - Scope assignment and 168-hr sterile hang-time lock verification (zero override).
-   - **Priority 3: P20 AIMS Anesthesia Flowsheet (`EP-F`)**:
+   - **Priority 2: P12 Worklists on Task (`EP-A` / `EP-E`)**:
+     - Work queues backed by FHIR `Task` unblocked by P05 and P07.
+     - Pre-op milestone work items, triage escalation, and financial clearance tracking.
+   - **Priority 3: P01 CI Pipeline + Eval Gate (`EP-A`)**:
+     - Automated quality gates in GitHub Actions (lint, typecheck, unit tests, bundle budget).
+     - Hermetic test runners and pre-merge validation.
+   - **Priority 4: P20 AIMS Anesthesia Flowsheet (`EP-F`)**:
      - Continuous 5-minute interval vitals flowsheet (SBP, DBP, HR, SpO2, EtCO2).
      - Sedation & medication dosing log (Propofol, Fentanyl, Midazolam).
      - ASA Physical Status & Mallampati airway classification.
-   - **Priority 4: P19 Endoscopy Procedure Note Pipeline & Discrete Findings (`EP-G`)**:
+   - **Priority 5: P19 Endoscopy Procedure Note Pipeline & Discrete Findings (`EP-G`)**:
      - Discrete polyp findings (Paris classification, size, anatomical landmark).
      - Boston Bowel Preparation Scale (BBPS 0–9).
      - Cecal withdrawal timer ($\ge 6$ minutes ASGE quality benchmark).
      - Attending physician note attestation and digital signature.
-2. **Completed Phase Milestones (Phase 1 & Phase 2 100% Complete)**:
+2. **Completed Phase Milestones (Core Spine Complete: Vertical slices P00–P05, P07, P14a/b, P15a/b/c, P16, P17, P22a merged; remaining EP-A–EP-E sub-stories tracked in P11, P12, P15d, P24, P26)**:
    - ✅ **Phase 1 (EP-A, EP-B, EP-C)**: Foundation, Auth, Registration with Duplicates, Scheduling & Whiteboard TV (PR #75, #77, #78, #79, #84, #85, #87).
-   - ✅ **Phase 2 (EP-D, EP-E)**: Pre-Op Nursing & Informed Touchscreen Consent (PR #89), H&P Review & Anticoagulation Engine (PR #91), Real-Time Financial Clearance 270/271/278/GFE (PR #93), Centralized API Errors, Idempotency, Concurrency, Upstream Resilience & Swagger UI (PR #94).
+   - ✅ **Phase 2 (EP-D, EP-E)**: Pre-Op Nursing & Informed Touchscreen Consent (PR #89), H&P Review & Anticoagulation Engine (PR #91), Real-Time Financial Clearance 270/271/278/GFE (PR #93), Centralized API Errors, Idempotency, Concurrency, Upstream Resilience & Swagger UI (PR #94), Composite Route Pre-Handler Pipeline (PR #101).
 3. **Supporting Domain Packages Ready to Start**:
    - **P08** Terminology + FSH Profiles (`EP-A` / `EP-G`): GI clinical concepts, code systems, ValueSets (unblocked by P02, P03).
    - **P09** `@asc/ui` Clinical Kit (`EP-A`): Core clinical presentational components, app shell, patient banner.
@@ -231,7 +234,7 @@ Full lists: [implementation plan §6](docs/plan/implementation-plan.md#6-cross-p
 
 ## 6. Decisions log
 
-| 2026-10-14 | **Single-facility ASC Day-1 architecture**: auto-resolve `facilityId` on login, retire `withTenant` RLS session hook in `@asc/db` while retaining `facility_id` and `tenant_id` on all data models. Unmount dormant Phase 2 UI routes (`/my-care`) without code deletion; maintain MSW mocks in lockstep with Fastify 5 endpoints | [ADR](docs/decisions/2026-10-14-single-facility-progressive-mounting-and-mock-alignment.md), [P15c](docs/plan/phases/P15c-case-workspace-api.md), [execution plan](docs/superpowers/plans/2026-10-14-phase2-streamlining-and-p15c-execution.md) |
+| 2026-10-14 | **Single-facility ASC Day-1 architecture**: auto-resolve `facilityId` on login, retire `withTenant` RLS session hook in `@asc/db` while retaining `facility_id` and `tenant_id` on all data models. Unmount dormant Phase 2 UI routes (`/my-care`) without code deletion; maintain MSW mocks in lockstep with Fastify 5 endpoints | [ADR](docs/decisions/2026-10-14-single-facility-progressive-mounting-and-mock-alignment.md), [P15c](docs/plan/phases/P15c-case-workspace-api.md) |
 | 2026-10-09 | **#52, #55, #60 decided.** Allowed PHI read with a failed audit write fails closed (503, no PHI; our policy, not a HIPAA mandate). Case number `<FAC>-<YYYY>-<seq>`, still an identifier (Safe Harbor (R)); the API forwards the user's token. One worker `ClientApplication` per facility with `tenantId`/`facilityId` in job data                                                     | [#52](https://github.com/imRahul05/ASC-EHR/issues/52), [#55](https://github.com/imRahul05/ASC-EHR/issues/55), [#60](https://github.com/imRahul05/ASC-EHR/issues/60), [08 §9](docs/product/08-identity-access-and-tenancy.md), [compliance §4](docs/COMPLIANCE_AND_PHI.md), LM-024 |
 | 2026-10-08 | **Canonical FHIR URL base is `https://fhir.wybit.io/asc/`** (P03 Q1), defined once in `@asc/fhir` as a constant and a URL factory, with an optional `FHIR_CANONICAL_BASE` override validated in `@asc/config` (not read from `process.env` in `@asc/fhir`, LM-006); the override must be identical wherever data is shared                                                              | [#54](https://github.com/imRahul05/ASC-EHR/issues/54), [P03](docs/plan/phases/P03-fhir-package.md)                                                                                                                                                                                |
 | 2026-10-08 | **Step-up auth time (Q-IAM-D): forward the signed `id_token` in `X-ID-Token` on step-up requests (option C)**; the API verifies signature, same `login_id`, `auth_time` ≤ 5 min and answers 403 `step_up_required` otherwise, a contract the later signing challenge (option E) reuses. Grants are built from `PractitionerRole`; the membership webhook is dropped until shown to work | [#49](https://github.com/imRahul05/ASC-EHR/issues/49), [ADR](docs/decisions/2026-10-08-medplum-spike-results-and-fallbacks.md), [P05h decisions](docs/plan/phases/P05-auth-roles.md)                                                                                              |

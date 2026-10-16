@@ -9,10 +9,10 @@
 
 | Identifier | Document Name & Path | Date & Author | Role in Project | Status |
 |---|---|---|---|---|
-| **[DOC-NEW-1]** | `/Users/amananku/Documents/wybit/ASC OS- Requirements Document (GI Ambulatory Surgery Center EHR) (1).docx` | Oct 7, 2026<br>Anurag Chatterjee | **The Master Requirements Document.** Defines the core philosophy, regulatory framework, data model, clinical stages, hard gates, and business rules. | **ACTIVE / MASTER** |
-| **[DOC-NEW-2]** | `/Users/amananku/Documents/wybit/ASC OS- Build Specification (Epics, User Stories, Acceptance Criteria, Flows) (1).docx` | Oct 7, 2026<br>Anurag Chatterjee | **The Master Build Specification.** Defines the 13 Epics (EP-A through EP-M), 130 User Stories with Given/When/Then acceptance criteria, and 5 Release Phases. | **ACTIVE / MASTER** |
-| **[DOC-OLD-1]** | `/Users/amananku/Documents/wybit/ASC EHR Feature Spec.docx` | Sept 25, 2026<br>Working Draft v0.1 | Initial scoping document. Positioned the EHR as a Provation-style "documentation wedge + hand-off" overlaying eCW. | **SUPERSEDED** by [DOC-NEW-1] |
-| **[DOC-OLD-2]** | `/Users/amananku/Documents/wybit/Roadmap GI ASC Feature-map.xlsx` | Sept 25, 2026<br>Roadmap Feature Map | 140-row spreadsheet mapping features against MindScript reuse (Yes / Partial / New). | **SUPERSEDED** by [DOC-NEW-2] |
+| **[DOC-NEW-1]** | [`master-requirements.md`](master-requirements.md) | Oct 7, 2026<br>Anurag Chatterjee | **The Master Requirements Document.** Defines the core philosophy, regulatory framework, data model, clinical stages, hard gates, and business rules. | **ACTIVE / MASTER** |
+| **[DOC-NEW-2]** | [`master-build-specification.md`](master-build-specification.md) | Oct 7, 2026<br>Anurag Chatterjee | **The Master Build Specification.** Defines the 13 Epics (EP-A through EP-M), 131 User Stories with Given/When/Then acceptance criteria, and 5 Release Phases. | **ACTIVE / MASTER** |
+| **[DOC-OLD-1]** | `ASC EHR Feature Spec.docx` | Sept 25, 2026<br>Working Draft v0.1 | Initial scoping document. Positioned the EHR as a Provation-style "documentation wedge + hand-off" overlaying eCW. | **SUPERSEDED** by [DOC-NEW-1] |
+| **[DOC-OLD-2]** | `Roadmap GI ASC Feature-map.xlsx` | Sept 25, 2026<br>Roadmap Feature Map | 140-row spreadsheet mapping features against MindScript reuse (Yes / Partial / New). | **SUPERSEDED** by [DOC-NEW-2] |
 
 ---
 
@@ -45,15 +45,15 @@ Every feature listed below cross-references both documents, the codebase impleme
 |---|---|---|---|---|---|
 | **Inbound Fax Document Viewer** | `[DOC-NEW-1]` §6:245; `[DOC-NEW-2]` `US-B-01` (Must, 5) | `[DOC-OLD-1]` M15–M17; `[DOC-OLD-2]` Feature Detail row 37 | Currently deferred to Phase P24 (`docs/plan/phases/P24-fax-ecw.md`). Needs move to Phase 1. | Pending API | **100%** |
 | **1-Click Field Extraction & Provenance** | `[DOC-NEW-1]` §6:261–264; `[DOC-NEW-2]` `US-B-03`, `US-B-09` | `[DOC-OLD-1]` M02-6; `[DOC-OLD-2]` Feature Detail row 21 | Types in `@asc/types`; extraction UI mocked in `apps/web/src/features/referrals`. | Mocked | **100%** |
-| **Side-by-Side Duplicate Patient Matching** | `[DOC-NEW-1]` §6:266–273; `[DOC-NEW-2]` `US-B-05`, `US-B-07` | `[DOC-OLD-1]` M02-3; `[DOC-OLD-2]` Feature Detail row 21 | Builder exists in `packages/fhir/src/builders/patient.ts`; matching UI mocked in `apps/web/src/features/patients`. | Partial Builder / Mock UI | **100%** |
+| **Side-by-Side Duplicate Patient Matching** | `[DOC-NEW-1]` §6:266–273; `[DOC-NEW-2]` `US-B-05`, `US-B-06` | `[DOC-OLD-1]` M02-3; `[DOC-OLD-2]` Feature Detail row 21 | Fastify `POST /patients` duplicate engine, `findDuplicateCandidates`, side-by-side match modal in `apps/web/src/features/patients/duplicate-match-modal.tsx`. | Done (Live Fastify API + UI — PR #75, #77, #78) | **100%** |
 | **Urgent Clinical Triage Banner (<1 hr)** | `[DOC-NEW-1]` §6:283–285; `[DOC-NEW-2]` `US-B-04` (Must, 3) | Not in old spec (NEW requirement) | Not yet implemented in codebase. | Missing | **100%** |
 
 ### Station 2: Scheduling, Blocks & Whiteboard
 
 | Feature | Reference in NEW Master Specs | Reference in OLD Draft Specs | Implementation in Current Codebase | Status | Confidence |
 |---|---|---|---|---|---|
-| **Multi-Resource Block Scheduling Grid** | `[DOC-NEW-1]` §7:291–299; `[DOC-NEW-2]` `US-C-01`, `US-C-02` | `[DOC-OLD-1]` M01-1; `[DOC-OLD-2]` Feature Detail rows 6–14 | `packages/fhir/src/builders/appointment.ts`; UI calendar mocked in `apps/web/src/features/schedule`. | Mock UI / Real FHIR | **95%** |
-| **Digital Status Whiteboard (TV View)** | `[DOC-NEW-1]` §5:179; `[DOC-NEW-2]` `US-C-09` (Must, 5) | `[DOC-OLD-1]` M01-5; `[DOC-OLD-2]` Feature Detail row 18 | `apps/web/src/features/whiteboard/whiteboard-view.tsx`; uses MSW mock cases. | Mock UI | **100%** |
+| **Multi-Resource Block Scheduling Grid & Conflict Engine** | `[DOC-NEW-1]` §7:291–299; `[DOC-NEW-2]` `US-C-01`, `US-C-02` | `[DOC-OLD-1]` M01-1; `[DOC-OLD-2]` Feature Detail rows 6–14 | `packages/fhir/src/builders/appointment.ts`, `CaseBookingService`, PostgreSQL transaction advisory lock (`withPostgresFacilityLock`), and Booking sheet UI. | Done (Live Fastify API + Postgres Advisory Lock — PR #78, #79) | **100%** |
+| **Digital Status Whiteboard (TV View)** | `[DOC-NEW-1]` §5:179; `[DOC-NEW-2]` `US-C-09` (Must, 5) | `[DOC-OLD-1]` M01-5; `[DOC-OLD-2]` Feature Detail row 18 | `apps/web/src/features/whiteboard/whiteboard-view.tsx`, live `GET /whiteboard` Fastify route with dynamic room statuses, TV kiosk `/board` route with HIPAA initials redaction. | Done (Live Fastify API + PHI-Safe TV Kiosk — PR #79, #84, #87) | **100%** |
 | **ASC Appropriateness Warning Screen** | `[DOC-NEW-1]` §7:311–314; `[DOC-NEW-2]` `US-C-03` (Must, 5) | Not in old spec (NEW requirement) | Not yet implemented in codebase. | Missing | **100%** |
 | **Automatic Block Release (72hr Horizon)** | `[DOC-NEW-1]` §7:297; `[DOC-NEW-2]` `US-C-06` (Should, 3) | `[DOC-OLD-1]` M01-6; `[DOC-OLD-2]` Feature Detail row 19 | Not yet implemented in codebase. | Missing | **95%** |
 
@@ -61,18 +61,18 @@ Every feature listed below cross-references both documents, the codebase impleme
 
 | Feature | Reference in NEW Master Specs | Reference in OLD Draft Specs | Implementation in Current Codebase | Status | Confidence |
 |---|---|---|---|---|---|
-| **3-Point 270/271 Eligibility Monitor** | `[DOC-NEW-1]` §8:338–346; `[DOC-NEW-2]` `US-D-01`, `US-D-02` | `[DOC-OLD-1]` M01-7; `[DOC-OLD-2]` Feature Detail row 22 | Stub eligibility check in mock store; raw 271 retention missing. | Stubbed | **100%** |
-| **Prior Auth 278 Lifecycle & Reschedule Check** | `[DOC-NEW-1]` §8:354–374; `[DOC-NEW-2]` `US-D-04–07` | `[DOC-OLD-1]` M02-2; `[DOC-OLD-2]` Module Summary | Missing from codebase. Needs Phase P14b. | Missing | **100%** |
-| **Good-Faith Patient Estimator** | `[DOC-NEW-1]` §8:376–380; `[DOC-NEW-2]` `US-D-09`, `US-D-10` | Not in old spec (NEW requirement) | Missing from codebase. | Missing | **100%** |
+| **3-Point 270/271 Eligibility Monitor** | `[DOC-NEW-1]` §8:338–346; `[DOC-NEW-2]` `US-D-01`, `US-D-02` | `[DOC-OLD-1]` M01-7; `[DOC-OLD-2]` Feature Detail row 22 | `@asc/clinical-rules` `evaluateEligibilityStatus`, Fastify `POST /cases/:caseId/eligibility/check`, `EligibilityCheckModal`. | Done (Live Fastify API + Rules + UI — PR #93) | **100%** |
+| **Prior Auth 278 Lifecycle & Reschedule Check** | `[DOC-NEW-1]` §8:354–374; `[DOC-NEW-2]` `US-D-04`, `US-D-07` | `[DOC-OLD-1]` M02-2; `[DOC-OLD-2]` Module Summary | `@asc/clinical-rules` `evaluatePriorAuthValidity`, Fastify `POST /cases/:caseId/prior-auth`, `recordPriorAuth`. | Done (Live Fastify API + Rules + UI — PR #93) | **100%** |
+| **Good-Faith Patient Estimator & Copay Collection** | `[DOC-NEW-1]` §8:376–380; `[DOC-NEW-2]` `US-D-03`, `US-D-09`, `US-D-10` | Not in old spec (NEW requirement) | `@asc/clinical-rules` `calculateGoodFaithEstimate` (ACA / No Surprises Act), Fastify `POST /cases/:caseId/copay-collected`, `GfeEstimateCard`, `CopayCollectionModal`. | Done (Live Fastify API + Rules + UI — PR #93) | **100%** |
 
 ### Station 4: Pre-op Bay Nursing Station
 
 | Feature | Reference in NEW Master Specs | Reference in OLD Draft Specs | Implementation in Current Codebase | Status | Confidence |
 |---|---|---|---|---|---|
-| **30-Day H&P Tracking & Update Attestation** | `[DOC-NEW-1]` §2:64, §9:406; `[DOC-NEW-2]` `US-E-02`, `US-F-04` | `[DOC-OLD-1]` M03-2; `[DOC-OLD-2]` Feature Detail row 45 | Rule in `packages/clinical-rules/src/gates.ts` L55 wrongly requires today's date. Needs 30-day window update. | Needs Update | **100%** |
-| **Anticoagulation Hold Advisory Table** | `[DOC-NEW-1]` §9:412–420; `[DOC-NEW-2]` `US-E-03` (Must, 8) | `[DOC-OLD-1]` M03; `[DOC-OLD-2]` Feature Detail rows 37–39 | `packages/clinical-rules/src/meds.ts` L4 has demo mock table. Needs clinical rule expansion in P07. | Mock Rule | **100%** |
-| **Touchscreen Consent Capture & Signatures** | `[DOC-NEW-1]` §2:65; `[DOC-NEW-2]` `US-E-09` (Must, 5) | `[DOC-OLD-1]` M11; `[DOC-OLD-2]` Feature Detail rows 46–49 | SignaturePad component in `@asc/ui`; FHIR Provenance builder in `packages/fhir/src/builders/provenance.ts`. | UI Ready / Backend Stub | **95%** |
-| **Gate 1 Enforcement (`arrived → preop`)** | `[DOC-NEW-1]` §5:208; `[DOC-NEW-2]` `US-F-02` (Must, 5) | `[DOC-OLD-1]` M03; `[DOC-OLD-2]` Module Summary | `apps/web/src/features/case/gate-panel.tsx` enforces gate on frontend mock state. | Mock Gate | **100%** |
+| **30-Day H&P Tracking & Update Attestation** | `[DOC-NEW-1]` §2:64, §9:406; `[DOC-NEW-2]` `US-E-02`, `US-F-04` | `[DOC-OLD-1]` M03-2; `[DOC-OLD-2]` Feature Detail row 45 | `@asc/clinical-rules` `evaluateHpValidity` (CMS 42 CFR § 416.52 30-day window), Fastify `POST /cases/:id/hp-update`, `HpUpdateModal`, `HpOverrideModal`. | Done (Live Fastify API + Rules + UI — PR #91) | **100%** |
+| **Anticoagulation Hold Advisory Table** | `[DOC-NEW-1]` §9:412–420; `[DOC-NEW-2]` `US-E-03` (Must, 8) | `[DOC-OLD-1]` M03; `[DOC-OLD-2]` Feature Detail rows 37–39 | `@asc/clinical-rules` `evaluateAnticoagulationHold` (ASGE 2022 guidelines), Fastify `POST /cases/:id/anticoagulation`, `MedicationHoldsCard`. | Done (Live Fastify API + ASGE 2022 Rules + UI — PR #91) | **100%** |
+| **Touchscreen Consent Capture & Signatures** | `[DOC-NEW-1]` §2:65; `[DOC-NEW-2]` `US-E-09` (Must, 5) | `[DOC-OLD-1]` M11; `[DOC-OLD-2]` Feature Detail rows 46–49 | `SignaturePad` HTML5 canvas, `POST /cases/:caseId/consent`, `buildConsentResource` with SHA-256 hash attestation, `ConsentModal`. | Done (Live Fastify API + SHA-256 Consent + UI — PR #73, #89) | **100%** |
+| **Gate 1 Enforcement (`arrived → preop`)** | `[DOC-NEW-1]` §5:208; `[DOC-NEW-2]` `US-F-02` (Must, 5) | `[DOC-OLD-1]` M03; `[DOC-OLD-2]` Module Summary | `transitionGate` evaluating Gate 1 hard lockout, Fastify `POST /cases/:caseId/transition` returning 409 `GATE_FAILED`, `GateBlockerAlert`. | Done (Live Fastify API + SHA-256 Consent + UI — PR #73, #89) | **100%** |
 
 ### Station 5: Intra-op Procedure Suite HUD
 
@@ -118,6 +118,46 @@ Every feature listed below cross-references both documents, the codebase impleme
 | **2-Year Open Specimen Register** | `[DOC-NEW-1]` §12:563, §12:578; `[DOC-NEW-2]` `US-H-06` | Not in old spec (NEW requirement) | Missing from codebase. | Missing | **100%** |
 | **1-Hour Critical Pathology Escalation Alert** | `[DOC-NEW-1]` §12:565; `[DOC-NEW-2]` `US-H-08` (Must, 5) | Not in old spec (NEW requirement) | Missing from codebase. | Missing | **100%** |
 | **Scope Infection Traceability Emergency Query** | `[DOC-NEW-1]` §13:600; `[DOC-NEW-2]` `US-I-04` (Must, 5) | `[DOC-OLD-1]` X1; `[DOC-OLD-2]` Feature Detail row 114 | Missing from codebase. | Missing | **100%** |
+
+### 3.1 Phase 1 & Phase 2 Remaining Story Gap Table
+
+The following table explicitly tracks all unbuilt sub-stories from Epics `EP-A` through `EP-E` that still require backend implementation, along with their assigned target tracking phases:
+
+| Epic | Story ID | Story Name & Scope | Target Tracking Phase | Technical Notes / Backend Dependencies |
+|---|---|---|---|---|
+| **EP-A** | `US-A-01` | Facility Configuration & Operating Hours | `P26` | Admin CRUD & audit history for ASC facility profile, operating hours, timezone, and NPI/CCN identifiers. |
+| **EP-A** | `US-A-02` | Procedure Room & Recovery Bay Master Data | `P26` | Room definitions, capabilities, equipment links, and active/inactive status. |
+| **EP-A** | `US-A-03` | Provider Directory, NPI Verification & Privilege Expiry | `P26` | Practitioner credentials, clinical privilege expiry block preventing note signing/attestation when lapsed. |
+| **EP-A** | `US-A-04` | Procedure Catalog & Default Durations | `P26` | ASC procedure catalog (CPT codes, room duration defaults, turnover requirements, prep requirements). |
+| **EP-A** | `US-A-05` | Payer Master & Prior Auth Requirement Matrix | `P26` | Payer definitions, EDI clearinghouse routing IDs, and prior auth requirement rules by CPT. |
+| **EP-A** | `US-A-06` | Physician Preference Cards | `P26` | Doctor-specific equipment, instrument, scope, and medication preferences per CPT code. |
+| **EP-A** | `US-A-08` | Break-Glass Emergency Access & Audit Elevation | `P26` | Emergency read-only role elevation with high-priority audit event and mandatory justification prompt. |
+| **EP-B** | `US-B-01` | Inbound Fax Capture & Queue | `P24` | PDF ingestion from fax gateway (`faxagnet`), split/rotate/reorder, TIFF-to-PDF conversion, OCR text layer. |
+| **EP-B** | `US-B-02` | Referral Document Classification | `P24` | Automated referral vs. clinical records vs. junk classification with confidence score. |
+| **EP-B** | `US-B-03` | Referral Extraction with Region Pointers | `P24` | Demographic, clinical indication, referring provider extraction bounding boxes linked to source PDF. |
+| **EP-B** | `US-B-04` | Urgent Clinical Indication Flag (<1h Alert) | `P24` | Urgent bleed / suspected malignancy extraction triggering <1h nurse triage worklist escalation. |
+| **EP-B** | `US-B-08` | Insurance Card & ID Image Capture | `P14b` / `P26` | Front/back card upload, cropping, and attachment to FHIR `Coverage` as `DocumentReference`. |
+| **EP-B** | `US-B-09` | Structured Referral Order Intake | `P24` | Converting referral indications into FHIR `ServiceRequest` with referring provider NPI. |
+| **EP-B** | `US-B-10` | Referral Nurse Triage & Appropriateness Review | `P12` / `P24` | Clinical triage work item on `Task` for nurse review of high-risk medical conditions before booking. |
+| **EP-B** | `US-B-11` | Incomplete Referral Tracking & Provider Outreach | `P12` | Work queue for missing H&P, demographic, or insurance records with outbound fax request template. |
+| **EP-C** | `US-C-01` | Recurring Physician Block Time Definitions | `P15d` | Weekly/bi-weekly recurring block templates reserving procedure rooms for specific GI physicians. |
+| **EP-C** | `US-C-03` | ASC Clinical Appropriateness Screening | `P15d` | Hard block warning for ASA ≥ IV, BMI > 45, or severe OSA routing case to anesthesia medical director. |
+| **EP-C** | `US-C-04` | Reschedule Cascade & Pre-Op Recalculation | `P15d` | Moving case date automatically invalidating prior auth, shifting prep call dates, and re-checking H&P 30-day window. |
+| **EP-C** | `US-C-05` | Structured Cancellation Reasons & Waitlist Trigger | `P15d` | Mandatory cancellation reason codes (prep failure, medical illness, no ride, financial) triggering waitlist outreach. |
+| **EP-C** | `US-C-06` | Automatic 72-Hour Block Release | `P15d` | Scheduled cron releasing unbooked block time into open pool 72 hours prior to operating date. |
+| **EP-C** | `US-C-07` | Short-Notice Waitlist Management | `P15d` | Fast-fill candidate queue matched to released block slots based on prep readiness and availability. |
+| **EP-D** | `US-D-05` | Prior Authorization Clinical Packet Assembly | `P12` | Automatic compilation of clinical notes, referral indication, and H&P into payer auth PDF packet. |
+| **EP-D** | `US-D-06` | Prior Auth Aging & Escalation Timer | `P12` | Aging monitor alerting billing team when pending auth approaches 5 days prior to scheduled date. |
+| **EP-D** | `US-D-08` | Procedure Divergence Flagging at Coding | `P22b` | Alerting coder when completed procedure codes diverge from pre-authorized CPT codes. |
+| **EP-D** | `US-D-11` | Financial Clearance Worklist on Task | `P12` | Centralized `Task`-backed worklist for financial coordinators managing unverified or high-copay cases. |
+| **EP-E** | `US-E-01` | Pre-Op Milestone Timeline Generation | `P12` | Auto-generation of 9 milestone tasks upon booking (H&P receipt, auth check, prep call, escort check, etc.). |
+| **EP-E** | `US-E-04` | Digital Patient Health Questionnaire | `P11` | Mobile/web responsive FHIR `Questionnaire` for medical history, surgical history, and med review. |
+| **EP-E** | `US-E-05` | Pre-Anesthesia Medical Assessment | `P20` | Anesthesia pre-eval documenting Mallampati score, airway assessment, ASA physical status, and NPO status. |
+| **EP-E** | `US-E-06` | Personalized Split-Dose Bowel Prep Instructions | `P11` / `P12` | Tailored prep selection (MoviPrep, MiraLAX, Plenvu) with timed dosing schedule based on case start time. |
+| **EP-E** | `US-E-07` | Day-Before Nurse Pre-Op Outreach Call | `P12` | Pre-op call checklist logging arrival time confirmation, NPO reminder, and responsible adult escort details. |
+| **EP-E** | `US-E-08` | Structured Bowel Effluent Assessment | `P12` / `P17` | Standardized stool character grading (clear/yellow liquid vs. brown/particulate) with clinical escalation. |
+| **EP-E** | `US-E-10` | Specialized Equipment Reservation Check | `P15d` | Verifying availability of pediatric colonoscope, therapeutic EGD scope, or electrocautery unit for booked cases. |
+| **EP-E** | `US-E-11` | Next-Day Readiness Huddle View & Downtime Pack | `P12` / `P26` | 24-hour lookahead board highlighting blocked cases and 1-click batch printable emergency downtime chart pack. |
 
 ---
 
