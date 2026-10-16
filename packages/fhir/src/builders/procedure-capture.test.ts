@@ -1,12 +1,25 @@
 import { describe, expect, it } from "vitest";
 import type { Observation } from "@medplum/fhirtypes";
-import type { ProcedureEvent, StaffRef, TimeOutChecklist, TimeOutParticipant } from "@asc/types";
+import type {
+  Gate2OverrideRecord,
+  ProcedureEvent,
+  ScopeAssignmentRecord,
+  StaffRef,
+  TimeOutChecklist,
+  TimeOutParticipant,
+} from "@asc/types";
 
 import {
+  buildGate2OverrideObservation,
   buildProcedureEventObservation,
+  buildScopeVerificationObservation,
   buildSurgicalTimeOutObservation,
+  buildWithdrawalTimeObservation,
+  parseGate2OverrideObservation,
   parseProcedureEventObservation,
+  parseScopeVerificationObservation,
   parseSurgicalTimeOutObservation,
+  parseWithdrawalTimeObservation,
 } from "./procedure-capture.js";
 import { createFhirUrls, LOINC_CODES } from "../urls.js";
 
@@ -133,5 +146,161 @@ describe("procedure event observation", () => {
     const noPerfObs: Observation = { resourceType: "Observation", status: "final", code: { text: "Event" }, component: [] };
     const parsedNoPerf = parseProcedureEventObservation(noPerfObs);
     expect(parsedNoPerf.by.id).toBe("unknown");
+  });
+});
+
+describe("withdrawal time observation", () => {
+  it("builds and parses withdrawal observation meeting quality benchmark", () => {
+    const obs = buildWithdrawalTimeObservation({
+      facilityId, caseId, patientId, withdrawalTimeMinutes: 7.5, meetsQualityBenchmark: true,
+      recordedAt: "2026-09-20T08:45:00Z", performerId: "u-doc", id: "wt-obs-1",
+    });
+    expect(obs.id).toBe("wt-obs-1");
+    expect(obs.code?.coding?.[0]?.code).toBe(LOINC_CODES.WITHDRAWAL_TIME);
+    expect(obs.valueQuantity?.value).toBe(7.5);
+    expect(obs.performer?.[0]?.reference).toBe("Practitioner/u-doc");
+
+    const parsed = parseWithdrawalTimeObservation(obs);
+    expect(parsed.withdrawalTimeMinutes).toBe(7.5);
+    expect(parsed.meetsQualityBenchmark).toBe(true);
+  });
+
+  it("builds withdrawal observation without optional id, performer, or timestamp and handles fallback parsing", () => {
+    const obs = buildWithdrawalTimeObservation({
+      facilityId, caseId, patientId, withdrawalTimeMinutes: 4.2, meetsQualityBenchmark: false,
+    });
+    expect(obs.id).toBeUndefined();
+    expect(obs.performer).toBeUndefined();
+    expect(obs.effectiveDateTime).toBeDefined();
+
+    const parsed = parseWithdrawalTimeObservation(obs);
+    expect(parsed.withdrawalTimeMinutes).toBe(4.2);
+    expect(parsed.meetsQualityBenchmark).toBe(false);
+
+    const emptyParsed = parseWithdrawalTimeObservation({ resourceType: "Observation", status: "final", code: { text: "WT" } });
+    expect(emptyParsed.withdrawalTimeMinutes).toBe(0);
+    expect(emptyParsed.meetsQualityBenchmark).toBe(false);
+  });
+});
+
+describe("scope verification observation", () => {
+  const assignedBy: StaffRef = { id: "u-tech", name: "Bob Tech", initials: "BT" };
+  const scopeAssignment: ScopeAssignmentRecord = {
+    scopeSerial: "CF-Q180AL-12345", scopeModel: "Olympus CF-Q180AL",
+    reprocessedAt: "2026-09-20T06:00:00Z", assignedAt: "2026-09-20T08:00:00Z",
+    assignedBy, leakTestResult: "PASS", cycleOutcome: "PASS",
+    hangTimeHours: 2.0, withinHangTimeWindow: true, fhirObservationId: "scope-obs-1",
+  };
+
+  it("builds and parses scope verification with model and explicit id", () => {
+    const obs = buildScopeVerificationObservation({ facilityId, caseId, patientId, scopeAssignment, id: "scope-obs-custom" });
+    expect(obs.id).toBe("scope-obs-custom");
+    expect(obs.code?.coding?.[0]?.code).toBe(LOINC_CODES.SCOPE_VERIFICATION);
+    expect(obs.valueString).toBe("CF-Q180AL-12345");
+
+    const parsed = parseScopeVerificationObservation(obs);
+    expect(parsed.scopeSerial).toBe("CF-Q180AL-12345");
+    expect(parsed.scopeModel).toBe("Olympus CF-Q180AL");
+    expect(parsed.leakTestResult).toBe("PASS");
+    expect(parsed.cycleOutcome).toBe("PASS");
+    expect(parsed.hangTimeHours).toBe(2.0);
+    expect(parsed.withinHangTimeWindow).toBe(true);
+    expect(parsed.assignedBy.name).toBe("Bob Tech");
+  });
+
+  it("builds and parses scope verification without model and uses fallback id", () => {
+    const assignmentWithoutModel: ScopeAssignmentRecord = {
+      ...scopeAssignment, scopeModel: undefined, leakTestResult: "FAIL", cycleOutcome: "FAIL",
+      withinHangTimeWindow: false, hangTimeHours: 172.5, fhirObservationId: undefined,
+    };
+    const obs = buildScopeVerificationObservation({ facilityId, caseId, patientId, scopeAssignment: assignmentWithoutModel });
+    expect(obs.id).toBeUndefined();
+    const parsed = parseScopeVerificationObservation(obs);
+    expect(parsed.scopeModel).toBeUndefined();
+    expect(parsed.leakTestResult).toBe("FAIL");
+    expect(parsed.cycleOutcome).toBe("FAIL");
+    expect(parsed.withinHangTimeWindow).toBe(false);
+    expect(parsed.hangTimeHours).toBe(172.5);
+
+    const emptyObs: Observation = {
+      resourceType: "Observation", status: "final", code: { text: "Scope" },
+      performer: [{ reference: "Practitioner/tech-5" }],
+      component: [{ code: { coding: [{ code: "assignedBy" }] }, valueString: "{bad json" }, { code: { coding: [{ code: "unrecognized" }] } }],
+    };
+    const emptyParsed = parseScopeVerificationObservation(emptyObs);
+    expect(emptyParsed.scopeSerial).toBe("");
+    expect(emptyParsed.assignedBy.id).toBe("tech-5");
+
+    const noCompParsed = parseScopeVerificationObservation({ resourceType: "Observation", status: "final", code: { text: "Scope" } });
+    expect(noCompParsed.assignedBy.id).toBe("unknown");
+
+    const emptyValObs: Observation = {
+      resourceType: "Observation", status: "final", code: { text: "Scope" },
+      component: [
+        { code: { coding: [{ code: "serial" }] } },
+        { code: { coding: [{ code: "model" }] } },
+        { code: { coding: [{ code: "reprocessedAt" }] } },
+        { code: { coding: [{ code: "hangTimeHours" }] } },
+        { code: { coding: [{ code: "withinHangTimeWindow" }] } },
+        { code: { coding: [{ code: "assignedBy" }] } },
+      ],
+    };
+    const emptyValParsed = parseScopeVerificationObservation(emptyValObs);
+    expect(emptyValParsed.scopeSerial).toBe("");
+  });
+});
+
+describe("gate 2 override observation", () => {
+  const override: Gate2OverrideRecord = {
+    overriddenAt: "2026-09-20T08:10:00Z", actorId: "u-physician", actorName: "Dr. Gregory House",
+    actorRole: "gi-physician", reason: "Emergency diagnostic colonoscopy for active GI bleed",
+    overriddenBlockers: ["PREP_INADEQUATE"], fhirObservationId: "g2-obs-1",
+  };
+
+  it("builds and parses Gate 2 override observation with explicit id", () => {
+    const obs = buildGate2OverrideObservation({ facilityId, caseId, patientId, override, id: "g2-obs-custom" });
+    expect(obs.id).toBe("g2-obs-custom");
+    expect(obs.code?.coding?.[0]?.code).toBe(LOINC_CODES.GATE2_OVERRIDE);
+    expect(obs.valueString).toBe(override.reason);
+
+    const parsed = parseGate2OverrideObservation(obs);
+    expect(parsed.actorId).toBe("u-physician");
+    expect(parsed.actorName).toBe("Dr. Gregory House");
+    expect(parsed.actorRole).toBe("gi-physician");
+    expect(parsed.reason).toBe(override.reason);
+    expect(parsed.overriddenBlockers).toEqual(["PREP_INADEQUATE"]);
+  });
+
+  it("builds Gate 2 override with fallback id and handles fallback parsing", () => {
+    const overrideNoId: Gate2OverrideRecord = { ...override, fhirObservationId: undefined };
+    const obs = buildGate2OverrideObservation({ facilityId, caseId, patientId, override: overrideNoId });
+    expect(obs.id).toBeUndefined();
+
+    const emptyObs: Observation = {
+      resourceType: "Observation", status: "final", code: { text: "Override" },
+      performer: [{ reference: "Practitioner/user-9" }],
+      component: [
+        { code: { coding: [{ code: "actor" }] }, valueString: "{bad json" },
+        { code: { coding: [{ code: "blockers" }] }, valueString: "{bad json" },
+        { code: { coding: [{ code: "unrecognized" }] } },
+      ],
+    };
+    const emptyParsed = parseGate2OverrideObservation(emptyObs);
+    expect(emptyParsed.actorId).toBe("user-9");
+    expect(emptyParsed.overriddenBlockers).toEqual([]);
+
+    const noCompParsed = parseGate2OverrideObservation({ resourceType: "Observation", status: "final", code: { text: "Override" } });
+    expect(noCompParsed.actorId).toBe("");
+
+    const emptyValG2Obs: Observation = {
+      resourceType: "Observation", status: "final", code: { text: "Override" },
+      component: [
+        { code: { coding: [{ code: "actor" }] } },
+        { code: { coding: [{ code: "reason" }] } },
+        { code: { coding: [{ code: "blockers" }] } },
+      ],
+    };
+    const emptyValG2Parsed = parseGate2OverrideObservation(emptyValG2Obs);
+    expect(emptyValG2Parsed.reason).toBe("");
   });
 });
