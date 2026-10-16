@@ -6,9 +6,10 @@
 import { randomUUID } from 'node:crypto';
 
 import { AuditClient, createAuditClient, iamEvent, type AuditEvent } from '@asc/audit';
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { AuditTenantMissingError, createPostgresAuditStore } from '../audit-store.js';
+import { AuditTenantMissingError, createPostgresAuditStore, DEFAULT_SINGLE_FACILITY_TENANT_ID } from '../audit-store.js';
 import { DatabaseError } from '../db-error.js';
 import { auditEvents } from '../schema/audit-events.js';
 import { connectRuntime, createTestSchema, runtimeUrl, type RuntimeAccess, type TestSchema } from './test-db.js';
@@ -21,7 +22,7 @@ describeDb(TEST_DATABASE_URL ? 'PostgresAuditStore' : 'PostgresAuditStore (SKIPP
   let runtime: RuntimeAccess;
 
   const rowsOf = (tenantId: string) =>
-    runtime.tenantDb.withTenant(tenantId, (tx) => tx.select().from(auditEvents));
+    runtime.tenantDb.withTenant(tenantId, (tx) => tx.select().from(auditEvents).where(eq(auditEvents.tenantId, tenantId)));
 
   beforeAll(async () => {
     const url = TEST_DATABASE_URL as string;
@@ -105,8 +106,14 @@ describeDb(TEST_DATABASE_URL ? 'PostgresAuditStore' : 'PostgresAuditStore (SKIPP
     expect(await rowsOf(tenantId)).toHaveLength(1);
   });
 
-  it('refuses an event with no tenant and no default (fail closed)', async () => {
+  it('uses canonical single-facility default tenant when no tenant and no explicit default is configured', async () => {
     const client = new AuditClient(createPostgresAuditStore(runtime.tenantDb), { production: true });
+    await client.logEvent({ action: 'PATIENT_READ', actorType: 'system', actorId: 'worker-1', outcome: 'SUCCESS' });
+    expect(await rowsOf(DEFAULT_SINGLE_FACILITY_TENANT_ID)).toHaveLength(1);
+  });
+
+  it('refuses an event with no tenant and an explicitly empty default (fail closed)', async () => {
+    const client = new AuditClient(createPostgresAuditStore(runtime.tenantDb, { defaultTenantId: '' }), { production: true });
     await expect(
       client.logEvent({ action: 'PATIENT_READ', actorType: 'system', actorId: 'worker-1', outcome: 'SUCCESS' }),
     ).rejects.toBeInstanceOf(AuditTenantMissingError);

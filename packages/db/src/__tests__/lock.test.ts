@@ -13,7 +13,7 @@ describe.skipIf(!url)('withPostgresFacilityLock', () => {
 
   beforeAll(async () => {
     schema = await createTestSchema(url!, 'lock_test');
-    runtime = connectRuntime(runtimeUrl(url!), schema.schemaName);
+    runtime = connectRuntime(runtimeUrl(url!, process.env.TEST_RUNTIME_DATABASE_URL), schema.schemaName);
   });
 
   afterAll(async () => {
