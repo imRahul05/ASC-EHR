@@ -17,6 +17,7 @@ import {
   setFacilityId,
 } from "@asc/api-client";
 import { queryKeys } from "@asc/api-client/react";
+import { clearAimsQueue } from "@asc/api-client/offline/queue";
 import { getPublicMedplumClientId, isApiMockingEnabled } from "@asc/config/public-env";
 import type { AuthSession, DemoPersonaId, LoginResult } from "@asc/types";
 import type { LoginFormData } from "@asc/validation/auth";
@@ -344,6 +345,11 @@ export function useAuth() {
       await logoutWebSession();
     } catch {
       // Ignore network failure on cookie clearing
+    }
+    try {
+      await clearAimsQueue();
+    } catch {
+      // Ignore offline queue clearance error on logout (HIPAA 45 CFR § 164.312)
     }
     setAccessToken(null);
     setFacilityId(null);

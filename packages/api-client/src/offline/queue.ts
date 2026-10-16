@@ -18,6 +18,9 @@ const MAX_BATCH_SIZE = 200;
 // In-memory fallback for SSR, test environments, or when IndexedDB is unavailable
 const memoryQueue = new Map<string, AimsBatchEntry>();
 
+let cachedDb: IDBDatabase | null = null;
+let openDbPromise: Promise<IDBDatabase | null> | null = null;
+
 function getIndexedDb(): IDBFactory | null {
   if (typeof globalThis !== "undefined" && globalThis.indexedDB) {
     return globalThis.indexedDB;
@@ -26,12 +29,19 @@ function getIndexedDb(): IDBFactory | null {
 }
 
 function openDatabase(): Promise<IDBDatabase | null> {
+  if (cachedDb) {
+    return Promise.resolve(cachedDb);
+  }
+  if (openDbPromise) {
+    return openDbPromise;
+  }
+
   const factory = getIndexedDb();
   if (!factory) {
     return Promise.resolve(null);
   }
 
-  return new Promise<IDBDatabase | null>((resolve) => {
+  openDbPromise = new Promise<IDBDatabase | null>((resolve) => {
     try {
       const request = factory.open(DB_NAME, DB_VERSION);
 
@@ -41,20 +51,47 @@ function openDatabase(): Promise<IDBDatabase | null> {
           const store = db.createObjectStore(STORE_NAME, { keyPath: "clientId" });
           store.createIndex("caseId", "caseId", { unique: false });
           store.createIndex("recordedAt", "recordedAt", { unique: false });
+          store.createIndex("facilityId", "facilityId", { unique: false });
+          store.createIndex("userId", "userId", { unique: false });
         }
       };
 
       request.onsuccess = () => {
-        resolve(request.result);
+        const db = request.result;
+        cachedDb = db;
+        openDbPromise = null;
+        db.onversionchange = () => {
+          db.close();
+          cachedDb = null;
+        };
+        db.onclose = () => {
+          cachedDb = null;
+        };
+        resolve(db);
       };
 
       request.onerror = () => {
+        openDbPromise = null;
         resolve(null);
       };
     } catch {
+      openDbPromise = null;
       resolve(null);
     }
   });
+
+  return openDbPromise;
+}
+
+/**
+ * Explicitly closes the cached IndexedDB connection (useful in test teardown).
+ */
+export function closeDatabase(): void {
+  if (cachedDb) {
+    cachedDb.close();
+    cachedDb = null;
+  }
+  openDbPromise = null;
 }
 
 function generateClientId(): string {
@@ -64,17 +101,35 @@ function generateClientId(): string {
   return `offline-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+export interface EnqueueAimsEntryOptions {
+  readonly caseId: string;
+  readonly payload: AnesthesiaEntryPayload;
+  readonly facilityId?: string;
+  readonly userId?: string;
+}
+
 /**
  * Enqueues an anesthesia flowsheet entry into offline storage.
+ * Supports passing either an options object or positional arguments.
  */
 export async function enqueueAimsEntry(
-  caseId: string,
-  payload: AnesthesiaEntryPayload,
+  caseIdOrOptions: string | EnqueueAimsEntryOptions,
+  payloadOrUndefined?: AnesthesiaEntryPayload,
+  facilityId?: string,
+  userId?: string,
 ): Promise<string> {
+  const caseId = typeof caseIdOrOptions === "object" ? caseIdOrOptions.caseId : caseIdOrOptions;
+  const payload =
+    typeof caseIdOrOptions === "object" ? caseIdOrOptions.payload : payloadOrUndefined!;
+  const facId = typeof caseIdOrOptions === "object" ? caseIdOrOptions.facilityId : facilityId;
+  const uId = typeof caseIdOrOptions === "object" ? caseIdOrOptions.userId : userId;
+
   const clientId = generateClientId();
   const entry: AimsBatchEntry = {
     clientId,
     caseId,
+    facilityId: facId,
+    userId: uId,
     payload,
     recordedAt: new Date().toISOString(),
   };
@@ -108,13 +163,39 @@ export async function enqueueAimsEntry(
   });
 }
 
+export interface GetPendingAimsOptions {
+  readonly caseId?: string;
+  readonly facilityId?: string;
+  readonly userId?: string;
+}
+
+function matchesEntryFilter(
+  entry: AimsBatchEntry,
+  caseId?: string,
+  facilityId?: string,
+  userId?: string,
+): boolean {
+  if (caseId && entry.caseId !== caseId) return false;
+  if (facilityId && entry.facilityId && entry.facilityId !== facilityId) return false;
+  if (userId && entry.userId && entry.userId !== userId) return false;
+  return true;
+}
+
 /**
  * Retrieves all pending offline AIMS entries for a given case, sorted chronologically.
  */
-export async function getPendingAimsEntries(caseId: string): Promise<readonly AimsBatchEntry[]> {
+export async function getPendingAimsEntries(
+  caseIdOrOptions?: string | GetPendingAimsOptions,
+): Promise<readonly AimsBatchEntry[]> {
+  const caseId = typeof caseIdOrOptions === "object" ? caseIdOrOptions.caseId : caseIdOrOptions;
+  const facilityId = typeof caseIdOrOptions === "object" ? caseIdOrOptions.facilityId : undefined;
+  const userId = typeof caseIdOrOptions === "object" ? caseIdOrOptions.userId : undefined;
+
   const db = await openDatabase();
   if (!db) {
-    const filtered = Array.from(memoryQueue.values()).filter((e) => e.caseId === caseId);
+    const filtered = Array.from(memoryQueue.values()).filter((e) =>
+      matchesEntryFilter(e, caseId, facilityId, userId),
+    );
     return filtered.sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
   }
 
@@ -129,14 +210,17 @@ export async function getPendingAimsEntries(caseId: string): Promise<readonly Ai
         const cursor = request.result;
         if (cursor) {
           const item = cursor.value as AimsBatchEntry;
-          if (item && item.caseId === caseId) {
+          if (item && matchesEntryFilter(item, caseId, facilityId, userId)) {
             results.push(item);
           }
           cursor.continue();
         } else {
           // Include any in-memory fallback entries as well
           for (const item of memoryQueue.values()) {
-            if (item.caseId === caseId && !results.some((r) => r.clientId === item.clientId)) {
+            if (
+              matchesEntryFilter(item, caseId, facilityId, userId) &&
+              !results.some((r) => r.clientId === item.clientId)
+            ) {
               results.push(item);
             }
           }
@@ -145,11 +229,15 @@ export async function getPendingAimsEntries(caseId: string): Promise<readonly Ai
       };
 
       request.onerror = () => {
-        const filtered = Array.from(memoryQueue.values()).filter((e) => e.caseId === caseId);
+        const filtered = Array.from(memoryQueue.values()).filter((e) =>
+          matchesEntryFilter(e, caseId, facilityId, userId),
+        );
         resolve(filtered.sort((a, b) => a.recordedAt.localeCompare(b.recordedAt)));
       };
     } catch {
-      const filtered = Array.from(memoryQueue.values()).filter((e) => e.caseId === caseId);
+      const filtered = Array.from(memoryQueue.values()).filter((e) =>
+        matchesEntryFilter(e, caseId, facilityId, userId),
+      );
       resolve(filtered.sort((a, b) => a.recordedAt.localeCompare(b.recordedAt)));
     }
   });
@@ -181,14 +269,28 @@ async function removeAimsEntries(clientIds: readonly string[]): Promise<void> {
   });
 }
 
+export interface FlushAimsQueueOptions {
+  readonly facilityId?: string;
+  readonly userId?: string;
+}
+
 /**
  * Flushes pending offline entries for a case by sending them in batches to the API.
  */
 export async function flushAimsQueue(
   caseId: string,
-  facilityId?: string,
+  facilityIdOrOptions?: string | FlushAimsQueueOptions,
 ): Promise<{ readonly synced: number; readonly remaining: number }> {
-  const pending = await getPendingAimsEntries(caseId);
+  const facilityId =
+    typeof facilityIdOrOptions === "object"
+      ? facilityIdOrOptions.facilityId
+      : facilityIdOrOptions;
+  const userId =
+    typeof facilityIdOrOptions === "object"
+      ? facilityIdOrOptions.userId
+      : undefined;
+
+  const pending = await getPendingAimsEntries({ caseId, facilityId, userId });
   if (pending.length === 0) {
     return { synced: 0, remaining: 0 };
   }
@@ -199,20 +301,32 @@ export async function flushAimsQueue(
   const syncedIds = batch.map((item) => item.clientId);
   await removeAimsEntries(syncedIds);
 
-  const remainingEntries = await getPendingAimsEntries(caseId);
+  const remainingEntries = await getPendingAimsEntries({ caseId, facilityId, userId });
   return {
     synced: batch.length,
     remaining: remainingEntries.length,
   };
 }
 
+export interface ClearAimsQueueOptions {
+  readonly caseId?: string;
+  readonly facilityId?: string;
+  readonly userId?: string;
+}
+
 /**
- * Purges offline queue. When caseId is specified, deletes entries for that case.
- * When caseId is omitted, purges ALL offline data (required on logout / session end per HIPAA).
+ * Purges offline queue. When caseId or filter options are specified, deletes matching entries.
+ * When called without arguments, purges ALL offline data (required on logout / session end per HIPAA).
  */
-export async function clearAimsQueue(caseId?: string): Promise<void> {
-  if (caseId) {
-    const entries = await getPendingAimsEntries(caseId);
+export async function clearAimsQueue(
+  caseIdOrOptions?: string | ClearAimsQueueOptions,
+): Promise<void> {
+  const caseId = typeof caseIdOrOptions === "object" ? caseIdOrOptions.caseId : caseIdOrOptions;
+  const facilityId = typeof caseIdOrOptions === "object" ? caseIdOrOptions.facilityId : undefined;
+  const userId = typeof caseIdOrOptions === "object" ? caseIdOrOptions.userId : undefined;
+
+  if (caseId || facilityId || userId) {
+    const entries = await getPendingAimsEntries({ caseId, facilityId, userId });
     await removeAimsEntries(entries.map((e) => e.clientId));
     return;
   }
@@ -237,11 +351,17 @@ export async function clearAimsQueue(caseId?: string): Promise<void> {
 }
 
 /**
- * Returns the count of pending offline entries for a given case, or total pending if omitted.
+ * Returns the count of pending offline entries for a given case or filter, or total pending if omitted.
  */
-export async function getAimsQueueSize(caseId?: string): Promise<number> {
-  if (caseId) {
-    const entries = await getPendingAimsEntries(caseId);
+export async function getAimsQueueSize(
+  caseIdOrOptions?: string | GetPendingAimsOptions,
+): Promise<number> {
+  const caseId = typeof caseIdOrOptions === "object" ? caseIdOrOptions.caseId : caseIdOrOptions;
+  const facilityId = typeof caseIdOrOptions === "object" ? caseIdOrOptions.facilityId : undefined;
+  const userId = typeof caseIdOrOptions === "object" ? caseIdOrOptions.userId : undefined;
+
+  if (caseId || facilityId || userId) {
+    const entries = await getPendingAimsEntries({ caseId, facilityId, userId });
     return entries.length;
   }
 

@@ -39,6 +39,7 @@ interface FormState {
   readonly airwayNotes: string;
   readonly lastOralIntakeIso: string;
   readonly npoStatusSatisfied: boolean;
+  readonly medicalDirectorCleared: boolean;
   readonly isEditing: boolean;
 }
 
@@ -48,6 +49,7 @@ type FormAction =
   | { readonly type: "SET_AIRWAY_NOTES"; readonly value: string }
   | { readonly type: "SET_LAST_ORAL_INTAKE"; readonly value: string }
   | { readonly type: "SET_NPO"; readonly value: boolean }
+  | { readonly type: "SET_MEDICAL_DIRECTOR_CLEARED"; readonly value: boolean }
   | { readonly type: "SET_EDITING"; readonly value: boolean };
 
 function formReducer(state: FormState, action: FormAction): FormState {
@@ -62,6 +64,8 @@ function formReducer(state: FormState, action: FormAction): FormState {
       return { ...state, lastOralIntakeIso: action.value };
     case "SET_NPO":
       return { ...state, npoStatusSatisfied: action.value };
+    case "SET_MEDICAL_DIRECTOR_CLEARED":
+      return { ...state, medicalDirectorCleared: action.value };
     case "SET_EDITING":
       return { ...state, isEditing: action.value };
   }
@@ -100,6 +104,7 @@ export function PreAnesthesiaCard({ caseId, record, editable }: PreAnesthesiaCar
       ? assessment.lastOralIntakeIso.slice(0, 16)
       : defaultIntakeTime(),
     npoStatusSatisfied: assessment?.npoStatusSatisfied ?? true,
+    medicalDirectorCleared: assessment?.medicalDirectorCleared ?? false,
     isEditing: !assessment,
   });
 
@@ -114,6 +119,8 @@ export function PreAnesthesiaCard({ caseId, record, editable }: PreAnesthesiaCar
         airwayNotes: state.airwayNotes.trim() || undefined,
         lastOralIntakeIso: isoIntake,
         npoStatusSatisfied: state.npoStatusSatisfied,
+        medicalDirectorCleared:
+          state.asaClass >= 4 ? state.medicalDirectorCleared : undefined,
       },
       {
         onSuccess: () => {
@@ -182,6 +189,20 @@ export function PreAnesthesiaCard({ caseId, record, editable }: PreAnesthesiaCar
                 {assessment.assessedBy.name} ({assessment.assessedBy.initials})
               </dd>
             </div>
+            {assessment.asaClass >= 4 && (
+              <div>
+                <dt className="text-xs text-muted-foreground">Medical Director Clearance</dt>
+                <dd className="font-semibold" data-testid="verified-medical-director">
+                  {assessment.medicalDirectorCleared ? (
+                    <Badge variant="outline" className="border-success text-success">
+                      Cleared
+                    </Badge>
+                  ) : (
+                    <Badge variant="destructive">Required (ASA ≥4)</Badge>
+                  )}
+                </dd>
+              </div>
+            )}
           </dl>
 
           {assessment.airwayNotes && (
@@ -281,6 +302,25 @@ export function PreAnesthesiaCard({ caseId, record, editable }: PreAnesthesiaCar
             disabled={!editable || assessmentMutation.isPending}
           />
         </div>
+
+        {state.asaClass >= 4 && (
+          <div className="flex items-center space-x-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
+            <Checkbox
+              id="medical-director-cleared-checkbox"
+              checked={state.medicalDirectorCleared}
+              onCheckedChange={(checked) =>
+                dispatch({ type: "SET_MEDICAL_DIRECTOR_CLEARED", value: checked === true })
+              }
+              disabled={!editable || assessmentMutation.isPending}
+            />
+            <label
+              htmlFor="medical-director-cleared-checkbox"
+              className="text-xs font-medium text-amber-900 dark:text-amber-200"
+            >
+              ASA {state.asaClass} Medical Director Clearance: Case evaluated and cleared for outpatient ASC procedure
+            </label>
+          </div>
+        )}
 
         {editable && (
           <div className="flex items-center justify-end gap-2 pt-2">

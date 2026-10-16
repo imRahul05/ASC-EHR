@@ -5,10 +5,10 @@ import { useAddAnesthesiaEntry } from "@asc/api-client/react";
 import { evaluateCumulativeDoses } from "@asc/clinical-rules/aims/dose-limits";
 import { ANESTHESIA_DRUG_LABEL } from "@asc/clinical-rules/procedure-labels";
 import { formatTime24 } from "@asc/clinical-rules/time";
-import type { AnesthesiaDrug, AnesthesiaRecord } from "@asc/types";
-import { Button, EmptyState, Input, OptionSelect, SectionCard, toast } from "@asc/ui";
+import { Badge, Button, EmptyState, Input, OptionSelect, SectionCard, toast } from "@asc/ui";
 import { AlertTriangle, Pill, Plus } from "@asc/ui/icons";
 import { notifyError } from "../notify-error";
+import type { AnesthesiaDrug, AnesthesiaRecord } from "@asc/types/clinical";
 import { DRUG_PRESETS, DRUGS, roundDose } from "./flowsheet-model";
 
 interface DrugLogProps {
@@ -24,11 +24,22 @@ const MAX_AMOUNT = 1_000;
 interface CustomDose {
   readonly drug: AnesthesiaDrug;
   readonly amount: string;
+  readonly wastedAmount: string;
+  readonly witnessId: string;
+  readonly witnessName: string;
+  readonly reason: string;
 }
 
 /** Drug administration: one-tap common doses, custom dose, running totals per drug and the timed log. */
 export function DrugLog({ record, editable }: DrugLogProps) {
-  const [custom, setCustom] = useState<CustomDose>({ drug: "propofol", amount: "" });
+  const [custom, setCustom] = useState<CustomDose>({
+    drug: "propofol",
+    amount: "",
+    wastedAmount: "",
+    witnessId: "",
+    witnessName: "",
+    reason: "",
+  });
   const add = useAddAnesthesiaEntry(record.caseId);
   const totals = DRUGS.map((drug) => ({
     drug,
@@ -38,17 +49,58 @@ export function DrugLog({ record, editable }: DrugLogProps) {
   const amount = Number(custom.amount);
   const amountValid = custom.amount !== "" && Number.isFinite(amount) && amount > 0 && amount <= MAX_AMOUNT;
 
-  const give = (drug: AnesthesiaDrug, value: number, reset = false) =>
+  const isControlledDrug = (drug: AnesthesiaDrug) => drug === "fentanyl" || drug === "midazolam";
+
+  const give = (drug: AnesthesiaDrug, value: number, reset = false) => {
+    const isControlled = isControlledDrug(drug);
+    const wastedNum = Number(custom.wastedAmount);
+    const hasWaste =
+      isControlled &&
+      reset &&
+      Number.isFinite(wastedNum) &&
+      wastedNum > 0 &&
+      custom.witnessId.trim() !== "";
+
+    const waste = hasWaste
+      ? {
+          drug,
+          administeredAmount: value,
+          wastedAmount: wastedNum,
+          unit: DRUG_PRESETS[drug].unit,
+          witnessedBy: {
+            id: custom.witnessId.trim(),
+            name: custom.witnessName.trim() || `Witness (${custom.witnessId.trim()})`,
+            initials: (custom.witnessName.trim().slice(0, 2) || "RN").toUpperCase(),
+          },
+          witnessedAt: new Date().toISOString(),
+          reason: custom.reason.trim() || undefined,
+        }
+      : undefined;
+
     add.mutate(
-      { kind: "dose", drug, amount: value, unit: DRUG_PRESETS[drug].unit },
+      { kind: "dose", drug, amount: value, unit: DRUG_PRESETS[drug].unit, waste },
       {
         onSuccess: () => {
-          toast.success(`${ANESTHESIA_DRUG_LABEL[drug]} ${value} ${DRUG_PRESETS[drug].unit} IV recorded`);
-          if (reset) setCustom((current) => ({ ...current, amount: "" }));
+          toast.success(
+            `${ANESTHESIA_DRUG_LABEL[drug]} ${value} ${DRUG_PRESETS[drug].unit} IV recorded${
+              waste ? ` (${waste.wastedAmount} ${waste.unit} wasted)` : ""
+            }`,
+          );
+          if (reset) {
+            setCustom((current) => ({
+              ...current,
+              amount: "",
+              wastedAmount: "",
+              witnessId: "",
+              witnessName: "",
+              reason: "",
+            }));
+          }
         },
         onError: notifyError("Could not record the dose"),
       },
     );
+  };
 
   return (
     <SectionCard title="Drug administration" description="All doses IV. Totals update as you record." data-testid="anesthesia-drugs">
@@ -72,41 +124,91 @@ export function DrugLog({ record, editable }: DrugLogProps) {
               )}
             </div>
             <form
-              className="flex flex-wrap items-end gap-2"
+              className="space-y-3"
               onSubmit={(event) => {
                 event.preventDefault();
                 if (amountValid) give(custom.drug, amount, true);
               }}
               aria-label="Custom dose"
             >
-              <div className="w-48 space-y-1">
-                <label htmlFor="dose-drug" className="text-xs font-medium">
-                  Drug
-                </label>
-                <OptionSelect
-                  id="dose-drug"
-                  options={DRUG_OPTIONS}
-                  value={custom.drug}
-                  onValueChange={(drug) => setCustom((current) => ({ ...current, drug }))}
-                  className="data-[size=default]:h-11"
-                />
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="w-48 space-y-1">
+                  <label htmlFor="dose-drug" className="text-xs font-medium">
+                    Drug
+                  </label>
+                  <OptionSelect
+                    id="dose-drug"
+                    options={DRUG_OPTIONS}
+                    value={custom.drug}
+                    onValueChange={(drug) => setCustom((current) => ({ ...current, drug }))}
+                    className="data-[size=default]:h-11"
+                  />
+                </div>
+                <div className="w-32 space-y-1">
+                  <label htmlFor="dose-amount" className="text-xs font-medium">
+                    Amount ({DRUG_PRESETS[custom.drug].unit})
+                  </label>
+                  <Input
+                    id="dose-amount"
+                    inputMode="decimal"
+                    value={custom.amount}
+                    onChange={(event) => setCustom((current) => ({ ...current, amount: event.target.value }))}
+                    className="h-11 text-base tabular-nums"
+                    data-testid="anesthesia-dose-amount"
+                  />
+                </div>
+                <Button type="submit" className="h-11" disabled={!amountValid || add.isPending} data-testid="anesthesia-dose-add">
+                  <Plus /> Record dose
+                </Button>
               </div>
-              <div className="w-32 space-y-1">
-                <label htmlFor="dose-amount" className="text-xs font-medium">
-                  Amount ({DRUG_PRESETS[custom.drug].unit})
-                </label>
-                <Input
-                  id="dose-amount"
-                  inputMode="decimal"
-                  value={custom.amount}
-                  onChange={(event) => setCustom((current) => ({ ...current, amount: event.target.value }))}
-                  className="h-11 text-base tabular-nums"
-                  data-testid="anesthesia-dose-amount"
-                />
-              </div>
-              <Button type="submit" className="h-11" disabled={!amountValid || add.isPending} data-testid="anesthesia-dose-add">
-                <Plus /> Record dose
-              </Button>
+
+              {isControlledDrug(custom.drug) && (
+                <div className="rounded-lg border border-border/80 bg-muted/30 p-2.5 space-y-2">
+                  <div className="text-xs font-semibold text-muted-foreground flex items-center justify-between">
+                    <span>DEA Dual-Witness Narcotic Waste (Optional)</span>
+                    <span className="text-[10px] font-normal">21 CFR § 1304.22(c)</span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <div className="space-y-1">
+                      <label htmlFor="dose-waste-amount" className="text-[11px] font-medium text-muted-foreground">
+                        Wasted Amount ({DRUG_PRESETS[custom.drug].unit})
+                      </label>
+                      <Input
+                        id="dose-waste-amount"
+                        inputMode="decimal"
+                        placeholder="e.g. 50"
+                        value={custom.wastedAmount}
+                        onChange={(e) => setCustom((c) => ({ ...c, wastedAmount: e.target.value }))}
+                        className="h-9 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label htmlFor="dose-witness-id" className="text-[11px] font-medium text-muted-foreground">
+                        Witness Staff ID
+                      </label>
+                      <Input
+                        id="dose-witness-id"
+                        placeholder="e.g. nurse-12"
+                        value={custom.witnessId}
+                        onChange={(e) => setCustom((c) => ({ ...c, witnessId: e.target.value }))}
+                        className="h-9 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label htmlFor="dose-witness-name" className="text-[11px] font-medium text-muted-foreground">
+                        Witness Name
+                      </label>
+                      <Input
+                        id="dose-witness-name"
+                        placeholder="e.g. Sarah Miller, RN"
+                        value={custom.witnessName}
+                        onChange={(e) => setCustom((c) => ({ ...c, witnessName: e.target.value }))}
+                        className="h-9 text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </form>
           </>
         )}
@@ -143,13 +245,24 @@ export function DrugLog({ record, editable }: DrugLogProps) {
         ) : (
           <ol className="max-h-56 divide-y divide-border overflow-y-auto rounded-lg border border-border text-sm" aria-label="Dose log">
             {[...record.doses].reverse().map((dose) => (
-              <li key={dose.id} className="flex items-center gap-3 px-3 py-2">
-                <time className="w-12 font-mono text-muted-foreground tabular-nums">{formatTime24(dose.at)}</time>
-                <span className="flex-1 font-medium">{ANESTHESIA_DRUG_LABEL[dose.drug]}</span>
-                <span className="tabular-nums">
-                  {dose.amount} {dose.unit} {dose.route}
-                </span>
-                <span className="w-8 text-right text-xs text-muted-foreground">{dose.by.initials}</span>
+              <li key={dose.id} className="flex flex-col gap-1 px-3 py-2">
+                <div className="flex items-center gap-3">
+                  <time className="w-12 font-mono text-muted-foreground tabular-nums">{formatTime24(dose.at)}</time>
+                  <span className="flex-1 font-medium">{ANESTHESIA_DRUG_LABEL[dose.drug]}</span>
+                  <span className="tabular-nums">
+                    {dose.amount} {dose.unit} {dose.route}
+                  </span>
+                  <span className="w-8 text-right text-xs text-muted-foreground">{dose.by.initials}</span>
+                </div>
+                {dose.waste && (
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground pl-15">
+                    <Badge variant="outline" className="text-[10px] px-1 py-0 border-amber-500/40 text-amber-700 dark:text-amber-400">
+                      Wasted: {dose.waste.wastedAmount} {dose.waste.unit}
+                    </Badge>
+                    <span>Witnessed by {dose.waste.witnessedBy.name}</span>
+                    {dose.waste.reason && <span className="italic">({dose.waste.reason})</span>}
+                  </div>
+                )}
               </li>
             ))}
           </ol>

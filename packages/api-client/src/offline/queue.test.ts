@@ -3,6 +3,7 @@ import type { AnesthesiaEntryPayload } from "@asc/types";
 import * as casesModule from "../clinical/cases";
 import {
   clearAimsQueue,
+  closeDatabase,
   enqueueAimsEntry,
   flushAimsQueue,
   getAimsQueueSize,
@@ -16,6 +17,7 @@ describe("AIMS Offline Queue (queue.ts)", () => {
 
   afterEach(async () => {
     await clearAimsQueue();
+    closeDatabase();
     vi.restoreAllMocks();
   });
 
@@ -138,5 +140,57 @@ describe("AIMS Offline Queue (queue.ts)", () => {
     expect(await getAimsQueueSize()).toBe(0);
     expect(await getPendingAimsEntries("case-1")).toHaveLength(0);
     expect(await getPendingAimsEntries("case-2")).toHaveLength(0);
+  });
+
+  it("enforces multi-tenant facility and clinician user scoping (SEC-04)", async () => {
+    await enqueueAimsEntry({
+      caseId: "case-tenant-1",
+      payload: dosePayload,
+      facilityId: "fac-austin",
+      userId: "user-dr-smith",
+    });
+    await enqueueAimsEntry({
+      caseId: "case-tenant-1",
+      payload: vitalsPayload,
+      facilityId: "fac-dallas",
+      userId: "user-dr-jones",
+    });
+
+    // Scoped queries by clinician
+    const smithEntries = await getPendingAimsEntries({
+      caseId: "case-tenant-1",
+      userId: "user-dr-smith",
+    });
+    expect(smithEntries).toHaveLength(1);
+    expect(smithEntries[0]?.payload.kind).toBe("dose");
+
+    const jonesEntries = await getPendingAimsEntries({
+      caseId: "case-tenant-1",
+      userId: "user-dr-jones",
+    });
+    expect(jonesEntries).toHaveLength(1);
+    expect(jonesEntries[0]?.payload.kind).toBe("vitals");
+
+    // Scoped flush
+    const syncSpy = vi
+      .spyOn(casesModule, "syncAimsBatch")
+      .mockResolvedValue({ syncedCount: 1, duplicateCount: 0 });
+
+    const flushResult = await flushAimsQueue("case-tenant-1", {
+      facilityId: "fac-austin",
+      userId: "user-dr-smith",
+    });
+
+    expect(flushResult.synced).toBe(1);
+    expect(syncSpy).toHaveBeenCalledWith(
+      "case-tenant-1",
+      expect.arrayContaining([
+        expect.objectContaining({ userId: "user-dr-smith", facilityId: "fac-austin" }),
+      ]),
+      "fac-austin",
+    );
+
+    // Jones entry is still safely queued
+    expect(await getAimsQueueSize({ caseId: "case-tenant-1", userId: "user-dr-jones" })).toBe(1);
   });
 });
