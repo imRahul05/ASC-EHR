@@ -59,6 +59,7 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 27. Scheduling & UI controls: OptionSelect uses explicit nullish check for empty string values; appointment conflict queries use bounded 24h windows (string[][] QueryTypes in Medplum) instead of single-day UTC slices; mock handlers fail fast rather than reassigning patient IDs; Whiteboard in-use room tiles match active procedure phases only; add 30-min grace period and calendar rollover validation for case scheduling. (LM-031)
 28. Distributed scheduling & timezone safety: serialize concurrent booking conflict checks with PostgreSQL transaction advisory locks ('facility-scheduling'); zero side-effect patient verification (read-only 404/403); pin all calendar date/time calculations to facility timezone (facilityDateTimeToIso, isoToFacilityTime); unlink case navigation and omit clinical flags on public Whiteboard TV displays; gate room tiles with isRoomOccupyingPhase. (LM-032)
 29. Composite pre-handler pipelines & scoped idempotency: never pass raw hook arrays on clinical endpoints; enforce canonical fail-closed sequence (capability -> idempotency with facilityChecked -> If-Match -> case context hydration -> Zod body validation); scope idempotency keys by tenant/method/route/caseId; use clinicalMutationRoute/clinicalQueryRoute to eliminate capability drift. (LM-037, LM-038)
+30. DB schema alignment & deterministic concurrency: integration tests must reflect accepted ADRs and schema migrations (parameterized tenancy vs dropped session RLS); align runtime credentials across init SQL and test runners; use explicit promise barriers (opStarted) in lock tests to avoid TCP race conditions; Medplum base URLs must end with a trailing slash. (LM-039)
 
 ---
 
@@ -445,5 +446,17 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **How to check:** `pnpm turbo run check-types lint test build`.
 - **Guarded by:** `apps/api/src/hooks/idempotency.test.ts`, `apps/api/src/hooks/pipeline.test.ts`.
 
-
-
+### LM-039 — Database test reconciliation with Day-1 architecture and deterministic concurrency synchronization
+- **Seen:** 3 · 2026-10-16 · PR #104 (`packages/db/src/__tests__/`, `.github/workflows/ci.yml`)
+- **What went wrong:**
+  1. When Postgres service was added to CI for Phase P01, obsolete integration tests that asserted session-variable RLS (`SELECT set_config('app.tenant_id', ...)` and `DROP POLICY tenant_isolation`) failed because Migration `0007_streamline_single_facility_access.sql` (under ADR 2026-10-14) had intentionally disabled session-variable RLS to avoid PgBouncer connection pinning on Neon.
+  2. Integration tests creating runtime connections (`lock.test.ts`) failed with `SQLSTATE 28P01` (password authentication failed) because CI altered `asc_app` password while `test-db.ts` defaulted to `asc_app:asc_app`.
+  3. Concurrent lock tests initiated two operations simultaneously without synchronization, causing non-deterministic lock acquisition order across independent TCP connection attempts.
+  4. Next.js production build in CI failed because `NEXT_PUBLIC_MEDPLUM_BASE_URL` was specified without a trailing slash (`http://localhost:8103` vs `http://localhost:8103/`), violating `@asc/api-client` URL validation.
+- **Rule:**
+  1. Integration test assertions MUST reflect current accepted ADRs and schema migrations. Under ADR 2026-10-14 Day-1 single-facility architecture, tests verify parameterized query filters (`eq(table.tenantId, scope.tenantId)`) and append-only constraints, not retired session-variable policies.
+  2. Test credentials must remain consistent between Docker init SQL (`01-runtime-role.sql`), helper modules (`runtimeUrl`), and CI workflow configurations.
+  3. Concurrency tests verifying exclusion must use explicit promise barriers (`opStarted`) to guarantee the target operation acquires the lock before the competing operation attempts acquisition.
+  4. Build-time `NEXT_PUBLIC_MEDPLUM_BASE_URL` MUST end with a trailing slash (`http://localhost:8103/`).
+- **How to check:** `pnpm turbo run check-types lint test eval build`.
+- **Guarded by:** `packages/db/src/__tests__/*.test.ts`, `.github/workflows/ci.yml`.
