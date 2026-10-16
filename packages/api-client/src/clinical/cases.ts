@@ -31,6 +31,12 @@ import type { BookCaseInput, BookCaseResult } from "@asc/validation/cases/book";
 import type { SignConsentInput } from "@asc/validation/consent";
 import type { HpOverrideInput, HpUpdateNoteInput } from "@asc/validation/hp";
 import type { PreopAssessmentInput } from "@asc/validation/preop";
+import type {
+  AssignScopeInput,
+  Gate2OverrideInput,
+  RecordProcedureEventInput,
+  SignTimeOutInput,
+} from "@asc/validation/procedure-capture";
 import { http } from "../http";
 
 export type BookCaseResponse = BookCaseResult & Partial<ProcedureCase>;
@@ -146,13 +152,71 @@ export function submitPreopAssessment(
   });
 }
 
-/** One role's time-out attestation; the case is timeOutComplete once all three roles attest. */
-export function attestTimeOut(caseId: string, payload: AttestTimeOutPayload): Promise<CaseDetail> {
-  return http.post(API_ROUTES.caseTimeOut(caseId), payload);
+/** One role's time-out attestation or multi-role participant verification (Phase P18). */
+export function attestTimeOut(
+  caseId: string,
+  payload: AttestTimeOutPayload | SignTimeOutInput,
+  facilityId?: string,
+): Promise<CaseDetail> {
+  const trimmed = facilityId?.trim();
+  return http.post(API_ROUTES.caseTimeOut(caseId), payload, {
+    query: trimmed ? { facilityId: trimmed } : undefined,
+    headers: trimmed ? { "x-facility-id": trimmed } : undefined,
+  });
 }
 
-export function addProcedureEvent(caseId: string, payload: AddProcedureEventPayload): Promise<CaseDetail> {
-  return http.post(API_ROUTES.caseEvents(caseId), payload);
+export function signTimeOut(
+  caseId: string,
+  payload: SignTimeOutInput | AttestTimeOutPayload,
+  facilityId?: string,
+): Promise<CaseDetail> {
+  return attestTimeOut(caseId, payload, facilityId);
+}
+
+export function addProcedureEvent(
+  caseId: string,
+  payload: AddProcedureEventPayload | RecordProcedureEventInput,
+  facilityId?: string,
+): Promise<CaseDetail> {
+  const trimmed = facilityId?.trim();
+  return http.post(API_ROUTES.caseEvents(caseId), payload, {
+    query: trimmed ? { facilityId: trimmed } : undefined,
+    headers: trimmed ? { "x-facility-id": trimmed } : undefined,
+  });
+}
+
+export function recordProcedureEvent(
+  caseId: string,
+  payload: RecordProcedureEventInput | AddProcedureEventPayload,
+  facilityId?: string,
+): Promise<CaseDetail> {
+  return addProcedureEvent(caseId, payload, facilityId);
+}
+
+/** Assigns endoscope to case after checking decontamination & 168h hang time (ANSI/AAMI ST91:2021). */
+export function assignScope(
+  caseId: string,
+  payload: AssignScopeInput,
+  facilityId?: string,
+): Promise<CaseDetail> {
+  const trimmed = facilityId?.trim();
+  return http.post(API_ROUTES.caseScope(caseId), payload, {
+    query: trimmed ? { facilityId: trimmed } : undefined,
+    headers: trimmed ? { "x-facility-id": trimmed } : undefined,
+  });
+}
+
+/** Submits clinical Gate 2 override for non-scope blockers (physician or anesthesia role required). */
+export function overrideGate2(
+  caseId: string,
+  payload: Gate2OverrideInput,
+  facilityId?: string,
+): Promise<CaseDetail> {
+  const trimmed = facilityId?.trim();
+  return http.post(API_ROUTES.caseGate2Override(caseId), payload, {
+    query: trimmed ? { facilityId: trimmed } : undefined,
+    headers: trimmed ? { "x-facility-id": trimmed } : undefined,
+  });
 }
 
 export function recordBbps(caseId: string, payload: BbpsScore): Promise<CaseDetail> {
