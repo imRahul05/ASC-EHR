@@ -43,6 +43,8 @@ export const API_ROUTE_PATTERNS = {
   caseConsentSign: "/cases/:caseId/consents/sign",
   caseTimeOut: "/cases/:caseId/time-out",
   caseEvents: "/cases/:caseId/events",
+  caseScope: "/cases/:caseId/scope",
+  caseGate2Override: "/cases/:caseId/gate2-override",
   caseBbps: "/cases/:caseId/bbps",
   caseNarration: "/cases/:caseId/narration",
   caseSpecimens: "/cases/:caseId/specimens",
@@ -145,6 +147,8 @@ export const API_ROUTES = {
   caseConsentSign: byCase(P.caseConsentSign),
   caseTimeOut: byCase(P.caseTimeOut),
   caseEvents: byCase(P.caseEvents),
+  caseScope: byCase(P.caseScope),
+  caseGate2Override: byCase(P.caseGate2Override),
   caseBbps: byCase(P.caseBbps),
   caseNarration: byCase(P.caseNarration),
   caseSpecimens: byCase(P.caseSpecimens),
@@ -196,6 +200,8 @@ export const API_ROUTES = {
 
   demoReset: P.demoReset,
 } as const;
+
+export const API_PATHS = API_ROUTES;
 
 /** Client-side request timeout for JSON API calls. */
 export const HTTP_TIMEOUT_MS = 15_000;

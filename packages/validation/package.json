@@ -28,7 +28,8 @@
     "./financial/eligibility": "./src/financial/eligibility.ts",
     "./financial/estimate": "./src/financial/estimate.ts",
     "./financial/prior-auth": "./src/financial/prior-auth.ts",
-    "./financial": "./src/financial/index.ts"
+    "./financial": "./src/financial/index.ts",
+    "./procedure-capture": "./src/procedure-capture.ts"
   },
   "scripts": {
     "lint": "eslint --max-warnings 0",

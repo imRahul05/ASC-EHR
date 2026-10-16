@@ -64,3 +64,6 @@ export * from "./errors.js";
 
 // Financial clearance, eligibility, and estimate contracts (Phase P22a)
 export * from "./financial/index.js";
+
+// Intra-op room capture, timeout, scope lock & Gate 2 override contracts (Phase P18)
+export * from "./procedure-capture.js";
