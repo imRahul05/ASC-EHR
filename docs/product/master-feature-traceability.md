@@ -163,7 +163,7 @@ The following table explicitly tracks all unbuilt sub-stories from Epics `EP-A` 
 
 ## 4. Confidence Score Definitions
 
-- **100% Confidence:** Explicit, word-for-word textual confirmation exists in both `requirements_document.md` and `build_specification.md`, matched directly against audited TypeScript files and line numbers.
+- **100% Confidence:** Explicit, word-for-word textual confirmation exists in both [`master-requirements.md`](master-requirements.md) and [`master-build-specification.md`](master-build-specification.md), matched directly against audited TypeScript files and line numbers.
 - **95% Confidence:** Clear requirement stated in the new specification with existing architectural structures in code (e.g., FHIR builders or UI mock components), requiring minor schema alignment.
 - **90% Confidence:** Requirement verified against specification and architecture, but awaiting external business clarification (e.g., AMA CPT licensing or exact clearinghouse partner).
 

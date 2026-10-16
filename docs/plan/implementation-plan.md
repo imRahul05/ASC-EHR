@@ -87,13 +87,13 @@ gantt
     dateFormat YYYY-MM-DD
     axisFormat %b %d
 
-    section Phase 1: Foundation, Intake & Whiteboard (EP-A, EP-B, EP-C) [DONE]
+    section Phase 1: Foundation, Intake & Whiteboard (EP-A, EP-B, EP-C) [Core Spine Complete]
     P00-P05 Core & Authz Spine         :done, fdn, 2026-09-27, 2026-10-12
     P07 Clinical rules & Hard Gates    :done, p07, 2026-10-12, 2026-10-12
     P14a/b Patient Registration & Dups :done, p14, 2026-10-12, 2026-10-13
     P15a/b Scheduling & Whiteboard TV  :done, p15, 2026-10-13, 2026-10-14
 
-    section Phase 2: Financial Clearance & Pre-Op Readiness (EP-D, EP-E) [DONE]
+    section Phase 2: Financial Clearance & Pre-Op Readiness (EP-D, EP-E) [Core Spine Complete]
     P15c Live Backend APIs (EP-C)      :done, p15c, 2026-10-14, 2026-10-14
     P15c.2 Workspace Wiring & Mocks    :done, p15c2, 2026-10-14, 2026-10-15
     P17 Pre-op nursing & Consent (EP-E):done, p17, 2026-10-15, 2026-10-15
@@ -125,7 +125,7 @@ gantt
 
 Dates are targets for sequencing and agent velocity; `PROGRESS.md` holds actuals.
 
-### 2.2 Mapping: Implementation Phases $\leftrightarrow$ 13 Master Epics (`build_specification.md`)
+### 2.2 Mapping: Implementation Phases $\leftrightarrow$ 13 Master Epics ([`master-build-specification.md`](../product/master-build-specification.md))
 
 The master build specification ([`master-build-specification.md`](../product/master-build-specification.md) §3) organizes requirements into 13 Epics (`EP-A` through `EP-M`), encompassing ~130 user stories with Given/When/Then acceptance criteria. The implementation phases map to these Epics and release phases as follows:
 
