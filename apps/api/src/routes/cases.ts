@@ -6,8 +6,8 @@ import type { FastifyInstance } from "fastify";
 import { capabilityAtResource } from "../auth/route-auth.js";
 import { casesController } from "../controllers/cases.controller.js";
 import {
-  createClinicalMutationPipeline,
-  createClinicalQueryPipeline,
+  clinicalMutationRoute,
+  clinicalQueryRoute,
 } from "../hooks/pipeline.js";
 import { validateBody } from "../hooks/validation.js";
 
@@ -32,7 +32,7 @@ declare module "fastify" {
 export function casesRoutes(app: FastifyInstance): Promise<void> {
   // POST /cases — Book a surgical case into an operating room (Phase P15a/P15b)
   // Note: Creates a new case entity without an existing caseId parameter; therefore uses
-  // validateBody directly rather than createClinicalMutationPipeline (which hydrates existing case context).
+  // validateBody directly rather than clinicalMutationRoute (which hydrates existing case context).
   app.post(
     API_ROUTE_PATTERNS.cases,
     {
@@ -45,24 +45,18 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
   // GET /cases/:caseId — Fully hydrated Case Workspace detail bundle
   app.get(
     API_ROUTE_PATTERNS.case,
-    {
-      config: capabilityAtResource("case.read"),
-      preHandler: createClinicalQueryPipeline({ capability: "case.read" }),
-    },
+    clinicalQueryRoute({ capability: "case.read" }),
     (request, reply) => casesController.getCase(request, reply)
   );
 
   // POST /cases/:caseId/transition — Validates and executes physical stage transitions
   app.post(
     API_ROUTE_PATTERNS.caseTransition,
-    {
-      config: capabilityAtResource("case.advance"),
-      preHandler: createClinicalMutationPipeline({
-        capability: "case.advance",
-        schema: transitionCaseSchema,
-        errorMessage: "Invalid case transition payload",
-      }),
-    },
+    clinicalMutationRoute({
+      capability: "case.advance",
+      schema: transitionCaseSchema,
+      errorMessage: "Invalid case transition payload",
+    }),
     (request, reply) => casesController.transitionCase(request, reply)
   );
 

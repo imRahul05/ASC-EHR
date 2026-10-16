@@ -6,11 +6,10 @@ import {
 } from "@asc/validation";
 import type { FastifyInstance } from "fastify";
 
-import { capabilityAtResource } from "../auth/route-auth.js";
 import { hpController } from "../controllers/hp.controller.js";
 import {
-  createClinicalMutationPipeline,
-  createClinicalQueryPipeline,
+  clinicalMutationRoute,
+  clinicalQueryRoute,
 } from "../hooks/pipeline.js";
 
 /**
@@ -26,49 +25,37 @@ export function hpRoutes(app: FastifyInstance): Promise<void> {
   // POST /cases/:caseId/hp-update — Sign day-of H&P interval update note
   app.post(
     API_ROUTE_PATTERNS.caseHpUpdate,
-    {
-      config: capabilityAtResource("procedure.document"),
-      preHandler: createClinicalMutationPipeline({
-        capability: "procedure.document",
-        schema: hpUpdateNoteSchema,
-      }),
-    },
+    clinicalMutationRoute({
+      capability: "procedure.document",
+      schema: hpUpdateNoteSchema,
+    }),
     (request, reply) => hpController.recordHpUpdate(request, reply)
   );
 
   // POST /cases/:caseId/hp-override — Attending physician clinical override of H&P validity
   app.post(
     API_ROUTE_PATTERNS.caseHpOverride,
-    {
-      config: capabilityAtResource("case.advance"),
-      preHandler: createClinicalMutationPipeline({
-        capability: "case.advance",
-        schema: hpOverrideSchema,
-      }),
-    },
+    clinicalMutationRoute({
+      capability: "case.advance",
+      schema: hpOverrideSchema,
+    }),
     (request, reply) => hpController.recordHpOverride(request, reply)
   );
 
   // POST /cases/:caseId/anticoagulation — Peri-procedural anticoagulation & antiplatelet assessment
   app.post(
     API_ROUTE_PATTERNS.caseAnticoagulation,
-    {
-      config: capabilityAtResource("procedure.document"),
-      preHandler: createClinicalMutationPipeline({
-        capability: "procedure.document",
-        schema: anticoagulationAssessmentSchema,
-      }),
-    },
+    clinicalMutationRoute({
+      capability: "procedure.document",
+      schema: anticoagulationAssessmentSchema,
+    }),
     (request, reply) => hpController.recordAnticoagulation(request, reply)
   );
 
   // GET /cases/:caseId/hp — Retrieve pre-procedure H&P status and day-of update note details
   app.get(
     API_ROUTE_PATTERNS.caseHp,
-    {
-      config: capabilityAtResource("case.read"),
-      preHandler: createClinicalQueryPipeline({ capability: "case.read" }),
-    },
+    clinicalQueryRoute({ capability: "case.read" }),
     (request, reply) => hpController.getHp(request, reply)
   );
 

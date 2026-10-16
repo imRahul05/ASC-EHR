@@ -2,6 +2,7 @@ import { API_ERROR_CODES, type Capability } from "@asc/types";
 import type { ZodType, ZodTypeDef } from "@asc/validation";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import "../auth/augment.js";
+import { capabilityAtResource } from "../auth/route-auth.js";
 import "../plugins/error-handler.js";
 import { requireCapabilityHook, requireCaseContext } from "./case-context.js";
 import { requireIdempotency } from "./idempotency.js";
@@ -157,4 +158,49 @@ export function createClinicalQueryPipeline<
   }
 
   return hooks;
+}
+
+interface ClinicalRouteDefinition {
+  readonly config: ReturnType<typeof capabilityAtResource>;
+  readonly preHandler: PipelineHook[];
+}
+
+/**
+ * Creates a unified Fastify route definition combining Gate 3 route configuration
+ * (`config: capabilityAtResource(...)`) with the canonical 5-step preHandler mutation pipeline.
+ *
+ * Eliminates capability drift/desynchronization between Fastify route config and preHandler hooks.
+ * Expects a `:caseId` route parameter to hydrate the FHIR Encounter context.
+ */
+export function clinicalMutationRoute<
+  TOutput = never,
+  TDef extends ZodTypeDef = ZodTypeDef,
+  TInput = TOutput,
+>(
+  options: ClinicalMutationPipelineOptions<TOutput, TDef, TInput>,
+): ClinicalRouteDefinition {
+  return {
+    config: capabilityAtResource(options.capability),
+    preHandler: createClinicalMutationPipeline(options),
+  };
+}
+
+/**
+ * Creates a unified Fastify route definition combining Gate 3 route configuration
+ * (`config: capabilityAtResource(...)`) with the canonical 3-step preHandler query pipeline.
+ *
+ * Eliminates capability drift/desynchronization between Fastify route config and preHandler hooks.
+ * Expects a `:caseId` route parameter to hydrate the FHIR Encounter context.
+ */
+export function clinicalQueryRoute<
+  TOutput = never,
+  TDef extends ZodTypeDef = ZodTypeDef,
+  TInput = TOutput,
+>(
+  options: ClinicalQueryPipelineOptions<TOutput, TDef, TInput>,
+): ClinicalRouteDefinition {
+  return {
+    config: capabilityAtResource(options.capability),
+    preHandler: createClinicalQueryPipeline(options),
+  };
 }

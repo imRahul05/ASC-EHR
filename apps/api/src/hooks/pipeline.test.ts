@@ -7,6 +7,8 @@ import { forFacility } from "@asc/api-client/server";
 import { registerErrorHandler } from "../plugins/error-handler.js";
 import { CasesMockClient as MockClient } from "../testing/mock-medplum.js";
 import {
+  clinicalMutationRoute,
+  clinicalQueryRoute,
   createClinicalMutationPipeline,
   createClinicalQueryPipeline,
 } from "./pipeline.js";
@@ -495,5 +497,33 @@ describe("Composite Route Pre-Handler Pipeline", () => {
     expect(queryError.code).toBe(API_ERROR_CODES.INVALID_QUERY);
 
     await app.close();
+  });
+
+  it("clinicalMutationRoute produces synchronized config and preHandler pipeline", () => {
+    const route = clinicalMutationRoute({
+      capability: "case.advance",
+      schema: testMutationSchema,
+    });
+
+    expect(route.config.auth).toEqual({
+      mode: "capability",
+      capability: "case.advance",
+      facility: { from: "resource" },
+    });
+    expect(route.preHandler.length).toBe(4);
+  });
+
+  it("clinicalQueryRoute produces synchronized config and preHandler pipeline", () => {
+    const route = clinicalQueryRoute({
+      capability: "case.read",
+      querySchema: testQuerySchema,
+    });
+
+    expect(route.config.auth).toEqual({
+      mode: "capability",
+      capability: "case.read",
+      facility: { from: "resource" },
+    });
+    expect(route.preHandler.length).toBe(3);
   });
 });
