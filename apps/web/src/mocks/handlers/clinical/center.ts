@@ -15,14 +15,16 @@ import type {
   WhiteboardBoard,
   WhiteboardCard,
   WorkItem,
+  WorklistResult,
 } from "@asc/types";
+import { API_ERROR_CODES } from "@asc/types/errors";
 import { http, HttpResponse } from "msw";
 import { buildPrepChecklist } from "../../db/content";
 import { AGENT_SETTINGS, BLOCKS, PORTAL_PATIENT_BY_USER, ROOMS, STAFF_LIST } from "../../db/staff";
 import { actorFrom, audit, db, resetDb, roomsNow, userIdFrom } from "../../db/store";
 import { apiUrl } from "../api-url";
 import { searchPatients } from "./patients";
-import { apiError, body, latency, notFound, param } from "./respond";
+import { apiError, body, latency, param } from "./respond";
 
 const SEARCH_LIMIT = 8;
 const BENCHMARKS = { adr: 0.3, cir: 0.95, withdrawalMin: 6, bbpsAdequate: 0.85 } as const;
@@ -160,7 +162,7 @@ export const centerHandlers = [
     });
 
     items = [...sortWorkItemsForQueue(items)];
-    return HttpResponse.json(items);
+    return HttpResponse.json<WorklistResult>({ items, total: items.length });
   }),
 
   /**
@@ -205,9 +207,11 @@ export const centerHandlers = [
     const state = db();
     const itemId = param(params.itemId);
     const item = state.workItems.find((candidate) => candidate.id === itemId);
-    if (!item) return notFound("Work item");
+    if (!item) {
+      return apiError(404, API_ERROR_CODES.WORK_ITEM_NOT_FOUND, `Work item ${itemId} not found`);
+    }
     if (item.status === "completed" || item.status === "done") {
-      return apiError(409, "TASK_ALREADY_COMPLETED", "Task is already completed");
+      return apiError(409, API_ERROR_CODES.WORK_ITEM_ALREADY_COMPLETED, "Work item has already been completed.");
     }
     interface ClaimBody {
       claimedBy?: string;
@@ -217,10 +221,14 @@ export const centerHandlers = [
     }
     const emptyClaimBody: ClaimBody = {};
     const claimBody = await body<ClaimBody>(request).catch(() => emptyClaimBody);
+    const claimOwnerId = claimBody.claimedBy ?? claimBody.ownerId ?? userIdFrom(request) ?? item.ownerId;
+    if (item.status === "claimed" && item.ownerId && item.ownerId !== claimOwnerId) {
+      return apiError(409, API_ERROR_CODES.WORK_ITEM_ALREADY_CLAIMED, `Work item is already claimed by another practitioner (${item.ownerId}).`);
+    }
     const claimed: WorkItem = {
       ...item,
       status: "claimed",
-      ownerId: claimBody.claimedBy ?? claimBody.ownerId ?? userIdFrom(request) ?? item.ownerId,
+      ownerId: claimOwnerId,
       ownerRole: claimBody.ownerRole ?? item.ownerRole,
       ownerCapability: claimBody.ownerCapability ?? item.ownerCapability,
     };
@@ -240,7 +248,12 @@ export const centerHandlers = [
     const state = db();
     const itemId = param(params.itemId);
     const item = state.workItems.find((candidate) => candidate.id === itemId);
-    if (!item) return notFound("Work item");
+    if (!item) {
+      return apiError(404, API_ERROR_CODES.WORK_ITEM_NOT_FOUND, `Work item ${itemId} not found`);
+    }
+    if (item.status === "completed" || item.status === "done") {
+      return apiError(409, API_ERROR_CODES.WORK_ITEM_ALREADY_COMPLETED, "Work item has already been completed.");
+    }
     interface CompleteBody {
       resolvedBy?: string;
       resolution?: string;

@@ -232,4 +232,45 @@ describe("idempotency hook", () => {
     expect(resTenantB.headers["idempotency-replayed"]).toBeUndefined();
     expect(executionCount).toBe(2);
   });
+
+  it("isolates cache between different work items (:itemId) using the same raw idempotency key", async () => {
+    const store = createInMemoryIdempotencyStore();
+    const app: FastifyInstance = fastify();
+    await app.register(registerErrorHandler);
+
+    let task1Calls = 0;
+    let task2Calls = 0;
+
+    app.post("/worklist/:itemId/claim", { preHandler: [createIdempotencyHook(store)] }, async (req, reply) => {
+      const { itemId } = req.params as { readonly itemId?: string };
+      if (itemId === "task-1") {
+        task1Calls++;
+        return reply.send({ itemId: "task-1", calls: task1Calls });
+      }
+      task2Calls++;
+      return reply.send({ itemId: "task-2", calls: task2Calls });
+    });
+
+    const resItem1 = await app.inject({
+      method: "POST",
+      url: "/worklist/task-1/claim",
+      headers: { "idempotency-key": "shared-client-key" },
+    });
+
+    const resItem2 = await app.inject({
+      method: "POST",
+      url: "/worklist/task-2/claim",
+      headers: { "idempotency-key": "shared-client-key" },
+    });
+
+    expect(resItem1.statusCode).toBe(200);
+    expect(resItem1.json()).toEqual({ itemId: "task-1", calls: 1 });
+
+    expect(resItem2.statusCode).toBe(200);
+    expect(resItem2.json()).toEqual({ itemId: "task-2", calls: 1 });
+    expect(resItem2.headers["idempotency-replayed"]).toBeUndefined();
+    expect(task1Calls).toBe(1);
+    expect(task2Calls).toBe(1);
+  });
 });
+

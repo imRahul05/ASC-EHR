@@ -13,6 +13,7 @@
  * - HIPAA 45 CFR § 164.312(b): Audit controls, technical access, and capability tracking.
  */
 
+import { API_ERROR_CODES, type Capability } from "@asc/types";
 import { API_ROUTE_PATTERNS } from "@asc/config";
 import {
   claimWorkItemSchema,
@@ -26,6 +27,39 @@ import { capabilityAtResource } from "../auth/route-auth.js";
 import { worklistController } from "../controllers/worklist.controller.js";
 import { requireIdempotency } from "../hooks/idempotency.js";
 import { validateBody, validateQuery } from "../hooks/validation.js";
+import { resolveFacilityId } from "./route-helpers.js";
+
+/**
+ * Pre-handler hook verifying facility context and capability authorization strictly before
+ * idempotency cache operations or payload schema validation.
+ *
+ * Enforces canonical fail-closed security sequence per LM-034, LM-035, and LM-037.
+ */
+function requireWorklistCapability(capability: Capability) {
+  return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    const query = request.query as { facilityId?: string } | undefined;
+    const body = request.body as { facilityId?: string } | undefined;
+    const facilityId =
+      request.facilityId ??
+      resolveFacilityId(request, body?.facilityId ?? query?.facilityId, false);
+
+    if (!facilityId) {
+      reply.sendApiError({
+        code: API_ERROR_CODES.FACILITY_REQUIRED,
+        message: "Facility context is required to access the worklist",
+      });
+      return;
+    }
+
+    const hasCap = await request.server.guards.requireCapabilityAt(
+      request,
+      reply,
+      capability,
+      facilityId,
+    );
+    if (!hasCap) return;
+  };
+}
 
 export function worklistRoutes(app: FastifyInstance): Promise<void> {
   // GET /worklist — Unified worklist query across pre-op, intra-op, and post-discharge queues
@@ -33,7 +67,7 @@ export function worklistRoutes(app: FastifyInstance): Promise<void> {
     API_ROUTE_PATTERNS.worklist,
     {
       config: capabilityAtResource("case.read"),
-      preHandler: [validateQuery(worklistQuerySchema)],
+      preHandler: [requireWorklistCapability("case.read"), validateQuery(worklistQuerySchema)],
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       return worklistController.listWorkItems(request, reply);
@@ -45,7 +79,11 @@ export function worklistRoutes(app: FastifyInstance): Promise<void> {
     API_ROUTE_PATTERNS.worklist,
     {
       config: capabilityAtResource("case.advance"),
-      preHandler: [requireIdempotency, validateBody(createWorkItemSchema)],
+      preHandler: [
+        requireWorklistCapability("case.advance"),
+        requireIdempotency,
+        validateBody(createWorkItemSchema),
+      ],
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       return worklistController.createWorkItem(request, reply);
@@ -57,7 +95,11 @@ export function worklistRoutes(app: FastifyInstance): Promise<void> {
     API_ROUTE_PATTERNS.workItemClaim,
     {
       config: capabilityAtResource("case.advance"),
-      preHandler: [requireIdempotency, validateBody(claimWorkItemSchema)],
+      preHandler: [
+        requireWorklistCapability("case.advance"),
+        requireIdempotency,
+        validateBody(claimWorkItemSchema),
+      ],
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       return worklistController.claimWorkItem(request, reply);
@@ -69,7 +111,11 @@ export function worklistRoutes(app: FastifyInstance): Promise<void> {
     API_ROUTE_PATTERNS.workItemComplete,
     {
       config: capabilityAtResource("case.advance"),
-      preHandler: [requireIdempotency, validateBody(completeWorkItemSchema)],
+      preHandler: [
+        requireWorklistCapability("case.advance"),
+        requireIdempotency,
+        validateBody(completeWorkItemSchema),
+      ],
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       return worklistController.completeWorkItem(request, reply);

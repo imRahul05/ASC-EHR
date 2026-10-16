@@ -24,7 +24,7 @@ import {
   isWorkItemOverdue,
   sortWorkItemsForQueue,
   WORK_ITEM_QUEUE_MAP,
-} from "@asc/clinical-rules";
+} from "@asc/clinical-rules/worklist/timeline";
 import { formatDateTime } from "@asc/clinical-rules/time";
 import type { ParticipantRole, WorkItem, WorkItemType } from "@asc/types";
 import {
@@ -56,7 +56,8 @@ type QueueId =
   | "physician"
   | "front_desk"
   | "coding"
-  | "pathology";
+  | "pathology"
+  | "anesthesia";
 
 const QUEUE_PILLS: readonly { readonly id: QueueId; readonly label: string }[] = [
   { id: "all", label: "All Queues" },
@@ -66,6 +67,7 @@ const QUEUE_PILLS: readonly { readonly id: QueueId; readonly label: string }[] =
   { id: "front_desk", label: "Front Desk" },
   { id: "coding", label: "Coding" },
   { id: "pathology", label: "Pathology" },
+  { id: "anesthesia", label: "Anesthesia" },
 ];
 
 const TABS: readonly TabId[] = [
@@ -148,7 +150,7 @@ function WorklistContent() {
   const list = useWorklist({ status });
   const claim = useClaimWorkItem();
   const complete = useCompleteWorkItem();
-  const all = list.data ?? [];
+  const all = list.data?.items ?? [];
 
   const setParam = (key: "type" | "status" | "queue", value: string) => {
     const next = new URLSearchParams(params.toString());

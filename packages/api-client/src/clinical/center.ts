@@ -17,6 +17,7 @@ import type {
   CreateWorkItemPayload,
   WorkItem,
   WorklistQuery,
+  WorklistResult,
 } from "@asc/types";
 import { http, toQuery } from "../http";
 
@@ -34,7 +35,7 @@ export interface CompleteWorkItemArgs {
   readonly facilityId?: string;
 }
 
-export function getWorklist(query: WorklistQuery = {}): Promise<readonly WorkItem[]> {
+export function getWorklist(query: WorklistQuery = {}): Promise<WorklistResult> {
   const resolvedFacility = query.facilityId?.trim();
   return http.get(API_ROUTES.worklist, {
     query: toQuery(query),

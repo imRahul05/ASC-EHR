@@ -139,6 +139,11 @@ describe("worklist.schema (Phase P12, REQ-5, REQ-8, REQ-9)", () => {
       expect(parsed.ownerCapability).toBe("hp.document");
     });
 
+    it("accepts empty payload so claiming defaults to authenticated principal", () => {
+      const parsed = claimWorkItemSchema.parse({});
+      expect(parsed).toEqual({});
+    });
+
     it("rejects empty claimedBy string", () => {
       const result = claimWorkItemSchema.safeParse({
         claimedBy: "",

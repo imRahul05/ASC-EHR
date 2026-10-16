@@ -12,6 +12,7 @@
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import type * as AscUi from "@asc/ui";
 import type { WorkItem } from "@asc/types";
 import { WorklistView } from "./worklist-view";
 
@@ -68,7 +69,7 @@ vi.mock("@/hooks/use-can", () => ({
 }));
 
 vi.mock("@asc/ui", async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
+  const actual = await importOriginal<typeof AscUi>();
   return {
     ...actual,
     useNow: () => Date.parse("2026-10-14T10:00:00Z"),
@@ -77,7 +78,7 @@ vi.mock("@asc/ui", async (importOriginal) => {
 
 vi.mock("@asc/api-client/react", () => ({
   useWorklist: () => ({
-    data: MOCK_ITEMS,
+    data: { items: MOCK_ITEMS, total: MOCK_ITEMS.length },
     isPending: false,
     isError: false,
     refetch: vi.fn(),
@@ -93,7 +94,7 @@ vi.mock("@asc/api-client/react", () => ({
 }));
 
 describe("WorklistView (Phase P12)", () => {
-  it("renders all queue pills (nursing, financial, physician, front desk, coding, pathology)", () => {
+  it("renders all queue pills (nursing, financial, physician, front desk, coding, pathology, anesthesia)", () => {
     mockSearchParams = new URLSearchParams();
     const html = renderToStaticMarkup(<WorklistView />);
 
@@ -104,6 +105,7 @@ describe("WorklistView (Phase P12)", () => {
     expect(html).toContain("Front Desk");
     expect(html).toContain("Coding");
     expect(html).toContain("Pathology");
+    expect(html).toContain("Anesthesia");
   });
 
   it("renders timeline milestone badges (T-7d, T-3d, T-0)", () => {

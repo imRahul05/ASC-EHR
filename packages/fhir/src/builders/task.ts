@@ -89,7 +89,12 @@ export function buildTask(input: WorklistTaskInput, urls: FhirUrls = fhirUrls): 
   const code = toCanonicalTaskCode(input.type);
   const encounterId = input.encounterId ?? input.caseId;
   const due = input.dueBy ?? input.dueAt;
-  const desc = input.description ?? input.detail ?? input.title;
+  const desc =
+    input.description !== undefined
+      ? input.description
+      : input.detail !== undefined && input.detail.trim().length > 0
+        ? input.detail
+        : input.title;
 
   const extensions: Extension[] = [];
   if (input.title !== undefined) {

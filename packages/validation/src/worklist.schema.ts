@@ -67,16 +67,12 @@ export const createWorkItemSchema = z.object({
 export type CreateWorkItemSchemaInput = z.infer<typeof createWorkItemSchema>;
 export type CreateWorkItemInput = CreateWorkItemSchemaInput;
 
-export const claimWorkItemSchema = z
-  .object({
-    claimedBy: z.string().min(1).max(64).optional(),
-    ownerId: z.string().min(1).max(64).optional(),
-    ownerRole: z.enum(PARTICIPANT_ROLES).optional(),
-    ownerCapability: z.string().min(1).max(128).optional(),
-  })
-  .refine((data) => data.claimedBy !== undefined || data.ownerId !== undefined, {
-    message: "Either claimedBy or ownerId must be provided",
-  });
+export const claimWorkItemSchema = z.object({
+  claimedBy: z.string().min(1).max(64).optional(),
+  ownerId: z.string().min(1).max(64).optional(),
+  ownerRole: z.enum(PARTICIPANT_ROLES).optional(),
+  ownerCapability: z.string().min(1).max(128).optional(),
+});
 
 export type ClaimWorkItemInput = z.infer<typeof claimWorkItemSchema>;
 

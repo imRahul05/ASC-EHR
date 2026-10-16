@@ -460,3 +460,21 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
   4. Build-time `NEXT_PUBLIC_MEDPLUM_BASE_URL` MUST end with a trailing slash (`http://localhost:8103/`).
 - **How to check:** `pnpm turbo run check-types lint test eval build`.
 - **Guarded by:** `packages/db/src/__tests__/*.test.ts`, `.github/workflows/ci.yml`.
+
+### LM-040 — Worklist client-server response contract parity, capability check sequencing, and entity-scoped idempotency
+- **Seen:** 3 · 2026-10-16 · PR #104 Review (`apps/api`, `apps/web`, `packages/validation`, `packages/api-client`)
+- **What went wrong:**
+  1. `GET /worklist` returned paginated `{ items, total }` on the backend, but `@asc/api-client` and MSW returned a raw array `WorkItem[]`, causing `worklist-view.tsx` and `work-items-panel.tsx` to crash with `all.filter is not a function` when connected to the real API.
+  2. `claimWorkItemSchema` had `.refine(...)` requiring `claimedBy` or `ownerId`, rejecting empty body `{}` with HTTP 400 when the UI claim button invoked the route, even though the service defaulted to `principal.id`.
+  3. PreHandler hooks on worklist mutation routes ran `requireIdempotency` and `validateBody` before capability authorization, violating fail-closed security sequence (LM-034, LM-037).
+  4. Idempotency cache key scoping only checked `params.caseId`, omitting `params.itemId` on `/worklist/:itemId/claim`, causing cross-item cache collisions (LM-038).
+  5. MSW mock error codes used ad-hoc strings (`"TASK_ALREADY_COMPLETED"`) instead of `API_ERROR_CODES` (`"work_item_already_completed"`), and `worklist-view.tsx` omitted the `"anesthesia"` queue pill defined in `timeline.ts`.
+- **Rule:**
+  1. API endpoints returning `{ items, total }` MUST be typed as `WorklistResult` across `@asc/types`, `@asc/api-client`, and MSW handlers in lockstep (`LM-006`).
+  2. Action schemas where the actor defaults to the authenticated session (`principal.id`) must accept empty or partial payloads.
+  3. In all Fastify route preHandler pipelines, capability authorization checks MUST strictly precede idempotency replay and body validation.
+  4. `buildScopedIdempotencyKey` must incorporate all route entity parameters (`:caseId`, `:itemId`, `:patientId`, `:referralId`) to isolate caches by resource.
+  5. UI queue filter catalogs must reflect all queues configured in domain rules (including `"anesthesia"`).
+- **How to check:** `pnpm turbo run check-types lint test eval build`.
+- **Guarded by:** `apps/api/src/routes/worklist.test.ts`, `apps/api/src/hooks/idempotency.test.ts`, `packages/validation/src/__tests__/worklist.schema.test.ts`, `apps/web/src/features/worklist/worklist-view.test.tsx`.
+

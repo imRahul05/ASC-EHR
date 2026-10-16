@@ -287,5 +287,64 @@ describe("Worklist Routes", () => {
       });
       expect(completeRes.statusCode).toBe(404);
     });
+
+    it("claims task with empty body defaulting to authenticated principal", async () => {
+      const mockMedplum = new MockClient();
+      built = await buildTestApp({
+        medplumBaseUrl: "http://localhost:8203/",
+        createMedplumClient: () => mockMedplum,
+      });
+
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["preop-nurse"], ["case.read", "case.advance"])],
+        "nurse-jenny",
+      );
+      built.identity.addToken("token-nurse", principal);
+
+      // Create item
+      const createRes = await built.app.inject({
+        method: "POST",
+        url: "/worklist?facilityId=fac-a",
+        headers: bearer("token-nurse"),
+        payload: {
+          type: "prep_instructions",
+          title: "Deliver prep",
+          dueAt: new Date(Date.now() + 86400000).toISOString(),
+        },
+      });
+      const createdItem = createRes.json();
+
+      // Claim with empty body {}
+      const claimRes = await built.app.inject({
+        method: "POST",
+        url: `/worklist/${createdItem.id}/claim?facilityId=fac-a`,
+        headers: bearer("token-nurse"),
+        payload: {},
+      });
+
+      expect(claimRes.statusCode).toBe(200);
+      expect(claimRes.json().status).toBe("claimed");
+      expect(claimRes.json().ownerId).toBe("nurse-jenny");
+    });
+
+    it("rejects with 403 before body validation when user lacks capability (LM-037)", async () => {
+      built = await buildTestApp({ medplumBaseUrl: "http://localhost:8203/" });
+      const principal = staffPrincipal(
+        [facilityGrant("fac-a", ["front-desk"], ["patient.read"])],
+        "user-unauthorized",
+      );
+      built.identity.addToken("token-unauthorized", principal);
+
+      // Sending completely invalid body to POST /worklist/item-1/claim
+      const response = await built.app.inject({
+        method: "POST",
+        url: "/worklist/item-1/claim?facilityId=fac-a",
+        headers: bearer("token-unauthorized"),
+        payload: { ownerRole: "INVALID_ROLE_NOT_IN_ENUM" },
+      });
+
+      // Must be 403 (capability check runs first), not 400 (validation)
+      expect(response.statusCode).toBe(403);
+    });
   });
 });

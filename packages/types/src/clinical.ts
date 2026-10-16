@@ -940,6 +940,11 @@ export interface WorkItem {
   readonly isOverdue?: boolean;
 }
 
+export interface WorklistResult {
+  readonly items: readonly WorkItem[];
+  readonly total: number;
+}
+
 export interface AuditActor {
   readonly id: string;
   readonly name: string;

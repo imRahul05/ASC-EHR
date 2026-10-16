@@ -27,12 +27,12 @@ const PRIORITY_CLASS: Readonly<Record<WorkItem["priority"], string>> = {
 /** Open work items for a role (optionally one type, e.g. the surgeon's sign queue). */
 export function WorkItemsPanel({ role, title, type, limit = 6 }: WorkItemsPanelProps) {
   const list = useWorklist({ role, status: "open", ...(type ? { type } : {}) });
-  const items = (list.data ?? []).slice(0, limit);
+  const items = (list.data?.items ?? []).slice(0, limit);
 
   return (
     <SectionCard
       title={title}
-      description={list.data ? `${list.data.length} open` : undefined}
+      description={list.data ? `${list.data.total} open` : undefined}
       actions={
         <Button variant="ghost" size="sm" render={<Link href={type ? `/worklist?type=${type}` : "/worklist"} />} nativeButton={false}>
           Worklist

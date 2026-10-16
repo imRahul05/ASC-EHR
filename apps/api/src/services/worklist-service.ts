@@ -26,6 +26,7 @@ import {
   type Capability,
   type Principal,
   type WorkItem,
+  type WorklistResult,
 } from "@asc/types";
 import type {
   ClaimWorkItemInput,
@@ -36,11 +37,6 @@ import type {
 import type { MedplumClient } from "@medplum/core";
 import type { Extension, Task } from "@medplum/fhirtypes";
 import type { FastifyBaseLogger } from "fastify";
-
-interface WorklistResult {
-  readonly items: readonly WorkItem[];
-  readonly total: number;
-}
 
 interface GetWorklistParams {
   readonly medplum: MedplumClient;

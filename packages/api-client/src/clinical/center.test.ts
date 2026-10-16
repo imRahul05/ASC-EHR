@@ -27,9 +27,9 @@ describe("worklist client", () => {
   };
 
   it("fetches worklist with query and facility header", async () => {
-    const fetchMock = stubFetch(Response.json([mockWorkItem]));
+    const fetchMock = stubFetch(Response.json({ items: [mockWorkItem], total: 1 }));
     const res = await getWorklist({ facilityId: "fac-1", status: "open" });
-    expect(res).toEqual([mockWorkItem]);
+    expect(res).toEqual({ items: [mockWorkItem], total: 1 });
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:4000/worklist?facilityId=fac-1&status=open",
       expect.objectContaining({
