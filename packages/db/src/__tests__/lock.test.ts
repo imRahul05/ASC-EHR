@@ -25,12 +25,20 @@ describe.skipIf(!url)('withPostgresFacilityLock', () => {
     const facilityId = 'facility-lock-1';
     const executionOrder: string[] = [];
 
+    let resolveOp1Started: () => void = () => {};
+    const op1Started = new Promise<void>((resolve) => {
+      resolveOp1Started = resolve;
+    });
+
     const op1 = withPostgresFacilityLock(runtime.tenantDb, tenantId, facilityId, async () => {
       executionOrder.push('op1-start');
+      resolveOp1Started();
       await new Promise((r) => setTimeout(r, 50));
       executionOrder.push('op1-end');
       return 'res1';
     });
+
+    await op1Started;
 
     const op2 = withPostgresFacilityLock(runtime.tenantDb, tenantId, facilityId, async () => {
       await Promise.resolve();
@@ -50,12 +58,20 @@ describe.skipIf(!url)('withPostgresFacilityLock', () => {
   it('permits concurrent operations across different facilities', async () => {
     const executionOrder: string[] = [];
 
+    let resolveOpAStarted: () => void = () => {};
+    const opAStarted = new Promise<void>((resolve) => {
+      resolveOpAStarted = resolve;
+    });
+
     const opA = withPostgresFacilityLock(runtime.tenantDb, tenantId, 'facility-A', async () => {
       executionOrder.push('opA-start');
+      resolveOpAStarted();
       await new Promise((r) => setTimeout(r, 50));
       executionOrder.push('opA-end');
       return 'A';
     });
+
+    await opAStarted;
 
     const opB = withPostgresFacilityLock(runtime.tenantDb, tenantId, 'facility-B', async () => {
       await Promise.resolve();
