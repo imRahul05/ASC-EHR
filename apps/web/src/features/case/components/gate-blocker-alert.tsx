@@ -1,7 +1,8 @@
 "use client";
 
 import { AlertTriangle, FileSignature, HeartPulse, ShieldAlert, ShieldCheck, XCircle } from "@asc/ui/icons";
-import { Button, cn } from "@asc/ui";
+import { Button } from "@asc/ui/components/ui/button";
+import { cn } from "@asc/ui/lib/utils";
 
 interface GateBlockerAlertProps {
   readonly reasons: readonly string[];

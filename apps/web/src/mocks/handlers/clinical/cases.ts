@@ -4,9 +4,11 @@ import {
   evaluateAnticoagulationHold,
   evaluateEligibilityStatus,
   evaluateFinancialClearance,
+  evaluateGate2WithOverride,
   evaluateHpValidity,
   evaluatePriorAuthValidity,
   findScheduleConflicts,
+  SCOPE_HANG_TIME_HOURS,
   TIME_OUT_ROLES,
   toIsoDate,
   transitionGate,
@@ -27,6 +29,7 @@ import type {
   CopayCollectionResult,
   EligibilityCheckResult,
   FinancialSummary,
+  Gate2OverrideRecord,
   HpAssessment,
   HpDetailResponse,
   PriorAuthResult,
@@ -39,10 +42,12 @@ import type {
   SavePreOpPayload,
   SaveVitalsPayload,
   ScheduleDay,
+  ScopeAssignmentRecord,
   SignConsentPayload,
   SubmitAnticoagulationResult,
   SubmitHpOverrideResult,
   SubmitHpUpdateResult,
+  TimeOutRole,
   TransitionCasePayload,
   VitalsEntry,
 } from "@asc/types";
@@ -51,6 +56,12 @@ import { signConsentSchema, type SignConsentInput } from "@asc/validation/consen
 import { preopAssessmentSchema, type PreopAssessmentInput } from "@asc/validation/preop";
 import { hpOverrideSchema, hpUpdateNoteSchema, type HpOverrideInput, type HpUpdateNoteInput } from "@asc/validation/hp";
 import { anticoagulationAssessmentSchema, type AnticoagulationAssessmentInput } from "@asc/validation/anticoagulation";
+import {
+  assignScopeInputSchema,
+  gate2OverrideInputSchema,
+  signTimeOutInputSchema,
+  type TimeOutParticipantRole,
+} from "@asc/validation/procedure-capture";
 import {
   copayCollectionSchema,
   eligibilityCheckRequestSchema,
@@ -71,10 +82,13 @@ import {
   db,
   getCaseFinancial,
   getCaseOrNull,
+  getScopeAssignment,
   refreshReadiness,
   resolveTarget,
   roomsNow,
+  setGate2Override,
   setPhase,
+  setScopeAssignment,
   updateCase,
   updateCaseFinancial,
 } from "../../db/store";
@@ -94,6 +108,13 @@ const SINGLE_EVENTS: readonly ProcedureEventType[] = [
 ];
 
 const JARS = "ABCDEFGHIJ";
+
+const PARTICIPANT_TIMEOUT_ROLE_MAP: Readonly<Record<TimeOutParticipantRole, TimeOutRole>> = {
+  endoscopist: "SURGEON",
+  circulating_rn: "NURSE",
+  tech: "TECH",
+  anesthesia: "ANESTHESIOLOGIST",
+};
 
 function casesOn(date: string): ProcedureCase[] {
   return [...db().cases.values()]
@@ -677,20 +698,96 @@ export const caseHandlers = [
     const caseId = param(params.caseId);
     const blocked = requirePhase(caseId, ["READY_FOR_PROCEDURE"], "attest the time-out");
     if (blocked) return blocked;
-    const payload = await body<AttestTimeOutPayload>(request);
-    if (!Object.values(payload.checklist).every(Boolean)) {
-      return apiError(409, API_ERROR_CODES.GATE_FAILED, "Complete every time-out item before attesting.", { TIMEOUT_CHECKLIST: "Complete every time-out item." });
-    }
+    const raw = await request.json();
+    const parsed = signTimeOutInputSchema.safeParse(raw);
     const state = db();
     const actor = actorFrom(request);
     const current = caseDetail(caseId)?.timeOut;
     if (!current) return notFound("Case");
+
+    if (parsed.success) {
+      const { checklist, role, participants, completedAt } = parsed.data;
+      if (
+        !checklist.patientIdentity ||
+        !checklist.procedureConfirmed ||
+        !checklist.consentVerified ||
+        !checklist.allergiesReviewed ||
+        !checklist.equipmentReady ||
+        !checklist.anticoagulationReviewed
+      ) {
+        return apiError(409, API_ERROR_CODES.GATE_FAILED, "Complete every required time-out item before attesting.", {
+          TIMEOUT_CHECKLIST: "Complete every required time-out item.",
+        });
+      }
+      let attestations = [...current.attestations];
+      if (role) {
+        attestations = [
+          ...attestations.filter((item) => item.role !== role),
+          { role, by: actor.ref, at: new Date().toISOString() },
+        ];
+      }
+      if (participants && participants.length > 0) {
+        for (const p of participants) {
+          const participantRole: TimeOutRole = PARTICIPANT_TIMEOUT_ROLE_MAP[p.role];
+          attestations = [
+            ...attestations.filter((item) => item.role !== participantRole),
+            {
+              role: participantRole,
+              by: {
+                id: p.userId,
+                name: p.name,
+                initials:
+                  p.name
+                    .split(" ")
+                    .map((s) => s[0])
+                    .join("")
+                    .toUpperCase()
+                    .slice(0, 2) || "MD",
+              },
+              at: p.acknowledgedAt ?? new Date().toISOString(),
+            },
+          ];
+        }
+      }
+      const complete = TIME_OUT_ROLES.every((r) => attestations.some((item) => item.role === r));
+      const formattedParticipants = participants
+        ? participants.map((p) => ({
+            userId: p.userId,
+            name: p.name,
+            role: p.role,
+            acknowledgedAt: p.acknowledgedAt ?? new Date().toISOString(),
+          }))
+        : current.participants;
+
+      state.timeOut.set(caseId, {
+        caseId,
+        checklist,
+        participants: formattedParticipants,
+        attestations,
+        ...(complete ? { completedAt: completedAt ?? new Date().toISOString() } : {}),
+      });
+      audit(actor, "timeout.attest", { type: "ProcedureCase", id: caseId }, `Time-out attested`);
+      refreshReadiness(caseId);
+      return detailResponse(caseId);
+    }
+
+    const payload = raw as AttestTimeOutPayload;
+    if (!Object.values(payload.checklist).every(Boolean)) {
+      return apiError(409, API_ERROR_CODES.GATE_FAILED, "Complete every time-out item before attesting.", {
+        TIMEOUT_CHECKLIST: "Complete every time-out item.",
+      });
+    }
     const attestations = [
       ...current.attestations.filter((item) => item.role !== payload.role),
       { role: payload.role, by: actor.ref, at: new Date().toISOString() },
     ];
-    const complete = TIME_OUT_ROLES.every((role) => attestations.some((item) => item.role === role));
-    state.timeOut.set(caseId, { caseId, checklist: payload.checklist, attestations, ...(complete ? { completedAt: new Date().toISOString() } : {}) });
+    const complete = TIME_OUT_ROLES.every((r) => attestations.some((item) => item.role === r));
+    state.timeOut.set(caseId, {
+      caseId,
+      checklist: payload.checklist,
+      attestations,
+      ...(complete ? { completedAt: new Date().toISOString() } : {}),
+    });
     audit(actor, "timeout.attest", { type: "ProcedureCase", id: caseId }, `Time-out attested (${payload.role})`);
     refreshReadiness(caseId);
     return detailResponse(caseId);
@@ -701,20 +798,111 @@ export const caseHandlers = [
     const caseId = param(params.caseId);
     const blocked = requirePhase(caseId, ["READY_FOR_PROCEDURE", "IN_PROCEDURE"], "record procedure events");
     if (blocked) return blocked;
-    const payload = await body<AddProcedureEventPayload>(request);
+    const payload = await body<AddProcedureEventPayload & { recordedAt?: string }>(request);
     const state = db();
     const events = state.events.get(caseId) ?? [];
     if (SINGLE_EVENTS.includes(payload.type) && events.some((event) => event.type === payload.type)) {
       return apiError(409, "EVENT_DUPLICATE", `${payload.type.toLowerCase().replaceAll("_", " ")} is already recorded.`);
     }
     const actor = actorFrom(request);
-    const at = payload.at ?? new Date().toISOString();
-    state.events.set(caseId, [...events, { id: newId("evt"), caseId, type: payload.type, at, by: actor.ref, ...(payload.note ? { note: payload.note } : {}) }]);
-    // A new case has no stored anesthesia record yet — start from the default so sedation times stay in sync.
+    const at = payload.at ?? payload.recordedAt ?? new Date().toISOString();
+    state.events.set(caseId, [
+      ...events,
+      { id: newId("evt"), caseId, type: payload.type, at, by: actor.ref, ...(payload.note ? { note: payload.note } : {}) },
+    ]);
     const anesthesia = state.anesthesia.get(caseId) ?? caseDetail(caseId)?.anesthesia;
     if (anesthesia && payload.type === "SEDATION_START") state.anesthesia.set(caseId, { ...anesthesia, sedationStart: at });
     if (anesthesia && payload.type === "SEDATION_END") state.anesthesia.set(caseId, { ...anesthesia, sedationEnd: at });
     audit(actor, "procedure.event", { type: "ProcedureCase", id: caseId }, `Event ${payload.type}`);
+    return detailResponse(caseId);
+  }),
+
+  http.post(apiUrl(P.caseScope), async ({ params, request }) => {
+    await latency();
+    const caseId = param(params.caseId);
+    const blocked = requirePhase(caseId, ["PRE_OP", "READY_FOR_PROCEDURE", "IN_PROCEDURE"], "assign endoscope");
+    if (blocked) return blocked;
+
+    const raw = await request.json();
+    const parsed = assignScopeInputSchema.safeParse(raw);
+    if (!parsed.success) {
+      return apiError(400, "VALIDATION_FAILED", "Invalid scope assignment payload", formatZodError(parsed.error).details);
+    }
+    const input = parsed.data;
+    const assignedAt = input.assignedAt ?? new Date().toISOString();
+    const reprocessedAtMs = Date.parse(input.reprocessedAt);
+    const assignedAtMs = Date.parse(assignedAt);
+    const hangTimeHours = Math.max(0, (assignedAtMs - reprocessedAtMs) / 3_600_000);
+    const withinHangTimeWindow =
+      hangTimeHours <= SCOPE_HANG_TIME_HOURS && input.leakTestResult === "PASS" && input.cycleOutcome === "PASS";
+
+    const actor = actorFrom(request);
+    const scopeRecord: ScopeAssignmentRecord = {
+      scopeSerial: input.scopeSerial,
+      scopeModel: input.scopeModel,
+      reprocessedAt: input.reprocessedAt,
+      assignedAt,
+      assignedBy: actor.ref,
+      leakTestResult: input.leakTestResult,
+      cycleOutcome: input.cycleOutcome,
+      hangTimeHours: Math.round(hangTimeHours * 10) / 10,
+      withinHangTimeWindow,
+    };
+    setScopeAssignment(caseId, scopeRecord);
+    audit(
+      actor,
+      "scope.assign",
+      { type: "ProcedureCase", id: caseId },
+      `Assigned scope ${input.scopeSerial} (hang time: ${scopeRecord.hangTimeHours}h, valid: ${withinHangTimeWindow})`,
+    );
+    refreshReadiness(caseId);
+    return detailResponse(caseId);
+  }),
+
+  http.post(apiUrl(P.caseGate2Override), async ({ params, request }) => {
+    await latency();
+    const caseId = param(params.caseId);
+    const blocked = requirePhase(caseId, ["PRE_OP", "READY_FOR_PROCEDURE"], "override Gate 2");
+    if (blocked) return blocked;
+
+    const currentScope = getScopeAssignment(caseId);
+    if (currentScope && !currentScope.withinHangTimeWindow) {
+      return apiError(
+        409,
+        "SCOPE_LOCK_VIOLATION",
+        "Cannot override Gate 2 while an active endoscope hang-time violation exists. ST91:2021 mandates scope reprocessing.",
+        { SCOPE_LOCK_VIOLATION: "Scope hang time exceeds 168 hours or failed decontamination." },
+      );
+    }
+
+    const raw = await request.json();
+    const parsed = gate2OverrideInputSchema.safeParse(raw);
+    if (!parsed.success) {
+      return apiError(400, "VALIDATION_FAILED", "Invalid Gate 2 override payload", formatZodError(parsed.error).details);
+    }
+    const input = parsed.data;
+    const actor = actorFrom(request);
+    const currentDetail = caseDetail(caseId);
+    const gate2Eval = evaluateGate2WithOverride({
+      checks: currentDetail?.case.readinessChecks ?? [],
+    });
+
+    const overrideRecord: Gate2OverrideRecord = {
+      actorId: actor.id,
+      actorName: input.actorName || actor.name,
+      actorRole: input.actorRole ?? actor.role,
+      reason: input.reason,
+      overriddenBlockers: gate2Eval.blockerCodes ?? [],
+      overriddenAt: input.overriddenAt ?? new Date().toISOString(),
+    };
+    setGate2Override(caseId, overrideRecord);
+    audit(
+      actor,
+      "gate2.override",
+      { type: "ProcedureCase", id: caseId },
+      `Gate 2 clinical override by ${overrideRecord.actorName}: ${overrideRecord.reason}`,
+    );
+    refreshReadiness(caseId);
     return detailResponse(caseId);
   }),
 

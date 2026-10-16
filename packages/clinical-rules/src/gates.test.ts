@@ -10,8 +10,10 @@ import { describe, expect, it } from "vitest";
 import {
   evaluateGate1,
   evaluateGate2,
+  evaluateGate2WithOverride,
   evaluateScopeHangTime,
   SCOPE_HANG_TIME_HOURS,
+  timeOutGate,
   transitionGate,
 } from "./gates";
 
@@ -512,3 +514,73 @@ describe("transitionGate integration", () => {
     expect(transitionGate(detail, "preop").ok).toBe(true);
   });
 });
+
+describe("timeOutGate", () => {
+  const completeChecklist = {
+    patientIdentity: true,
+    procedureConfirmed: true,
+    consentVerified: true,
+    allergiesReviewed: true,
+    equipmentReady: true,
+    anticoagulationReviewed: true,
+  };
+  const completeAttestations = [
+    { role: "SURGEON" as const, by: { id: "s-1", name: "Dr. S", initials: "DS" }, at: "2026-10-16T10:00:00.000Z" },
+    { role: "NURSE" as const, by: { id: "s-2", name: "Nurse A", initials: "NA" }, at: "2026-10-16T10:00:00.000Z" },
+    { role: "ANESTHESIOLOGIST" as const, by: { id: "s-3", name: "Dr. A", initials: "DA" }, at: "2026-10-16T10:00:00.000Z" },
+  ];
+
+  it("evaluates timeout completeness and failures", () => {
+    const base = { caseId: "c-1", checklist: completeChecklist, attestations: completeAttestations };
+    expect(timeOutGate(base).ok).toBe(true);
+    expect(timeOutGate({ ...base, checklist: { ...completeChecklist, consentVerified: false } }).ok).toBe(false);
+    expect(timeOutGate({ ...base, attestations: [completeAttestations[0]!] }).ok).toBe(false);
+    expect(timeOutGate({ ...base, checklist: { ...completeChecklist, siteAndLateralityConfirmed: false } }).ok).toBe(false);
+  });
+
+  it("validates multi-role participants when provided", () => {
+    const timeOut = {
+      caseId: "c-1",
+      checklist: completeChecklist,
+      attestations: completeAttestations,
+      participants: [
+        { userId: "u-1", name: "Alice", role: "circulating_rn" as const, acknowledgedAt: "2026-10-16T10:00:00.000Z" },
+        { userId: "u-2", name: "Dr. E", role: "endoscopist" as const, acknowledgedAt: "2026-10-16T10:00:00.000Z" },
+      ],
+    };
+    expect(timeOutGate(timeOut).ok).toBe(true);
+    expect(timeOutGate({ ...timeOut, participants: [{ userId: "u-1", name: "Alice", role: "circulating_rn" as const, acknowledgedAt: "2026-10-16T10:00:00.000Z" }] }).ok).toBe(false);
+  });
+});
+
+describe("evaluateGate2WithOverride", () => {
+  const passingChecks = [check("anesthesia_clearance", "satisfied"), check("anticoagulation", "satisfied"), check("equipment", "satisfied"), check("escort", "satisfied")];
+  const failingChecks = [check("anesthesia_clearance", "satisfied"), check("anticoagulation", "satisfied"), check("equipment", "satisfied"), check("escort", "pending")];
+
+  it("evaluates clinical readiness and permitted physician/anesthesia overrides", () => {
+    expect(evaluateGate2WithOverride({ checks: passingChecks }).ok).toBe(true);
+    expect(evaluateGate2WithOverride({ checks: failingChecks }).blockerCodes).toContain("GATE2_ESCORT");
+
+    const validMd = evaluateGate2WithOverride({ checks: failingChecks, override: { actorRole: "gi-physician", actorName: "Dr. House", reason: "Private transport arranged directly." } });
+    expect(validMd.ok).toBe(true);
+    expect(validMd.overridden).toBe(true);
+
+    const validAnes = evaluateGate2WithOverride({ checks: failingChecks, override: { actorRole: "anesthesia", actorName: "Dr. Sleep", reason: "Cleared for discharge to verified escort." } });
+    expect(validAnes.ok).toBe(true);
+
+    expect(evaluateGate2WithOverride({ checks: failingChecks, override: { actorRole: "circulating-nurse", reason: "Transport verified." } }).ok).toBe(false);
+    expect(evaluateGate2WithOverride({ checks: failingChecks, override: { actorRole: "gi-physician", reason: "urgent" } }).ok).toBe(false);
+  });
+
+  it("strictly refuses override when active scope lock violation exists (AC-I-05-4)", () => {
+    const result = evaluateGate2WithOverride({
+      checks: passingChecks,
+      hasActiveScopeLockViolation: true,
+      override: { actorRole: "gi-physician", reason: "Attending physician explicitly authorizes immediate entry." },
+    });
+    expect(result.ok).toBe(false);
+    expect(result.blockerCodes).toContain("SCOPE_LOCK_VIOLATION");
+    expect(result.reasons[0]?.message).toContain("Zero overrides permitted");
+  });
+});
+

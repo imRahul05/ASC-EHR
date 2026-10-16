@@ -1,11 +1,20 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BookCaseInput } from "@asc/validation/cases/book";
 import { ApiError } from "../http";
-import { bookCase, getCase, getSchedule, transitionCase } from "./cases";
+import {
+  assignScope,
+  bookCase,
+  getCase,
+  getSchedule,
+  overrideGate2,
+  recordProcedureEvent,
+  signTimeOut,
+  transitionCase,
+} from "./cases";
 
 function stubFetch(response: Response | Error) {
   const fn = vi.fn((_input: string, _init?: RequestInit) =>
-    response instanceof Error ? Promise.reject(response) : Promise.resolve(response),
+    response instanceof Error ? Promise.reject(response) : Promise.resolve(response.clone()),
   );
   vi.stubGlobal("fetch", fn);
   return fn;
@@ -107,5 +116,50 @@ describe("bookCase", () => {
     expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({
       "x-facility-id": "fac-101",
     });
+  });
+
+  it("posts to /cases/:id/events with facility header and query", async () => {
+    const fetchMock = stubFetch(Response.json({ case: { id: "c-1" } }));
+    await recordProcedureEvent("c-1", { type: "SCOPE_IN", recordedAt: "2026-10-15T09:10:00Z" }, "fac-101");
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("http://localhost:4000/cases/c-1/events?facilityId=fac-101");
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({ "x-facility-id": "fac-101" });
+  });
+
+  it("posts to /cases/:id/time-out with checklist attestation", async () => {
+    const fetchMock = stubFetch(Response.json({ case: { id: "c-1" } }));
+    await signTimeOut("c-1", {
+      role: "SURGEON",
+      checklist: {
+        patientIdentity: true,
+        procedureConfirmed: true,
+        consentVerified: true,
+        allergiesReviewed: true,
+        equipmentReady: true,
+        anticoagulationReviewed: true,
+        siteAndLateralityConfirmed: true,
+        prophylaxisReviewed: true,
+        anticipatedIssuesReviewed: true,
+      },
+    });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("http://localhost:4000/cases/c-1/time-out");
+  });
+
+  it("posts to /cases/:id/scope and /cases/:id/gate2-override", async () => {
+    const fetchMock = stubFetch(Response.json({ case: { id: "c-1" } }));
+    await assignScope("c-1", {
+      scopeSerial: "SN-9001",
+      scopeModel: "CF-H190L",
+      reprocessedAt: "2026-10-14T10:00:00Z",
+      leakTestResult: "PASS",
+      cycleOutcome: "PASS",
+    });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("http://localhost:4000/cases/c-1/scope");
+
+    await overrideGate2("c-1", {
+      reason: "Clinical emergency requires immediate start despite unconfirmed ride",
+      actorName: "Dr. Smith",
+      actorRole: "SURGEON",
+    });
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("http://localhost:4000/cases/c-1/gate2-override");
   });
 });

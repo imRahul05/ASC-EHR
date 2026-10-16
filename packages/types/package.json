@@ -10,7 +10,8 @@
     "./authz": "./src/authz.ts",
     "./case-stage": "./src/case-stage.ts",
     "./financial": "./src/financial.ts",
-    "./errors": "./src/errors.ts"
+    "./errors": "./src/errors.ts",
+    "./clinical": "./src/clinical.ts"
   },
   "scripts": {
     "lint": "eslint --max-warnings 0",

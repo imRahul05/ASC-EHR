@@ -20,13 +20,14 @@ interface TimeOutPanelProps {
 
 const ITEMS = Object.keys(TIME_OUT_ITEM_LABEL) as (keyof TimeOutChecklist)[];
 
-const ROLE_SHORT: Readonly<Record<TimeOutRole, string>> = { SURGEON: "MD", NURSE: "RN", ANESTHESIOLOGIST: "CRNA" };
+const ROLE_SHORT: Readonly<Record<TimeOutRole, string>> = { SURGEON: "MD", NURSE: "RN", ANESTHESIOLOGIST: "CRNA", TECH: "ST" };
 
 function teamMember(detail: CaseDetail, role: TimeOutRole): StaffRef {
   const byRole: Readonly<Record<TimeOutRole, StaffRef>> = {
     SURGEON: detail.case.team.surgeon,
     NURSE: detail.case.team.nurse,
     ANESTHESIOLOGIST: detail.case.team.anesthesia,
+    TECH: { id: "tech-staff", name: "GI Tech", initials: "ST" },
   };
   return byRole[role];
 }
@@ -43,7 +44,12 @@ function itemFact(detail: CaseDetail, item: keyof TimeOutChecklist): string {
       patient.allergies.length === 0 ? "No known allergies" : patient.allergies.map((allergy) => allergy.substance).join(", "),
     anticoagulationReviewed:
       holds.length === 0 ? "No holds required" : holds.map((med) => `${med.name} (${med.holdStatus.replaceAll("_", " ")})`).join(", "),
-    equipmentReady: "Scope, suction, CO₂ insufflation, snares",
+    equipmentReady: detail.scopeAssignment
+      ? `Scope ${detail.scopeAssignment.scopeSerial} (hang time: ${detail.scopeAssignment.hangTimeHours}h)`
+      : "Scope, suction, CO₂ insufflation, snares",
+    siteAndLateralityConfirmed: procedureCase.procedureLabel,
+    prophylaxisReviewed: "Antibiotics reviewed or not indicated",
+    anticipatedIssuesReviewed: "Airway, blood loss, and critical steps reviewed",
   };
   return facts[item];
 }

@@ -4,26 +4,35 @@ import { useState } from "react";
 import { ApiError } from "@asc/api-client";
 import { useCase } from "@asc/api-client/react";
 import { formatTime24, formatWeekday } from "@asc/clinical-rules/time";
-import {
-  ErrorState,
-  LoadingSkeleton,
-  PatientBanner,
-  PhaseStepper,
-  SectionCard,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@asc/ui";
+import { ErrorState } from "@asc/ui/components/clinical/error-state";
+import { LoadingSkeleton } from "@asc/ui/components/clinical/loading-skeleton";
+import { PatientBanner } from "@asc/ui/components/clinical/patient-banner";
+import { PhaseStepper } from "@asc/ui/components/clinical/phase-stepper";
+import { SectionCard } from "@asc/ui/components/clinical/section-card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@asc/ui/components/ui/tabs";
+import dynamic from "next/dynamic";
 import { TabHint } from "../guide/tab-hint";
 import { CASE_TABS } from "./case-tabs";
-import { ConsentModal } from "./components/consent-modal";
-import { HpOverrideModal } from "./components/hp-override-modal";
-import { HpUpdateModal } from "./components/hp-update-modal";
-import { PreopIntakeDrawer } from "./components/preop-intake-drawer";
 import { GatePanel } from "./gate-panel";
 import { PhaseHistory } from "./phase-history";
 import { useCaseTab } from "./use-case-tab";
+
+const ConsentModal = dynamic(
+  () => import("./components/consent-modal").then((m) => m.ConsentModal),
+  { ssr: false },
+);
+const HpOverrideModal = dynamic(
+  () => import("./components/hp-override-modal").then((m) => m.HpOverrideModal),
+  { ssr: false },
+);
+const HpUpdateModal = dynamic(
+  () => import("./components/hp-update-modal").then((m) => m.HpUpdateModal),
+  { ssr: false },
+);
+const PreopIntakeDrawer = dynamic(
+  () => import("./components/preop-intake-drawer").then((m) => m.PreopIntakeDrawer),
+  { ssr: false },
+);
 
 interface CaseWorkspaceProps {
   readonly caseId: string;

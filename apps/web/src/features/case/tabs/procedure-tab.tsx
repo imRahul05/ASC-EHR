@@ -7,9 +7,11 @@ import { EmptyState, ErrorState, LoadingSkeleton } from "@asc/ui";
 import { BadgeCheck, DoorClosed } from "@asc/ui/icons";
 import { BbpsEntry } from "../procedure/bbps-entry";
 import { EventTapBar } from "../procedure/event-tap-bar";
+import { Gate2OverrideBar } from "../procedure/gate2-override-bar";
 import { ImageCaptureGrid } from "../procedure/image-capture-grid";
 import { NarrationPanel } from "../procedure/narration-panel";
 import { RoomStatusBar } from "../procedure/room-status-bar";
+import { ScopeAssignmentCard } from "../procedure/scope-assignment-card";
 import { SpecimenPanel } from "../procedure/specimen-panel";
 import { TimeOutPanel } from "../procedure/time-out-panel";
 
@@ -55,6 +57,10 @@ export function ProcedureTab({ caseId }: ProcedureTabProps) {
   return (
     <div className="@container space-y-4 text-base" data-testid="case-tab-procedure" data-room-mode>
       <RoomStatusBar detail={detail} />
+
+      <ScopeAssignmentCard detail={detail} editable={phase === "READY_FOR_PROCEDURE"} />
+
+      {phase === "READY_FOR_PROCEDURE" && <Gate2OverrideBar detail={detail} />}
 
       {phase === "READY_FOR_PROCEDURE" ? (
         <TimeOutPanel detail={detail} />

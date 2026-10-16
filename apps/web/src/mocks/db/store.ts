@@ -5,9 +5,11 @@ import type {
   CaseDetail,
   CasePhase,
   CaseStage,
+  Gate2OverrideRecord,
   PatientListItem,
   ProcedureCase,
   Room,
+  ScopeAssignmentRecord,
   StaffRef,
   WorkItem,
 } from "@asc/types";
@@ -36,6 +38,8 @@ interface CaseFinancialRecord {
 }
 
 const financialRecords = new Map<string, CaseFinancialRecord>();
+const scopeAssignments = new Map<string, ScopeAssignmentRecord>();
+const gate2Overrides = new Map<string, Gate2OverrideRecord>();
 
 export function getCaseFinancial(caseId: string): CaseFinancialRecord {
   let record = financialRecords.get(caseId);
@@ -68,6 +72,22 @@ export function updateCaseFinancial(caseId: string, patch: Partial<CaseFinancial
   return updated;
 }
 
+export function getScopeAssignment(caseId: string): ScopeAssignmentRecord | null {
+  return scopeAssignments.get(caseId) ?? null;
+}
+
+export function setScopeAssignment(caseId: string, record: ScopeAssignmentRecord): void {
+  scopeAssignments.set(caseId, record);
+}
+
+export function getGate2Override(caseId: string): Gate2OverrideRecord | null {
+  return gate2Overrides.get(caseId) ?? null;
+}
+
+export function setGate2Override(caseId: string, record: Gate2OverrideRecord): void {
+  gate2Overrides.set(caseId, record);
+}
+
 export function db() {
   return state;
 }
@@ -75,6 +95,8 @@ export function db() {
 export function resetDb(): void {
   state = createSeedState();
   financialRecords.clear();
+  scopeAssignments.clear();
+  gate2Overrides.clear();
 }
 
 // ─── Actor (from the mock bearer token) ─────────────────────────────────────
@@ -340,6 +362,8 @@ export function caseDetail(caseId: string): CaseDetail | null {
       surveillanceSet: state.surveillance.has(caseId),
       lettersSent: state.letters.get(caseId)?.length ?? 0,
     },
+    scopeAssignment: scopeAssignments.get(caseId) ?? null,
+    gate2Override: gate2Overrides.get(caseId) ?? null,
   };
 }
 

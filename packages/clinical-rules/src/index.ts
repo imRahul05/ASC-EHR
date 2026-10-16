@@ -17,5 +17,7 @@ export * from "./scheduling/conflicts";
 export * from "./hp/validity";
 export * from "./med-hold/anticoagulation";
 export * from "./financial/index";
+export * from "./scope-lock";
 export * from "./worklist/timeline";
+
 

@@ -53,3 +53,13 @@ export type FhirUrls = ReturnType<typeof createFhirUrls>;
 
 /** The URLs for the default base. Apps with an override call `createFhirUrls(base)` instead. */
 export const fhirUrls: FhirUrls = createFhirUrls();
+
+/** Standard LOINC codes for surgical timeout, intra-op events, quality metrics, and reprocessing. */
+export const LOINC_CODES = {
+  SURGICAL_TIMEOUT: "83034-9",
+  INTRAOP_EVENT: "59776-5",
+  WITHDRAWAL_TIME: "81239-6",
+  SCOPE_VERIFICATION: "74465-6",
+  GATE2_OVERRIDE: "74468-0",
+} as const;
+

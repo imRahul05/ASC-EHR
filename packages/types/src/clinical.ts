@@ -407,7 +407,7 @@ export interface VitalsEntry {
 
 // ─── Procedure room ─────────────────────────────────────────────────────────
 
-export type TimeOutRole = "SURGEON" | "NURSE" | "ANESTHESIOLOGIST";
+export type TimeOutRole = "SURGEON" | "NURSE" | "ANESTHESIOLOGIST" | "TECH";
 
 export interface TimeOutChecklist {
   readonly patientIdentity: boolean;
@@ -416,6 +416,18 @@ export interface TimeOutChecklist {
   readonly allergiesReviewed: boolean;
   readonly equipmentReady: boolean;
   readonly anticoagulationReviewed: boolean;
+  readonly siteAndLateralityConfirmed?: boolean;
+  readonly prophylaxisReviewed?: boolean;
+  readonly anticipatedIssuesReviewed?: boolean;
+}
+
+export type TimeOutParticipantRole = "circulating_rn" | "endoscopist" | "anesthesia" | "tech";
+
+export interface TimeOutParticipant {
+  readonly userId: string;
+  readonly name: string;
+  readonly role: TimeOutParticipantRole;
+  readonly acknowledgedAt: IsoDateTime;
 }
 
 export interface TimeOutAttestation {
@@ -428,19 +440,49 @@ export interface TimeOutRecord {
   readonly caseId: string;
   readonly checklist: TimeOutChecklist;
   readonly attestations: readonly TimeOutAttestation[];
+  readonly participants?: ReadonlyArray<TimeOutParticipant>;
+  readonly fhirObservationId?: string;
   readonly completedAt?: IsoDateTime;
 }
 
-export type ProcedureEventType =
-  | "SEDATION_START"
-  | "SCOPE_IN"
-  | "CECUM_REACHED"
-  | "TERMINAL_ILEUM"
-  | "WITHDRAWAL_START"
-  | "POLYP_FOUND"
-  | "SCOPE_OUT"
-  | "SEDATION_END"
-  | "COMPLICATION";
+export const PROCEDURE_EVENT_TYPES = [
+  "ROOM_IN",
+  "SEDATION_START",
+  "SCOPE_IN",
+  "CECUM_REACHED",
+  "TERMINAL_ILEUM",
+  "WITHDRAWAL_START",
+  "POLYP_FOUND",
+  "SCOPE_OUT",
+  "SEDATION_END",
+  "ROOM_OUT",
+  "COMPLICATION",
+] as const;
+
+export type ProcedureEventType = (typeof PROCEDURE_EVENT_TYPES)[number];
+
+export interface ScopeAssignmentRecord {
+  readonly scopeSerial: string;
+  readonly scopeModel?: string;
+  readonly reprocessedAt: IsoDateTime;
+  readonly assignedAt: IsoDateTime;
+  readonly assignedBy: StaffRef;
+  readonly leakTestResult: "PASS" | "FAIL";
+  readonly cycleOutcome: "PASS" | "FAIL";
+  readonly hangTimeHours: number;
+  readonly withinHangTimeWindow: boolean;
+  readonly fhirObservationId?: string;
+}
+
+export interface Gate2OverrideRecord {
+  readonly overriddenAt: IsoDateTime;
+  readonly actorId: string;
+  readonly actorName: string;
+  readonly actorRole: string;
+  readonly reason: string;
+  readonly overriddenBlockers: ReadonlyArray<string>;
+  readonly fhirObservationId?: string;
+}
 
 export interface ProcedureEvent {
   readonly id: string;
@@ -814,6 +856,8 @@ export interface CaseDetail {
   readonly aldrete: AldreteScore | null;
   readonly discharge: DischargeInstructions | null;
   readonly summary: CaseSummaryFlags;
+  readonly scopeAssignment?: ScopeAssignmentRecord | null;
+  readonly gate2Override?: Gate2OverrideRecord | null;
 }
 
 // ─── Schedule, rooms, whiteboard ────────────────────────────────────────────

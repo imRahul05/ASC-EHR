@@ -12,8 +12,8 @@ import {
   transitionGate,
 } from "@asc/clinical-rules";
 import type { CaseDetail, CasePhase } from "@asc/types";
+import { Button } from "@asc/ui/components/ui/button";
 import {
-  Button,
   Dialog,
   DialogClose,
   DialogContent,
@@ -21,10 +21,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  GateChecklist,
-  SectionCard,
-  toast,
-} from "@asc/ui";
+} from "@asc/ui/components/ui/dialog";
+import { GateChecklist } from "@asc/ui/components/clinical/gate-checklist";
+import { SectionCard } from "@asc/ui/components/clinical/section-card";
+import { toast } from "@asc/ui/components/ui/sonner";
 import { ArrowRight, LoaderCircle } from "@asc/ui/icons";
 
 import { GateBlockerAlert } from "./components/gate-blocker-alert";

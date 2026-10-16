@@ -443,7 +443,6 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **Rule:**
   1. Idempotency cache keys MUST always be compositely scoped: `${tenantId}:${method}:${routeUrl}:${caseId ?? ""}:${rawKey}`. Never trust or cache raw client keys globally.
   2. Use `clinicalMutationRoute` and `clinicalQueryRoute` route definition helpers. They bind `config.auth.capability` and the preHandler pipeline from a single capability argument, eliminating capability drift by construction.
-- **How to check:** `pnpm turbo run check-types lint test build`.
 - **Guarded by:** `apps/api/src/hooks/idempotency.test.ts`, `apps/api/src/hooks/pipeline.test.ts`.
 
 ### LM-039 — Database test reconciliation with Day-1 architecture and deterministic concurrency synchronization
@@ -478,3 +477,17 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **How to check:** `pnpm turbo run check-types lint test eval build`.
 - **Guarded by:** `apps/api/src/routes/worklist.test.ts`, `apps/api/src/hooks/idempotency.test.ts`, `packages/validation/src/__tests__/worklist.schema.test.ts`, `apps/web/src/features/worklist/worklist-view.test.tsx`.
 
+### LM-041 — High-precision regulatory time math, session-bound audit trail derivation, and multi-role grant resolution
+- **Seen:** 3 · 2026-10-16 · PR #105 Review (`packages/clinical-rules/src/scope-lock.ts`, `apps/api/src/controllers/cases.controller.ts`, `packages/ui/package.json`)
+- **What went wrong:**
+  1. Comparing pre-rounded float numbers (`Math.round(...) / 10 <= 168`) for endoscope hang time allowed a scope at 168.04 hours (168h 2m 24s) to round down to 168.0h and incorrectly pass the hard safety gate. In addition, `Math.max(0, nowMs - reprocessedMs)` silently clamped future timestamps (`reprocessedMs > assignedMs`) to 0 elapsed hours, evaluating hang-time window as true.
+  2. Resolving a user's role with `.flatMap((g) => g.roleKeys)[0]` arbitrarily truncated multiple roles. Clinicians with dual roles (e.g. `["clinical-staff", "gi-physician"]`) were evaluated as `clinical-staff` and erroneously denied with 403 `forbidden`.
+  3. Gate 2 override accepted `actorName` and `actorRole` from the client request body, allowing client-asserted audit spoofing on legal FHIR Observations (LOINC 74468-0), violating CMS 42 CFR § 416.52 and HIPAA 45 CFR § 164.312(b).
+  4. Node.js subpath wildcard `*` in `"./components/*": "./src/components/*.tsx"` matches only single-level paths, rejecting nested subpaths like `@asc/ui/components/clinical/error-state` during isolated Vercel builds.
+- **Rule:**
+  1. Safety-critical thresholds (like ST91 168-hour scope storage window) MUST compare raw milliseconds (`elapsedMs <= 168 * 3_600_000`). Display rounding must only be applied to output strings. Any timestamp inversion (`assignedMs < reprocessedMs`) or `NaN` must immediately fail closed.
+  2. Multi-role grants must be evaluated across all granted role keys (`actorRoles.find(...)`), never truncated via index `[0]`.
+  3. Clinical audit records must be strictly bound from authenticated session credentials (`request.principal.id`, `request.principal.name`), rejecting or ignoring client-asserted identity.
+  4. In `package.json` `"exports"`, provide explicit nested wildcard mappings (`"./components/clinical/*": "./src/components/clinical/*.tsx"`) for all nested component subdirectories.
+- **How to check:** `pnpm turbo run check-types lint test eval build`.
+- **Guarded by:** `packages/clinical-rules/src/scope-lock.test.ts`, `apps/api/src/routes/procedure-capture.test.ts`, `packages/fhir/src/builders/procedure-capture.test.ts`, `packages/ui/package.json`.

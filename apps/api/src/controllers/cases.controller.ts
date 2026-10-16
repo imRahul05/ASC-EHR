@@ -1,6 +1,11 @@
+import { applicableGrants } from "@asc/authz";
 import { API_ERROR_CODES, type ApiErrorCode } from "@asc/types";
 import type {
+  AssignScopeInput,
   BookCaseInput,
+  Gate2OverrideInput,
+  RecordProcedureEventInput,
+  SignTimeOutInput,
   TransitionCaseInput,
 } from "@asc/validation";
 import type { FastifyReply, FastifyRequest } from "fastify";
@@ -11,8 +16,41 @@ import "../plugins/medplum.js";
 import { getCaseContext } from "../hooks/case-context.js";
 import { bookCase, createInMemorySchedulingLock } from "../services/case-booking-service.js";
 import { getCaseDetail, transitionCase } from "../services/case-read-service.js";
+import {
+  assignCaseScope,
+  overrideCaseGate2,
+  PERMITTED_G2_OVERRIDE_ROLES,
+  recordCaseProcedureEvent,
+  recordCaseTimeOut,
+} from "../services/procedure-capture-service.js";
 
 const defaultFallbackLock = createInMemorySchedulingLock();
+
+interface CaptureOperationResult<T> {
+  readonly status: 200 | 403 | 404 | 409;
+  readonly data?: T;
+  readonly code?: string;
+  readonly message?: string;
+  readonly reasons?: readonly { readonly code: string; readonly message: string }[];
+}
+
+function handleCaptureResult<T>(reply: FastifyReply, result: CaptureOperationResult<T>): FastifyReply {
+  if (result.status === 404) {
+    return reply.sendApiError({ code: API_ERROR_CODES.NOT_FOUND, message: result.message ?? "Not found" });
+  }
+  if (result.status === 403) {
+    return reply.sendApiError({ code: API_ERROR_CODES.FORBIDDEN, status: 403, message: result.message ?? "Forbidden" });
+  }
+  if (result.status === 409) {
+    return reply.sendApiError({
+      code: API_ERROR_CODES.GATE_FAILED,
+      status: 409,
+      message: result.message ?? "Gate failed",
+      ...(result.reasons ? { reasons: result.reasons } : {}),
+    });
+  }
+  return reply.code(200).send(result.data);
+}
 
 /**
  * Controller for surgical case management endpoints.
@@ -115,5 +153,83 @@ export const casesController = {
     }
 
     return reply.code(200).send(result.data);
+  },
+
+  async recordTimeOut(request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> {
+    const { caseId, facilityId } = getCaseContext(request);
+    const body = request.body as SignTimeOutInput;
+    const actorId = request.principal?.id ?? "staff-actor";
+    const actorName = request.principal?.id ? `Staff (${request.principal.id})` : "Staff User";
+    const actorRoles = request.principal
+      ? applicableGrants(request.principal, facilityId).flatMap((g) => g.roleKeys)
+      : [];
+    const primaryRole = actorRoles.find(
+      (r) => r === "gi-physician" || r === "attending-physician" || r === "anesthesia" || r === "anesthesiologist",
+    ) ?? actorRoles[0];
+
+    const result = await recordCaseTimeOut({
+      medplum: request.medplum,
+      facilityId,
+      caseId,
+      input: body,
+      actor: { id: actorId, name: actorName, ...(primaryRole ? { role: primaryRole } : {}) },
+      logger: request.log,
+    });
+    return handleCaptureResult(reply, result);
+  },
+
+  async recordProcedureEvent(request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> {
+    const { caseId, facilityId } = getCaseContext(request);
+    const body = request.body as RecordProcedureEventInput;
+    const actorId = request.principal?.id ?? "staff-actor";
+    const actorName = request.principal?.id ? `Staff (${request.principal.id})` : "Staff User";
+
+    const result = await recordCaseProcedureEvent({
+      medplum: request.medplum,
+      facilityId,
+      caseId,
+      input: body,
+      actor: { id: actorId, name: actorName },
+      logger: request.log,
+    });
+    return handleCaptureResult(reply, result);
+  },
+
+  async assignScope(request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> {
+    const { caseId, facilityId } = getCaseContext(request);
+    const body = request.body as AssignScopeInput;
+    const actorId = request.principal?.id ?? "staff-actor";
+    const actorName = request.principal?.id ? `Staff (${request.principal.id})` : "Staff User";
+
+    const result = await assignCaseScope({
+      medplum: request.medplum,
+      facilityId,
+      caseId,
+      input: body,
+      actor: { id: actorId, name: actorName },
+      logger: request.log,
+    });
+    return handleCaptureResult(reply, result);
+  },
+
+  async overrideGate2(request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> {
+    const { caseId, facilityId } = getCaseContext(request);
+    const body = request.body as Gate2OverrideInput;
+    const actorId = request.principal?.id ?? "staff-actor";
+    const actorName = body.actorName?.trim() || (request.principal?.id ? `Staff (${request.principal.id})` : "Staff Physician");
+    const actorRoles = request.principal
+      ? applicableGrants(request.principal, facilityId).flatMap((g) => g.roleKeys)
+      : [];
+    const permittedRole = actorRoles.find((r) => PERMITTED_G2_OVERRIDE_ROLES[r]);
+
+    const result = await overrideCaseGate2({
+      medplum: request.medplum,
+      facilityId,
+      caseId,
+      input: body,
+      actor: { id: actorId, name: actorName, ...(permittedRole ? { role: permittedRole } : {}) },
+      logger: request.log,
+    });
+    return handleCaptureResult(reply, result);
   },
 };

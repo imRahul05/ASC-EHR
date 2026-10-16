@@ -26,6 +26,7 @@
     "./financial/prior-auth-evaluator": "./src/financial/prior-auth-evaluator.ts",
     "./financial/gfe-calculator": "./src/financial/gfe-calculator.ts",
     "./financial": "./src/financial/index.ts",
+    "./scope-lock": "./src/scope-lock.ts",
     "./worklist/timeline": "./src/worklist/timeline.ts",
     "./worklist/*": "./src/worklist/*.ts"
   },

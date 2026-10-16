@@ -50,6 +50,7 @@ export const REMOVAL_METHOD_LABEL: Readonly<Record<RemovalMethod, string>> = {
 };
 
 export const PROCEDURE_EVENT_LABEL: Readonly<Record<ProcedureEventType, string>> = {
+  ROOM_IN: "Room In",
   SEDATION_START: "Sedation start",
   SCOPE_IN: "Scope in",
   CECUM_REACHED: "Cecum reached",
@@ -58,6 +59,7 @@ export const PROCEDURE_EVENT_LABEL: Readonly<Record<ProcedureEventType, string>>
   POLYP_FOUND: "Polyp found",
   SCOPE_OUT: "Scope out",
   SEDATION_END: "Sedation end",
+  ROOM_OUT: "Room Out",
   COMPLICATION: "Complication",
 };
 
@@ -71,6 +73,9 @@ export const TIME_OUT_ITEM_LABEL: Readonly<Record<keyof TimeOutChecklist, string
   allergiesReviewed: "Allergies reviewed",
   anticoagulationReviewed: "Anticoagulation / holds reviewed",
   equipmentReady: "Equipment & scope ready",
+  siteAndLateralityConfirmed: "Site & laterality confirmed",
+  prophylaxisReviewed: "Prophylaxis reviewed",
+  anticipatedIssuesReviewed: "Anticipated issues reviewed",
 };
 
 export const ANESTHESIA_DRUG_LABEL: Readonly<Record<AnesthesiaDrug, string>> = {

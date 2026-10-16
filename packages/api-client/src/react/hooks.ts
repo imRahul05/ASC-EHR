@@ -1,14 +1,13 @@
-import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
-import type { AuditQuery, IsoDate, PatientSearchQuery, ScheduleDay, TransitionCasePayload, WorklistQuery } from "@asc/types";
+import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { AuditQuery, CaseDetail, IsoDate, PatientSearchQuery, ProcedureEvent, ScheduleDay, TransitionCasePayload, WorklistQuery } from "@asc/types";
 import {
   addAnesthesiaEntry,
   addImage,
   addNarration,
-  addProcedureEvent,
   addSpecimen,
   approveDischargeInstructions,
+  assignScope,
   attestCoding,
-  attestTimeOut,
   bookCase,
   checkDuplicatePatient,
   checkEligibility,
@@ -43,9 +42,11 @@ import {
   getWorklist,
   listPatients,
   listReferrals,
+  overrideGate2,
   reconcilePathology,
   recordBbps,
   recordPathologyResult,
+  recordProcedureEvent,
   registerPatient,
   resetDemo,
   resolveGapChip,
@@ -58,6 +59,7 @@ import {
   sendResultLetter,
   setSurveillance,
   signNote,
+  signTimeOut,
   transitionCase,
   updateCodingStatus,
   updateCriticSuggestion,
@@ -68,7 +70,9 @@ import {
 } from "../clinical";
 import type {
   AddImagePayload,
+  AddProcedureEventPayload,
   AddSpecimenPayload,
+  AttestTimeOutPayload,
   ConvertReferralPayload,
   ExportChargesPayload,
   RecordPathologyPayload,
@@ -82,7 +86,13 @@ import type {
   UpdateNoteSectionPayload,
 } from "@asc/types";
 import type { PatientSearchBodyInput } from "@asc/validation/patients/search";
-import { useCaseCommand, useClinicalMutation } from "./mutation";
+import type {
+  AssignScopeInput,
+  Gate2OverrideInput,
+  RecordProcedureEventInput,
+  SignTimeOutInput,
+} from "@asc/validation/procedure-capture";
+import { invalidateClinical, useCaseCommand, useClinicalMutation } from "./mutation";
 import { queryKeys } from "./query-keys";
 
 /** Live-ish views refetch on this interval (Medplum Subscriptions replace it in P05+). */
@@ -240,9 +250,87 @@ export const useCheckIn = (caseId: string) => useCaseCommand(caseId, checkInCase
 export const useSaveHp = (caseId: string) => useCaseCommand(caseId, saveHp);
 export const useSavePreOp = (caseId: string) => useCaseCommand(caseId, savePreOp);
 export const useSaveVitals = (caseId: string) => useCaseCommand(caseId, saveVitals);
-export const useAttestTimeOut = (caseId: string) => useCaseCommand(caseId, attestTimeOut);
-export const useAddProcedureEvent = (caseId: string) => useCaseCommand(caseId, addProcedureEvent);
 export const useRecordBbps = (caseId: string) => useCaseCommand(caseId, recordBbps);
+export const useAttestTimeOut = (caseId: string, facilityId?: string | null) => {
+  const resolvedFacility = facilityId?.trim() || undefined;
+  return useCaseCommand(
+    caseId,
+    (id, payload: SignTimeOutInput | AttestTimeOutPayload) => signTimeOut(id, payload, resolvedFacility),
+    resolvedFacility,
+  );
+};
+export const useSignTimeOut = useAttestTimeOut;
+
+export function useRecordProcedureEvent(caseId: string, facilityId?: string | null) {
+  const queryClient = useQueryClient();
+  const resolvedFacility = facilityId?.trim() || undefined;
+
+  return useMutation({
+    mutationFn: (payload: RecordProcedureEventInput | AddProcedureEventPayload) =>
+      recordProcedureEvent(caseId, payload, resolvedFacility),
+    onMutate: async (newPayload) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.cases.detail(caseId, resolvedFacility) });
+      const previousDetail = queryClient.getQueryData<CaseDetail>(queryKeys.cases.detail(caseId, resolvedFacility));
+
+      if (previousDetail) {
+        const optimisticEvent: ProcedureEvent = {
+          id: `opt-${Date.now()}`,
+          caseId,
+          type: newPayload.type,
+          at:
+            ("at" in newPayload && newPayload.at ? newPayload.at : undefined) ??
+            ("recordedAt" in newPayload && newPayload.recordedAt ? newPayload.recordedAt : undefined) ??
+            new Date().toISOString(),
+          by: { id: "optimistic", name: "Staff User", initials: "SU" },
+          ...(newPayload.note !== undefined ? { note: newPayload.note } : {}),
+        };
+        const optimisticDetail: CaseDetail = {
+          ...previousDetail,
+          events: [...previousDetail.events, optimisticEvent],
+        };
+        queryClient.setQueryData(queryKeys.cases.detail(caseId, resolvedFacility), optimisticDetail);
+        if (resolvedFacility) {
+          queryClient.setQueryData(queryKeys.cases.detail(caseId), optimisticDetail);
+        }
+      }
+      return { previousDetail };
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previousDetail) {
+        queryClient.setQueryData(queryKeys.cases.detail(caseId, resolvedFacility), context.previousDetail);
+        if (resolvedFacility) {
+          queryClient.setQueryData(queryKeys.cases.detail(caseId), context.previousDetail);
+        }
+      }
+    },
+    onSuccess: (detail) => {
+      queryClient.setQueryData(queryKeys.cases.detail(caseId, resolvedFacility), detail);
+      if (resolvedFacility) {
+        queryClient.setQueryData(queryKeys.cases.detail(caseId), detail);
+      }
+      return invalidateClinical(queryClient);
+    },
+  });
+}
+export const useAddProcedureEvent = useRecordProcedureEvent;
+
+export const useAssignScope = (caseId: string, facilityId?: string | null) => {
+  const resolvedFacility = facilityId?.trim() || undefined;
+  return useCaseCommand(
+    caseId,
+    (id, payload: AssignScopeInput) => assignScope(id, payload, resolvedFacility),
+    resolvedFacility,
+  );
+};
+
+export const useOverrideGate2 = (caseId: string, facilityId?: string | null) => {
+  const resolvedFacility = facilityId?.trim() || undefined;
+  return useCaseCommand(
+    caseId,
+    (id, payload: Gate2OverrideInput) => overrideGate2(id, payload, resolvedFacility),
+    resolvedFacility,
+  );
+};
 export const useAddNarration = (caseId: string) => useCaseCommand(caseId, addNarration);
 export const useAddSpecimen = (caseId: string) => useCaseCommand(caseId, (id, payload: AddSpecimenPayload) => addSpecimen(id, payload));
 export const useAddImage = (caseId: string) => useCaseCommand(caseId, (id, payload: AddImagePayload) => addImage(id, payload));
