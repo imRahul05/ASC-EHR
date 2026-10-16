@@ -1,5 +1,13 @@
 # 02 — Build / Reuse / Medplum Matrix
 
+> [!IMPORTANT]
+> **SUPERSEDED BY OCT 7, 2026 MASTER SPECIFICATIONS**
+> This Sept 25, 2026 working draft is retained for historical provenance and MindScript/Medplum mapping context only. Wherever scope, role definitions, case lifecycle, or billing boundaries in this document conflict with the Oct 7 master specs, **[`master-requirements.md`](master-requirements.md)** (`REQ-1`–`REQ-22`) and **[`master-build-specification.md`](master-build-specification.md)** (`EP-A`–`EP-M`, `US-*`) are the sole source of truth:
+> - **Sole EHR & OS (`REQ-1`):** No clinic fallback EHR; ASC OS is the sole system of record on opening day.
+> - **Stage vs. Readiness (`REQ-5`):** 12 physical `CaseStage` states are orthogonal to the 12 computed `Readiness` checks.
+> - **Specialized Nursing Roles (`REQ-3`):** Separate `preop-nurse`, `circulating-nurse`, and `pacu-nurse` roles.
+> - **Full Native RCM (`REQ-8`, `REQ-14`, `REQ-15`):** Full X12 270/271, 278, 837I/837P, 999, 277CA, 835 remittance posting, denial worklists, and patient statements are in scope.
+
 Three sources of already-done work, applied in this order before anyone writes new code:
 
 1. **Medplum** (Apache-2.0, TypeScript, Postgres + Redis — same stack as this repo) → all *healthcare platform plumbing*.
