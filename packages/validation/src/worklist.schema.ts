@@ -22,6 +22,7 @@ import { z } from "zod";
 const FHIR_ID_REGEX = /^[A-Za-z0-9.-]{1,64}$/;
 
 export const worklistQuerySchema = z.object({
+  facilityId: z.string().regex(FHIR_ID_REGEX, "Invalid facilityId format").optional(),
   type: z.enum(WORK_ITEM_TYPES).optional(),
   status: z.enum([...WORK_ITEM_STATUSES, "done"] as const).optional(),
   priority: z
@@ -43,6 +44,7 @@ export const worklistQuerySchema = z.object({
 export type WorklistQuery = z.infer<typeof worklistQuerySchema>;
 
 export const createWorkItemSchema = z.object({
+  facilityId: z.string().regex(FHIR_ID_REGEX, "Invalid facilityId format").optional(),
   type: z.enum(WORK_ITEM_TYPES),
   title: z.string().min(1).max(200),
   detail: z.string().max(2000).default(""),
@@ -62,18 +64,27 @@ export const createWorkItemSchema = z.object({
 });
 
 export type CreateWorkItemSchemaInput = z.infer<typeof createWorkItemSchema>;
+export type CreateWorkItemInput = CreateWorkItemSchemaInput;
 
-export const claimWorkItemSchema = z.object({
-  claimedBy: z.string().min(1).max(64),
-  ownerCapability: z.string().min(1).max(128).optional(),
-});
+export const claimWorkItemSchema = z
+  .object({
+    claimedBy: z.string().min(1).max(64).optional(),
+    ownerId: z.string().min(1).max(64).optional(),
+    ownerRole: z.string().min(1).max(64).optional(),
+    ownerCapability: z.string().min(1).max(128).optional(),
+  })
+  .refine((data) => data.claimedBy !== undefined || data.ownerId !== undefined, {
+    message: "Either claimedBy or ownerId must be provided",
+  });
 
-export type ClaimWorkItemSchemaInput = z.infer<typeof claimWorkItemSchema>;
+export type ClaimWorkItemInput = z.infer<typeof claimWorkItemSchema>;
 
 export const completeWorkItemSchema = z.object({
-  resolvedBy: z.string().min(1).max(64),
+  resolvedBy: z.string().min(1).max(64).optional(),
   resolution: z.string().max(2000).optional(),
   notes: z.string().max(2000).optional(),
+  completedAt: z.string().datetime().optional(),
 });
 
-export type CompleteWorkItemSchemaInput = z.infer<typeof completeWorkItemSchema>;
+export type CompleteWorkItemInput = z.infer<typeof completeWorkItemSchema>;
+

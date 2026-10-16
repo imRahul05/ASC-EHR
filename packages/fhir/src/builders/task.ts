@@ -36,7 +36,7 @@ export interface WorklistTaskInput {
   readonly caseId?: string;
   readonly referralId?: string;
   readonly ownerId?: string;
-  readonly ownerRole?: ParticipantRole;
+  readonly ownerRole?: ParticipantRole | string;
   readonly ownerCapability?: string;
   readonly title?: string;
   readonly description?: string;
