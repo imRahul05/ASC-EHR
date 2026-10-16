@@ -1,5 +1,8 @@
 # P20 — AIMS anesthesia flowsheet (offline-safe)
 
+> [!IMPORTANT]
+> **Active Execution Plan:** See [`docs/plan/execution-roadmap/03-PLAN-P20-AIMS-FLOWSHEET.md`](../execution-roadmap/03-PLAN-P20-AIMS-FLOWSHEET.md) for the authoritative, step-by-step copy-pasteable execution prompt aligned with Anurag Chatterjee's Oct 7, 2026 Master Build Specification (`US-E-05`, `US-F-08`, `US-F-09`, `NFR-2`, `NFR-14`).
+
 | Field | Value |
 |---|---|
 | Wave · Lane · Size | 3 · Clinical · M (critical: highest liability) |
