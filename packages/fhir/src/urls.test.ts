@@ -3,11 +3,19 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { assertCanonicalBase, createFhirUrls, FHIR_CANONICAL_BASE, fhirUrls } from "./urls.js";
+import { assertCanonicalBase, createFhirUrls, FHIR_CANONICAL_BASE, fhirUrls, LOINC_CODES } from "./urls.js";
 
 describe("canonical base", () => {
   it("is the decided base (issue #54)", () => {
     expect(FHIR_CANONICAL_BASE).toBe("https://fhir.wybit.io/asc/");
+  });
+
+  it("exports standard LOINC codes", () => {
+    expect(LOINC_CODES.SURGICAL_TIMEOUT).toBe("83034-9");
+    expect(LOINC_CODES.INTRAOP_EVENT).toBe("59776-5");
+    expect(LOINC_CODES.WITHDRAWAL_TIME).toBe("81239-6");
+    expect(LOINC_CODES.SCOPE_VERIFICATION).toBe("74465-6");
+    expect(LOINC_CODES.GATE2_OVERRIDE).toBe("74468-0");
   });
 
   it("builds every kind of canonical URL from the base", () => {
