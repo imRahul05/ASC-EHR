@@ -1,6 +1,13 @@
 import { API_ROUTE_PATTERNS } from "@asc/config";
 import type { FacilitySchedulingLock } from "@asc/types";
-import { bookCaseSchema, transitionCaseSchema } from "@asc/validation";
+import {
+  assignScopeInputSchema,
+  bookCaseSchema,
+  gate2OverrideInputSchema,
+  recordProcedureEventInputSchema,
+  signTimeOutInputSchema,
+  transitionCaseSchema,
+} from "@asc/validation";
 import type { FastifyInstance } from "fastify";
 
 import { capabilityAtResource } from "../auth/route-auth.js";
@@ -28,6 +35,7 @@ declare module "fastify" {
  * - Surgical case booking with facility-level advisory concurrency locks
  * - Fully hydrated Case Workspace detail retrieval
  * - Hard-gated clinical lifecycle transitions (Gate 1 and Gate 2 validation)
+ * - Multi-role surgical timeout, intra-op room capture, scope lock & Gate 2 override (Phase P18)
  */
 export function casesRoutes(app: FastifyInstance): Promise<void> {
   // POST /cases — Book a surgical case into an operating room (Phase P15a/P15b)
@@ -60,7 +68,49 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
     (request, reply) => casesController.transitionCase(request, reply)
   );
 
+  // POST /cases/:caseId/time-out — Multi-role surgical timeout verification (CMS 42 CFR § 416.52, UP.01.03.01)
+  app.post(
+    API_ROUTE_PATTERNS.caseTimeOut,
+    clinicalMutationRoute({
+      capability: "timeout.participate",
+      schema: signTimeOutInputSchema,
+      errorMessage: "Invalid surgical time-out verification payload",
+    }),
+    (request, reply) => casesController.recordTimeOut(request, reply)
+  );
 
+  // POST /cases/:caseId/events — Intra-op procedure milestone event capture
+  app.post(
+    API_ROUTE_PATTERNS.caseEvents,
+    clinicalMutationRoute({
+      capability: "procedure.document",
+      schema: recordProcedureEventInputSchema,
+      errorMessage: "Invalid intra-op procedure event payload",
+    }),
+    (request, reply) => casesController.recordProcedureEvent(request, reply)
+  );
+
+  // POST /cases/:caseId/scope — Endoscope assignment and 168-hour hang-time verification (AAMI ST91:2021)
+  app.post(
+    API_ROUTE_PATTERNS.caseScope,
+    clinicalMutationRoute({
+      capability: "procedure.document",
+      schema: assignScopeInputSchema,
+      errorMessage: "Invalid endoscope assignment payload",
+    }),
+    (request, reply) => casesController.assignScope(request, reply)
+  );
+
+  // POST /cases/:caseId/gate2-override — Clinical Gate 2 override for non-scope blockers
+  app.post(
+    API_ROUTE_PATTERNS.caseGate2Override,
+    clinicalMutationRoute({
+      capability: "case.advance",
+      schema: gate2OverrideInputSchema,
+      errorMessage: "Invalid Gate 2 override payload",
+    }),
+    (request, reply) => casesController.overrideGate2(request, reply)
+  );
 
   return Promise.resolve();
 }
