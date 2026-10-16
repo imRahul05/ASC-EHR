@@ -251,12 +251,20 @@ describe("Cases distributed locking", () => {
       const tenantId = "11111111-1111-1111-1111-111111111111";
 
       try {
+        let resolveOp1Started: () => void = () => {};
+        const op1Started = new Promise<void>((resolve) => {
+          resolveOp1Started = resolve;
+        });
+
         const op1 = withPostgresFacilityLock(tenantDb, tenantId, facilityId, async () => {
           executionOrder.push("op1:start");
+          resolveOp1Started();
           await new Promise((resolve) => setTimeout(resolve, 50));
           executionOrder.push("op1:end");
           return "res1";
         });
+
+        await op1Started;
 
         const op2 = withPostgresFacilityLock(tenantDb, tenantId, facilityId, async () => {
           await Promise.resolve();
