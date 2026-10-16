@@ -129,13 +129,32 @@ export function timeOutGate(timeOut: TimeOutRecord): RuleResult {
 
   const checks: CheckSpec[] = [
     { code: "TIMEOUT_CHECKLIST", label: "Time-out checklist complete", ok: checklistOk, message: "Complete every time-out item." },
-    ...TIME_OUT_ROLES.map((role) => ({
-      code: `TIMEOUT_${role}`,
-      label: `${TIME_OUT_ROLE_LABEL[role]} attested`,
-      ok: attested.has(role),
-      message: `Time-out not yet attested by ${TIME_OUT_ROLE_LABEL[role].toLowerCase()}.`,
-    })),
   ];
+
+  if (timeOut.participants !== undefined && timeOut.participants.length > 0) {
+    const roles = new Set(timeOut.participants.map((p) => p.role));
+    checks.push({
+      code: "TIMEOUT_PARTICIPANT_CIRCULATOR",
+      label: "Circulating RN participant acknowledged",
+      ok: roles.has("circulating_rn"),
+      message: "Circulating nurse must participate in the surgical timeout.",
+    });
+    checks.push({
+      code: "TIMEOUT_PARTICIPANT_ENDOSCOPIST",
+      label: "Endoscopist participant acknowledged",
+      ok: roles.has("endoscopist"),
+      message: "Endoscopist must participate in the surgical timeout.",
+    });
+  } else {
+    for (const role of TIME_OUT_ROLES) {
+      checks.push({
+        code: `TIMEOUT_${role}`,
+        label: `${TIME_OUT_ROLE_LABEL[role]} attested`,
+        ok: attested.has(role),
+        message: `Time-out not yet attested by ${TIME_OUT_ROLE_LABEL[role].toLowerCase()}.`,
+      });
+    }
+  }
 
   if (timeOut.checklist.siteAndLateralityConfirmed !== undefined) {
     checks.push({ code: "TIMEOUT_SITE_LATERALITY", label: "Site & laterality confirmed", ok: Boolean(timeOut.checklist.siteAndLateralityConfirmed), message: "Confirm correct procedure site and laterality." });
@@ -145,12 +164,6 @@ export function timeOutGate(timeOut: TimeOutRecord): RuleResult {
   }
   if (timeOut.checklist.anticipatedIssuesReviewed !== undefined) {
     checks.push({ code: "TIMEOUT_ANTICIPATED_ISSUES", label: "Anticipated issues reviewed", ok: Boolean(timeOut.checklist.anticipatedIssuesReviewed), message: "Review anticipated critical steps and equipment issues." });
-  }
-
-  if (timeOut.participants !== undefined) {
-    const roles = new Set(timeOut.participants.map((p) => p.role));
-    checks.push({ code: "TIMEOUT_PARTICIPANT_CIRCULATOR", label: "Circulating RN participant acknowledged", ok: roles.has("circulating_rn"), message: "Circulating nurse must participate in the surgical timeout." });
-    checks.push({ code: "TIMEOUT_PARTICIPANT_ENDOSCOPIST", label: "Endoscopist participant acknowledged", ok: roles.has("endoscopist"), message: "Endoscopist must participate in the surgical timeout." });
   }
 
   return fromChecks(checks);
@@ -541,7 +554,18 @@ export const GATE_BY_TARGET: Partial<Record<CasePhase | CaseStage, GateFn>> = {
   PRE_OP: (detail) => evaluateGate1(detail.case.readinessChecks ?? []),
   READY_FOR_PROCEDURE: (detail) =>
     readinessGate(detail.case, detail.hp, detail.consents, detail.patient.medications),
-  in_room: (detail) => evaluateGate2(detail.case.readinessChecks ?? []),
+  in_room: (detail) =>
+    evaluateGate2WithOverride({
+      checks: detail.case.readinessChecks ?? [],
+      hasActiveScopeLockViolation: detail.scopeAssignment ? !detail.scopeAssignment.withinHangTimeWindow : false,
+      override: detail.gate2Override
+        ? {
+            reason: detail.gate2Override.reason,
+            actorRole: detail.gate2Override.actorRole,
+            actorName: detail.gate2Override.actorName,
+          }
+        : null,
+    }),
   IN_PROCEDURE: (detail) => timeOutGate(detail.timeOut),
   procedure_start: (detail) => timeOutGate(detail.timeOut),
   RECOVERY: (detail) => procedureEndGate(detail.events),

@@ -6,11 +6,20 @@ import {
   ENCOUNTER_STATUS_BY_PHASE,
   ENCOUNTER_STATUS_BY_STAGE,
   fhirUrls,
+  LOINC_CODES,
+  parseGate2OverrideObservation,
+  parseProcedureEventObservation,
+  parseScopeVerificationObservation,
+  parseSurgicalTimeOutObservation,
 } from "@asc/fhir";
 import type {
   CaseDetail,
   CaseSummaryFlags,
+  Gate2OverrideRecord,
+  ProcedureCase,
+  ProcedureEvent,
   RuleReason,
+  ScopeAssignmentRecord,
   TimeOutRecord,
 } from "@asc/types";
 import type { TransitionCaseInput } from "@asc/validation";
@@ -61,12 +70,16 @@ export async function getCaseDetail(params: {
 
   const apptId = encounter.appointment?.[0]?.reference?.replace("Appointment/", "");
 
-  const [patient, appt, serviceRequests] = await Promise.all([
+  const [patient, appt, serviceRequests, observations] = await Promise.all([
     medplum.readResource("Patient", patientId).catch(() => null),
     apptId ? medplum.readResource("Appointment", apptId).catch(() => null) : null,
     medplum.searchResources("ServiceRequest", [
       ["encounter", `Encounter/${caseId}`],
       ["_count", "1"],
+    ]).catch(() => []),
+    medplum.searchResources("Observation", [
+      ["encounter", `Encounter/${caseId}`],
+      ["_count", "100"],
     ]).catch(() => []),
   ]);
 
@@ -83,7 +96,7 @@ export async function getCaseDetail(params: {
 
   const patientObj = buildPatientFromFhir(patient);
 
-  const timeOut: TimeOutRecord = {
+  let timeOut: TimeOutRecord = {
     caseId,
     checklist: {
       patientIdentity: false,
@@ -96,6 +109,46 @@ export async function getCaseDetail(params: {
     attestations: [],
   };
 
+  const events: ProcedureEvent[] = [];
+  let scopeAssignment: ScopeAssignmentRecord | undefined;
+  let gate2Override: Gate2OverrideRecord | undefined;
+
+  for (const obs of observations) {
+    const code = obs.code?.coding?.[0]?.code;
+    if (code === LOINC_CODES.SURGICAL_TIMEOUT) {
+      timeOut = parseSurgicalTimeOutObservation(obs);
+    } else if (code === LOINC_CODES.INTRAOP_EVENT) {
+      events.push(parseProcedureEventObservation(obs));
+    } else if (code === LOINC_CODES.SCOPE_VERIFICATION) {
+      scopeAssignment = parseScopeVerificationObservation(obs);
+    } else if (code === LOINC_CODES.GATE2_OVERRIDE) {
+      gate2Override = parseGate2OverrideObservation(obs);
+    }
+  }
+
+  events.sort((a, b) => a.at.localeCompare(b.at));
+
+  const isTimeOutComplete = Boolean(
+    timeOut.completedAt ||
+      (timeOut.participants && timeOut.participants.length >= 2) ||
+      (timeOut.checklist.patientIdentity &&
+        timeOut.checklist.procedureConfirmed &&
+        timeOut.checklist.consentVerified &&
+        timeOut.checklist.allergiesReviewed &&
+        timeOut.checklist.equipmentReady &&
+        timeOut.checklist.anticoagulationReviewed),
+  );
+
+  const updatedReadiness = {
+    ...procedureCase.readiness,
+    timeOutComplete: isTimeOutComplete,
+  };
+
+  const updatedCase: ProcedureCase = {
+    ...procedureCase,
+    readiness: updatedReadiness,
+  };
+
   const summary: CaseSummaryFlags = {
     noteStatus: "none",
     codingStatus: "not_ready",
@@ -105,13 +158,15 @@ export async function getCaseDetail(params: {
   };
 
   return {
-    case: procedureCase,
+    case: updatedCase,
     patient: patientObj,
     hp: null,
     consents: [],
     vitals: [],
     timeOut,
-    events: [],
+    events,
+    ...(scopeAssignment !== undefined ? { scopeAssignment } : {}),
+    ...(gate2Override !== undefined ? { gate2Override } : {}),
     narration: [],
     specimens: [],
     images: [],
