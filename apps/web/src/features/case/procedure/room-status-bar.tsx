@@ -95,6 +95,18 @@ export function RoomStatusBar({ detail }: RoomStatusBarProps) {
         </Metric>
       )}
 
+      {detail.scopeAssignment && (
+        <Metric
+          label={`Scope · ${detail.scopeAssignment.scopeSerial}`}
+          testId="procedure-scope-metric"
+          hint={`Hang time: ${detail.scopeAssignment.hangTimeHours}h / 168h`}
+        >
+          <span className={detail.scopeAssignment.withinHangTimeWindow ? "text-success text-2xl font-semibold" : "text-destructive text-2xl font-semibold"}>
+            {detail.scopeAssignment.withinHangTimeWindow ? "Cleared" : "Locked"}
+          </span>
+        </Metric>
+      )}
+
       {inProcedure ? (
         <div className="space-y-1.5 @md:col-span-2 @3xl:col-span-1">
           <Button
