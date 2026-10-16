@@ -91,7 +91,7 @@ describe("worklist.schema (Phase P12, REQ-5, REQ-8, REQ-9)", () => {
         dueAt: nowIso,
         caseId: "case-999",
         patientId: "pat-111",
-        ownerCapability: "preop.assess",
+        ownerCapability: "anesthesia.document",
         ownerRole: "ANESTHESIOLOGIST",
         ownerId: "dr-smith",
         timelineMilestone: "T-3d",
