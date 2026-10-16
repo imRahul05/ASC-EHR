@@ -21,6 +21,7 @@ import type {
   StaffRef,
 } from "@asc/types";
 import {
+  fhirUrls,
   LOINC_CODES,
   parseAirwayEventObservation,
   parseMedicationAdministration,
@@ -63,7 +64,7 @@ export async function hydrateAnesthesiaRecord(
     (await medplum
       .searchResources("MedicationAdministration", [
         ["context", `Encounter/${caseId}`],
-        ["_count", "100"],
+        ["_count", "500"],
       ])
       .catch(() => []));
 
@@ -72,7 +73,7 @@ export async function hydrateAnesthesiaRecord(
     (await medplum
       .searchResources("Observation", [
         ["encounter", `Encounter/${caseId}`],
-        ["_count", "100"],
+        ["_count", "500"],
       ])
       .catch(() => []));
 
@@ -103,10 +104,14 @@ export async function hydrateAnesthesiaRecord(
     ? parsePreAnesthesiaObservation(preEvalObs)
     : null;
 
-  // 4. Airway events
-  const airwayEventObs = resolvedObservations.filter(
-    (obs) => obs.code.coding?.[0]?.code === LOINC_CODES.AIRWAY_EVENT,
-  );
+  // 4. Airway events (filtered by CodeSystem to prevent LOINC 59776-5 collision with procedure events)
+  const airwayEventObs = resolvedObservations.filter((obs) => {
+    const isAirwayLoinc = obs.code.coding?.[0]?.code === LOINC_CODES.AIRWAY_EVENT;
+    const isAirwaySystem = obs.valueCodeableConcept?.coding?.some(
+      (c) => c.system === fhirUrls.codeSystem("airway-event-type"),
+    );
+    return isAirwayLoinc && isAirwaySystem;
+  });
   const airwayEvents: readonly AirwayEvent[] = airwayEventObs
     .map((obs) => parseAirwayEventObservation(obs))
     .sort((a, b) => a.at.localeCompare(b.at));

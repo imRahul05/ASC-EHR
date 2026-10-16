@@ -301,11 +301,11 @@ export function parseVitalsObservations(observations: readonly Observation[]): r
   const entries: VitalsEntry[] = [];
 
   for (const [key, group] of groupsByTime.entries()) {
-    let sbp = 120;
-    let dbp = 80;
-    let hr = 70;
-    let rr = 14;
-    let spo2 = 98;
+    let sbp: number | undefined;
+    let dbp: number | undefined;
+    let hr: number | undefined;
+    let rr: number | undefined;
+    let spo2: number | undefined;
     let etco2: number | undefined;
     let tempC: number | undefined;
     let pain: number | undefined;
@@ -343,16 +343,21 @@ export function parseVitalsObservations(observations: readonly Observation[]): r
       }
     }
 
+    // Never fabricate cardiovascular vitals. Require at least one measured vital sign.
+    if (sbp === undefined && dbp === undefined && hr === undefined && spo2 === undefined && rr === undefined) {
+      continue;
+    }
+
     entries.push({
       id: `vitals-${key}`,
       caseId: group.obs[0]?.encounter?.reference?.replace("Encounter/", "") ?? "case",
       context: "intra",
       recordedAt: group.time,
-      hr,
-      sbp,
-      dbp,
-      spo2,
-      rr,
+      hr: hr ?? 0,
+      sbp: sbp ?? 0,
+      dbp: dbp ?? 0,
+      spo2: spo2 ?? 0,
+      rr: rr ?? 0,
       etco2,
       tempC,
       pain,
@@ -505,6 +510,11 @@ export function parsePreAnesthesiaObservation(
   };
 }
 
+export interface BuildAirwayEventObservationOptions {
+  readonly clientId?: string;
+  readonly patientId?: string;
+}
+
 /**
  * Builds discrete Observation for Airway Events.
  */
@@ -512,9 +522,16 @@ export function buildAirwayEventObservation(
   event: AirwayEvent,
   caseId: string,
   facilityId: string,
-  patientId?: string,
+  patientIdOrOptions?: string | BuildAirwayEventObservationOptions,
   urls: FhirUrls = fhirUrls,
 ): Observation {
+  const patientId =
+    typeof patientIdOrOptions === "object"
+      ? patientIdOrOptions.patientId
+      : patientIdOrOptions;
+  const clientId =
+    typeof patientIdOrOptions === "object" ? patientIdOrOptions.clientId : undefined;
+
   const facility = fhirId(facilityId, "facility id");
   const encId = fhirId(caseId, "case id");
   const patId = fhirId(patientId ?? caseId, "patient id");
@@ -525,6 +542,7 @@ export function buildAirwayEventObservation(
     id: fhirId(event.id, "event.id"),
     meta: facilityMeta(facility),
     status: "final",
+    identifier: clientId ? [aimsClientIdIdentifier(clientId, urls)] : undefined,
     category: [
       {
         coding: [

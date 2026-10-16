@@ -207,6 +207,32 @@ describe("fhir/builders/aims (Phase P20, US-E-05, US-F-08, US-F-09)", () => {
       expect(parsed.type).toBe("jaw_thrust");
       expect(parsed.note).toBeUndefined();
     });
+
+    it("attaches aimsClientIdIdentifier when clientId is provided in options", () => {
+      const event: AirwayEvent = {
+        id: "airway-ev-3",
+        type: "chin_lift",
+        at: "2026-10-16T08:27:00.000Z",
+      };
+      const obs = buildAirwayEventObservation(event, CASE_ID, FACILITY_ID, {
+        clientId: "client-airway-uuid-99",
+        patientId: PATIENT_ID,
+      });
+      expect(obs.identifier).toBeDefined();
+      expect(obs.identifier?.[0]?.value).toBe("client-airway-uuid-99");
+      expect(obs.subject?.reference).toBe(`Patient/${PATIENT_ID}`);
+    });
+
+    it("handles options object without clientId or patientId", () => {
+      const event: AirwayEvent = {
+        id: "airway-ev-4",
+        type: "chin_lift",
+        at: "2026-10-16T08:28:00.000Z",
+      };
+      const obs = buildAirwayEventObservation(event, CASE_ID, FACILITY_ID, {});
+      expect(obs.identifier).toBeUndefined();
+      expect(obs.subject?.reference).toBe(`Patient/${CASE_ID}`);
+    });
   });
 
   describe("Edge cases & branch coverage", () => {
@@ -326,6 +352,39 @@ describe("fhir/builders/aims (Phase P20, US-E-05, US-F-08, US-F-09)", () => {
       expect(parsed).toHaveLength(1);
       expect(parsed[0]?.hr).toBe(80);
       expect(parsed[0]?.etco2).toBeUndefined();
+    });
+
+    it("does not fabricate vitals when only non-cardiovascular observations are provided", () => {
+      const nonCardioObs = [
+        {
+          resourceType: "Observation" as const,
+          status: "final" as const,
+          code: { coding: [{ system: "http://loinc.org", code: LOINC_CODES.ETCO2 }] },
+          effectiveDateTime: "2026-10-16T08:30:00.000Z",
+          valueQuantity: { value: 38 },
+          performer: [{ reference: "Practitioner/nurse-1" }],
+        },
+      ];
+      const parsed = parseVitalsObservations(nonCardioObs);
+      expect(parsed).toEqual([]);
+    });
+
+    it("parses vital group with only heart rate", () => {
+      const hrOnlyObs = [
+        {
+          resourceType: "Observation" as const,
+          status: "final" as const,
+          code: { coding: [{ system: "http://loinc.org", code: "8867-4" }] },
+          effectiveDateTime: "2026-10-16T08:35:00.000Z",
+          valueQuantity: { value: 72 },
+          performer: [{ reference: "Practitioner/nurse-1" }],
+        },
+      ];
+      const parsed = parseVitalsObservations(hrOnlyObs);
+      expect(parsed).toHaveLength(1);
+      expect(parsed[0]?.hr).toBe(72);
+      expect(parsed[0]?.sbp).toBe(0);
+      expect(parsed[0]?.dbp).toBe(0);
     });
 
     it("builds and parses pre-anesthesia observation without airway notes and with out-of-range values", () => {
