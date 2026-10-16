@@ -9,6 +9,7 @@ import { patientsRoutes } from "./patients.js";
 import { preopRoutes } from "./preop.js";
 import { scheduleRoutes } from "./schedule.js";
 import { whiteboardRoutes } from "./whiteboard.js";
+import { worklistRoutes } from "./worklist.js";
 
 /**
  * Central Route Registration
@@ -21,6 +22,7 @@ import { whiteboardRoutes } from "./whiteboard.js";
  * - Clinical Cases Core: cases (booking, detail, transition)
  * - Clinical Pre-Op & Safety: consent, preop, hp (H&P, anticoagulation)
  * - Financial & Billing: financial (270/271 eligibility, 278 prior-auth, GFE, copay)
+ * - Worklist: unified FHIR Task work queues and claims
  */
 export function registerRoutes(app: FastifyInstance) {
   app.register(healthRoute);
@@ -33,4 +35,5 @@ export function registerRoutes(app: FastifyInstance) {
   app.register(financialRoutes);
   app.register(scheduleRoutes);
   app.register(whiteboardRoutes);
+  app.register(worklistRoutes);
 }

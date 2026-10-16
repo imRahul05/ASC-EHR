@@ -1,7 +1,6 @@
 /**
- * Catalog check for audit_events: tenant RLS enabled and forced, append-only
- * policies, grants and triggers. Behaviour (rejected UPDATE/DELETE) is proven in
- * audit-store.test.ts.
+ * Catalog check for audit_events: RLS disabled per ADR 2026-10-14 (migration 0007),
+ * while append-only grants and triggers remain strictly enforced.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -20,21 +19,14 @@ describeDb(TEST_DATABASE_URL ? 'audit_events catalog' : 'audit_events catalog (S
     await t?.drop();
   });
 
-  it('enables and forces row-level security', async () => {
+  it('disables session-variable row-level security per ADR 2026-10-14', async () => {
     const rows = await t.client`SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE oid = 'audit_events'::regclass`;
-    expect(rows[0]).toEqual({ relrowsecurity: true, relforcerowsecurity: true });
+    expect(rows[0]).toEqual({ relrowsecurity: false, relforcerowsecurity: false });
   });
 
-  it('has a read policy and an insert policy on app.tenant_id, and none for update or delete', async () => {
-    const rows = await t.client<{ polname: string; polcmd: string; using_expr: string; check_expr: string }[]>`SELECT polname, polcmd, pg_get_expr(polqual, polrelid) AS using_expr,
-        pg_get_expr(polwithcheck, polrelid) AS check_expr
-      FROM pg_policy WHERE polrelid = 'audit_events'::regclass ORDER BY polname`;
-    expect(rows.map((r) => [r.polname, r.polcmd])).toEqual([
-      ['tenant_append', 'a'],
-      ['tenant_read', 'r'],
-    ]);
-    expect(rows.find((r) => r.polname === 'tenant_read')?.using_expr).toContain('app.tenant_id');
-    expect(rows.find((r) => r.polname === 'tenant_append')?.check_expr).toContain('app.tenant_id');
+  it('has no session-variable tenant policies per ADR 2026-10-14', async () => {
+    const rows = await t.client<{ polname: string }[]>`SELECT polname FROM pg_policy WHERE polrelid = 'audit_events'::regclass`;
+    expect(rows).toHaveLength(0);
   });
 
   it('grants the runtime role SELECT and INSERT only, and PUBLIC nothing', async () => {

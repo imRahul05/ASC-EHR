@@ -54,8 +54,11 @@ export function createInMemoryIdempotencyStore(_defaultTtlMs = 60_000): Idempote
 
 const defaultStore = createInMemoryIdempotencyStore();
 
-interface CaseParams {
+interface EntityParams {
   readonly caseId?: string;
+  readonly itemId?: string;
+  readonly patientId?: string;
+  readonly referralId?: string;
 }
 
 export function getIdempotencyKey(request: FastifyRequest): string | undefined {
@@ -68,10 +71,10 @@ export function getIdempotencyKey(request: FastifyRequest): string | undefined {
 
 /**
  * Builds a composite cache key isolating idempotency records by tenant, HTTP method,
- * route template, case ID, and raw header key.
+ * route template, case/item/entity ID, and raw header key.
  *
- * Prevents cross-patient, cross-route, and cross-tenant cache collisions or data leaks
- * under HIPAA 45 CFR § 164.312(a)(1).
+ * Prevents cross-patient, cross-work-item, cross-route, and cross-tenant cache collisions
+ * or data leaks under HIPAA 45 CFR § 164.312(a)(1) and LM-038.
  */
 export function buildScopedIdempotencyKey(request: FastifyRequest): string | undefined {
   const rawKey = getIdempotencyKey(request);
@@ -81,13 +84,21 @@ export function buildScopedIdempotencyKey(request: FastifyRequest): string | und
 
   const tenantId = request.tenant?.tenantId;
   const route = request.routeOptions?.url ?? request.url?.split("?")[0] ?? "";
-  const params = request.params as CaseParams | undefined;
-  const caseId = params?.caseId;
+  const params = request.params as EntityParams | undefined;
+  const entityPrefix = params?.caseId
+    ? `case:${params.caseId}`
+    : params?.itemId
+      ? `item:${params.itemId}`
+      : params?.patientId
+        ? `patient:${params.patientId}`
+        : params?.referralId
+          ? `referral:${params.referralId}`
+          : undefined;
 
   const prefix = [
     tenantId ? `tenant:${tenantId}` : undefined,
     `route:${request.method}:${route}`,
-    caseId ? `case:${caseId}` : undefined,
+    entityPrefix,
   ]
     .filter((segment): segment is string => segment !== undefined)
     .join(":");

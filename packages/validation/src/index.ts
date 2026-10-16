@@ -64,3 +64,6 @@ export * from "./errors.js";
 
 // Financial clearance, eligibility, and estimate contracts (Phase P22a)
 export * from "./financial/index.js";
+
+// Worklist & FHIR Task Engine contracts (Phase P12)
+export * from "./worklist.schema.js";

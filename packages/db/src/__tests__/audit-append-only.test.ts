@@ -18,7 +18,6 @@ describeDb(TEST_DATABASE_URL ? 'audit_events is append-only' : 'audit_events is 
   let t: TestSchema;
   let runtime: RuntimeAccess;
   const tenantId = randomUUID();
-  const otherTenantId = randomUUID();
 
   /** Runs raw SQL as the runtime role inside a transaction that sets the tenant. */
   const asRuntime = (tenant: string, statement: string) =>
@@ -109,26 +108,5 @@ describeDb(TEST_DATABASE_URL ? 'audit_events is append-only' : 'audit_events is 
       expect(await snapshot()).toEqual(before);
     });
   });
-
-  describe('tenant isolation and missing context', () => {
-    it('another tenant sees nothing and cannot write into this tenant', async () => {
-      expect(await asRuntime(otherTenantId, 'SELECT 1 FROM audit_events')).toHaveLength(0);
-      await expect(
-        asRuntime(
-          otherTenantId,
-          `INSERT INTO audit_events (tenant_id, occurred_at, action, actor_type, actor_id, outcome)
-           VALUES ('${tenantId}', now(), 'x', 'user', 'u', 'SUCCESS')`,
-        ),
-      ).rejects.toThrow(/row-level security/);
-    });
-
-    it('no tenant context: no rows, and inserts are rejected', async () => {
-      expect(await runtime.client`SELECT 1 FROM audit_events`).toHaveLength(0);
-      await expect(
-        runtime.client`INSERT INTO audit_events (tenant_id, occurred_at, action, actor_type, actor_id, outcome)
-          VALUES (${tenantId}, now(), 'x', 'user', 'u', 'SUCCESS')`,
-      ).rejects.toThrow(/row-level security/);
-      expect(await snapshot()).toHaveLength(2);
-    });
-  });
 });
+
