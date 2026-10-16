@@ -1,5 +1,6 @@
 import { API_ERROR_CODES } from "@asc/types";
 import type { FastifyReply, FastifyRequest } from "fastify";
+import "../auth/augment.js";
 
 interface IdempotencyRecord {
   readonly status: number;
@@ -53,6 +54,10 @@ export function createInMemoryIdempotencyStore(_defaultTtlMs = 60_000): Idempote
 
 const defaultStore = createInMemoryIdempotencyStore();
 
+interface CaseParams {
+  readonly caseId?: string;
+}
+
 export function getIdempotencyKey(request: FastifyRequest): string | undefined {
   const headerKey = request.headers["idempotency-key"] ?? request.headers["x-idempotency-key"];
   if (typeof headerKey === "string" && headerKey.trim().length > 0) {
@@ -61,9 +66,42 @@ export function getIdempotencyKey(request: FastifyRequest): string | undefined {
   return undefined;
 }
 
-export function createIdempotencyHook(store: IdempotencyStore = defaultStore, ttlMs = 60_000) {
+/**
+ * Builds a composite cache key isolating idempotency records by tenant, HTTP method,
+ * route template, case ID, and raw header key.
+ *
+ * Prevents cross-patient, cross-route, and cross-tenant cache collisions or data leaks
+ * under HIPAA 45 CFR § 164.312(a)(1).
+ */
+export function buildScopedIdempotencyKey(request: FastifyRequest): string | undefined {
+  const rawKey = getIdempotencyKey(request);
+  if (!rawKey) {
+    return undefined;
+  }
+
+  const tenantId = request.tenant?.tenantId;
+  const route = request.routeOptions?.url ?? request.url?.split("?")[0] ?? "";
+  const params = request.params as CaseParams | undefined;
+  const caseId = params?.caseId;
+
+  const prefix = [
+    tenantId ? `tenant:${tenantId}` : undefined,
+    `route:${request.method}:${route}`,
+    caseId ? `case:${caseId}` : undefined,
+  ]
+    .filter((segment): segment is string => segment !== undefined)
+    .join(":");
+
+  return `${prefix}:${rawKey}`;
+}
+
+export function createIdempotencyHook(
+  store: IdempotencyStore = defaultStore,
+  ttlMs = 60_000,
+  keyResolver: (request: FastifyRequest) => string | undefined = buildScopedIdempotencyKey,
+) {
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-    const key = getIdempotencyKey(request);
+    const key = keyResolver(request);
     if (!key) {
       return;
     }

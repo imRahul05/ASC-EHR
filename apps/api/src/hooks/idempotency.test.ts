@@ -57,7 +57,7 @@ describe("idempotency hook", () => {
 
   it("returns 409 conflict when request with same key is currently in-flight", async () => {
     const store = createInMemoryIdempotencyStore();
-    store.markInFlight("in-flight-key");
+    store.markInFlight("route:POST:/test:in-flight-key");
 
     const app: FastifyInstance = fastify();
     await app.register(registerErrorHandler);
@@ -105,5 +105,131 @@ describe("idempotency hook", () => {
     expect(res2.statusCode).toBe(200);
     expect(res2.json()).toEqual({ count: 2 });
     expect(callCount).toBe(2);
+  });
+
+  it("isolates cache between different routes using the same raw idempotency key", async () => {
+    const store = createInMemoryIdempotencyStore();
+    const app: FastifyInstance = fastify();
+    await app.register(registerErrorHandler);
+
+    let routeACalls = 0;
+    let routeBCalls = 0;
+
+    app.post("/action-a", { preHandler: [createIdempotencyHook(store)] }, async (_req, reply) => {
+      routeACalls++;
+      return reply.send({ route: "A", calls: routeACalls });
+    });
+
+    app.post("/action-b", { preHandler: [createIdempotencyHook(store)] }, async (_req, reply) => {
+      routeBCalls++;
+      return reply.send({ route: "B", calls: routeBCalls });
+    });
+
+    const resA = await app.inject({
+      method: "POST",
+      url: "/action-a",
+      headers: { "idempotency-key": "shared-key-1" },
+    });
+
+    const resB = await app.inject({
+      method: "POST",
+      url: "/action-b",
+      headers: { "idempotency-key": "shared-key-1" },
+    });
+
+    expect(resA.statusCode).toBe(200);
+    expect(resA.json()).toEqual({ route: "A", calls: 1 });
+
+    expect(resB.statusCode).toBe(200);
+    expect(resB.json()).toEqual({ route: "B", calls: 1 });
+    expect(resB.headers["idempotency-replayed"]).toBeUndefined();
+    expect(routeACalls).toBe(1);
+    expect(routeBCalls).toBe(1);
+  });
+
+  it("isolates cache between different cases using the same raw idempotency key", async () => {
+    const store = createInMemoryIdempotencyStore();
+    const app: FastifyInstance = fastify();
+    await app.register(registerErrorHandler);
+
+    let case1Calls = 0;
+    let case2Calls = 0;
+
+    app.post("/cases/:caseId/action", { preHandler: [createIdempotencyHook(store)] }, async (req, reply) => {
+      const { caseId } = req.params as { readonly caseId?: string };
+      if (caseId === "case-1") {
+        case1Calls++;
+        return reply.send({ caseId: "case-1", calls: case1Calls });
+      }
+      case2Calls++;
+      return reply.send({ caseId: "case-2", calls: case2Calls });
+    });
+
+    const resCase1 = await app.inject({
+      method: "POST",
+      url: "/cases/case-1/action",
+      headers: { "idempotency-key": "nurse-device-key-99" },
+    });
+
+    const resCase2 = await app.inject({
+      method: "POST",
+      url: "/cases/case-2/action",
+      headers: { "idempotency-key": "nurse-device-key-99" },
+    });
+
+    expect(resCase1.statusCode).toBe(200);
+    expect(resCase1.json()).toEqual({ caseId: "case-1", calls: 1 });
+
+    expect(resCase2.statusCode).toBe(200);
+    expect(resCase2.json()).toEqual({ caseId: "case-2", calls: 1 });
+    expect(resCase2.headers["idempotency-replayed"]).toBeUndefined();
+    expect(case1Calls).toBe(1);
+    expect(case2Calls).toBe(1);
+  });
+
+  it("isolates cache between different tenants using the same raw idempotency key", async () => {
+    const store = createInMemoryIdempotencyStore();
+    const app: FastifyInstance = fastify();
+    await app.register(registerErrorHandler);
+
+    app.addHook("onRequest", (req, _reply, done) => {
+      const tenantHeader = req.headers["x-tenant-id"];
+      if (typeof tenantHeader === "string") {
+        req.tenant = { tenantId: tenantHeader, medplumProjectId: `proj-${tenantHeader}` };
+      }
+      done();
+    });
+
+    let executionCount = 0;
+    app.post("/tenant-action", { preHandler: [createIdempotencyHook(store)] }, async (req, reply) => {
+      executionCount++;
+      return reply.send({ tenant: req.tenant?.tenantId, execution: executionCount });
+    });
+
+    const resTenantA = await app.inject({
+      method: "POST",
+      url: "/tenant-action",
+      headers: {
+        "x-tenant-id": "tenant-alpha",
+        "idempotency-key": "client-gen-key-1",
+      },
+    });
+
+    const resTenantB = await app.inject({
+      method: "POST",
+      url: "/tenant-action",
+      headers: {
+        "x-tenant-id": "tenant-beta",
+        "idempotency-key": "client-gen-key-1",
+      },
+    });
+
+    expect(resTenantA.statusCode).toBe(200);
+    expect(resTenantA.json()).toEqual({ tenant: "tenant-alpha", execution: 1 });
+
+    expect(resTenantB.statusCode).toBe(200);
+    expect(resTenantB.json()).toEqual({ tenant: "tenant-beta", execution: 2 });
+    expect(resTenantB.headers["idempotency-replayed"]).toBeUndefined();
+    expect(executionCount).toBe(2);
   });
 });
