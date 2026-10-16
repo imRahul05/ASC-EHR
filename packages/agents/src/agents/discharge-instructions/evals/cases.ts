@@ -31,7 +31,7 @@ const pathologyPending = (expected: boolean): Expectation => ({
 
 export const dischargeInstructionsEvalCases: readonly DischargeEvalCase[] = [
   {
-    name: 'screening colonoscopy, normal, no blood thinner',
+    name: 'eg-normal-screening-colonoscopy',
     input: {
       procedures: ['colonoscopy'],
       sedation: 'monitored-anesthesia-care',
@@ -46,10 +46,12 @@ export const dischargeInstructionsEvalCases: readonly DischargeEvalCase[] = [
       language('en'),
       pathologyPending(false),
       { description: 'no blood-thinner change invented', check: (o) => o.medications.every((m) => m.action === 'continue') },
+      { description: '10-year surveillance interval recommendation', check: (o) => o.followUp.toLowerCase().includes('10') },
+      { description: 'normal diet resumption', check: (o) => o.diet.length > 0 },
     ],
   },
   {
-    name: 'colonoscopy + EGD with polypectomy and biopsies, blood thinner held',
+    name: 'eg-colonoscopy-polypectomy',
     input: {
       procedures: ['colonoscopy', 'egd'],
       sedation: 'moderate',
@@ -65,6 +67,60 @@ export const dischargeInstructionsEvalCases: readonly DischargeEvalCase[] = [
       pathologyPending(true),
       { description: 'blood thinner is held', check: (o) => o.medications.some((m) => m.action === 'hold') },
       { description: 'mentions not driving after sedation', check: (o) => allText(o).includes('driv') },
+      {
+        description: 'warnings include fever (101°F)',
+        check: (o) => o.warningSigns.callClinic.some((w) => w.toLowerCase().includes('fever') || w.includes('101')),
+      },
+      {
+        description: 'warnings include severe abdominal pain',
+        check: (o) => o.warningSigns.goToEmergency.some((w) => w.toLowerCase().includes('pain')),
+      },
+      {
+        description: 'warnings include bleeding/clots',
+        check: (o) =>
+          o.warningSigns.callClinic.some((w) => w.toLowerCase().includes('bleed')) ||
+          o.warningSigns.goToEmergency.some((w) => w.toLowerCase().includes('bleed') || w.toLowerCase().includes('clot')),
+      },
+      {
+        description: 'diet progression from clear liquids to soft diet',
+        check: (o) => o.diet.length > 0,
+      },
+      {
+        description: 'follow-up call next business day + pathology in 5-7 business days',
+        check: (o) => o.pathologyPending.message.length > 0,
+      },
+    ],
+  },
+  {
+    name: 'eg-egd-dilation',
+    input: {
+      procedures: ['egd'],
+      sedation: 'monitored-anesthesia-care',
+      findings: { polypsRemoved: 0, biopsiesTaken: false, hemostasisPerformed: false },
+      anticoagulant: { plan: 'not-taking' },
+      followUp: 'as-needed',
+      language: 'en',
+      readingLevel: 'standard',
+    },
+    expectations: [
+      hasWarningSigns,
+      language('en'),
+      pathologyPending(false),
+      {
+        description: 'dysphagia / chest pain / crepitus warning signs',
+        check: (o) =>
+          o.warningSigns.goToEmergency.some(
+            (w) =>
+              w.toLowerCase().includes('chest pain') ||
+              w.toLowerCase().includes('swallow') ||
+              w.toLowerCase().includes('crepitus') ||
+              w.toLowerCase().includes('pain'),
+          ),
+      },
+      {
+        description: 'diet progression',
+        check: (o) => o.diet.length > 0,
+      },
     ],
   },
   {
