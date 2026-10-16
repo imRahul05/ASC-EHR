@@ -36,6 +36,9 @@ const PRIORITY_CLASS: Readonly<Record<WorkItem["priority"], string>> = {
   high: "border-destructive/30 bg-destructive/8 text-destructive",
   normal: "text-muted-foreground",
   low: "text-muted-foreground",
+  stat: "border-destructive/40 bg-destructive/15 text-destructive font-semibold",
+  urgent: "border-destructive/30 bg-destructive/8 text-destructive",
+  routine: "text-muted-foreground",
 };
 const STATUS_OPTIONS: readonly { readonly value: StatusFilter; readonly label: string }[] = [
   { value: "open", label: "Open" },
@@ -93,7 +96,11 @@ function WorklistContent() {
       ),
     },
     { id: "type", header: "Type", cell: (item) => <Badge variant="secondary">{WORK_ITEM_TYPE_LABEL[item.type]}</Badge> },
-    { id: "assignee", header: "Assignee", cell: (item) => <span className="text-sm">{ROLE_LABEL[item.ownerRole]}</span> },
+    {
+      id: "assignee",
+      header: "Assignee",
+      cell: (item) => <span className="text-sm">{item.ownerRole ? ROLE_LABEL[item.ownerRole] : (item.ownerCapability ?? "—")}</span>,
+    },
     {
       id: "priority",
       header: "Priority",

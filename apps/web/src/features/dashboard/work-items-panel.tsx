@@ -19,6 +19,9 @@ const PRIORITY_CLASS: Readonly<Record<WorkItem["priority"], string>> = {
   high: "border-destructive/30 bg-destructive/8 text-destructive",
   normal: "border-border text-muted-foreground",
   low: "border-border text-muted-foreground",
+  stat: "border-destructive/40 bg-destructive/15 text-destructive font-semibold",
+  urgent: "border-destructive/30 bg-destructive/8 text-destructive",
+  routine: "border-border text-muted-foreground",
 };
 
 /** Open work items for a role (optionally one type, e.g. the surgeon's sign queue). */

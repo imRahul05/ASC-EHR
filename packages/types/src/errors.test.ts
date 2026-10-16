@@ -22,6 +22,10 @@ describe("API_ERROR_CODES and API_ERROR_REGISTRY", () => {
     expect(API_ERROR_CODES.FORBIDDEN).toBe("forbidden");
 
     expect(API_ERROR_CODES.UNAUTHENTICATED).toBe("unauthenticated");
+    expect(API_ERROR_CODES.WORK_ITEM_NOT_FOUND).toBe("work_item_not_found");
+    expect(API_ERROR_CODES.WORK_ITEM_ALREADY_COMPLETED).toBe("work_item_already_completed");
+    expect(API_ERROR_CODES.WORK_ITEM_ALREADY_CLAIMED).toBe("work_item_already_claimed");
+    expect(API_ERROR_CODES.WORK_ITEM_CAPABILITY_DENIED).toBe("work_item_capability_denied");
   });
 
   it("contains registry entries for every defined error code with valid HTTP status", () => {

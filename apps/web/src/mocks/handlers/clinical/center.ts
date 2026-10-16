@@ -23,7 +23,14 @@ import { apiUrl } from "../api-url";
 import { searchPatients } from "./patients";
 import { apiError, body, latency, notFound, param } from "./respond";
 
-const PRIORITY_RANK: Readonly<Record<WorkItem["priority"], number>> = { high: 0, normal: 1, low: 2 };
+const PRIORITY_RANK: Readonly<Record<WorkItem["priority"], number>> = {
+  stat: 0,
+  high: 0,
+  urgent: 1,
+  normal: 2,
+  routine: 2,
+  low: 3,
+};
 const SEARCH_LIMIT = 8;
 const BENCHMARKS = { adr: 0.3, cir: 0.95, withdrawalMin: 6, bbpsAdequate: 0.85 } as const;
 

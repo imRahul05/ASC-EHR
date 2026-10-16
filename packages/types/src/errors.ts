@@ -20,6 +20,10 @@ export const API_ERROR_CODES = {
   IDEMPOTENCY_KEY_CONFLICT: "idempotency_key_conflict",
   DUPLICATE_MRN_CONFLICT: "duplicate_mrn_conflict",
   DUPLICATE_PATIENT_DETECTED: "duplicate_patient_detected",
+  WORK_ITEM_NOT_FOUND: "work_item_not_found",
+  WORK_ITEM_ALREADY_COMPLETED: "work_item_already_completed",
+  WORK_ITEM_ALREADY_CLAIMED: "work_item_already_claimed",
+  WORK_ITEM_CAPABILITY_DENIED: "work_item_capability_denied",
   RATE_LIMITED: "rate_limited",
   INTERNAL_ERROR: "internal_error",
   INCOMPLETE_TRANSACTION: "incomplete_transaction",
@@ -28,6 +32,15 @@ export const API_ERROR_CODES = {
 } as const;
 
 export type ApiErrorCode = (typeof API_ERROR_CODES)[keyof typeof API_ERROR_CODES];
+
+export const ERROR_SUBTYPES = [
+  "work_item_not_found",
+  "work_item_already_completed",
+  "work_item_already_claimed",
+  "work_item_capability_denied",
+] as const;
+
+export type ErrorSubtype = (typeof ERROR_SUBTYPES)[number];
 
 import type { ConflictReason } from "./api.js";
 import type { DuplicateMatchResult } from "./clinical.js";
@@ -68,6 +81,10 @@ export const API_ERROR_REGISTRY: Record<ApiErrorCode, ErrorDefinition> = {
   [API_ERROR_CODES.IDEMPOTENCY_KEY_CONFLICT]: { status: 409, defaultMessage: "Idempotency key was used with conflicting parameters." },
   [API_ERROR_CODES.DUPLICATE_MRN_CONFLICT]: { status: 409, defaultMessage: "A patient with this MRN already exists at this facility." },
   [API_ERROR_CODES.DUPLICATE_PATIENT_DETECTED]: { status: 409, defaultMessage: "Potential duplicate patient detected." },
+  [API_ERROR_CODES.WORK_ITEM_NOT_FOUND]: { status: 404, defaultMessage: "Work item not found." },
+  [API_ERROR_CODES.WORK_ITEM_ALREADY_COMPLETED]: { status: 409, defaultMessage: "Work item has already been completed." },
+  [API_ERROR_CODES.WORK_ITEM_ALREADY_CLAIMED]: { status: 409, defaultMessage: "Work item has already been claimed by another user." },
+  [API_ERROR_CODES.WORK_ITEM_CAPABILITY_DENIED]: { status: 403, defaultMessage: "Caller lacks capability required to claim this work item." },
   [API_ERROR_CODES.RATE_LIMITED]: { status: 429, defaultMessage: "Too many requests. Please try again later." },
   [API_ERROR_CODES.INTERNAL_ERROR]: { status: 500, defaultMessage: "Internal server error." },
   [API_ERROR_CODES.INCOMPLETE_TRANSACTION]: { status: 500, defaultMessage: "Incomplete transaction. Manual reconciliation required." },
