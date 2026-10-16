@@ -12,6 +12,7 @@
  */
 
 import {
+  PARTICIPANT_ROLES,
   PREOP_TIMELINE_MILESTONES,
   WORK_ITEM_PRIORITIES,
   WORK_ITEM_STATUSES,
@@ -54,7 +55,7 @@ export const createWorkItemSchema = z.object({
   patientId: z.string().regex(FHIR_ID_REGEX, "Invalid patientId format").optional(),
   referralId: z.string().regex(FHIR_ID_REGEX, "Invalid referralId format").optional(),
   ownerCapability: z.string().min(1).max(128).optional(),
-  ownerRole: z.string().min(1).max(64).optional(),
+  ownerRole: z.enum(PARTICIPANT_ROLES).optional(),
   ownerId: z.string().min(1).max(64).optional(),
   timelineMilestone: z.enum(PREOP_TIMELINE_MILESTONES).optional(),
   agentName: z.string().min(1).max(64).optional(),
@@ -70,7 +71,7 @@ export const claimWorkItemSchema = z
   .object({
     claimedBy: z.string().min(1).max(64).optional(),
     ownerId: z.string().min(1).max(64).optional(),
-    ownerRole: z.string().min(1).max(64).optional(),
+    ownerRole: z.enum(PARTICIPANT_ROLES).optional(),
     ownerCapability: z.string().min(1).max(128).optional(),
   })
   .refine((data) => data.claimedBy !== undefined || data.ownerId !== undefined, {

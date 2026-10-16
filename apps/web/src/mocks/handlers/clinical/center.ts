@@ -1,4 +1,4 @@
-import { isPhaseAtLeast, STOPPED_PHASES, toIsoDate } from "@asc/clinical-rules";
+import { isPhaseAtLeast, isWorkItemOverdue, sortWorkItemsForQueue, STOPPED_PHASES, toIsoDate, WORK_ITEM_QUEUE_MAP } from "@asc/clinical-rules";
 import { API_ROUTE_PATTERNS as P } from "@asc/config/api";
 import type {
   AdminOverview,
@@ -6,6 +6,7 @@ import type {
   CodingQueueItem,
   DashboardSummary,
   MyCare,
+  ParticipantRole,
   PathologyQueueItem,
   QualityMetrics,
   SearchResults,
@@ -23,14 +24,6 @@ import { apiUrl } from "../api-url";
 import { searchPatients } from "./patients";
 import { apiError, body, latency, notFound, param } from "./respond";
 
-const PRIORITY_RANK: Readonly<Record<WorkItem["priority"], number>> = {
-  stat: 0,
-  high: 0,
-  urgent: 1,
-  normal: 2,
-  routine: 2,
-  low: 3,
-};
 const SEARCH_LIMIT = 8;
 const BENCHMARKS = { adr: 0.3, cir: 0.95, withdrawalMin: 6, bbpsAdequate: 0.85 } as const;
 
@@ -120,27 +113,153 @@ function portalPatientId(request: Request): string | undefined {
 }
 
 export const centerHandlers = [
+  /**
+   * GET /worklist — Unified work queue query
+   * Regulatory citations:
+   * - CMS 42 CFR § 416.52: Conditions for Coverage - Pre-procedure readiness verification.
+   * - No Surprises Act 45 CFR § 149.610: Good Faith Estimates delivery SLA.
+   * - HIPAA 45 CFR § 164.312(b): Audit trails for queue access.
+   */
   http.get(apiUrl(P.worklist), async ({ request }) => {
     await latency();
     const params = new URL(request.url).searchParams;
-    const [type, role, status] = [params.get("type"), params.get("role"), params.get("status")];
-    const items = db()
-      .workItems.filter((item) => (!type || item.type === type) && (!role || item.ownerRole === role) && (!status || item.status === status))
-      .sort((a, b) => Number(a.status === "done") - Number(b.status === "done") || PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] || Date.parse(a.dueAt) - Date.parse(b.dueAt));
+    const type = params.get("type");
+    const role = params.get("role");
+    const status = params.get("status");
+    const priority = params.get("priority");
+    const queue = params.get("queue");
+    const timelineMilestone = params.get("timelineMilestone");
+    const overdueOnly = params.get("overdueOnly") === "true";
+    const caseId = params.get("caseId");
+    const patientId = params.get("patientId");
+    const ownerCapability = params.get("ownerCapability");
+    const ownerId = params.get("ownerId");
+
+    let items = db().workItems.filter((item) => {
+      if (type && item.type !== type) return false;
+      if (role && item.ownerRole !== role) return false;
+      if (status) {
+        if (status === "done" || status === "completed") {
+          if (item.status !== "done" && item.status !== "completed") return false;
+        } else if (item.status !== status) {
+          return false;
+        }
+      }
+      if (priority && item.priority !== priority) return false;
+      if (queue && queue !== "all") {
+        const itemQueue = WORK_ITEM_QUEUE_MAP[item.type]?.queue;
+        if (itemQueue !== queue) return false;
+      }
+      if (timelineMilestone && item.timelineMilestone !== timelineMilestone) return false;
+      if (caseId && item.caseId !== caseId) return false;
+      if (patientId && item.patientId !== patientId) return false;
+      if (ownerCapability && item.ownerCapability !== ownerCapability) return false;
+      if (ownerId && item.ownerId !== ownerId) return false;
+      if (overdueOnly && !isWorkItemOverdue(item)) return false;
+      return true;
+    });
+
+    items = [...sortWorkItemsForQueue(items)];
     return HttpResponse.json(items);
   }),
 
+  /**
+   * POST /worklist — Create a new clinical work item in demo store
+   */
+  http.post(apiUrl(P.worklist), async ({ request }) => {
+    await latency();
+    const createBody = await body<Partial<WorkItem>>(request);
+    const state = db();
+    const newItem: WorkItem = {
+      id: `task-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      type: createBody.type ?? "records_request",
+      title: createBody.title ?? "Untitled task",
+      detail: createBody.detail ?? "",
+      priority: createBody.priority ?? "routine",
+      status: "open",
+      dueAt: createBody.dueAt ?? new Date(Date.now() + 86400000).toISOString(),
+      createdAt: new Date().toISOString(),
+      caseId: createBody.caseId,
+      patientId: createBody.patientId,
+      referralId: createBody.referralId,
+      ownerCapability: createBody.ownerCapability,
+      ownerRole: createBody.ownerRole,
+      ownerId: createBody.ownerId,
+      timelineMilestone: createBody.timelineMilestone,
+      agentName: createBody.agentName,
+      abstentionReason: createBody.abstentionReason,
+      createdByAgent: createBody.createdByAgent ?? false,
+    };
+    state.workItems = [newItem, ...state.workItems];
+    audit(actorFrom(request), "workitem.create", { type: "WorkItem", id: newItem.id }, `Created ${newItem.type}`);
+    return HttpResponse.json(newItem, { status: 201 });
+  }),
+
+  /**
+   * POST /worklist/:itemId/claim — Atomically claims a task
+   * Regulatory citations:
+   * - HIPAA 45 CFR § 164.312(b): Technical access audit for clinical task assignment.
+   */
+  http.post(apiUrl(P.workItemClaim), async ({ params, request }) => {
+    await latency();
+    const state = db();
+    const itemId = param(params.itemId);
+    const item = state.workItems.find((candidate) => candidate.id === itemId);
+    if (!item) return notFound("Work item");
+    if (item.status === "completed" || item.status === "done") {
+      return apiError(409, "TASK_ALREADY_COMPLETED", "Task is already completed");
+    }
+    interface ClaimBody {
+      claimedBy?: string;
+      ownerId?: string;
+      ownerRole?: ParticipantRole;
+      ownerCapability?: string;
+    }
+    const emptyClaimBody: ClaimBody = {};
+    const claimBody = await body<ClaimBody>(request).catch(() => emptyClaimBody);
+    const claimed: WorkItem = {
+      ...item,
+      status: "claimed",
+      ownerId: claimBody.claimedBy ?? claimBody.ownerId ?? userIdFrom(request) ?? item.ownerId,
+      ownerRole: claimBody.ownerRole ?? item.ownerRole,
+      ownerCapability: claimBody.ownerCapability ?? item.ownerCapability,
+    };
+    state.workItems = state.workItems.map((candidate) => (candidate.id === itemId ? claimed : candidate));
+    audit(actorFrom(request), "workitem.claim", { type: "WorkItem", id: itemId }, `Claimed ${item.type}`);
+    return HttpResponse.json(claimed);
+  }),
+
+  /**
+   * POST /worklist/:itemId/complete — Resolves a task with audit log
+   * Regulatory citations:
+   * - CMS 42 CFR § 416.52: Documenting resolution of clinical requirements.
+   * - HIPAA 45 CFR § 164.312(b): Audit controls for task completion.
+   */
   http.post(apiUrl(P.workItemComplete), async ({ params, request }) => {
     await latency();
     const state = db();
     const itemId = param(params.itemId);
     const item = state.workItems.find((candidate) => candidate.id === itemId);
     if (!item) return notFound("Work item");
-    const done: WorkItem = { ...item, status: "done", completedAt: new Date().toISOString() };
+    interface CompleteBody {
+      resolvedBy?: string;
+      resolution?: string;
+      notes?: string;
+    }
+    const emptyCompleteBody: CompleteBody = {};
+    const completeBody = await body<CompleteBody>(request).catch(() => emptyCompleteBody);
+    const done: WorkItem = {
+      ...item,
+      status: "completed",
+      completedAt: new Date().toISOString(),
+      resolvedBy: completeBody.resolvedBy ?? userIdFrom(request) ?? item.resolvedBy,
+      resolution: completeBody.resolution ?? completeBody.notes ?? item.resolution ?? "Completed",
+    };
     state.workItems = state.workItems.map((candidate) => (candidate.id === itemId ? done : candidate));
     audit(actorFrom(request), "workitem.complete", { type: "WorkItem", id: itemId }, `Completed ${item.type}`);
     return HttpResponse.json(done);
   }),
+
 
   http.get(apiUrl(P.whiteboard), async ({ request }) => {
     await latency();

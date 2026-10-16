@@ -73,7 +73,8 @@ export type Sex = "F" | "M" | "X";
  * attestations. It says who does what in a case; it grants nothing (authorization is
  * capabilities from role templates in @asc/authz).
  */
-export type ParticipantRole = "SURGEON" | "ANESTHESIOLOGIST" | "NURSE" | "ADMIN";
+export const PARTICIPANT_ROLES = ["SURGEON", "ANESTHESIOLOGIST", "NURSE", "ADMIN"] as const;
+export type ParticipantRole = (typeof PARTICIPANT_ROLES)[number];
 
 export interface StaffRef {
   readonly id: string;
@@ -1322,10 +1323,55 @@ export interface SendResultLetterPayload {
 }
 
 export interface WorklistQuery {
+  readonly facilityId?: string;
   readonly type?: WorkItemType;
   readonly role?: ParticipantRole;
   readonly status?: WorkItem["status"];
+  readonly priority?: WorkItemPriority;
+  readonly ownerCapability?: string;
+  readonly ownerId?: string;
+  readonly caseId?: string;
+  readonly patientId?: string;
+  readonly timelineMilestone?: PreopTimelineMilestone;
+  readonly overdueOnly?: boolean | string;
+  readonly limit?: number;
+  readonly offset?: number;
 }
+
+export interface CreateWorkItemPayload {
+  readonly facilityId?: string;
+  readonly type: WorkItemType;
+  readonly title: string;
+  readonly detail?: string;
+  readonly priority?: WorkItemPriority;
+  readonly dueAt: IsoDateTime;
+  readonly caseId?: string;
+  readonly patientId?: string;
+  readonly referralId?: string;
+  readonly ownerCapability?: string;
+  readonly ownerRole?: ParticipantRole;
+  readonly ownerId?: string;
+  readonly timelineMilestone?: PreopTimelineMilestone;
+  readonly agentName?: string;
+  readonly abstentionReason?: string;
+  readonly createdByAgent?: boolean;
+  readonly idempotencyKey?: string;
+}
+
+export interface ClaimWorkItemPayload {
+  readonly claimedBy?: string;
+  readonly ownerId?: string;
+  readonly ownerRole?: ParticipantRole;
+  readonly ownerCapability?: string;
+}
+
+export interface CompleteWorkItemPayload {
+  readonly resolvedBy?: string;
+  readonly resolution?: string;
+  readonly notes?: string;
+  readonly completedAt?: IsoDateTime;
+}
+
 
 export interface AuditQuery {
   readonly action?: string;
