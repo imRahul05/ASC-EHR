@@ -87,6 +87,8 @@ export const ANESTHESIA_DRUG_LABEL: Readonly<Record<AnesthesiaDrug, string>> = {
   ephedrine: "Ephedrine",
   phenylephrine: "Phenylephrine",
   ondansetron: "Ondansetron",
+  naloxone: "Naloxone",
+  flumazenil: "Flumazenil",
 };
 
 export const ANESTHESIA_TECHNIQUE_LABEL: Readonly<Record<AnesthesiaTechnique, string>> = {
