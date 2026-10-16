@@ -6,6 +6,7 @@ import type {
   CaseStage,
   Consent,
   DischargeInstructions,
+  GateCheck,
   HpAssessment,
   Medication,
   NoteDraft,
@@ -13,6 +14,7 @@ import type {
   ProcedureCase,
   ProcedureEvent,
   ReadinessCheck,
+  RuleReason,
   RuleResult,
   TimeOutRecord,
   TimeOutRole,
@@ -20,7 +22,7 @@ import type {
 import { medHoldCheck } from "@asc/clinical-rules/meds";
 import { transitionAllowed } from "@asc/clinical-rules/phases";
 import { canWaiveCheck, isCheckSatisfiedOrWaived, mapReadinessChecks } from "@asc/clinical-rules/readiness";
-import { combine, fail, fromChecks, OK } from "@asc/clinical-rules/result";
+import { type CheckSpec, combine, fail, fromChecks, OK } from "@asc/clinical-rules/result";
 import { ALDRETE_COMPONENTS } from "@asc/clinical-rules/scores";
 import type { AnticoagulationEvaluationResult } from "@asc/clinical-rules/med-hold";
 
@@ -124,7 +126,8 @@ export function readinessGate(
 export function timeOutGate(timeOut: TimeOutRecord): RuleResult {
   const attested = new Set(timeOut.attestations.map((item) => item.role));
   const checklistOk = Object.values(timeOut.checklist).every(Boolean);
-  return fromChecks([
+
+  const checks: CheckSpec[] = [
     { code: "TIMEOUT_CHECKLIST", label: "Time-out checklist complete", ok: checklistOk, message: "Complete every time-out item." },
     ...TIME_OUT_ROLES.map((role) => ({
       code: `TIMEOUT_${role}`,
@@ -132,7 +135,25 @@ export function timeOutGate(timeOut: TimeOutRecord): RuleResult {
       ok: attested.has(role),
       message: `Time-out not yet attested by ${TIME_OUT_ROLE_LABEL[role].toLowerCase()}.`,
     })),
-  ]);
+  ];
+
+  if (timeOut.checklist.siteAndLateralityConfirmed !== undefined) {
+    checks.push({ code: "TIMEOUT_SITE_LATERALITY", label: "Site & laterality confirmed", ok: Boolean(timeOut.checklist.siteAndLateralityConfirmed), message: "Confirm correct procedure site and laterality." });
+  }
+  if (timeOut.checklist.prophylaxisReviewed !== undefined) {
+    checks.push({ code: "TIMEOUT_PROPHYLAXIS", label: "Prophylaxis reviewed", ok: Boolean(timeOut.checklist.prophylaxisReviewed), message: "Review indicated antibiotic or thromboembolism prophylaxis." });
+  }
+  if (timeOut.checklist.anticipatedIssuesReviewed !== undefined) {
+    checks.push({ code: "TIMEOUT_ANTICIPATED_ISSUES", label: "Anticipated issues reviewed", ok: Boolean(timeOut.checklist.anticipatedIssuesReviewed), message: "Review anticipated critical steps and equipment issues." });
+  }
+
+  if (timeOut.participants !== undefined) {
+    const roles = new Set(timeOut.participants.map((p) => p.role));
+    checks.push({ code: "TIMEOUT_PARTICIPANT_CIRCULATOR", label: "Circulating RN participant acknowledged", ok: roles.has("circulating_rn"), message: "Circulating nurse must participate in the surgical timeout." });
+    checks.push({ code: "TIMEOUT_PARTICIPANT_ENDOSCOPIST", label: "Endoscopist participant acknowledged", ok: roles.has("endoscopist"), message: "Endoscopist must participate in the surgical timeout." });
+  }
+
+  return fromChecks(checks);
 }
 
 /** IN_PROCEDURE → RECOVERY: scope out recorded. */
@@ -419,6 +440,95 @@ export function evaluateScopeHangTime(reprocessedAt: string, procedureTime: stri
       message: "Scope hang-time exceeded 168 hours. Must return to sterile processing.",
     },
   ]);
+}
+
+export interface Gate2OverrideEvaluationInput {
+  readonly checks: readonly ReadinessCheck[];
+  readonly anticoagulationEvaluation?: AnticoagulationEvaluationResult;
+  readonly hasActiveScopeLockViolation?: boolean;
+  readonly override?: {
+    readonly reason: string;
+    readonly actorRole: string;
+    readonly actorName?: string;
+  } | null;
+}
+
+export type GateResult = RuleResult & {
+  readonly overridden?: boolean;
+  readonly overrideReason?: string;
+  readonly blockerCodes?: readonly string[];
+};
+
+export const preOpToInRoomGate = evaluateGate2;
+
+/**
+ * Hard Gate 2 Evaluation with Clinical Override Enforcement (AC-F-06-1, AC-F-06-2, AC-I-05-4):
+ * - Evaluates Gate 2 clinical readiness checks (anesthesia, anticoagulation, equipment, escort).
+ * - Enforces absolute lockout on active scope lock violations (AC-I-05-4): this gate has NO override.
+ * - Permits clinical blocker override only for authorized clinical roles ("gi-physician" or "anesthesia")
+ *   with a non-trivial justification (>= 10 characters).
+ */
+export function evaluateGate2WithOverride(input: Gate2OverrideEvaluationInput): GateResult {
+  const baseResult = evaluateGate2(input.checks, input.anticoagulationEvaluation);
+
+  // Hard Gate (AC-I-05-4): Active endoscope reprocessing/hang-time violations have ZERO override allowance across all roles.
+  if (input.hasActiveScopeLockViolation === true) {
+    const scopeLockReason: RuleReason = {
+      code: "SCOPE_LOCK_VIOLATION",
+      message: "Endoscope reprocessing or hang-time violation active (AC-I-05-4). Zero overrides permitted.",
+    };
+    const checks: GateCheck[] = [
+      ...(baseResult.checks ?? []),
+      {
+        code: "SCOPE_LOCK_VIOLATION",
+        label: "Scope reprocessing lock",
+        ok: false,
+      },
+    ];
+    return {
+      ok: false,
+      reasons: [...baseResult.reasons, scopeLockReason],
+      checks,
+      overridden: false,
+      blockerCodes: ["SCOPE_LOCK_VIOLATION"],
+    };
+  }
+
+  if (baseResult.ok) {
+    return {
+      ...baseResult,
+      overridden: false,
+    };
+  }
+
+  // Permitted roles for clinical blocker override per AC-F-06-2: gi-physician or anesthesia
+  const permittedRoles = ["gi-physician", "anesthesia", "attending-physician", "anesthesiologist"];
+  const overrideReason = input.override?.reason?.trim();
+  const actorRole = input.override?.actorRole;
+
+  if (
+    input.override &&
+    actorRole &&
+    permittedRoles.includes(actorRole) &&
+    overrideReason &&
+    overrideReason.length >= 10
+  ) {
+    return {
+      ok: true,
+      reasons: [],
+      checks: baseResult.checks,
+      overridden: true,
+      overrideReason,
+    };
+  }
+
+  const blockerCodes = (baseResult.checks ?? []).filter((c) => !c.ok).map((c) => c.code);
+
+  return {
+    ...baseResult,
+    overridden: false,
+    blockerCodes,
+  };
 }
 
 type GateFn = (detail: CaseDetail) => RuleResult;

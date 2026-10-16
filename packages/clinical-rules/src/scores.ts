@@ -19,6 +19,50 @@ export function aldreteTotal(input: AldreteInput): number {
 export const WITHDRAWAL_BENCHMARK_MIN = 6;
 
 /**
+ * ASGE/ACG 2022 Quality Indicators for GI Endoscopy:
+ * Colonoscopy withdrawal time benchmark is >= 6.0 minutes.
+ * A mean withdrawal time >= 6 minutes in normal screening colonoscopies is directly correlated
+ * with increased adenoma detection rate (ADR) and reduced post-colonoscopy colorectal cancer.
+ */
+export interface WithdrawalQualityResult {
+  readonly withdrawalMinutes: number;
+  readonly meetsBenchmark: boolean;
+  readonly benchmarkMinutes: number;
+  readonly compliant: boolean;
+  readonly message: string;
+}
+
+export function evaluateWithdrawalQuality(
+  cecumReachedIso: string,
+  scopeOutIso: string,
+): WithdrawalQualityResult {
+  const startMs = Date.parse(cecumReachedIso);
+  const endMs = Date.parse(scopeOutIso);
+
+  if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
+    throw new Error("Invalid ISO timestamp provided for withdrawal quality evaluation.");
+  }
+
+  if (endMs < startMs) {
+    throw new Error("Scope out timestamp cannot precede cecum reached timestamp.");
+  }
+
+  const minutes = (endMs - startMs) / MINUTE_MS;
+  const withdrawalMinutes = Math.round(minutes * 10) / 10;
+  const meetsBenchmark = withdrawalMinutes >= WITHDRAWAL_BENCHMARK_MIN;
+
+  return {
+    withdrawalMinutes,
+    meetsBenchmark,
+    benchmarkMinutes: WITHDRAWAL_BENCHMARK_MIN,
+    compliant: meetsBenchmark,
+    message: meetsBenchmark
+      ? `Withdrawal time ${withdrawalMinutes} min meets the ASGE quality indicator (>= ${WITHDRAWAL_BENCHMARK_MIN}.0 min).`
+      : `Withdrawal time ${withdrawalMinutes} min is below the ASGE quality indicator (>= ${WITHDRAWAL_BENCHMARK_MIN}.0 min).`,
+  };
+}
+
+/**
  * Withdrawal time in minutes: WITHDRAWAL_START (or CECUM_REACHED when not tapped) → SCOPE_OUT.
  * Null until both events exist.
  */
