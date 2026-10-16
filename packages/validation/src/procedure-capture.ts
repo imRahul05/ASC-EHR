@@ -9,7 +9,7 @@
  */
 
 import { z } from "zod";
-import { PROCEDURE_EVENT_TYPES } from "@asc/types";
+import { PROCEDURE_EVENT_TYPES } from "@asc/types/clinical";
 
 export const timeOutChecklistSchema = z.object({
   patientIdentity: z.boolean(),
