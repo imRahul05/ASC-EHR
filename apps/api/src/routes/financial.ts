@@ -1,11 +1,11 @@
 import { API_ROUTE_PATTERNS } from "@asc/config";
 import type { FastifyInstance } from "fastify";
 
-import { capabilityAtResource } from "../auth/route-auth.js";
 import { financialController } from "../controllers/financial.controller.js";
-import { requireCapabilityHook, requireCaseContext } from "../hooks/case-context.js";
-
-import { requireIdempotency } from "../hooks/idempotency.js";
+import {
+  clinicalMutationRoute,
+  clinicalQueryRoute,
+} from "../hooks/pipeline.js";
 
 /**
  * Financial Clearance & Eligibility Routes (Phase P22a / EP-D)
@@ -20,41 +20,34 @@ export function financialRoutes(app: FastifyInstance): Promise<void> {
   // POST /cases/:caseId/eligibility/check — Real-time X12 270/271 eligibility verification
   app.post(
     API_ROUTE_PATTERNS.caseEligibilityCheck,
-    {
-      config: capabilityAtResource("patient.eligibility.check"),
-      preHandler: [requireCapabilityHook("patient.eligibility.check"), requireCaseContext],
-    },
+    clinicalMutationRoute({
+      capability: "patient.eligibility.check",
+    }),
     (request, reply) => financialController.checkEligibility(request, reply)
   );
 
   // GET /cases/:caseId/financial-summary — Full financial clearance summary and dual GFE
   app.get(
     API_ROUTE_PATTERNS.caseFinancialSummary,
-    {
-      config: capabilityAtResource("case.read"),
-      preHandler: [requireCapabilityHook("case.read"), requireCaseContext],
-    },
+    clinicalQueryRoute({ capability: "case.read" }),
     (request, reply) => financialController.getFinancialSummary(request, reply)
   );
 
   // POST /cases/:caseId/copay-collected — Front-desk copay/deductible collection and payment plan
   app.post(
     API_ROUTE_PATTERNS.caseCopayCollected,
-    {
-      config: capabilityAtResource("patient.register"),
-      preHandler: [requireIdempotency, requireCapabilityHook("patient.register"), requireCaseContext],
-    },
+    clinicalMutationRoute({
+      capability: "patient.register",
+    }),
     (request, reply) => financialController.recordCopay(request, reply)
   );
-
 
   // POST /cases/:caseId/prior-auth — Record and revalidate X12 278 prior authorization
   app.post(
     API_ROUTE_PATTERNS.casePriorAuth,
-    {
-      config: capabilityAtResource("patient.eligibility.check"),
-      preHandler: [requireCapabilityHook("patient.eligibility.check"), requireCaseContext],
-    },
+    clinicalMutationRoute({
+      capability: "patient.eligibility.check",
+    }),
     (request, reply) => financialController.revalidatePriorAuth(request, reply)
   );
 

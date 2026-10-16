@@ -5,9 +5,11 @@ import type { FastifyInstance } from "fastify";
 
 import { capabilityAtResource } from "../auth/route-auth.js";
 import { casesController } from "../controllers/cases.controller.js";
-import { requireCapabilityHook, requireCaseContext, validateBody } from "../hooks/case-context.js";
-
-import { requireIdempotency } from "../hooks/idempotency.js";
+import {
+  clinicalMutationRoute,
+  clinicalQueryRoute,
+} from "../hooks/pipeline.js";
+import { validateBody } from "../hooks/validation.js";
 
 // export
 export { classifyMedplumReadError } from "../services/medplum-error-classifier.js";
@@ -29,6 +31,8 @@ declare module "fastify" {
  */
 export function casesRoutes(app: FastifyInstance): Promise<void> {
   // POST /cases — Book a surgical case into an operating room (Phase P15a/P15b)
+  // Note: Creates a new case entity without an existing caseId parameter; therefore uses
+  // validateBody directly rather than clinicalMutationRoute (which hydrates existing case context).
   app.post(
     API_ROUTE_PATTERNS.cases,
     {
@@ -41,25 +45,18 @@ export function casesRoutes(app: FastifyInstance): Promise<void> {
   // GET /cases/:caseId — Fully hydrated Case Workspace detail bundle
   app.get(
     API_ROUTE_PATTERNS.case,
-    {
-      config: capabilityAtResource("case.read"),
-      preHandler: [requireCapabilityHook("case.read"), requireCaseContext],
-    },
+    clinicalQueryRoute({ capability: "case.read" }),
     (request, reply) => casesController.getCase(request, reply)
   );
 
   // POST /cases/:caseId/transition — Validates and executes physical stage transitions
   app.post(
     API_ROUTE_PATTERNS.caseTransition,
-    {
-      config: capabilityAtResource("case.advance"),
-      preHandler: [
-        requireCapabilityHook("case.advance"),
-        requireIdempotency,
-        validateBody(transitionCaseSchema, "Invalid case transition payload"),
-        requireCaseContext,
-      ],
-    },
+    clinicalMutationRoute({
+      capability: "case.advance",
+      schema: transitionCaseSchema,
+      errorMessage: "Invalid case transition payload",
+    }),
     (request, reply) => casesController.transitionCase(request, reply)
   );
 

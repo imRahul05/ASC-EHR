@@ -421,3 +421,16 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **How to check:** `pnpm --filter api exec tsc src/controllers/*.ts --noEmit --ignoreConfig --skipLibCheck` and `pnpm turbo run lint check-types test build`.
 - **Guarded by:** `apps/api/src/auth/augment.ts`, `apps/api/src/controllers/*.ts`.
 
+### LM-037 — Composite Route Pre-Handler Pipeline: Never use ad-hoc raw hook arrays on clinical endpoints
+- **Seen:** 3 · 2026-10-15 · `feat/composite-route-prehandler-pipeline` (Issue #99)
+- **What went wrong:**
+  1. Fastify clinical routes configured raw arrays of preHandler hooks (`requireCapabilityHook`, `requireIdempotency`, `requireCaseContext`, `validateBody`), leading to subtle hook ordering vulnerabilities where `requireIdempotency` ran before `requireCapabilityHook` (allowing unauthenticated cache probing/replay) or `validateBody` ran before `requireCaseContext` (processing unauthenticated body payloads and returning 400 for non-existent cases instead of 404).
+  2. Ad-hoc testing permitted invalid payloads to pass tests against non-existent cases because validation ran prior to case hydration.
+- **Rule:**
+  1. Never pass raw arrays of preHandler hooks on clinical case routes (`/cases/:caseId/*`). Use the composite pipeline factories (`createClinicalMutationPipeline`, `createClinicalQueryPipeline` from `apps/api/src/hooks/pipeline.js`).
+  2. The canonical mutation pipeline sequence is strictly fail-closed: Gate 3 & 4 capability verification (`requireCapabilityHook`) -> Idempotency replay (`requireIdempotency`) -> Optimistic locking header check (`If-Match`) -> Case hydration (`requireCaseContext`) -> Zod schema validation (`validateBody`).
+  3. Tests exercising body validation on clinical case routes must seed the target case in Medplum so the request legitimately reaches payload validation.
+- **How to check:** `pnpm turbo run check-types lint test build`.
+- **Guarded by:** `apps/api/src/hooks/pipeline.test.ts`, `apps/api/src/routes/*.test.ts`.
+
+

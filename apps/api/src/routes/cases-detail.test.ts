@@ -154,6 +154,12 @@ describe("Case Workspace and Transition routes", () => {
 
     it("returns 400 when body is invalid", async () => {
       const mockMedplum = new MockClient();
+      await forFacility(mockMedplum, facilityId).create<Encounter>({
+        resourceType: "Encounter",
+        id: "case-123",
+        status: "arrived",
+        class: { code: "AMB" },
+      });
       built = await setupApp(mockMedplum);
       const res = await built.app.inject({
         method: "POST",
@@ -263,6 +269,12 @@ describe("Case Workspace and Transition routes", () => {
 
     it("returns 400 when target stage is unrecognized", async () => {
       const mockMedplum = new MockClient();
+      await forFacility(mockMedplum, facilityId).create<Encounter>({
+        resourceType: "Encounter",
+        id: "case-123",
+        status: "arrived",
+        class: { code: "AMB" },
+      });
       built = await setupApp(mockMedplum);
       const res = await built.app.inject({
         method: "POST",

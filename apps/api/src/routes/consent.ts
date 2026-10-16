@@ -2,11 +2,11 @@ import { API_ROUTE_PATTERNS } from "@asc/config";
 import { signConsentSchema } from "@asc/validation";
 import type { FastifyInstance } from "fastify";
 
-import { capabilityAtResource } from "../auth/route-auth.js";
 import { consentController } from "../controllers/consent.controller.js";
-import { requireCapabilityHook, requireCaseContext, validateBody } from "../hooks/case-context.js";
-
-import { requireIdempotency } from "../hooks/idempotency.js";
+import {
+  clinicalMutationRoute,
+  clinicalQueryRoute,
+} from "../hooks/pipeline.js";
 
 /**
  * Informed Consent Routes (Phase P17 / EP-E, EP-F)
@@ -20,26 +20,18 @@ export function consentRoutes(app: FastifyInstance): Promise<void> {
   // POST /cases/:caseId/consent — Digital tablet informed consent capture
   app.post(
     API_ROUTE_PATTERNS.caseConsent,
-    {
-      config: capabilityAtResource("consent.collect"),
-      preHandler: [
-        requireIdempotency,
-        requireCapabilityHook("consent.collect"),
-        requireCaseContext,
-        validateBody(signConsentSchema, "Invalid consent payload."),
-      ],
-    },
+    clinicalMutationRoute({
+      capability: "consent.collect",
+      schema: signConsentSchema,
+      errorMessage: "Invalid consent payload.",
+    }),
     (request, reply) => consentController.signConsent(request, reply)
   );
-
 
   // GET /cases/:caseId/consent — Retrieve informed consent for case
   app.get(
     API_ROUTE_PATTERNS.caseConsent,
-    {
-      config: capabilityAtResource("case.read"),
-      preHandler: [requireCapabilityHook("case.read"), requireCaseContext],
-    },
+    clinicalQueryRoute({ capability: "case.read" }),
     (request, reply) => consentController.getConsent(request, reply)
   );
 

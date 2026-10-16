@@ -33,3 +33,65 @@ All shared logic acts as the single source of truth:
 
 ### Rule of Thumb for Agents / Developers
 > **If you are about to write a TypeScript interface, a Zod schema, or a generic utility function inside `/apps/*`, STOP.** Put it in the appropriate `/packages/*` workspace instead.
+
+---
+
+## Composite Route Pre-Handler Pipelines (`apps/api`)
+
+Fastify route definitions for clinical case resources (`/cases/:caseId/*`) must **never** configure raw, ad-hoc arrays of preHandler hooks. Raw arrays lead to hook ordering vulnerabilities (e.g., executing idempotency cache lookups or body validation before authorization checks, risking unauthorized resource enumeration under HIPAA 45 CFR § 164.312(a)(1) or cache pollution).
+
+Instead, all clinical mutations and queries use composite pipeline factories (`apps/api/src/hooks/pipeline.ts`).
+
+### Canonical Pipeline Sequences
+
+#### 1. Clinical Mutation Pipeline (`createClinicalMutationPipeline`)
+Enforces the 5-step fail-closed execution order:
+1. **Gate 3 & 4 Capability Verification (`requireCapabilityHook`)**: Validates that the authenticated principal possesses the required capability at the target facility. Rejects unauthorized requests immediately with HTTP 403 `forbidden` before performing database lookups.
+2. **Idempotency Replay (`requireIdempotency`)**: Checks for an existing cached response using the `Idempotency-Key` or `x-idempotency-key` header. Cache keys are strictly scoped by tenant, HTTP method, route template, and case ID (`buildScopedIdempotencyKey`) to prevent cross-patient or cross-tenant cache collisions under HIPAA 45 CFR § 164.312(a)(1). If a cached response exists, marks `request.facilityChecked = true` and replays the response immediately with HTTP 200/201.
+3. **Optimistic Locking Header (`requireIfMatchHeader`)**: If `enforceIfMatch: true` is configured, verifies that an `If-Match` header is present. Rejects missing headers with HTTP 400 `bad_request`.
+4. **Case Context Hydration (`requireCaseContext`)**: Resolves and verifies that the `caseId` FHIR Encounter exists and belongs to the active `facilityId`. Also verifies ETag version concurrency if `If-Match` is provided (rejecting version mismatches with HTTP 409 `concurrency_conflict`).
+5. **Zod Body Validation (`validateBody`)**: Validates and parses the request payload against the provided schema from `@asc/validation`, safely attaching typed data to `request.body`.
+
+#### 2. Clinical Query Pipeline (`createClinicalQueryPipeline`)
+Enforces the 3-step execution order:
+1. **Gate 3 & 4 Capability Verification (`requireCapabilityHook`)**: Validates the caller's read capability before accessing clinical data.
+2. **Case Context Hydration (`requireCaseContext`)**: Loads the authorized case context and verifies tenant/facility isolation.
+3. **Zod Query Validation (`validateQuery`)**: Validates query parameters against domain schema (if provided).
+
+### Unified Route Definition Helpers
+
+To eliminate duplicate capability declarations between Fastify's route configuration (`config: capabilityAtResource(...)`) and the preHandler pipeline (`pipeline({ capability: ... })`), use `clinicalMutationRoute` and `clinicalQueryRoute`:
+
+```typescript
+import { API_ROUTE_PATTERNS } from "@asc/config";
+import { signConsentSchema } from "@asc/validation";
+import type { FastifyInstance } from "fastify";
+import { consentController } from "../controllers/consent.controller.js";
+import {
+  clinicalMutationRoute,
+  clinicalQueryRoute,
+} from "../hooks/pipeline.js";
+
+export function consentRoutes(app: FastifyInstance): Promise<void> {
+  // Mutation route: pairs Gate 3 config with 5-step preHandler pipeline in a single call
+  app.post(
+    API_ROUTE_PATTERNS.caseConsent,
+    clinicalMutationRoute({
+      capability: "consent.collect",
+      schema: signConsentSchema,
+      errorMessage: "Invalid consent payload.",
+    }),
+    (request, reply) => consentController.signConsent(request, reply)
+  );
+
+  // Query route: pairs Gate 3 config with 3-step query preHandler pipeline
+  app.get(
+    API_ROUTE_PATTERNS.caseConsent,
+    clinicalQueryRoute({ capability: "case.read" }),
+    (request, reply) => consentController.getConsent(request, reply)
+  );
+
+  return Promise.resolve();
+}
+```
+
