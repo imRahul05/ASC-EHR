@@ -19,20 +19,32 @@ export interface MonitoringGap {
   readonly reason?: string;
 }
 
+export interface MonitoringGapOptions {
+  readonly maxGapMinutes?: number;
+  readonly nowMs?: number;
+}
+
 /**
  * Evaluates chronological vitals entries and identifies any gaps exceeding the ASA 5-minute threshold.
  *
  * @param vitals - Vitals recorded during the procedure.
  * @param sedationStartIso - ISO timestamp when procedural sedation was initiated.
  * @param sedationEndIso - ISO timestamp when procedural sedation was terminated.
- * @param maxGapMinutes - Maximum allowed gap before warning (defaults to ASA 5-minute standard).
+ * @param optionsOrMaxGapMinutes - Options with maxGapMinutes and nowMs, or numeric maxGapMinutes.
  */
 export function findMonitoringGaps(
   vitals: readonly VitalsEntry[],
   sedationStartIso?: string,
   sedationEndIso?: string,
-  maxGapMinutes = 5,
+  optionsOrMaxGapMinutes: number | MonitoringGapOptions = 5,
 ): readonly MonitoringGap[] {
+  const maxGapMinutes =
+    typeof optionsOrMaxGapMinutes === "number"
+      ? optionsOrMaxGapMinutes
+      : (optionsOrMaxGapMinutes.maxGapMinutes ?? 5);
+  const nowMs =
+    typeof optionsOrMaxGapMinutes === "object" ? optionsOrMaxGapMinutes.nowMs : undefined;
+
   if (!sedationStartIso && vitals.length === 0) {
     return [];
   }
@@ -62,7 +74,7 @@ export function findMonitoringGaps(
   // If no vitals recorded inside sedation window
   if (intraVitals.length === 0) {
     if (startMs !== undefined && !isNaN(startMs) && sedationStartIso) {
-      const effectiveEndMs = endMs !== undefined && !isNaN(endMs) ? endMs : Date.now();
+      const effectiveEndMs = endMs !== undefined && !isNaN(endMs) ? endMs : (nowMs ?? Date.now());
       const effectiveEndIso = sedationEndIso ?? new Date(effectiveEndMs).toISOString();
       const elapsedMs = effectiveEndMs - startMs;
       if (elapsedMs > maxGapMs) {
@@ -117,19 +129,35 @@ export function findMonitoringGaps(
     }
   }
 
-  // Check gap between last vital and sedation end (if procedure has ended)
+  // Check gap after last recorded vital
   const lastVital = intraVitals[intraVitals.length - 1];
-  if (endMs !== undefined && !isNaN(endMs) && sedationEndIso && lastVital) {
+  if (lastVital) {
     const lastVitalMs = Date.parse(lastVital.recordedAt);
-    const terminalGapMs = endMs - lastVitalMs;
-    if (terminalGapMs > maxGapMs) {
-      const gapDurationMinutes = Math.round((terminalGapMs / 60_000) * 10) / 10;
-      gaps.push({
-        startIso: lastVital.recordedAt,
-        endIso: sedationEndIso,
-        gapDurationMinutes,
-        reason: "Vitals documentation ceased more than 5 minutes prior to sedation end",
-      });
+    if (endMs !== undefined && !isNaN(endMs) && sedationEndIso) {
+      // Sedation ended: check gap between last vital and sedation end
+      const terminalGapMs = endMs - lastVitalMs;
+      if (terminalGapMs > maxGapMs) {
+        const gapDurationMinutes = Math.round((terminalGapMs / 60_000) * 10) / 10;
+        gaps.push({
+          startIso: lastVital.recordedAt,
+          endIso: sedationEndIso,
+          gapDurationMinutes,
+          reason: "Vitals documentation ceased more than 5 minutes prior to sedation end",
+        });
+      }
+    } else if (startMs !== undefined && !isNaN(startMs) && sedationStartIso && !sedationEndIso) {
+      // Active ongoing sedation: evaluate gap between last recorded vital and current time
+      const effectiveNowMs = nowMs ?? Date.now();
+      const activeGapMs = effectiveNowMs - lastVitalMs;
+      if (activeGapMs > maxGapMs) {
+        const gapDurationMinutes = Math.round((activeGapMs / 60_000) * 10) / 10;
+        gaps.push({
+          startIso: lastVital.recordedAt,
+          endIso: new Date(effectiveNowMs).toISOString(),
+          gapDurationMinutes,
+          reason: `Exceeded ASA ${maxGapMinutes}-minute interval since last recorded vital (active sedation)`,
+        });
+      }
     }
   }
 

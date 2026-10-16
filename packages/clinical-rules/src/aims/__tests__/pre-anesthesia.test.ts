@@ -35,6 +35,13 @@ describe("aims/pre-anesthesia (CMS 42 CFR § 416.42(a))", () => {
       expect(result.reasons[0]?.message).toContain("ASA Class 4 presents severe systemic instability");
     });
 
+    it("allows ASA Class 4 when cleared by medical director", () => {
+      const highRiskCleared = { ...mockAssessment, asaClass: 4 as const, medicalDirectorCleared: true };
+      const result = evaluatePreAnesthesiaReadiness(highRiskCleared);
+      expect(result.ok).toBe(true);
+      expect(result.reasons).toEqual([]);
+    });
+
     it("blocks when NPO fasting guidelines are not satisfied", () => {
       const npoViolated = { ...mockAssessment, npoStatusSatisfied: false };
       const result = evaluatePreAnesthesiaReadiness(npoViolated);

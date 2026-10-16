@@ -76,6 +76,22 @@ describe("aims/intervals (ASA Standards for Basic Anesthetic Monitoring)", () =>
       expect(gaps[0]?.endIso).toBe(sedationEnd);
       expect(gaps[0]?.gapDurationMinutes).toBe(7);
     });
+
+    it("flags active monitoring gap during ongoing sedation when vitals are overdue", () => {
+      const sedationStart = "2026-10-16T08:00:00.000Z";
+      const vitals: VitalsEntry[] = [
+        createMockVital("2026-10-16T08:02:00.000Z"),
+      ];
+      // 12 minutes elapsed since last vital at 08:02, ongoing sedation (no sedationEnd)
+      const currentNowMs = Date.parse("2026-10-16T08:14:00.000Z");
+
+      const gaps = findMonitoringGaps(vitals, sedationStart, undefined, { maxGapMinutes: 5, nowMs: currentNowMs });
+      expect(gaps).toHaveLength(1);
+      expect(gaps[0]?.startIso).toBe("2026-10-16T08:02:00.000Z");
+      expect(gaps[0]?.endIso).toBe("2026-10-16T08:14:00.000Z");
+      expect(gaps[0]?.gapDurationMinutes).toBe(12);
+      expect(gaps[0]?.reason).toContain("active sedation");
+    });
   });
 
   describe("evaluateVitalsAdequacy", () => {

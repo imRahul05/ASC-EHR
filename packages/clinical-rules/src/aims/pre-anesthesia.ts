@@ -28,6 +28,7 @@ export function evaluatePreAnesthesiaReadiness(
   const npoOk = Boolean(assessment && assessment.npoStatusSatisfied);
   const asaOk = Boolean(assessment && assessment.asaClass >= 1 && assessment.asaClass <= 3);
   const asaSevere = Boolean(assessment && assessment.asaClass >= 4);
+  const medicalDirectorOverride = Boolean(assessment?.medicalDirectorCleared);
 
   return fromChecks([
     {
@@ -41,10 +42,10 @@ export function evaluatePreAnesthesiaReadiness(
     {
       code: "ASA_PHYSICAL_STATUS_ELIGIBLE",
       label: "ASA Physical Status acceptable for ASC sedation",
-      ok: isAssessed && (asaOk || !asaSevere),
+      ok: isAssessed && (asaOk || medicalDirectorOverride),
       message: !isAssessed
         ? "ASA physical status classification not yet documented."
-        : asaSevere
+        : asaSevere && !medicalDirectorOverride
           ? `ASA Class ${assessment?.asaClass} presents severe systemic instability requiring medical director clearance.`
           : "",
     },

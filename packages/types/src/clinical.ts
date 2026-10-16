@@ -629,6 +629,7 @@ export interface PreAnesthesiaAssessment {
   readonly airwayNotes?: string;
   readonly lastOralIntakeIso: string;
   readonly npoStatusSatisfied: boolean;
+  readonly medicalDirectorCleared?: boolean;
   readonly assessedAt: string;
   readonly assessedBy: StaffRef;
 }
@@ -639,6 +640,7 @@ export interface PreAnesthesiaAssessmentPayload {
   readonly airwayNotes?: string;
   readonly lastOralIntakeIso: string;
   readonly npoStatusSatisfied: boolean;
+  readonly medicalDirectorCleared?: boolean;
   readonly assessedAt?: string;
   readonly assessedBy?: StaffRef;
 }
