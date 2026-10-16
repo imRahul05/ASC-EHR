@@ -42,8 +42,10 @@ export function evaluateScopeAssignment(
     return { ok: false, overridable: false, hangTimeHours: 0, withinHangTimeWindow: false, reasons: ["Endoscope timestamps cannot be in the future."], blockerCodes: ["FUTURE_TIMESTAMP_PROHIBITED"] };
   }
 
-  const hangTimeHours = Math.round(((assignedMs - reprocessedMs) / (1000 * 60 * 60)) * 10) / 10;
-  const withinHangTimeWindow = hangTimeHours <= MAXIMUM_SCOPE_HANG_TIME_HOURS;
+  const elapsedMs = assignedMs - reprocessedMs;
+  // Raw millisecond comparison: exactly 168 hours (168 * 3_600_000 ms) without rounding down grace (ST91:2021)
+  const withinHangTimeWindow = elapsedMs <= MAXIMUM_SCOPE_HANG_TIME_HOURS * 3_600_000;
+  const hangTimeHours = Math.round((elapsedMs / (1000 * 60 * 60)) * 10) / 10;
   const reasons: string[] = [];
   const blockerCodes: string[] = [];
 

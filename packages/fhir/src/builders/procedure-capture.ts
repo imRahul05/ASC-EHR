@@ -32,7 +32,7 @@ const CHECKLIST_KEYS: readonly (keyof TimeOutChecklist)[] = [
 ];
 
 const PARTICIPANT_TO_ATTESTATION_ROLE: Record<TimeOutParticipantRole, TimeOutRole> = {
-  circulating_rn: "NURSE", endoscopist: "SURGEON", anesthesia: "ANESTHESIOLOGIST", tech: "NURSE",
+  circulating_rn: "NURSE", endoscopist: "SURGEON", anesthesia: "ANESTHESIOLOGIST", tech: "TECH",
 };
 
 /**

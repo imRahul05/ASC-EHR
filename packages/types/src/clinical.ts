@@ -406,7 +406,7 @@ export interface VitalsEntry {
 
 // ─── Procedure room ─────────────────────────────────────────────────────────
 
-export type TimeOutRole = "SURGEON" | "NURSE" | "ANESTHESIOLOGIST";
+export type TimeOutRole = "SURGEON" | "NURSE" | "ANESTHESIOLOGIST" | "TECH";
 
 export interface TimeOutChecklist {
   readonly patientIdentity: boolean;

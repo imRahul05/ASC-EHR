@@ -38,7 +38,7 @@ type ProcedureCaptureResult<T> =
   | { readonly status: 409; readonly code: "GATE_FAILED" | "SCOPE_LOCK_VIOLATION"; readonly message: string; readonly reasons?: readonly RuleReason[] }
   | { readonly status: 403; readonly code: "forbidden"; readonly message: string };
 
-const PERMITTED_G2_OVERRIDE_ROLES: Readonly<Record<string, boolean>> = {
+export const PERMITTED_G2_OVERRIDE_ROLES: Readonly<Record<string, boolean>> = {
   "gi-physician": true,
   anesthesia: true,
   "attending-physician": true,
@@ -131,9 +131,16 @@ export async function recordCaseTimeOut(params: {
     checklist: timeOutRecord.checklist,
     participants,
     completedAt: nowIso,
+    ...(currentDetail.timeOut.fhirObservationId !== undefined
+      ? { id: currentDetail.timeOut.fhirObservationId }
+      : {}),
   });
 
-  await forFacility(medplum, facilityId).create(obs);
+  if (currentDetail.timeOut.fhirObservationId) {
+    await forFacility(medplum, facilityId).update(obs);
+  } else {
+    await forFacility(medplum, facilityId).create(obs);
+  }
 
   const updatedDetail = await getCaseDetail({ medplum, facilityId, caseId });
   return { status: 200, data: updatedDetail ?? currentDetail };
@@ -152,7 +159,7 @@ export async function recordCaseProcedureEvent(params: {
   actor: { id: string; name: string };
   logger: FastifyBaseLogger;
 }): Promise<ProcedureCaptureResult<CaseDetail>> {
-  const { medplum, facilityId, caseId, input, actor } = params;
+  const { medplum, facilityId, caseId, input, actor, logger } = params;
 
   const currentDetail = await getCaseDetail({ medplum, facilityId, caseId });
   if (!currentDetail) {
@@ -178,11 +185,15 @@ export async function recordCaseProcedureEvent(params: {
         message: "A verified endoscope must be assigned before scope insertion (CMS 42 CFR § 416.51).",
       };
     }
-    if (!currentDetail.scopeAssignment.withinHangTimeWindow) {
+    if (
+      !currentDetail.scopeAssignment.withinHangTimeWindow ||
+      currentDetail.scopeAssignment.leakTestResult !== "PASS" ||
+      currentDetail.scopeAssignment.cycleOutcome !== "PASS"
+    ) {
       return {
         status: 409,
         code: "GATE_FAILED",
-        message: "Assigned endoscope hang-time exceeded 168 hours. Scope lock is active.",
+        message: "Assigned endoscope failed reprocessing verification or exceeded 168-hour hang time (ST91:2021).",
       };
     }
   }
@@ -214,26 +225,39 @@ export async function recordCaseProcedureEvent(params: {
   await forFacility(medplum, facilityId).create(obs);
 
   // Auto-compute withdrawal time when SCOPE_OUT is recorded following CECUM_REACHED
+  // Chronological monotonicity required by ASGE/ACG 2022: SCOPE_IN <= CECUM_REACHED <= SCOPE_OUT
   if (input.type === "SCOPE_OUT") {
+    const scopeIn = currentDetail.events.find((e) => e.type === "SCOPE_IN");
     const withdrawalStart =
       currentDetail.events.find((e) => e.type === "WITHDRAWAL_START") ??
       currentDetail.events.find((e) => e.type === "CECUM_REACHED");
 
-    if (withdrawalStart) {
-      try {
-        const quality = evaluateWithdrawalQuality(withdrawalStart.at, eventTime);
-        const wtObs = buildWithdrawalTimeObservation({
-          facilityId,
-          caseId,
-          patientId: currentDetail.patient.id,
-          withdrawalTimeMinutes: quality.withdrawalMinutes,
-          meetsQualityBenchmark: quality.meetsBenchmark,
-          recordedAt: eventTime,
-          performerId: actor.id,
-        });
-        await forFacility(medplum, facilityId).create(wtObs);
-      } catch {
-        // Log or ignore invalid timestamp during auto-computation
+    if (withdrawalStart && scopeIn) {
+      const inMs = Date.parse(scopeIn.at);
+      const startMs = Date.parse(withdrawalStart.at);
+      const outMs = Date.parse(eventTime);
+
+      if (!Number.isNaN(inMs) && !Number.isNaN(startMs) && !Number.isNaN(outMs) && inMs <= startMs && startMs <= outMs) {
+        try {
+          const quality = evaluateWithdrawalQuality(withdrawalStart.at, eventTime);
+          const wtObs = buildWithdrawalTimeObservation({
+            facilityId,
+            caseId,
+            patientId: currentDetail.patient.id,
+            withdrawalTimeMinutes: quality.withdrawalMinutes,
+            meetsQualityBenchmark: quality.meetsBenchmark,
+            recordedAt: eventTime,
+            performerId: actor.id,
+          });
+          await forFacility(medplum, facilityId).create(wtObs);
+        } catch {
+          // Log or ignore invalid timestamp during auto-computation
+        }
+      } else {
+        logger.warn(
+          { caseId, scopeInAt: scopeIn.at, withdrawalStartAt: withdrawalStart.at, scopeOutAt: eventTime },
+          "Withdrawal time calculation skipped due to chronological event order violation",
+        );
       }
     }
   }
@@ -312,9 +336,16 @@ export async function assignCaseScope(params: {
     caseId,
     patientId: currentDetail.patient.id,
     scopeAssignment: scopeRecord,
+    ...(currentDetail.scopeAssignment?.fhirObservationId !== undefined
+      ? { id: currentDetail.scopeAssignment.fhirObservationId }
+      : {}),
   });
 
-  await forFacility(medplum, facilityId).create(obs);
+  if (currentDetail.scopeAssignment?.fhirObservationId) {
+    await forFacility(medplum, facilityId).update(obs);
+  } else {
+    await forFacility(medplum, facilityId).create(obs);
+  }
 
   const updatedDetail = await getCaseDetail({ medplum, facilityId, caseId });
   return { status: 200, data: updatedDetail ?? currentDetail };
@@ -340,7 +371,7 @@ export async function overrideCaseGate2(params: {
     return { status: 404, code: "not_found", message: `Case ${caseId} not found` };
   }
 
-  const actorRole = input.actorRole ?? actor.role ?? "";
+  const actorRole = actor.role ?? "";
   if (!PERMITTED_G2_OVERRIDE_ROLES[actorRole]) {
     return {
       status: 403,
@@ -371,7 +402,7 @@ export async function overrideCaseGate2(params: {
   const overrideRecord: Gate2OverrideRecord = {
     overriddenAt,
     actorId: actor.id,
-    actorName: input.actorName || actor.name,
+    actorName: actor.name,
     actorRole,
     reason: input.reason,
     overriddenBlockers: blockerCodes,
@@ -382,9 +413,16 @@ export async function overrideCaseGate2(params: {
     caseId,
     patientId: currentDetail.patient.id,
     override: overrideRecord,
+    ...(currentDetail.gate2Override?.fhirObservationId !== undefined
+      ? { id: currentDetail.gate2Override.fhirObservationId }
+      : {}),
   });
 
-  await forFacility(medplum, facilityId).create(obs);
+  if (currentDetail.gate2Override?.fhirObservationId) {
+    await forFacility(medplum, facilityId).update(obs);
+  } else {
+    await forFacility(medplum, facilityId).create(obs);
+  }
 
   const updatedDetail = await getCaseDetail({ medplum, facilityId, caseId });
   return { status: 200, data: updatedDetail ?? currentDetail };

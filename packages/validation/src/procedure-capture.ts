@@ -122,7 +122,7 @@ export const gate2OverrideInputSchema = z.object({
     .trim()
     .min(10, "Override reason must be at least 10 characters")
     .max(500, "Override reason cannot exceed 500 characters"),
-  actorName: z.string().trim().min(1, "Actor name is required").max(128),
+  actorName: z.string().trim().min(1).max(128).optional(),
   actorRole: z.string().trim().min(1).max(64).optional(),
   overriddenAt: z.string().datetime().optional(),
 });
@@ -130,7 +130,7 @@ export const Gate2OverrideInputSchema = gate2OverrideInputSchema;
 
 export interface Gate2OverrideInput {
   readonly reason: string;
-  readonly actorName: string;
+  readonly actorName?: string;
   readonly actorRole?: string;
   readonly overriddenAt?: string;
 }

@@ -26,6 +26,20 @@ describe("evaluateScopeAssignment", () => {
     expect(result.blockerCodes).toContain("SCOPE_HANG_TIME_EXPIRED");
   });
 
+  it("strictly enforces 168-hour ceiling at millisecond precision without rounding-down grace (ST91:2021)", () => {
+    // 168 hours + 2 minutes = 168.033 hours. Previously Math.round(168.033 * 10) / 10 = 168.0 passed!
+    const reprocessed = new Date("2026-10-01T00:00:00.000Z");
+    const assigned = new Date(reprocessed.getTime() + 168 * 3600_000 + 120_000); // +2 minutes
+    const result = evaluateScopeAssignment({
+      ...baseInput,
+      reprocessedAt: reprocessed.toISOString(),
+      assignedAt: assigned.toISOString(),
+    });
+    expect(result.withinHangTimeWindow).toBe(false);
+    expect(result.ok).toBe(false);
+    expect(result.blockerCodes).toContain("SCOPE_HANG_TIME_EXPIRED");
+  });
+
   it("rejects endoscope with failed leak test (AC-I-05-1)", () => {
     const result = evaluateScopeAssignment({ ...baseInput, leakTestResult: "FAIL" });
     expect(result.ok).toBe(false);

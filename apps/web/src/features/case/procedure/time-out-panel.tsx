@@ -20,13 +20,14 @@ interface TimeOutPanelProps {
 
 const ITEMS = Object.keys(TIME_OUT_ITEM_LABEL) as (keyof TimeOutChecklist)[];
 
-const ROLE_SHORT: Readonly<Record<TimeOutRole, string>> = { SURGEON: "MD", NURSE: "RN", ANESTHESIOLOGIST: "CRNA" };
+const ROLE_SHORT: Readonly<Record<TimeOutRole, string>> = { SURGEON: "MD", NURSE: "RN", ANESTHESIOLOGIST: "CRNA", TECH: "ST" };
 
 function teamMember(detail: CaseDetail, role: TimeOutRole): StaffRef {
   const byRole: Readonly<Record<TimeOutRole, StaffRef>> = {
     SURGEON: detail.case.team.surgeon,
     NURSE: detail.case.team.nurse,
     ANESTHESIOLOGIST: detail.case.team.anesthesia,
+    TECH: { id: "tech-staff", name: "GI Tech", initials: "ST" },
   };
   return byRole[role];
 }

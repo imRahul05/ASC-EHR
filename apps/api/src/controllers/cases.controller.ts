@@ -19,6 +19,7 @@ import { getCaseDetail, transitionCase } from "../services/case-read-service.js"
 import {
   assignCaseScope,
   overrideCaseGate2,
+  PERMITTED_G2_OVERRIDE_ROLES,
   recordCaseProcedureEvent,
   recordCaseTimeOut,
 } from "../services/procedure-capture-service.js";
@@ -158,16 +159,20 @@ export const casesController = {
     const { caseId, facilityId } = getCaseContext(request);
     const body = request.body as SignTimeOutInput;
     const actorId = request.principal?.id ?? "staff-actor";
-    const primaryRole = request.principal
-      ? applicableGrants(request.principal, facilityId).flatMap((g) => g.roleKeys)[0]
-      : undefined;
+    const actorName = request.principal?.id ? `Staff (${request.principal.id})` : "Staff User";
+    const actorRoles = request.principal
+      ? applicableGrants(request.principal, facilityId).flatMap((g) => g.roleKeys)
+      : [];
+    const primaryRole = actorRoles.find(
+      (r) => r === "gi-physician" || r === "attending-physician" || r === "anesthesia" || r === "anesthesiologist",
+    ) ?? actorRoles[0];
 
     const result = await recordCaseTimeOut({
       medplum: request.medplum,
       facilityId,
       caseId,
       input: body,
-      actor: { id: actorId, name: "Staff User", ...(primaryRole ? { role: primaryRole } : {}) },
+      actor: { id: actorId, name: actorName, ...(primaryRole ? { role: primaryRole } : {}) },
       logger: request.log,
     });
     return handleCaptureResult(reply, result);
@@ -177,13 +182,14 @@ export const casesController = {
     const { caseId, facilityId } = getCaseContext(request);
     const body = request.body as RecordProcedureEventInput;
     const actorId = request.principal?.id ?? "staff-actor";
+    const actorName = request.principal?.id ? `Staff (${request.principal.id})` : "Staff User";
 
     const result = await recordCaseProcedureEvent({
       medplum: request.medplum,
       facilityId,
       caseId,
       input: body,
-      actor: { id: actorId, name: "Staff User" },
+      actor: { id: actorId, name: actorName },
       logger: request.log,
     });
     return handleCaptureResult(reply, result);
@@ -193,13 +199,14 @@ export const casesController = {
     const { caseId, facilityId } = getCaseContext(request);
     const body = request.body as AssignScopeInput;
     const actorId = request.principal?.id ?? "staff-actor";
+    const actorName = request.principal?.id ? `Staff (${request.principal.id})` : "Staff User";
 
     const result = await assignCaseScope({
       medplum: request.medplum,
       facilityId,
       caseId,
       input: body,
-      actor: { id: actorId, name: "Staff User" },
+      actor: { id: actorId, name: actorName },
       logger: request.log,
     });
     return handleCaptureResult(reply, result);
@@ -209,16 +216,18 @@ export const casesController = {
     const { caseId, facilityId } = getCaseContext(request);
     const body = request.body as Gate2OverrideInput;
     const actorId = request.principal?.id ?? "staff-actor";
-    const primaryRole = request.principal
-      ? applicableGrants(request.principal, facilityId).flatMap((g) => g.roleKeys)[0]
-      : undefined;
+    const actorName = body.actorName?.trim() || (request.principal?.id ? `Staff (${request.principal.id})` : "Staff Physician");
+    const actorRoles = request.principal
+      ? applicableGrants(request.principal, facilityId).flatMap((g) => g.roleKeys)
+      : [];
+    const permittedRole = actorRoles.find((r) => PERMITTED_G2_OVERRIDE_ROLES[r]);
 
     const result = await overrideCaseGate2({
       medplum: request.medplum,
       facilityId,
       caseId,
       input: body,
-      actor: { id: actorId, name: body.actorName || "Staff Physician", ...(primaryRole ? { role: primaryRole } : {}) },
+      actor: { id: actorId, name: actorName, ...(permittedRole ? { role: permittedRole } : {}) },
       logger: request.log,
     });
     return handleCaptureResult(reply, result);

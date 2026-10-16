@@ -443,7 +443,49 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
   1. Idempotency cache keys MUST always be compositely scoped: `${tenantId}:${method}:${routeUrl}:${caseId ?? ""}:${rawKey}`. Never trust or cache raw client keys globally.
   2. Use `clinicalMutationRoute` and `clinicalQueryRoute` route definition helpers. They bind `config.auth.capability` and the preHandler pipeline from a single capability argument, eliminating capability drift by construction.
 - **How to check:** `pnpm turbo run check-types lint test build`.
-- **Guarded by:** `apps/api/src/hooks/idempotency.test.ts`, `apps/api/src/hooks/pipeline.test.ts`.
+### LM-039 — Database test reconciliation with Day-1 architecture and deterministic concurrency synchronization
+- **Seen:** 3 · 2026-10-16 · PR #104 (`packages/db/src/__tests__/`, `.github/workflows/ci.yml`)
+- **What went wrong:**
+  1. When Postgres service was added to CI for Phase P01, obsolete integration tests that asserted session-variable RLS (`SELECT set_config('app.tenant_id', ...)` and `DROP POLICY tenant_isolation`) failed because Migration `0007_streamline_single_facility_access.sql` (under ADR 2026-10-14) had intentionally disabled session-variable RLS to avoid PgBouncer connection pinning on Neon.
+  2. Integration tests creating runtime connections (`lock.test.ts`) failed with `SQLSTATE 28P01` (password authentication failed) because CI altered `asc_app` password while `test-db.ts` defaulted to `asc_app:asc_app`.
+  3. Concurrent lock tests initiated two operations simultaneously without synchronization, causing non-deterministic lock acquisition order across independent TCP connection attempts.
+  4. Next.js production build in CI failed because `NEXT_PUBLIC_MEDPLUM_BASE_URL` was specified without a trailing slash (`http://localhost:8103` vs `http://localhost:8103/`), violating `@asc/api-client` URL validation.
+- **Rule:**
+  1. Integration test assertions MUST reflect current accepted ADRs and schema migrations. Under ADR 2026-10-14 Day-1 single-facility architecture, tests verify parameterized query filters (`eq(table.tenantId, scope.tenantId)`) and append-only constraints, not retired session-variable policies.
+  2. Test credentials must remain consistent between Docker init SQL (`01-runtime-role.sql`), helper modules (`runtimeUrl`), and CI workflow configurations.
+  3. Concurrency tests verifying exclusion must use explicit promise barriers (`opStarted`) to guarantee the target operation acquires the lock before the competing operation attempts acquisition.
+  4. Build-time `NEXT_PUBLIC_MEDPLUM_BASE_URL` MUST end with a trailing slash (`http://localhost:8103/`).
+- **How to check:** `pnpm turbo run check-types lint test eval build`.
+- **Guarded by:** `packages/db/src/__tests__/*.test.ts`, `.github/workflows/ci.yml`.
 
+### LM-040 — Worklist client-server response contract parity, capability check sequencing, and entity-scoped idempotency
+- **Seen:** 3 · 2026-10-16 · PR #104 Review (`apps/api`, `apps/web`, `packages/validation`, `packages/api-client`)
+- **What went wrong:**
+  1. `GET /worklist` returned paginated `{ items, total }` on the backend, but `@asc/api-client` and MSW returned a raw array `WorkItem[]`, causing `worklist-view.tsx` and `work-items-panel.tsx` to crash with `all.filter is not a function` when connected to the real API.
+  2. `claimWorkItemSchema` had `.refine(...)` requiring `claimedBy` or `ownerId`, rejecting empty body `{}` with HTTP 400 when the UI claim button invoked the route, even though the service defaulted to `principal.id`.
+  3. PreHandler hooks on worklist mutation routes ran `requireIdempotency` and `validateBody` before capability authorization, violating fail-closed security sequence (LM-034, LM-037).
+  4. Idempotency cache key scoping only checked `params.caseId`, omitting `params.itemId` on `/worklist/:itemId/claim`, causing cross-item cache collisions (LM-038).
+  5. MSW mock error codes used ad-hoc strings (`"TASK_ALREADY_COMPLETED"`) instead of `API_ERROR_CODES` (`"work_item_already_completed"`), and `worklist-view.tsx` omitted the `"anesthesia"` queue pill defined in `timeline.ts`.
+- **Rule:**
+  1. API endpoints returning `{ items, total }` MUST be typed as `WorklistResult` across `@asc/types`, `@asc/api-client`, and MSW handlers in lockstep (`LM-006`).
+  2. Action schemas where the actor defaults to the authenticated session (`principal.id`) must accept empty or partial payloads.
+  3. In all Fastify route preHandler pipelines, capability authorization checks MUST strictly precede idempotency replay and body validation.
+  4. `buildScopedIdempotencyKey` must incorporate all route entity parameters (`:caseId`, `:itemId`, `:patientId`, `:referralId`) to isolate caches by resource.
+  5. UI queue filter catalogs must reflect all queues configured in domain rules (including `"anesthesia"`).
+- **How to check:** `pnpm turbo run check-types lint test eval build`.
+- **Guarded by:** `apps/api/src/routes/worklist.test.ts`, `apps/api/src/hooks/idempotency.test.ts`, `packages/validation/src/__tests__/worklist.schema.test.ts`, `apps/web/src/features/worklist/worklist-view.test.tsx`.
 
-
+### LM-041 — High-precision regulatory time math, session-bound audit trail derivation, and multi-role grant resolution
+- **Seen:** 3 · 2026-10-16 · PR #105 Review (`packages/clinical-rules/src/scope-lock.ts`, `apps/api/src/controllers/cases.controller.ts`, `packages/ui/package.json`)
+- **What went wrong:**
+  1. Comparing pre-rounded float numbers (`Math.round(...) / 10 <= 168`) for endoscope hang time allowed a scope at 168.04 hours (168h 2m 24s) to round down to 168.0h and incorrectly pass the hard safety gate. In addition, `Math.max(0, nowMs - reprocessedMs)` silently clamped future timestamps (`reprocessedMs > assignedMs`) to 0 elapsed hours, evaluating hang-time window as true.
+  2. Resolving a user's role with `.flatMap((g) => g.roleKeys)[0]` arbitrarily truncated multiple roles. Clinicians with dual roles (e.g. `["clinical-staff", "gi-physician"]`) were evaluated as `clinical-staff` and erroneously denied with 403 `forbidden`.
+  3. Gate 2 override accepted `actorName` and `actorRole` from the client request body, allowing client-asserted audit spoofing on legal FHIR Observations (LOINC 74468-0), violating CMS 42 CFR § 416.52 and HIPAA 45 CFR § 164.312(b).
+  4. Node.js subpath wildcard `*` in `"./components/*": "./src/components/*.tsx"` matches only single-level paths, rejecting nested subpaths like `@asc/ui/components/clinical/error-state` during isolated Vercel builds.
+- **Rule:**
+  1. Safety-critical thresholds (like ST91 168-hour scope storage window) MUST compare raw milliseconds (`elapsedMs <= 168 * 3_600_000`). Display rounding must only be applied to output strings. Any timestamp inversion (`assignedMs < reprocessedMs`) or `NaN` must immediately fail closed.
+  2. Multi-role grants must be evaluated across all granted role keys (`actorRoles.find(...)`), never truncated via index `[0]`.
+  3. Clinical audit records must be strictly bound from authenticated session credentials (`request.principal.id`, `request.principal.name`), rejecting or ignoring client-asserted identity.
+  4. In `package.json` `"exports"`, provide explicit nested wildcard mappings (`"./components/clinical/*": "./src/components/clinical/*.tsx"`) for all nested component subdirectories.
+- **How to check:** `pnpm turbo run check-types lint test eval build`.
+- **Guarded by:** `packages/clinical-rules/src/scope-lock.test.ts`, `apps/api/src/routes/procedure-capture.test.ts`, `packages/fhir/src/builders/procedure-capture.test.ts`, `packages/ui/package.json`.

@@ -33,6 +33,7 @@ export const TIME_OUT_ROLE_LABEL: Readonly<Record<TimeOutRole, string>> = {
   SURGEON: "Surgeon",
   NURSE: "Nurse",
   ANESTHESIOLOGIST: "Anesthesia",
+  TECH: "Tech",
 };
 
 /**

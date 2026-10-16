@@ -24,7 +24,7 @@ import type {
 } from "@asc/types";
 import type { TransitionCaseInput } from "@asc/validation";
 import type { MedplumClient } from "@medplum/core";
-import type { Encounter, Extension } from "@medplum/fhirtypes";
+import type { Encounter, Extension, Observation } from "@medplum/fhirtypes";
 import type { FastifyBaseLogger } from "fastify";
 import {
   buildPatientFromFhir,
@@ -113,16 +113,46 @@ export async function getCaseDetail(params: {
   let scopeAssignment: ScopeAssignmentRecord | undefined;
   let gate2Override: Gate2OverrideRecord | undefined;
 
-  for (const obs of observations) {
+  // Sort observations deterministically by effectiveDateTime descending (most recent first)
+  const sortedObs = [...observations].sort((a, b) => {
+    const timeA = Date.parse(a.effectiveDateTime ?? a.meta?.lastUpdated ?? "");
+    const timeB = Date.parse(b.effectiveDateTime ?? b.meta?.lastUpdated ?? "");
+    const valA = Number.isNaN(timeA) ? 0 : timeA;
+    const valB = Number.isNaN(timeB) ? 0 : timeB;
+    return valB - valA;
+  });
+
+  const timeoutObservations: Observation[] = [];
+
+  for (const obs of sortedObs) {
     const code = obs.code?.coding?.[0]?.code;
     if (code === LOINC_CODES.SURGICAL_TIMEOUT) {
-      timeOut = parseSurgicalTimeOutObservation(obs);
+      timeoutObservations.push(obs);
     } else if (code === LOINC_CODES.INTRAOP_EVENT) {
       events.push(parseProcedureEventObservation(obs));
-    } else if (code === LOINC_CODES.SCOPE_VERIFICATION) {
+    } else if (code === LOINC_CODES.SCOPE_VERIFICATION && !scopeAssignment) {
       scopeAssignment = parseScopeVerificationObservation(obs);
-    } else if (code === LOINC_CODES.GATE2_OVERRIDE) {
+    } else if (code === LOINC_CODES.GATE2_OVERRIDE && !gate2Override) {
       gate2Override = parseGate2OverrideObservation(obs);
+    }
+  }
+
+  if (timeoutObservations.length > 0) {
+    timeOut = parseSurgicalTimeOutObservation(timeoutObservations[0]!);
+    if (timeoutObservations.length > 1) {
+      const mergedParticipants = [...(timeOut.participants ?? [])];
+      for (let i = 1; i < timeoutObservations.length; i++) {
+        const extra = parseSurgicalTimeOutObservation(timeoutObservations[i]!);
+        for (const p of extra.participants ?? []) {
+          if (!mergedParticipants.some((existing) => existing.userId === p.userId)) {
+            mergedParticipants.push(p);
+          }
+        }
+      }
+      timeOut = {
+        ...timeOut,
+        participants: mergedParticipants,
+      };
     }
   }
 

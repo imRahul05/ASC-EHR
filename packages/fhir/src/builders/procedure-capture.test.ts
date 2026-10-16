@@ -66,7 +66,7 @@ describe("surgical timeout observation", () => {
     expect(parsed.attestations[0]?.role).toBe("NURSE");
     expect(parsed.attestations[1]?.role).toBe("SURGEON");
     expect(parsed.attestations[2]?.role).toBe("ANESTHESIOLOGIST");
-    expect(parsed.attestations[3]?.role).toBe("NURSE");
+    expect(parsed.attestations[3]?.role).toBe("TECH");
   });
 
   it("builds timeout observation with default completedAt and minimal checklist", () => {

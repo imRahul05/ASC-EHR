@@ -8,6 +8,12 @@
     ".": "./src/index.ts",
     "./icons": "./src/icons.ts",
     "./components/*": "./src/components/*.tsx",
+    "./components/clinical/*": "./src/components/clinical/*.tsx",
+    "./components/ui/*": "./src/components/ui/*.tsx",
+    "./components/form/*": "./src/components/form/*.tsx",
+    "./components/theme/*": "./src/components/theme/*.tsx",
+    "./components/guide/*": "./src/components/guide/*.tsx",
+    "./components/navigation/*": "./src/components/navigation/*.tsx",
     "./lib/*": "./src/lib/*.ts",
     "./hooks/*": "./src/hooks/*.ts",
     "./globals.css": "./src/globals.css"

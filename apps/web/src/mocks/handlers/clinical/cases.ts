@@ -60,6 +60,7 @@ import {
   assignScopeInputSchema,
   gate2OverrideInputSchema,
   signTimeOutInputSchema,
+  type TimeOutParticipantRole,
 } from "@asc/validation/procedure-capture";
 import {
   copayCollectionSchema,
@@ -107,6 +108,13 @@ const SINGLE_EVENTS: readonly ProcedureEventType[] = [
 ];
 
 const JARS = "ABCDEFGHIJ";
+
+const PARTICIPANT_TIMEOUT_ROLE_MAP: Readonly<Record<TimeOutParticipantRole, TimeOutRole>> = {
+  endoscopist: "SURGEON",
+  circulating_rn: "NURSE",
+  tech: "TECH",
+  anesthesia: "ANESTHESIOLOGIST",
+};
 
 function casesOn(date: string): ProcedureCase[] {
   return [...db().cases.values()]
@@ -720,8 +728,7 @@ export const caseHandlers = [
       }
       if (participants && participants.length > 0) {
         for (const p of participants) {
-          const participantRole: TimeOutRole =
-            p.role === "endoscopist" ? "SURGEON" : p.role === "circulating_rn" ? "NURSE" : "ANESTHESIOLOGIST";
+          const participantRole: TimeOutRole = PARTICIPANT_TIMEOUT_ROLE_MAP[p.role];
           attestations = [
             ...attestations.filter((item) => item.role !== participantRole),
             {
@@ -882,7 +889,7 @@ export const caseHandlers = [
 
     const overrideRecord: Gate2OverrideRecord = {
       actorId: actor.id,
-      actorName: input.actorName,
+      actorName: input.actorName || actor.name,
       actorRole: input.actorRole ?? actor.role,
       reason: input.reason,
       overriddenBlockers: gate2Eval.blockerCodes ?? [],

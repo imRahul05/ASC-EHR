@@ -127,7 +127,7 @@ describe("gate2OverrideInputSchema", () => {
     expect(gate2OverrideInputSchema.safeParse({ ...validOverride, reason: "a".repeat(501) }).success).toBe(false);
   });
 
-  it("rejects missing actorName", () => {
-    expect(gate2OverrideInputSchema.safeParse({ reason: "Valid reason for override >= 10 chars" }).success).toBe(false);
+  it("accepts payload without actorName (identity bound from authenticated principal)", () => {
+    expect(gate2OverrideInputSchema.safeParse({ reason: "Valid reason for override >= 10 chars" }).success).toBe(true);
   });
 });

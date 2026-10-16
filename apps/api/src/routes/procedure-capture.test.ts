@@ -1,6 +1,6 @@
 import { forFacility } from "@asc/api-client/server";
 import { facilityGrant, staffPrincipal } from "@asc/authz/testing";
-import { caseReadinessExtensions, caseStageExtension, LOINC_CODES } from "@asc/fhir";
+import { buildScopeVerificationObservation, caseReadinessExtensions, caseStageExtension, LOINC_CODES } from "@asc/fhir";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { CasesMockClient as MockClient } from "../testing/mock-medplum.js";
@@ -34,6 +34,7 @@ describe("Procedure Capture & Gate 2 routes (Phase P18)", () => {
   const facilityId = "fac-intraop-1";
   const tokenClinician = "token-clinician";
   const tokenPhysician = "token-physician";
+  const tokenMultiRolePhysician = "token-multi-role-physician";
   const tokenReadOnly = "token-readonly";
 
   async function setupApp(mockMedplum: MockClient): Promise<Built> {
@@ -45,6 +46,13 @@ describe("Procedure Capture & Gate 2 routes (Phase P18)", () => {
     appBuilt.identity.addToken(
       tokenPhysician,
       staffPrincipal([facilityGrant(facilityId, ["gi-physician"], ["case.read", "timeout.participate", "procedure.document", "case.advance"])], "user-dr"),
+    );
+    appBuilt.identity.addToken(
+      tokenMultiRolePhysician,
+      staffPrincipal(
+        [facilityGrant(facilityId, ["clinical-staff", "gi-physician"], ["case.read", "timeout.participate", "procedure.document", "case.advance"])],
+        "user-multi-dr",
+      ),
     );
     appBuilt.identity.addToken(tokenReadOnly, staffPrincipal([facilityGrant(facilityId, ["front-desk"], ["patient.read"])], "user-ro"));
     return appBuilt;
@@ -199,6 +207,94 @@ describe("Procedure Capture & Gate 2 routes (Phase P18)", () => {
       expect(wtObs).toHaveLength(1);
       expect(wtObs[0]?.valueQuantity?.value).toBe(7);
     });
+
+    it("rejects SCOPE_IN if assigned scope failed leak test or AER cycle", async () => {
+      const mockMedplum = new MockClient();
+      await seedCase(mockMedplum, "case-ev-leak-fail");
+      built = await setupApp(mockMedplum);
+
+      await built.app.inject({
+        method: "POST",
+        url: "/cases/case-ev-leak-fail/time-out",
+        headers: bearer(tokenClinician),
+        payload: { checklist: VALID_CHECKLIST, participants: VALID_PARTICIPANTS },
+      });
+
+      const obs = buildScopeVerificationObservation({
+        facilityId,
+        caseId: "case-ev-leak-fail",
+        patientId: "pat-case-ev-leak-fail",
+        scopeAssignment: {
+          scopeSerial: "OLY-CF-FAIL",
+          reprocessedAt: new Date(Date.now() - 3600_000).toISOString(),
+          assignedAt: new Date().toISOString(),
+          assignedBy: { id: "dr-1", name: "Dr. Smith", initials: "DS" },
+          leakTestResult: "FAIL",
+          cycleOutcome: "PASS",
+          hangTimeHours: 1,
+          withinHangTimeWindow: true,
+        },
+      });
+      await forFacility(mockMedplum, facilityId).create(obs);
+
+      const resIn = await built.app.inject({
+        method: "POST",
+        url: "/cases/case-ev-leak-fail/events",
+        headers: bearer(tokenClinician),
+        payload: { type: "SCOPE_IN", at: new Date().toISOString() },
+      });
+      expect(resIn.statusCode).toBe(409);
+      expect(resIn.json().message).toContain("reprocessing verification");
+    });
+
+    it("does not generate withdrawal observation if SCOPE_OUT timestamp is before CECUM_REACHED", async () => {
+      const mockMedplum = new MockClient();
+      await seedCase(mockMedplum, "case-ev-unordered");
+      built = await setupApp(mockMedplum);
+
+      await built.app.inject({
+        method: "POST",
+        url: "/cases/case-ev-unordered/time-out",
+        headers: bearer(tokenClinician),
+        payload: { checklist: VALID_CHECKLIST, participants: VALID_PARTICIPANTS },
+      });
+      await built.app.inject({
+        method: "POST",
+        url: "/cases/case-ev-unordered/scope",
+        headers: bearer(tokenClinician),
+        payload: {
+          scopeSerial: "OLY-CF-ORD",
+          reprocessedAt: new Date(Date.now() - 10 * 3600_000).toISOString(),
+          leakTestResult: "PASS",
+          cycleOutcome: "PASS",
+        },
+      });
+
+      await built.app.inject({
+        method: "POST",
+        url: "/cases/case-ev-unordered/events",
+        headers: bearer(tokenClinician),
+        payload: { type: "SCOPE_IN", at: "2026-10-16T10:00:00.000Z" },
+      });
+      await built.app.inject({
+        method: "POST",
+        url: "/cases/case-ev-unordered/events",
+        headers: bearer(tokenClinician),
+        payload: { type: "CECUM_REACHED", at: "2026-10-16T10:20:00.000Z" },
+      });
+      // Out of order: SCOPE_OUT recorded with timestamp before CECUM_REACHED
+      const resOut = await built.app.inject({
+        method: "POST",
+        url: "/cases/case-ev-unordered/events",
+        headers: bearer(tokenClinician),
+        payload: { type: "SCOPE_OUT", at: "2026-10-16T10:15:00.000Z" },
+      });
+      expect(resOut.statusCode).toBe(200);
+
+      const allObs = await mockMedplum.searchResources<"Observation">("Observation", [["encounter", "Encounter/case-ev-unordered"]]);
+      const wtObs = allObs.filter((o) => o.code?.coding?.[0]?.code === LOINC_CODES.WITHDRAWAL_TIME);
+      expect(wtObs).toHaveLength(0);
+    });
   });
 
   describe("POST /cases/:caseId/gate2-override", () => {
@@ -218,6 +314,21 @@ describe("Procedure Capture & Gate 2 routes (Phase P18)", () => {
       expect(res.statusCode).toBe(200);
       const data = res.json();
       expect(data.gate2Override?.reason).toContain("marginal prep score");
+    });
+
+    it("returns 200 when clinician with multi-role grant ['clinical-staff', 'gi-physician'] submits clinical override", async () => {
+      const mockMedplum = new MockClient();
+      await seedCase(mockMedplum, "case-ov-multi");
+      built = await setupApp(mockMedplum);
+      const res = await built.app.inject({
+        method: "POST",
+        url: "/cases/case-ov-multi/gate2-override",
+        headers: bearer(tokenMultiRolePhysician),
+        payload: { reason: "Attending GI physician with dual grant clears patient for procedure" },
+      });
+      expect(res.statusCode).toBe(200);
+      const data = res.json();
+      expect(data.gate2Override?.actorRole).toBe("gi-physician");
     });
   });
 });

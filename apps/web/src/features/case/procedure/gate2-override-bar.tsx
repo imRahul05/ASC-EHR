@@ -14,8 +14,6 @@ interface Gate2OverrideBarProps {
 
 interface OverrideFormState {
   readonly reason: string;
-  readonly actorName: string;
-  readonly actorRole: "SURGEON" | "ANESTHESIOLOGIST";
   readonly isOpen: boolean;
 }
 
@@ -26,14 +24,16 @@ interface OverrideFormState {
  */
 export function Gate2OverrideBar({ detail, onOverridden }: Gate2OverrideBarProps) {
   const caseId = detail.case.id;
-  const scopeLockViolation = detail.scopeAssignment ? !detail.scopeAssignment.withinHangTimeWindow : false;
+  const scopeLockViolation = detail.scopeAssignment
+    ? !detail.scopeAssignment.withinHangTimeWindow ||
+      detail.scopeAssignment.leakTestResult === "FAIL" ||
+      detail.scopeAssignment.cycleOutcome === "FAIL"
+    : false;
   const existingOverride = detail.gate2Override;
   const overrideMutation = useOverrideGate2(caseId);
 
   const [form, setForm] = useState<OverrideFormState>(() => ({
     reason: "",
-    actorName: detail.case.team.surgeon.name || "Attending Physician",
-    actorRole: "SURGEON",
     isOpen: false,
   }));
 
@@ -46,8 +46,6 @@ export function Gate2OverrideBar({ detail, onOverridden }: Gate2OverrideBarProps
     overrideMutation.mutate(
       {
         reason: form.reason.trim(),
-        actorName: form.actorName.trim(),
-        actorRole: form.actorRole,
       },
       {
         onSuccess: () => {
@@ -86,7 +84,7 @@ export function Gate2OverrideBar({ detail, onOverridden }: Gate2OverrideBarProps
       >
         <ShieldAlert className="size-4 shrink-0" aria-hidden />
         <span>
-          <strong>Hard Gate 2 Lockout:</strong> Endoscope hang-time violation active (&gt;168h). Per ST91:2021, Gate 2 has
+          <strong>Hard Gate 2 Lockout:</strong> Endoscope reprocessing or hang-time violation active (&gt;168h, leak test, or AER cycle failure). Per ST91:2021, Gate 2 has
           ZERO clinical override allowance across all roles. Scope must be reprocessed.
         </span>
       </div>
@@ -116,30 +114,9 @@ export function Gate2OverrideBar({ detail, onOverridden }: Gate2OverrideBarProps
             <span className="text-muted-foreground">Requires MD/DO or CRNA role</span>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1">
-              <Label htmlFor="override-actor-name">Clinician Name</Label>
-              <Input
-                id="override-actor-name"
-                value={form.actorName}
-                onChange={(e) => setForm((prev) => ({ ...prev, actorName: e.target.value }))}
-                data-testid="override-actor-name-input"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="override-actor-role">Clinical Role</Label>
-              <select
-                id="override-actor-role"
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs"
-                value={form.actorRole}
-                onChange={(e) => setForm((prev) => ({ ...prev, actorRole: e.target.value as "SURGEON" | "ANESTHESIOLOGIST" }))}
-                data-testid="override-actor-role-select"
-              >
-                <option value="SURGEON">Surgeon / GI Physician</option>
-                <option value="ANESTHESIOLOGIST">Anesthesiologist / CRNA</option>
-              </select>
-            </div>
-          </div>
+          <p className="text-xs text-muted-foreground">
+            Audit trail will be bound directly to your authenticated clinician credentials (CMS 42 CFR § 416.52).
+          </p>
 
           <div className="space-y-1">
             <Label htmlFor="override-reason">Override Justification (≥ 10 characters)</Label>
