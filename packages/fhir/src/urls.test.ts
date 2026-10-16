@@ -16,6 +16,9 @@ describe("canonical base", () => {
     expect(LOINC_CODES.WITHDRAWAL_TIME).toBe("81239-6");
     expect(LOINC_CODES.SCOPE_VERIFICATION).toBe("74465-6");
     expect(LOINC_CODES.GATE2_OVERRIDE).toBe("74468-0");
+    expect(LOINC_CODES.ETCO2).toBe("19889-5");
+    expect(LOINC_CODES.ASA_PHYSICAL_STATUS).toBe("75286-5");
+    expect(LOINC_CODES.MALLAMPATI_SCORE).toBe("83033-1");
   });
 
   it("builds every kind of canonical URL from the base", () => {

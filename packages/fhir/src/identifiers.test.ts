@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { bookingIdempotencyIdentifier, caseNumberIdentifier, ecwPatientIdentifier, ecwPatientSystem, formatCaseNumber, mrnIdentifier } from "./identifiers.js";
+import { aimsClientIdIdentifier, bookingIdempotencyIdentifier, caseNumberIdentifier, ecwPatientIdentifier, ecwPatientSystem, formatCaseNumber, mrnIdentifier } from "./identifiers.js";
 import { createFhirUrls } from "./urls.js";
 
 describe("eCW patient identifier", () => {
@@ -33,6 +33,10 @@ describe("MRN, case number, and booking idempotency identifiers", () => {
     expect(bookingIdempotencyIdentifier("idem-key-1")).toEqual({
       system: "https://fhir.wybit.io/asc/identifier/booking-idempotency-key",
       value: "idem-key-1",
+    });
+    expect(aimsClientIdIdentifier("client-uuid-1")).toEqual({
+      system: "https://fhir.wybit.io/asc/identifier/aims-client-id",
+      value: "client-uuid-1",
     });
   });
 

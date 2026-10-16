@@ -41,6 +41,10 @@ export function bookingIdempotencyIdentifier(key: string, urls: FhirUrls = fhirU
   return { system: urls.identifierSystem("booking-idempotency-key"), value: value(key, "booking idempotency key") };
 }
 
+export function aimsClientIdIdentifier(clientId: string, urls: FhirUrls = fhirUrls): Identifier {
+  return { system: urls.identifierSystem("aims-client-id"), value: value(clientId, "AIMS client id") };
+}
+
 export interface CaseNumberParts {
   /** Short facility code, upper-case letters and digits. */
   readonly facilityCode: string;

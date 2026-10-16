@@ -24,6 +24,7 @@ describe("extension urls", () => {
       procedureIntent: "https://fhir.wybit.io/asc/StructureDefinition/procedure-intent",
       agentExecutionId: "https://fhir.wybit.io/asc/StructureDefinition/agent-execution-id",
       caseFinancial: "https://fhir.wybit.io/asc/StructureDefinition/case-financial",
+      controlledSubstanceWaste: "https://fhir.wybit.io/asc/StructureDefinition/controlled-substance-waste",
     });
   });
 });
