@@ -19,5 +19,8 @@ export * from "./med-hold/anticoagulation";
 export * from "./financial/index";
 export * from "./scope-lock";
 export * from "./worklist/timeline";
+export * from "./aims/intervals";
+export * from "./aims/dose-limits";
+export * from "./aims/pre-anesthesia";
 
 
