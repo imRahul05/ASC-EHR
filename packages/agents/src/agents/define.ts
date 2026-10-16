@@ -56,6 +56,8 @@ export interface AgentDefinition<
   tools?: ToolSet;
   /** Tool-loop step limit; only meaningful with `tools`. */
   maxSteps?: number;
+  /** Synthetic eval cases: minimum 3 required per registered agent. */
+  evalCases?: readonly AgentEvalCase<z.input<Input>, z.output<Output>>[];
 }
 
 /** Any agent definition, e.g. for registries and validation. */
@@ -65,7 +67,10 @@ export type AnyAgentDefinition = AgentDefinition<string, z.ZodTypeAny, z.ZodType
 export interface AgentEvalCase<Input, Output> {
   name: string;
   input: Input;
-  expectations: readonly { description: string; check: (output: Output) => boolean }[];
+  expectations: readonly {
+    description: string;
+    check(output: Output): boolean;
+  }[];
 }
 
 const KEBAB_CASE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

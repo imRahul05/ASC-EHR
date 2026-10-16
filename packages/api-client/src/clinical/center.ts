@@ -12,20 +12,70 @@ import type {
   UpdateEscortPayload,
   UpdatePrepItemPayload,
   WhiteboardBoard,
+  ClaimWorkItemPayload,
+  CompleteWorkItemPayload,
+  CreateWorkItemPayload,
   WorkItem,
   WorklistQuery,
+  WorklistResult,
 } from "@asc/types";
 import { http, toQuery } from "../http";
 
 // ─── Center-wide views ──────────────────────────────────────────────────────
 
-export function getWorklist(query: WorklistQuery = {}): Promise<readonly WorkItem[]> {
-  return http.get(API_ROUTES.worklist, { query: toQuery(query) });
+export interface ClaimWorkItemArgs {
+  readonly itemId: string;
+  readonly payload?: ClaimWorkItemPayload;
+  readonly facilityId?: string;
 }
 
-export function completeWorkItem(itemId: string): Promise<WorkItem> {
-  return http.post(API_ROUTES.workItemComplete(itemId));
+export interface CompleteWorkItemArgs {
+  readonly itemId: string;
+  readonly payload?: CompleteWorkItemPayload;
+  readonly facilityId?: string;
 }
+
+export function getWorklist(query: WorklistQuery = {}): Promise<WorklistResult> {
+  const resolvedFacility = query.facilityId?.trim();
+  return http.get(API_ROUTES.worklist, {
+    query: toQuery(query),
+    headers: resolvedFacility ? { "x-facility-id": resolvedFacility } : undefined,
+  });
+}
+
+export function createWorkItem(payload: CreateWorkItemPayload): Promise<WorkItem> {
+  const resolvedFacility = payload.facilityId?.trim();
+  return http.post(API_ROUTES.worklist, payload, {
+    headers: resolvedFacility ? { "x-facility-id": resolvedFacility } : undefined,
+  });
+}
+
+export function claimWorkItem(
+  input: string | ClaimWorkItemArgs,
+  payload: ClaimWorkItemPayload = {},
+  facilityId?: string,
+): Promise<WorkItem> {
+  const resolvedItemId = typeof input === "string" ? input : input.itemId;
+  const resolvedPayload = typeof input === "string" ? payload : (input.payload ?? {});
+  const resolvedFacility = typeof input === "string" ? facilityId?.trim() : input.facilityId?.trim();
+  return http.post(API_ROUTES.workItemClaim(resolvedItemId), resolvedPayload, {
+    headers: resolvedFacility ? { "x-facility-id": resolvedFacility } : undefined,
+  });
+}
+
+export function completeWorkItem(
+  input: string | CompleteWorkItemArgs,
+  payload: CompleteWorkItemPayload = {},
+  facilityId?: string,
+): Promise<WorkItem> {
+  const resolvedItemId = typeof input === "string" ? input : input.itemId;
+  const resolvedPayload = typeof input === "string" ? payload : (input.payload ?? {});
+  const resolvedFacility = typeof input === "string" ? facilityId?.trim() : input.facilityId?.trim();
+  return http.post(API_ROUTES.workItemComplete(resolvedItemId), resolvedPayload, {
+    headers: resolvedFacility ? { "x-facility-id": resolvedFacility } : undefined,
+  });
+}
+
 
 /** Today's live board (initials + case number only). */
 export function getWhiteboard(params?: {

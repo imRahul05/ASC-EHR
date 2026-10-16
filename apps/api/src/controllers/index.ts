@@ -3,3 +3,4 @@ export { consentController } from "./consent.controller.js";
 export { preopController } from "./preop.controller.js";
 export { hpController } from "./hp.controller.js";
 export { financialController } from "./financial.controller.js";
+export { worklistController } from "./worklist.controller.js";

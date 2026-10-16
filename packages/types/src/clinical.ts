@@ -73,7 +73,8 @@ export type Sex = "F" | "M" | "X";
  * attestations. It says who does what in a case; it grants nothing (authorization is
  * capabilities from role templates in @asc/authz).
  */
-export type ParticipantRole = "SURGEON" | "ANESTHESIOLOGIST" | "NURSE" | "ADMIN";
+export const PARTICIPANT_ROLES = ["SURGEON", "ANESTHESIOLOGIST", "NURSE", "ADMIN"] as const;
+export type ParticipantRole = (typeof PARTICIPANT_ROLES)[number];
 
 export interface StaffRef {
   readonly id: string;
@@ -918,29 +919,74 @@ export interface WhiteboardBoard {
 
 // ─── Work items, audit, quality, admin ──────────────────────────────────────
 
-export type WorkItemType =
-  | "sign_note"
-  | "eligibility_failed"
-  | "referral_intake"
-  | "pending_pathology"
-  | "coding"
-  | "result_letter"
-  | "med_hold_review";
+export const WORK_ITEM_TYPES = [
+  "sign_note",
+  "eligibility_failed",
+  "referral_intake",
+  "pending_pathology",
+  "coding",
+  "result_letter",
+  "med_hold_review",
+  "prep_instructions",
+  "records_request",
+  "eligibility_recheck",
+  "estimate_delivery",
+  "preop_call",
+  "anesthesia_review",
+  "prep_reminder",
+  "final_confirmation",
+  "dayof_prep_check",
+  "hp_expiring",
+  "auth_revalidation",
+  "cancelled_followup",
+] as const;
+
+export type WorkItemType = (typeof WORK_ITEM_TYPES)[number];
+
+export const WORK_ITEM_PRIORITIES = ["routine", "urgent", "stat"] as const;
+export type WorkItemPriority = (typeof WORK_ITEM_PRIORITIES)[number] | "low" | "normal" | "high";
+
+export const WORK_ITEM_STATUSES = ["open", "claimed", "completed"] as const;
+export type WorkItemStatus = (typeof WORK_ITEM_STATUSES)[number] | "done";
+
+export const PREOP_TIMELINE_MILESTONES = [
+  "T-14d",
+  "T-7d",
+  "T-3d",
+  "T-2d",
+  "T-1d",
+  "T-0",
+] as const;
+export type PreopTimelineMilestone = (typeof PREOP_TIMELINE_MILESTONES)[number];
 
 export interface WorkItem {
   readonly id: string;
   readonly type: WorkItemType;
   readonly title: string;
   readonly detail: string;
-  readonly ownerRole: ParticipantRole;
-  readonly priority: "low" | "normal" | "high";
-  readonly status: "open" | "done";
+  readonly ownerRole?: ParticipantRole;
+  readonly ownerCapability?: string;
+  readonly ownerId?: string;
+  readonly priority: WorkItemPriority;
+  readonly status: WorkItemStatus;
   readonly dueAt: IsoDateTime;
   readonly createdAt: IsoDateTime;
   readonly caseId?: string;
   readonly patientId?: string;
   readonly referralId?: string;
   readonly completedAt?: IsoDateTime;
+  readonly resolvedBy?: string;
+  readonly resolution?: string;
+  readonly agentName?: string;
+  readonly abstentionReason?: string;
+  readonly createdByAgent?: boolean;
+  readonly timelineMilestone?: PreopTimelineMilestone;
+  readonly isOverdue?: boolean;
+}
+
+export interface WorklistResult {
+  readonly items: readonly WorkItem[];
+  readonly total: number;
 }
 
 export interface AuditActor {
@@ -1326,10 +1372,55 @@ export interface SendResultLetterPayload {
 }
 
 export interface WorklistQuery {
+  readonly facilityId?: string;
   readonly type?: WorkItemType;
   readonly role?: ParticipantRole;
   readonly status?: WorkItem["status"];
+  readonly priority?: WorkItemPriority;
+  readonly ownerCapability?: string;
+  readonly ownerId?: string;
+  readonly caseId?: string;
+  readonly patientId?: string;
+  readonly timelineMilestone?: PreopTimelineMilestone;
+  readonly overdueOnly?: boolean | string;
+  readonly limit?: number;
+  readonly offset?: number;
 }
+
+export interface CreateWorkItemPayload {
+  readonly facilityId?: string;
+  readonly type: WorkItemType;
+  readonly title: string;
+  readonly detail?: string;
+  readonly priority?: WorkItemPriority;
+  readonly dueAt: IsoDateTime;
+  readonly caseId?: string;
+  readonly patientId?: string;
+  readonly referralId?: string;
+  readonly ownerCapability?: string;
+  readonly ownerRole?: ParticipantRole;
+  readonly ownerId?: string;
+  readonly timelineMilestone?: PreopTimelineMilestone;
+  readonly agentName?: string;
+  readonly abstentionReason?: string;
+  readonly createdByAgent?: boolean;
+  readonly idempotencyKey?: string;
+}
+
+export interface ClaimWorkItemPayload {
+  readonly claimedBy?: string;
+  readonly ownerId?: string;
+  readonly ownerRole?: ParticipantRole;
+  readonly ownerCapability?: string;
+}
+
+export interface CompleteWorkItemPayload {
+  readonly resolvedBy?: string;
+  readonly resolution?: string;
+  readonly notes?: string;
+  readonly completedAt?: IsoDateTime;
+}
+
 
 export interface AuditQuery {
   readonly action?: string;

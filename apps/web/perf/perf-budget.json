@@ -1,6 +1,7 @@
 {
   "budgetsKbGz": { "/login": 370, "/signup": 350, "*": 440 },
   "dynamicBudgetsKbGz": { "/cases/[caseId]": 260 },
+
   "forbidden": [
     { "string": "Retroflexion in rectum", "notIn": "*", "reason": "case workspace tabs belong to /cases/[caseId] only" },
     { "string": "Signature captured", "notIn": "*", "reason": "clinical kit (SignaturePad) belongs to /cases/[caseId] only" },

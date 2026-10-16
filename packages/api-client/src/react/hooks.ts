@@ -13,9 +13,11 @@ import {
   checkEligibility,
   checkInCase,
   checkScheduleConflicts,
+  claimWorkItem,
   completeWorkItem,
   convertReferral,
   createPatient,
+  createWorkItem,
   dischargeCase,
   exportCharges,
   generateDischargeInstructions,
@@ -386,7 +388,9 @@ export function useWorklist(query: WorklistQuery = {}) {
   return useQuery({ queryKey: queryKeys.worklist.list(query), queryFn: () => getWorklist(query), placeholderData: keepPreviousData });
 }
 
+export const useClaimWorkItem = () => useClinicalMutation(claimWorkItem);
 export const useCompleteWorkItem = () => useClinicalMutation(completeWorkItem);
+export const useCreateWorkItem = () => useClinicalMutation(createWorkItem);
 
 export function useWhiteboard(
   options: {

@@ -86,6 +86,7 @@ export const API_ROUTE_PATTERNS = {
 
   // Center-wide
   worklist: "/worklist",
+  workItemClaim: "/worklist/:itemId/claim",
   workItemComplete: "/worklist/:itemId/complete",
   whiteboard: "/whiteboard",
   quality: "/quality",
@@ -186,6 +187,7 @@ export const API_ROUTES = {
   codingQueue: P.codingQueue,
 
   worklist: P.worklist,
+  workItemClaim: (itemId: string) => fill(P.workItemClaim, { itemId }),
   workItemComplete: (itemId: string) => fill(P.workItemComplete, { itemId }),
   whiteboard: P.whiteboard,
   quality: P.quality,

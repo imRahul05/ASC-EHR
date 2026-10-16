@@ -59,6 +59,7 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 27. Scheduling & UI controls: OptionSelect uses explicit nullish check for empty string values; appointment conflict queries use bounded 24h windows (string[][] QueryTypes in Medplum) instead of single-day UTC slices; mock handlers fail fast rather than reassigning patient IDs; Whiteboard in-use room tiles match active procedure phases only; add 30-min grace period and calendar rollover validation for case scheduling. (LM-031)
 28. Distributed scheduling & timezone safety: serialize concurrent booking conflict checks with PostgreSQL transaction advisory locks ('facility-scheduling'); zero side-effect patient verification (read-only 404/403); pin all calendar date/time calculations to facility timezone (facilityDateTimeToIso, isoToFacilityTime); unlink case navigation and omit clinical flags on public Whiteboard TV displays; gate room tiles with isRoomOccupyingPhase. (LM-032)
 29. Composite pre-handler pipelines & scoped idempotency: never pass raw hook arrays on clinical endpoints; enforce canonical fail-closed sequence (capability -> idempotency with facilityChecked -> If-Match -> case context hydration -> Zod body validation); scope idempotency keys by tenant/method/route/caseId; use clinicalMutationRoute/clinicalQueryRoute to eliminate capability drift. (LM-037, LM-038)
+30. DB schema alignment & deterministic concurrency: integration tests must reflect accepted ADRs and schema migrations (parameterized tenancy vs dropped session RLS); align runtime credentials across init SQL and test runners; use explicit promise barriers (opStarted) in lock tests to avoid TCP race conditions; Medplum base URLs must end with a trailing slash. (LM-039)
 
 ---
 
@@ -442,7 +443,8 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 - **Rule:**
   1. Idempotency cache keys MUST always be compositely scoped: `${tenantId}:${method}:${routeUrl}:${caseId ?? ""}:${rawKey}`. Never trust or cache raw client keys globally.
   2. Use `clinicalMutationRoute` and `clinicalQueryRoute` route definition helpers. They bind `config.auth.capability` and the preHandler pipeline from a single capability argument, eliminating capability drift by construction.
-- **How to check:** `pnpm turbo run check-types lint test build`.
+- **Guarded by:** `apps/api/src/hooks/idempotency.test.ts`, `apps/api/src/hooks/pipeline.test.ts`.
+
 ### LM-039 — Database test reconciliation with Day-1 architecture and deterministic concurrency synchronization
 - **Seen:** 3 · 2026-10-16 · PR #104 (`packages/db/src/__tests__/`, `.github/workflows/ci.yml`)
 - **What went wrong:**

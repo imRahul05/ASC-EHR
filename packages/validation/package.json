@@ -29,7 +29,8 @@
     "./financial/estimate": "./src/financial/estimate.ts",
     "./financial/prior-auth": "./src/financial/prior-auth.ts",
     "./financial": "./src/financial/index.ts",
-    "./procedure-capture": "./src/procedure-capture.ts"
+    "./procedure-capture": "./src/procedure-capture.ts",
+    "./worklist.schema": "./src/worklist.schema.ts"
   },
   "scripts": {
     "lint": "eslint --max-warnings 0",

@@ -53,6 +53,14 @@
         "TEST_RUNTIME_DATABASE_URL"
       ],
       "outputs": []
+    },
+    "eval": {
+      "dependsOn": [
+        "^build"
+      ],
+      "env": [
+        "CI"
+      ]
     }
   }
 }

@@ -2,6 +2,7 @@ import { dischargeInstructionsOutputSchema } from '@asc/validation';
 
 import { Task } from '../../config/index.js';
 import { defineAgent } from '../define.js';
+import { dischargeInstructionsEvalCases } from './evals/cases.js';
 import { dischargeInstructionsInputSchema } from './input.js';
 import { INSTRUCTIONS, PROMPT_VERSION, buildMessages } from './prompt.js';
 
@@ -18,4 +19,5 @@ export const dischargeInstructionsAgent = defineAgent({
   output: dischargeInstructionsOutputSchema,
   instructions: INSTRUCTIONS,
   buildMessages,
+  evalCases: dischargeInstructionsEvalCases,
 });

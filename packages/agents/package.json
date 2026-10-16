@@ -10,7 +10,8 @@
   "scripts": {
     "lint": "eslint --max-warnings 0",
     "check-types": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "eval": "vitest run src/agents/__tests__/eval-gate.test.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.63",
