@@ -1,5 +1,19 @@
+import { useCallback, useEffect, useState } from "react";
 import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AuditQuery, CaseDetail, IsoDate, PatientSearchQuery, ProcedureEvent, ScheduleDay, TransitionCasePayload, WorklistQuery } from "@asc/types";
+import type {
+  AirwayEvent,
+  AnesthesiaEntryPayload,
+  AuditQuery,
+  CaseDetail,
+  DrugDose,
+  IsoDate,
+  PatientSearchQuery,
+  ProcedureEvent,
+  ScheduleDay,
+  TransitionCasePayload,
+  VitalsEntry,
+  WorklistQuery,
+} from "@asc/types";
 import {
   addAnesthesiaEntry,
   addImage,
@@ -92,8 +106,12 @@ import type {
   RecordProcedureEventInput,
   SignTimeOutInput,
 } from "@asc/validation/procedure-capture";
-import { invalidateClinical, useCaseCommand, useClinicalMutation } from "./mutation";
+import { getFacilityId } from "../http";
+import { enqueueAimsEntry, flushAimsQueue, getAimsQueueSize } from "../offline/queue";
+import { invalidateClinical, useCaseCommand, useClinicalMutation, usePreAnesthesiaAssessment } from "./mutation";
 import { queryKeys } from "./query-keys";
+
+export { usePreAnesthesiaAssessment };
 
 /** Live-ish views refetch on this interval (Medplum Subscriptions replace it in P05+). */
 export const LIVE_REFETCH_MS = 15_000;
@@ -334,7 +352,182 @@ export const useOverrideGate2 = (caseId: string, facilityId?: string | null) => 
 export const useAddNarration = (caseId: string) => useCaseCommand(caseId, addNarration);
 export const useAddSpecimen = (caseId: string) => useCaseCommand(caseId, (id, payload: AddSpecimenPayload) => addSpecimen(id, payload));
 export const useAddImage = (caseId: string) => useCaseCommand(caseId, (id, payload: AddImagePayload) => addImage(id, payload));
-export const useAddAnesthesiaEntry = (caseId: string) => useCaseCommand(caseId, addAnesthesiaEntry);
+function applyOptimisticAnesthesia(
+  current: CaseDetail,
+  payload: AnesthesiaEntryPayload,
+  clientId: string,
+): CaseDetail {
+  const now = new Date().toISOString();
+  switch (payload.kind) {
+    case "dose": {
+      const dose: DrugDose = {
+        id: clientId,
+        drug: payload.drug,
+        amount: payload.amount,
+        unit: payload.unit,
+        route: "IV",
+        at: payload.at ?? now,
+        by: { id: "offline-user", name: "Offline Charting", initials: "OC" },
+        waste: payload.waste,
+      };
+      return {
+        ...current,
+        anesthesia: {
+          ...current.anesthesia,
+          doses: [...current.anesthesia.doses, dose],
+        },
+      };
+    }
+    case "vitals": {
+      const vitals: VitalsEntry = {
+        id: clientId,
+        caseId: current.case.id,
+        context: payload.vitals.context ?? "intra",
+        recordedAt: payload.vitals.recordedAt ?? now,
+        hr: payload.vitals.hr,
+        sbp: payload.vitals.sbp,
+        dbp: payload.vitals.dbp,
+        spo2: payload.vitals.spo2,
+        rr: payload.vitals.rr,
+        etco2: payload.vitals.etco2,
+        tempC: payload.vitals.tempC,
+        pain: payload.vitals.pain,
+        recordedBy: { id: "offline-user", name: "Offline Charting", initials: "OC" },
+      };
+      return {
+        ...current,
+        anesthesia: {
+          ...current.anesthesia,
+          vitals: [...current.anesthesia.vitals, vitals],
+        },
+      };
+    }
+    case "airway_event": {
+      const airwayEvent: AirwayEvent = {
+        id: clientId,
+        type: payload.type,
+        at: payload.at ?? now,
+        note: payload.note,
+      };
+      return {
+        ...current,
+        anesthesia: {
+          ...current.anesthesia,
+          airwayEvents: [...current.anesthesia.airwayEvents, airwayEvent],
+        },
+      };
+    }
+    case "sedation": {
+      return {
+        ...current,
+        anesthesia: {
+          ...current.anesthesia,
+          ...(payload.edge === "start"
+            ? { sedationStart: payload.at ?? now }
+            : { sedationEnd: payload.at ?? now }),
+        },
+      };
+    }
+    case "setup": {
+      return {
+        ...current,
+        anesthesia: {
+          ...current.anesthesia,
+          technique: payload.technique ?? current.anesthesia.technique,
+          airway: {
+            device: payload.device ?? current.anesthesia.airway.device,
+            o2Lpm: payload.o2Lpm ?? current.anesthesia.airway.o2Lpm,
+          },
+        },
+      };
+    }
+  }
+}
+
+/**
+ * AIMS flowsheet entry hook supporting offline queueing and optimistic updates (NFR-14).
+ */
+export function useAddAnesthesiaEntry(caseId: string, facilityId?: string | null) {
+  const queryClient = useQueryClient();
+  const resolvedFacility = facilityId?.trim() || getFacilityId()?.trim() || undefined;
+
+  return useMutation({
+    mutationFn: async (payload: AnesthesiaEntryPayload): Promise<CaseDetail> => {
+      const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+      if (isOffline) {
+        const clientId = await enqueueAimsEntry(caseId, payload);
+        const current =
+          queryClient.getQueryData<CaseDetail>(queryKeys.cases.detail(caseId, resolvedFacility)) ??
+          queryClient.getQueryData<CaseDetail>(queryKeys.cases.detail(caseId));
+        if (current) {
+          const optimistic = applyOptimisticAnesthesia(current, payload, clientId);
+          queryClient.setQueryData(queryKeys.cases.detail(caseId, resolvedFacility), optimistic);
+          queryClient.setQueryData(queryKeys.cases.detail(caseId), optimistic);
+          return optimistic;
+        }
+        throw new Error(`Cannot chart anesthesia offline without active cached case ${caseId}`);
+      }
+
+      return addAnesthesiaEntry(caseId, payload, resolvedFacility);
+    },
+    onSuccess: (detail) => {
+      queryClient.setQueryData(queryKeys.cases.detail(caseId, resolvedFacility), detail);
+      if (resolvedFacility) {
+        queryClient.setQueryData(queryKeys.cases.detail(caseId), detail);
+      }
+      return invalidateClinical(queryClient);
+    },
+  });
+}
+
+/**
+ * Hook to monitor and synchronize offline AIMS flowsheet entries (NFR-14).
+ * Adheres strictly to React hook budget (useState <= 2, useEffect <= 1).
+ */
+export function useOfflineAimsSync(caseId: string, facilityId?: string | null) {
+  const [pendingCount, setPendingCount] = useState<number>(0);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const queryClient = useQueryClient();
+  const resolvedFacility = facilityId?.trim() || getFacilityId()?.trim() || undefined;
+
+  const flushQueue = useCallback(async () => {
+    setIsSyncing(true);
+    try {
+      const result = await flushAimsQueue(caseId, resolvedFacility);
+      setPendingCount(result.remaining);
+      if (result.synced > 0) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.cases.detail(caseId) });
+      }
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [caseId, resolvedFacility, queryClient]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    void getAimsQueueSize(caseId).then((size) => {
+      if (mounted) setPendingCount(size);
+    });
+
+    const handleOnline = () => {
+      void flushQueue();
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", handleOnline);
+    }
+
+    return () => {
+      mounted = false;
+      if (typeof window !== "undefined") {
+        window.removeEventListener("online", handleOnline);
+      }
+    };
+  }, [caseId, flushQueue]);
+
+  return { pendingCount, isSyncing, flushQueue };
+}
 
 // ─── AI note (streaming lives in useNoteGeneration) ─────────────────────────
 

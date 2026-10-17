@@ -1,0 +1,196 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { AnesthesiaEntryPayload } from "@asc/types";
+import * as casesModule from "../clinical/cases";
+import {
+  clearAimsQueue,
+  closeDatabase,
+  enqueueAimsEntry,
+  flushAimsQueue,
+  getAimsQueueSize,
+  getPendingAimsEntries,
+} from "./queue";
+
+describe("AIMS Offline Queue (queue.ts)", () => {
+  beforeEach(async () => {
+    await clearAimsQueue();
+  });
+
+  afterEach(async () => {
+    await clearAimsQueue();
+    closeDatabase();
+    vi.restoreAllMocks();
+  });
+
+  const dosePayload: AnesthesiaEntryPayload = {
+    kind: "dose",
+    drug: "propofol",
+    amount: 100,
+    unit: "mg",
+  };
+
+  const vitalsPayload: AnesthesiaEntryPayload = {
+    kind: "vitals",
+    vitals: {
+      context: "intra",
+      hr: 72,
+      sbp: 120,
+      dbp: 80,
+      spo2: 99,
+      rr: 16,
+      etco2: 36,
+      tempC: 36.8,
+    },
+  };
+
+  it("enqueues entries, tracks queue size, and retrieves them sorted chronologically", async () => {
+    const caseId = "case-offline-101";
+
+    const id1 = await enqueueAimsEntry(caseId, dosePayload);
+    expect(id1).toBeTruthy();
+
+    const id2 = await enqueueAimsEntry(caseId, vitalsPayload);
+    expect(id2).toBeTruthy();
+
+    const size = await getAimsQueueSize(caseId);
+    expect(size).toBe(2);
+
+    const pending = await getPendingAimsEntries(caseId);
+    expect(pending).toHaveLength(2);
+    expect(pending[0]?.clientId).toBe(id1);
+    expect(pending[0]?.payload).toEqual(dosePayload);
+    expect(pending[1]?.clientId).toBe(id2);
+    expect(pending[1]?.payload).toEqual(vitalsPayload);
+  });
+
+  it("filters entries by caseId", async () => {
+    await enqueueAimsEntry("case-A", dosePayload);
+    await enqueueAimsEntry("case-B", vitalsPayload);
+
+    expect(await getAimsQueueSize("case-A")).toBe(1);
+    expect(await getAimsQueueSize("case-B")).toBe(1);
+    expect(await getAimsQueueSize()).toBe(2);
+
+    const pendingA = await getPendingAimsEntries("case-A");
+    expect(pendingA).toHaveLength(1);
+    expect(pendingA[0]?.payload.kind).toBe("dose");
+  });
+
+  it("flushes pending entries via syncAimsBatch and purges them on success", async () => {
+    const caseId = "case-flush-200";
+    await enqueueAimsEntry(caseId, dosePayload);
+    await enqueueAimsEntry(caseId, vitalsPayload);
+
+    const syncSpy = vi
+      .spyOn(casesModule, "syncAimsBatch")
+      .mockResolvedValue({ syncedCount: 2, duplicateCount: 0 });
+
+    const result = await flushAimsQueue(caseId, "fac-main");
+
+    expect(syncSpy).toHaveBeenCalledTimes(1);
+    expect(syncSpy).toHaveBeenCalledWith(
+      caseId,
+      expect.arrayContaining([
+        expect.objectContaining({ caseId, payload: dosePayload }),
+        expect.objectContaining({ caseId, payload: vitalsPayload }),
+      ]),
+      "fac-main",
+    );
+    expect(result).toEqual({ synced: 2, remaining: 0 });
+
+    const remaining = await getPendingAimsEntries(caseId);
+    expect(remaining).toHaveLength(0);
+    expect(await getAimsQueueSize(caseId)).toBe(0);
+  });
+
+  it("returns zero synced when queue is empty", async () => {
+    const result = await flushAimsQueue("case-empty");
+    expect(result).toEqual({ synced: 0, remaining: 0 });
+  });
+
+  it("retains entries in the queue if sync fails", async () => {
+    const caseId = "case-error-300";
+    await enqueueAimsEntry(caseId, dosePayload);
+
+    vi.spyOn(casesModule, "syncAimsBatch").mockRejectedValue(new Error("Network offline"));
+
+    await expect(flushAimsQueue(caseId)).rejects.toThrow("Network offline");
+
+    const size = await getAimsQueueSize(caseId);
+    expect(size).toBe(1);
+  });
+
+  it("clears entries for a specific case", async () => {
+    await enqueueAimsEntry("case-X", dosePayload);
+    await enqueueAimsEntry("case-Y", vitalsPayload);
+
+    await clearAimsQueue("case-X");
+
+    expect(await getAimsQueueSize("case-X")).toBe(0);
+    expect(await getAimsQueueSize("case-Y")).toBe(1);
+  });
+
+  it("purges entire queue when clearAimsQueue is called without arguments (HIPAA logout purge)", async () => {
+    await enqueueAimsEntry("case-1", dosePayload);
+    await enqueueAimsEntry("case-2", vitalsPayload);
+
+    expect(await getAimsQueueSize()).toBe(2);
+
+    await clearAimsQueue();
+
+    expect(await getAimsQueueSize()).toBe(0);
+    expect(await getPendingAimsEntries("case-1")).toHaveLength(0);
+    expect(await getPendingAimsEntries("case-2")).toHaveLength(0);
+  });
+
+  it("enforces multi-tenant facility and clinician user scoping (SEC-04)", async () => {
+    await enqueueAimsEntry({
+      caseId: "case-tenant-1",
+      payload: dosePayload,
+      facilityId: "fac-austin",
+      userId: "user-dr-smith",
+    });
+    await enqueueAimsEntry({
+      caseId: "case-tenant-1",
+      payload: vitalsPayload,
+      facilityId: "fac-dallas",
+      userId: "user-dr-jones",
+    });
+
+    // Scoped queries by clinician
+    const smithEntries = await getPendingAimsEntries({
+      caseId: "case-tenant-1",
+      userId: "user-dr-smith",
+    });
+    expect(smithEntries).toHaveLength(1);
+    expect(smithEntries[0]?.payload.kind).toBe("dose");
+
+    const jonesEntries = await getPendingAimsEntries({
+      caseId: "case-tenant-1",
+      userId: "user-dr-jones",
+    });
+    expect(jonesEntries).toHaveLength(1);
+    expect(jonesEntries[0]?.payload.kind).toBe("vitals");
+
+    // Scoped flush
+    const syncSpy = vi
+      .spyOn(casesModule, "syncAimsBatch")
+      .mockResolvedValue({ syncedCount: 1, duplicateCount: 0 });
+
+    const flushResult = await flushAimsQueue("case-tenant-1", {
+      facilityId: "fac-austin",
+      userId: "user-dr-smith",
+    });
+
+    expect(flushResult.synced).toBe(1);
+    expect(syncSpy).toHaveBeenCalledWith(
+      "case-tenant-1",
+      expect.arrayContaining([
+        expect.objectContaining({ userId: "user-dr-smith", facilityId: "fac-austin" }),
+      ]),
+      "fac-austin",
+    );
+
+    // Jones entry is still safely queued
+    expect(await getAimsQueueSize({ caseId: "case-tenant-1", userId: "user-dr-jones" })).toBe(1);
+  });
+});

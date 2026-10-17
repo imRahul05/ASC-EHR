@@ -54,12 +54,31 @@ export type FhirUrls = ReturnType<typeof createFhirUrls>;
 /** The URLs for the default base. Apps with an override call `createFhirUrls(base)` instead. */
 export const fhirUrls: FhirUrls = createFhirUrls();
 
-/** Standard LOINC codes for surgical timeout, intra-op events, quality metrics, and reprocessing. */
+/** Standard LOINC codes for surgical timeout, intra-op events, quality metrics, reprocessing, and AIMS monitoring. */
 export const LOINC_CODES = {
   SURGICAL_TIMEOUT: "83034-9",
   INTRAOP_EVENT: "59776-5",
   WITHDRAWAL_TIME: "81239-6",
   SCOPE_VERIFICATION: "74465-6",
   GATE2_OVERRIDE: "74468-0",
+  ETCO2: "19889-5",
+  ASA_PHYSICAL_STATUS: "75286-5",
+  MALLAMPATI_SCORE: "83033-1",
+  AIRWAY_EVENT: "59776-5",
 } as const;
+
+/** RxNorm Concept Unique Identifiers (RXCUIs) for anesthesia drugs. */
+export const ANESTHESIA_DRUG_RXNORM = {
+  propofol: "8782",
+  midazolam: "6960",
+  fentanyl: "4337",
+  lidocaine: "6387",
+  glycopyrrolate: "4918",
+  ephedrine: "3863",
+  phenylephrine: "8163",
+  ondansetron: "26225",
+  naloxone: "7242",
+  flumazenil: "22013",
+} as const;
+
 

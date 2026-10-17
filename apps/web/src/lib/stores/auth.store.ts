@@ -1,4 +1,5 @@
 import { setFacilityId } from "@asc/api-client";
+import { clearAimsQueue } from "@asc/api-client/offline/queue";
 import type { AuthSession, Principal } from "@asc/types";
 import type { MeResponse } from "@asc/validation/authz";
 import { create } from "zustand";
@@ -73,6 +74,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
   selectWorkspace: (workspaceKey) => set({ workspaceKey }),
   clearSession: () => {
+    void clearAimsQueue().catch(() => {});
     setFacilityId(null);
     set(SIGNED_OUT);
   },

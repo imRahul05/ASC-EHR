@@ -25,6 +25,9 @@ import type {
   SubmitHpOverrideResult,
   SubmitHpUpdateResult,
   TransitionCasePayload,
+  AimsBatchEntry,
+  AimsBatchSyncResult,
+  PreAnesthesiaAssessment,
 } from "@asc/types";
 import type { AnticoagulationAssessmentInput } from "@asc/validation/anticoagulation";
 import type { BookCaseInput, BookCaseResult } from "@asc/validation/cases/book";
@@ -37,6 +40,7 @@ import type {
   RecordProcedureEventInput,
   SignTimeOutInput,
 } from "@asc/validation/procedure-capture";
+import type { PreAnesthesiaAssessmentInput } from "@asc/validation/aims.schema";
 import { http } from "../http";
 
 export type BookCaseResponse = BookCaseResult & Partial<ProcedureCase>;
@@ -237,8 +241,46 @@ export function addImage(caseId: string, payload: AddImagePayload): Promise<Case
 }
 
 /** AIMS flowsheet entry: dose, vitals row, airway event, sedation start/end, or setup. */
-export function addAnesthesiaEntry(caseId: string, payload: AnesthesiaEntryPayload): Promise<CaseDetail> {
-  return http.post(API_ROUTES.caseAnesthesia(caseId), payload);
+export function addAnesthesiaEntry(
+  caseId: string,
+  payload: AnesthesiaEntryPayload,
+  facilityId?: string,
+): Promise<CaseDetail> {
+  const trimmed = facilityId?.trim();
+  return http.post(API_ROUTES.caseAnesthesia(caseId), payload, {
+    query: trimmed ? { facilityId: trimmed } : undefined,
+    headers: trimmed ? { "x-facility-id": trimmed } : undefined,
+  });
+}
+
+/** Submits pre-anesthesia medical assessment (CMS 42 CFR § 416.42(a)). */
+export function submitPreAnesthesiaAssessment(
+  caseId: string,
+  payload: PreAnesthesiaAssessmentInput,
+  facilityId?: string,
+): Promise<PreAnesthesiaAssessment> {
+  const trimmed = facilityId?.trim();
+  return http.post(API_ROUTES.casePreAnesthesia(caseId), payload, {
+    query: trimmed ? { facilityId: trimmed } : undefined,
+    headers: trimmed ? { "x-facility-id": trimmed } : undefined,
+  });
+}
+
+/** Synchronizes an offline batch of AIMS flowsheet entries (NFR-14). */
+export function syncAimsBatch(
+  caseId: string,
+  entries: readonly AimsBatchEntry[],
+  facilityId?: string,
+): Promise<AimsBatchSyncResult> {
+  const trimmed = facilityId?.trim();
+  return http.post(
+    API_ROUTES.caseAimsBatch(caseId),
+    { entries },
+    {
+      query: trimmed ? { facilityId: trimmed } : undefined,
+      headers: trimmed ? { "x-facility-id": trimmed } : undefined,
+    },
+  );
 }
 
 export function submitHpUpdate(

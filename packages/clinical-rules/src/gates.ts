@@ -16,6 +16,7 @@ import type {
   ReadinessCheck,
   RuleReason,
   RuleResult,
+  PreAnesthesiaAssessment,
   TimeOutRecord,
   TimeOutRole,
 } from "@asc/types";
@@ -25,6 +26,7 @@ import { canWaiveCheck, isCheckSatisfiedOrWaived, mapReadinessChecks } from "@as
 import { type CheckSpec, combine, fail, fromChecks, OK } from "@asc/clinical-rules/result";
 import { ALDRETE_COMPONENTS } from "@asc/clinical-rules/scores";
 import type { AnticoagulationEvaluationResult } from "@asc/clinical-rules/med-hold";
+import { evaluatePreAnesthesiaReadiness } from "@asc/clinical-rules/aims/pre-anesthesia";
 
 /** Minimum modified Aldrete total for discharge (and no component may be 0). */
 export const ALDRETE_DISCHARGE_MIN = 9;
@@ -345,6 +347,7 @@ export function evaluateGate1(
 export function evaluateGate2(
   checks: readonly ReadinessCheck[],
   anticoagulationEvaluation?: AnticoagulationEvaluationResult,
+  preAnesthesiaAssessment?: PreAnesthesiaAssessment | null,
 ): RuleResult {
   const checkByName = mapReadinessChecks(checks);
 
@@ -353,7 +356,25 @@ export function evaluateGate2(
   const equipment = checkByName.get("equipment");
   const escort = checkByName.get("escort");
 
-  const anesthesiaOk = isCheckSatisfiedOrWaived(anesthesia);
+  let anesthesiaOk = isCheckSatisfiedOrWaived(anesthesia);
+  let anesthesiaMsg = "";
+
+  if (preAnesthesiaAssessment !== undefined) {
+    if (preAnesthesiaAssessment) {
+      const preResult = evaluatePreAnesthesiaReadiness(preAnesthesiaAssessment);
+      anesthesiaOk = preResult.ok;
+      anesthesiaMsg = preResult.ok ? "" : (preResult.reasons[0]?.message ?? "Pre-anesthesia evaluation requirements not met.");
+    } else {
+      anesthesiaOk = false;
+      anesthesiaMsg = "Pre-anesthesia medical evaluation is required before procedure room entry (CMS 42 CFR § 416.42(a)).";
+    }
+  } else if (!anesthesia) {
+    anesthesiaOk = false;
+    anesthesiaMsg = "Anesthesia clearance is missing.";
+  } else if (!anesthesiaOk) {
+    anesthesiaMsg = anesthesia.details?.trim() || `Anesthesia clearance is ${anesthesia.status}.`;
+  }
+
   const equipmentOk = isCheckSatisfiedOrWaived(equipment);
   const escortOk = isCheckSatisfiedOrWaived(escort);
 
@@ -380,11 +401,7 @@ export function evaluateGate2(
       code: "GATE2_ANESTHESIA",
       label: "Anesthesia clearance complete",
       ok: Boolean(anesthesiaOk),
-      message: !anesthesia
-        ? "Anesthesia clearance is missing."
-        : anesthesiaOk
-          ? ""
-          : anesthesia.details?.trim() || `Anesthesia clearance is ${anesthesia.status}.`,
+      message: anesthesiaOk ? "" : anesthesiaMsg,
     },
     {
       code: "GATE2_ANTICOAGULATION",
@@ -459,6 +476,7 @@ export function evaluateScopeHangTime(reprocessedAt: string, procedureTime: stri
 export interface Gate2OverrideEvaluationInput {
   readonly checks: readonly ReadinessCheck[];
   readonly anticoagulationEvaluation?: AnticoagulationEvaluationResult;
+  readonly preAnesthesiaAssessment?: PreAnesthesiaAssessment | null;
   readonly hasActiveScopeLockViolation?: boolean;
   readonly override?: {
     readonly reason: string;
@@ -483,7 +501,11 @@ export const preOpToInRoomGate = evaluateGate2;
  *   with a non-trivial justification (>= 10 characters).
  */
 export function evaluateGate2WithOverride(input: Gate2OverrideEvaluationInput): GateResult {
-  const baseResult = evaluateGate2(input.checks, input.anticoagulationEvaluation);
+  const baseResult = evaluateGate2(
+    input.checks,
+    input.anticoagulationEvaluation,
+    input.preAnesthesiaAssessment,
+  );
 
   // Hard Gate (AC-I-05-4): Active endoscope reprocessing/hang-time violations have ZERO override allowance across all roles.
   if (input.hasActiveScopeLockViolation === true) {

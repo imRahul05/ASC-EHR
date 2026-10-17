@@ -13,6 +13,7 @@ import type {
 } from "@asc/types";
 
 import { facilityMeta, fhirId, instant, narrativeText, reference } from "@asc/fhir/builders/common";
+import { aimsClientIdIdentifier } from "@asc/fhir/identifiers";
 import { type FhirUrls, fhirUrls, LOINC_CODES } from "@asc/fhir/urls";
 
 export interface BuildSurgicalTimeOutObservationInput {
@@ -131,6 +132,7 @@ export interface BuildProcedureEventObservationInput {
   readonly caseId: string;
   readonly patientId: string;
   readonly event: ProcedureEvent;
+  readonly clientId?: string;
 }
 
 export function buildProcedureEventObservation(input: BuildProcedureEventObservationInput, urls: FhirUrls = fhirUrls): Observation {
@@ -144,6 +146,7 @@ export function buildProcedureEventObservation(input: BuildProcedureEventObserva
     id: fhirId(input.event.id, "event id"),
     meta: facilityMeta(facility),
     status: "final",
+    identifier: input.clientId ? [aimsClientIdIdentifier(input.clientId, urls)] : undefined,
     category: [{ coding: [{ system: "http://terminology.hl7.org/CodeSystem/observation-category", code: "procedure", display: "Procedure" }] }],
     code: { coding: [{ system: "http://loinc.org", code: LOINC_CODES.INTRAOP_EVENT, display: "Procedure event" }], text: input.event.type },
     subject: reference("Patient", patient),

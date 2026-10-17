@@ -254,7 +254,7 @@ export interface Referral {
 
 export type ProcedureCode = "COLONOSCOPY" | "EGD" | "EGD_COLONOSCOPY" | "FLEX_SIG";
 export type ProcedureIntent = "screening" | "surveillance" | "diagnostic" | "therapeutic";
-export type AsaClass = 1 | 2 | 3 | 4;
+export type AsaClass = 1 | 2 | 3 | 4 | 5;
 export type Mallampati = 1 | 2 | 3 | 4;
 
 export interface CaseTeam {
@@ -548,18 +548,48 @@ export interface BbpsScore {
 }
 
 // ─── Anesthesia (AIMS) ──────────────────────────────────────────────────────
+/**
+ * Anesthesia Information Management System (AIMS) Types & Clinical Contracts.
+ *
+ * Regulatory & Clinical Citations:
+ * - CMS 42 CFR § 416.42(a) (Condition for Coverage: Surgical and Anesthesia Services —
+ *   Mandatory pre-anesthesia evaluation by a qualified practitioner immediately prior to surgery).
+ * - ASA Standards for Basic Anesthetic Monitoring (Amended October 2020: Continuous pulse oximetry,
+ *   end-tidal capnography ventilation from sedation start to end, and BP/HR at least every 5 minutes).
+ * - ASA Physical Status Classification System (ASA I–V) & Mallampati Airway Classification (Class I–IV).
+ * - DEA 21 CFR § 1304.22(c) & § 1304.11 (Controlled substance administration, dual-witness waste disposal).
+ */
 
-export type AnesthesiaTechnique = "MAC" | "moderate" | "general";
-export type AnesthesiaDrug =
-  | "propofol"
-  | "midazolam"
-  | "fentanyl"
-  | "lidocaine"
-  | "glycopyrrolate"
-  | "ephedrine"
-  | "phenylephrine"
-  | "ondansetron";
-export type DoseUnit = "mg" | "mcg" | "mL";
+export const ANESTHESIA_TECHNIQUES = ["MAC", "moderate", "general"] as const;
+export type AnesthesiaTechnique = (typeof ANESTHESIA_TECHNIQUES)[number];
+
+export const ANESTHESIA_DRUGS = [
+  "propofol",
+  "midazolam",
+  "fentanyl",
+  "lidocaine",
+  "glycopyrrolate",
+  "ephedrine",
+  "phenylephrine",
+  "ondansetron",
+  "naloxone", // Emergency opioid reversal
+  "flumazenil", // Emergency benzodiazepine reversal
+] as const;
+export type AnesthesiaDrug = (typeof ANESTHESIA_DRUGS)[number];
+
+export const DOSE_UNITS = ["mg", "mcg", "mL"] as const;
+export type DoseUnit = (typeof DOSE_UNITS)[number];
+
+/** Controlled substance witness waste record per DEA 21 CFR § 1304.22(c). */
+export interface ControlledSubstanceWaste {
+  readonly drug: AnesthesiaDrug;
+  readonly administeredAmount: number;
+  readonly wastedAmount: number;
+  readonly unit: DoseUnit;
+  readonly witnessedBy: StaffRef;
+  readonly witnessedAt: string;
+  readonly reason?: string;
+}
 
 export interface DrugDose {
   readonly id: string;
@@ -569,16 +599,50 @@ export interface DrugDose {
   readonly route: "IV";
   readonly at: IsoDateTime;
   readonly by: StaffRef;
+  readonly waste?: ControlledSubstanceWaste;
 }
 
-export type AirwayDevice = "nasal_cannula" | "face_mask" | "high_flow_nasal" | "lma" | "ett";
-export type AirwayEventType = "jaw_thrust" | "chin_lift" | "o2_increased" | "desaturation" | "airway_inserted" | "apnea";
+export const AIRWAY_DEVICES = ["nasal_cannula", "face_mask", "high_flow_nasal", "lma", "ett"] as const;
+export type AirwayDevice = (typeof AIRWAY_DEVICES)[number];
+
+export const AIRWAY_EVENT_TYPES = [
+  "jaw_thrust",
+  "chin_lift",
+  "o2_increased",
+  "desaturation",
+  "airway_inserted",
+  "apnea",
+] as const;
+export type AirwayEventType = (typeof AIRWAY_EVENT_TYPES)[number];
 
 export interface AirwayEvent {
   readonly id: string;
   readonly type: AirwayEventType;
   readonly at: IsoDateTime;
   readonly note?: string;
+}
+
+/** Pre-anesthesia medical assessment immediately prior to sedation (CMS 42 CFR § 416.42(a)). */
+export interface PreAnesthesiaAssessment {
+  readonly asaClass: 1 | 2 | 3 | 4 | 5;
+  readonly mallampati: 1 | 2 | 3 | 4;
+  readonly airwayNotes?: string;
+  readonly lastOralIntakeIso: string;
+  readonly npoStatusSatisfied: boolean;
+  readonly medicalDirectorCleared?: boolean;
+  readonly assessedAt: string;
+  readonly assessedBy: StaffRef;
+}
+
+export interface PreAnesthesiaAssessmentPayload {
+  readonly asaClass: 1 | 2 | 3 | 4 | 5;
+  readonly mallampati: 1 | 2 | 3 | 4;
+  readonly airwayNotes?: string;
+  readonly lastOralIntakeIso: string;
+  readonly npoStatusSatisfied: boolean;
+  readonly medicalDirectorCleared?: boolean;
+  readonly assessedAt?: string;
+  readonly assessedBy?: StaffRef;
 }
 
 export interface AnesthesiaRecord {
@@ -592,6 +656,7 @@ export interface AnesthesiaRecord {
   readonly doses: readonly DrugDose[];
   /** 5-minute flowsheet rows (`context: "intra"`). */
   readonly vitals: readonly VitalsEntry[];
+  readonly preAssessment?: PreAnesthesiaAssessment | null;
 }
 
 // ─── AI procedure note ──────────────────────────────────────────────────────
@@ -1303,11 +1368,30 @@ export type AddSpecimenPayload = Pick<Specimen, "site" | "description" | "remova
 export type AddImagePayload = Pick<ImageCapture, "site" | "caption"> & { readonly specimenId?: string };
 
 export type AnesthesiaEntryPayload =
-  | { readonly kind: "dose"; readonly drug: AnesthesiaDrug; readonly amount: number; readonly unit: DoseUnit; readonly at?: IsoDateTime }
+  | { readonly kind: "dose"; readonly drug: AnesthesiaDrug; readonly amount: number; readonly unit: DoseUnit; readonly at?: IsoDateTime; readonly waste?: ControlledSubstanceWaste }
   | { readonly kind: "vitals"; readonly vitals: SaveVitalsPayload }
-  | { readonly kind: "airway_event"; readonly type: AirwayEventType; readonly note?: string }
-  | { readonly kind: "sedation"; readonly edge: "start" | "end" }
+  | { readonly kind: "airway_event"; readonly type: AirwayEventType; readonly note?: string; readonly at?: IsoDateTime }
+  | { readonly kind: "sedation"; readonly edge: "start" | "end"; readonly at?: IsoDateTime }
   | { readonly kind: "setup"; readonly technique?: AnesthesiaTechnique; readonly device?: AirwayDevice; readonly o2Lpm?: number };
+
+/** AIMS batch item generated offline or queued for idempotent replay. */
+export interface AimsBatchEntry {
+  readonly clientId: string; // UUID generated offline for idempotency
+  readonly caseId?: string;
+  readonly facilityId?: string;
+  readonly userId?: string;
+  readonly payload: AnesthesiaEntryPayload;
+  readonly recordedAt: string;
+}
+
+export interface AimsBatchSyncPayload {
+  readonly entries: readonly AimsBatchEntry[];
+}
+
+export interface AimsBatchSyncResult {
+  readonly syncedCount: number;
+  readonly duplicateCount: number;
+}
 
 export interface UpdateNoteSectionPayload {
   readonly sectionId: NoteSectionId;

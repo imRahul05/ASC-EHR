@@ -20,6 +20,8 @@ export function createExtensionUrls(urls: FhirUrls = fhirUrls) {
     agentExecutionId: urls.structureDefinition("agent-execution-id"),
     /** On `Encounter`: financial clearance summary, estimates, and prior auth (P22a). */
     caseFinancial: urls.structureDefinition("case-financial"),
+    /** On `MedicationAdministration`: controlled substance witness waste (21 CFR § 1304.22). */
+    controlledSubstanceWaste: urls.structureDefinition("controlled-substance-waste"),
   } as const;
 }
 

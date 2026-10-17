@@ -103,7 +103,7 @@ export class CasesMockClient extends BaseMockClient {
           subjectFilter = entry[1];
         } else if (Array.isArray(entry) && (entry[0] === "patient" || entry[0] === "beneficiary") && typeof entry[1] === "string") {
           patientFilter = entry[1];
-        } else if (Array.isArray(entry) && entry[0] === "encounter" && typeof entry[1] === "string") {
+        } else if (Array.isArray(entry) && (entry[0] === "encounter" || entry[0] === "context") && typeof entry[1] === "string") {
           encounterFilter = entry[1];
         } else if (Array.isArray(entry) && entry[0] === "identifier" && typeof entry[1] === "string") {
           identifierFilter = entry[1];
@@ -147,10 +147,11 @@ export class CasesMockClient extends BaseMockClient {
         delete copy["patient"];
         delete copy["beneficiary"];
       }
-      const rawEncounter = copy["encounter"];
+      const rawEncounter = copy["encounter"] ?? copy["context"];
       if (typeof rawEncounter === "string") {
         encounterFilter = rawEncounter;
         delete copy["encounter"];
+        delete copy["context"];
       }
       const rawIdentifier = copy["identifier"];
       if (typeof rawIdentifier === "string") {
@@ -226,8 +227,11 @@ export class CasesMockClient extends BaseMockClient {
       }
       if (encounterFilter !== undefined) {
         filteredEntries = filteredEntries?.filter((e) => {
-          const res = e.resource as { encounter?: Reference } | undefined;
-          return res?.encounter?.reference === encounterFilter;
+          const res = e.resource as { encounter?: Reference; context?: Reference } | undefined;
+          return (
+            res?.encounter?.reference === encounterFilter ||
+            res?.context?.reference === encounterFilter
+          );
         });
       }
       if (identifierFilter !== undefined) {

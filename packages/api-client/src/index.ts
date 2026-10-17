@@ -16,4 +16,5 @@ export {
 export * from "./auth";
 export * from "./clinical";
 export * from "./health";
+export * from "./offline";
 export { createBrowserMedplumClient, getBrowserMedplumClient, resetBrowserMedplumClient } from "./medplum/browser";

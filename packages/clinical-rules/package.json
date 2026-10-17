@@ -28,7 +28,11 @@
     "./financial": "./src/financial/index.ts",
     "./scope-lock": "./src/scope-lock.ts",
     "./worklist/timeline": "./src/worklist/timeline.ts",
-    "./worklist/*": "./src/worklist/*.ts"
+    "./worklist/*": "./src/worklist/*.ts",
+    "./aims/intervals": "./src/aims/intervals.ts",
+    "./aims/dose-limits": "./src/aims/dose-limits.ts",
+    "./aims/pre-anesthesia": "./src/aims/pre-anesthesia.ts",
+    "./aims/*": "./src/aims/*.ts"
   },
   "scripts": {
     "lint": "eslint --max-warnings 0",

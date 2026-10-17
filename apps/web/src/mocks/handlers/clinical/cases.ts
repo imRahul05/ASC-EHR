@@ -13,12 +13,14 @@ import {
   toIsoDate,
   transitionGate,
 } from "@asc/clinical-rules";
+import { evaluatePreAnesthesiaReadiness } from "@asc/clinical-rules/aims/pre-anesthesia";
 import { API_ROUTE_PATTERNS as P } from "@asc/config/api";
 import { API_ERROR_CODES } from "@asc/types/errors";
 import type {
   AddImagePayload,
   AddProcedureEventPayload,
   AddSpecimenPayload,
+  AimsBatchEntry,
   AnesthesiaEntryPayload,
   AnesthesiaRecord,
   AttestTimeOutPayload,
@@ -32,6 +34,7 @@ import type {
   Gate2OverrideRecord,
   HpAssessment,
   HpDetailResponse,
+  PreAnesthesiaAssessment,
   PriorAuthResult,
   ProcedureCase,
   ProcedureCode,
@@ -56,6 +59,7 @@ import { signConsentSchema, type SignConsentInput } from "@asc/validation/consen
 import { preopAssessmentSchema, type PreopAssessmentInput } from "@asc/validation/preop";
 import { hpOverrideSchema, hpUpdateNoteSchema, type HpOverrideInput, type HpUpdateNoteInput } from "@asc/validation/hp";
 import { anticoagulationAssessmentSchema, type AnticoagulationAssessmentInput } from "@asc/validation/anticoagulation";
+import type { PreAnesthesiaAssessmentInput } from "@asc/validation/aims.schema";
 import {
   assignScopeInputSchema,
   gate2OverrideInputSchema,
@@ -167,24 +171,59 @@ function isProcedureCodeMismatch(caseProcedure: ProcedureCode, inputCode: string
   return false;
 }
 
-function applyAnesthesiaEntry(record: AnesthesiaRecord, payload: AnesthesiaEntryPayload, actor: ReturnType<typeof actorFrom>): AnesthesiaRecord {
+function applyAnesthesiaEntry(
+  record: AnesthesiaRecord,
+  payload: AnesthesiaEntryPayload,
+  actor: ReturnType<typeof actorFrom>,
+  clientId?: string,
+): AnesthesiaRecord {
   const now = new Date().toISOString();
   switch (payload.kind) {
     case "dose":
       return {
         ...record,
-        doses: [...record.doses, { id: newId("dose"), drug: payload.drug, amount: payload.amount, unit: payload.unit, route: "IV", at: payload.at ?? now, by: actor.ref }],
+        doses: [
+          ...record.doses,
+          {
+            id: clientId ?? newId("dose"),
+            drug: payload.drug,
+            amount: payload.amount,
+            unit: payload.unit,
+            route: "IV",
+            at: payload.at ?? now,
+            by: actor.ref,
+            ...(payload.waste ? { waste: payload.waste } : {}),
+          },
+        ],
       };
     case "vitals":
       return {
         ...record,
         vitals: [
           ...record.vitals,
-          { ...payload.vitals, id: newId("vit"), caseId: record.caseId, context: "intra", recordedAt: payload.vitals.recordedAt ?? now, recordedBy: actor.ref },
+          {
+            ...payload.vitals,
+            id: clientId ?? newId("vit"),
+            caseId: record.caseId,
+            context: "intra",
+            recordedAt: payload.vitals.recordedAt ?? now,
+            recordedBy: actor.ref,
+          },
         ],
       };
     case "airway_event":
-      return { ...record, airwayEvents: [...record.airwayEvents, { id: newId("air"), type: payload.type, at: now, ...(payload.note ? { note: payload.note } : {}) }] };
+      return {
+        ...record,
+        airwayEvents: [
+          ...record.airwayEvents,
+          {
+            id: clientId ?? newId("air"),
+            type: payload.type,
+            at: now,
+            ...(payload.note ? { note: payload.note } : {}),
+          },
+        ],
+      };
     case "sedation":
       return payload.edge === "start" ? { ...record, sedationStart: now } : { ...record, sedationEnd: now };
     case "setup":
@@ -974,9 +1013,145 @@ export const caseHandlers = [
     if (!record) return notFound("Case");
     const payload = await body<AnesthesiaEntryPayload>(request);
     const actor = actorFrom(request);
+
+    if (payload.kind === "dose" && payload.waste) {
+      if (payload.waste.witnessedBy.id === actor.id) {
+        return HttpResponse.json(
+          {
+            code: "GATE_FAILED",
+            message:
+              "Self-witnessing of controlled substance waste is prohibited under DEA 21 CFR § 1304.22(c)",
+            reasons: [
+              {
+                ruleId: "DEA_DUAL_WITNESS_REQUIRED",
+                ruleName: "DEA Dual Witness Waste Requirement",
+                summary: "Self-witnessing of controlled substance waste is prohibited (DEA 21 CFR § 1304.22(c))",
+                details: `Administering clinician (${actor.id}) cannot act as the disposal witness.`,
+                blocking: true,
+              },
+            ],
+          },
+          { status: 409 },
+        );
+      }
+    }
+
+    if (payload.kind === "sedation" && payload.edge === "start") {
+      const readiness = evaluatePreAnesthesiaReadiness(record.preAssessment ?? undefined);
+      if (!readiness.ok) {
+        return gateFailed(readiness);
+      }
+    }
+
     db().anesthesia.set(caseId, applyAnesthesiaEntry(record, payload, actor));
     audit(actor, "anesthesia.entry", { type: "AnesthesiaRecord", id: caseId }, `Anesthesia ${payload.kind} recorded`);
     return detailResponse(caseId);
+  }),
+
+  http.post(apiUrl(P.casePreAnesthesia), async ({ params, request }) => {
+    await latency();
+    const caseId = param(params.caseId);
+    const detail = caseDetail(caseId);
+    if (!detail) return notFound("Case");
+
+    const payload = await body<PreAnesthesiaAssessmentInput>(request);
+    const actor = actorFrom(request);
+
+    const assessment: PreAnesthesiaAssessment = {
+      asaClass: payload.asaClass,
+      mallampati: payload.mallampati,
+      airwayNotes: payload.airwayNotes,
+      lastOralIntakeIso: payload.lastOralIntakeIso,
+      npoStatusSatisfied: payload.npoStatusSatisfied,
+      ...(payload.medicalDirectorCleared !== undefined
+        ? { medicalDirectorCleared: payload.medicalDirectorCleared }
+        : {}),
+      assessedAt: payload.assessedAt ?? new Date().toISOString(),
+      assessedBy: payload.assessedBy ?? actor.ref,
+    };
+
+    const currentRecord = detail.anesthesia;
+    db().anesthesia.set(caseId, {
+      ...currentRecord,
+      preAssessment: assessment,
+    });
+
+    const currentCase = db().cases.get(caseId);
+    if (currentCase) {
+      const checks = (currentCase.readinessChecks ?? []).map((check) =>
+        check.name === "anesthesia_clearance" ? { ...check, status: "satisfied" as const } : check,
+      );
+      db().cases.set(caseId, {
+        ...currentCase,
+        readinessChecks: checks,
+      });
+    }
+
+    audit(actor, "anesthesia.pre-eval", { type: "AnesthesiaRecord", id: caseId }, "Pre-anesthesia evaluation recorded");
+    return HttpResponse.json(assessment);
+  }),
+
+  http.post(apiUrl(P.caseAimsBatch), async ({ params, request }) => {
+    await latency();
+    const caseId = param(params.caseId);
+    const detail = caseDetail(caseId);
+    if (!detail) return notFound("Case");
+
+    const raw = await body<{ readonly entries: readonly AimsBatchEntry[] }>(request);
+    const actor = actorFrom(request);
+    let record = detail.anesthesia;
+
+    for (const entry of raw.entries ?? []) {
+      if (entry.payload.kind === "dose" && entry.payload.waste) {
+        if (entry.payload.waste.witnessedBy.id === actor.id) {
+          return HttpResponse.json(
+            {
+              code: "GATE_FAILED",
+              message:
+                "Self-witnessing of controlled substance waste is prohibited under DEA 21 CFR § 1304.22(c)",
+              reasons: [
+                {
+                  ruleId: "DEA_DUAL_WITNESS_REQUIRED",
+                  ruleName: "DEA Dual Witness Waste Requirement",
+                  summary: "Self-witnessing of controlled substance waste is prohibited (DEA 21 CFR § 1304.22(c))",
+                  details: `Administering clinician (${actor.id}) cannot act as the disposal witness in entry ${entry.clientId}.`,
+                  blocking: true,
+                },
+              ],
+            },
+            { status: 409 },
+          );
+        }
+      }
+
+      if (entry.payload.kind === "sedation" && entry.payload.edge === "start") {
+        const readiness = evaluatePreAnesthesiaReadiness(record.preAssessment ?? undefined);
+        if (!readiness.ok) {
+          return gateFailed(readiness);
+        }
+      }
+    }
+
+    let syncedCount = 0;
+    let duplicateCount = 0;
+
+    for (const entry of raw.entries ?? []) {
+      const isDuplicate =
+        record.doses.some((d) => d.id === entry.clientId) ||
+        record.vitals.some((v) => v.id === entry.clientId) ||
+        record.airwayEvents.some((a) => a.id === entry.clientId);
+
+      if (isDuplicate) {
+        duplicateCount++;
+      } else {
+        record = applyAnesthesiaEntry(record, entry.payload, actor, entry.clientId);
+        syncedCount++;
+      }
+    }
+
+    db().anesthesia.set(caseId, record);
+    audit(actor, "anesthesia.batch-sync", { type: "AnesthesiaRecord", id: caseId }, `AIMS batch synced: ${syncedCount} entries`);
+    return HttpResponse.json({ syncedCount, duplicateCount });
   }),
 
   http.post(apiUrl(P.caseHpUpdate), async ({ params, request }) => {

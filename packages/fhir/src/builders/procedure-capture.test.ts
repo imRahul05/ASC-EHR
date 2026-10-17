@@ -147,6 +147,12 @@ describe("procedure event observation", () => {
     const parsedNoPerf = parseProcedureEventObservation(noPerfObs);
     expect(parsedNoPerf.by.id).toBe("unknown");
   });
+
+  it("attaches aimsClientIdIdentifier when clientId is passed", () => {
+    const obs = buildProcedureEventObservation({ facilityId, caseId, patientId, event, clientId: "client-procedure-uuid-1" });
+    expect(obs.identifier).toBeDefined();
+    expect(obs.identifier?.[0]?.value).toBe("client-procedure-uuid-1");
+  });
 });
 
 describe("withdrawal time observation", () => {

@@ -4,6 +4,7 @@ import type {
   CopayCollectionResult,
   EligibilityCheckResult,
   PriorAuthResult,
+  ReadinessCheck,
   SignConsentPayload,
   SignConsentResult,
 } from "@asc/types";
@@ -15,12 +16,14 @@ import type {
   PriorAuthCheck,
 } from "@asc/validation/financial";
 import type { HpOverrideInput, HpUpdateNoteInput } from "@asc/validation/hp";
+import type { PreAnesthesiaAssessmentInput } from "@asc/validation/aims.schema";
 import type { PreopAssessmentInput } from "@asc/validation/preop";
 import {
   signConsent,
   submitAnticoagulation,
   submitHpOverride,
   submitHpUpdate,
+  submitPreAnesthesiaAssessment,
   submitPreopAssessment,
 } from "../clinical/cases";
 import {
@@ -94,6 +97,39 @@ export function useSubmitPreopAssessment(caseId: string, facilityId?: string | n
   return useClinicalMutation(
     (payload: PreopAssessmentInput) => submitPreopAssessment(caseId, payload, resolvedFacility),
     (queryClient) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cases.detail(caseId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.schedule.all });
+    },
+  );
+}
+
+/** Pre-anesthesia medical assessment mutation (CMS 42 CFR § 416.42(a)). */
+export function usePreAnesthesiaAssessment(caseId: string, facilityId?: string | null) {
+  const resolvedFacility = facilityId?.trim() || getFacilityId()?.trim() || undefined;
+  return useClinicalMutation(
+    (payload: PreAnesthesiaAssessmentInput) =>
+      submitPreAnesthesiaAssessment(caseId, payload, resolvedFacility),
+    (queryClient, assessment) => {
+      const current =
+        queryClient.getQueryData<CaseDetail>(queryKeys.cases.detail(caseId, resolvedFacility)) ??
+        queryClient.getQueryData<CaseDetail>(queryKeys.cases.detail(caseId));
+      if (current) {
+        const updated: CaseDetail = {
+          ...current,
+          case: {
+            ...current.case,
+            readinessChecks: current.case.readinessChecks?.map((check: ReadinessCheck) =>
+              check.name === "anesthesia_clearance" ? { ...check, status: "satisfied" } : check,
+            ),
+          },
+          anesthesia: {
+            ...current.anesthesia,
+            preAssessment: assessment,
+          },
+        };
+        queryClient.setQueryData(queryKeys.cases.detail(caseId, resolvedFacility), updated);
+        queryClient.setQueryData(queryKeys.cases.detail(caseId), updated);
+      }
       void queryClient.invalidateQueries({ queryKey: queryKeys.cases.detail(caseId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.schedule.all });
     },

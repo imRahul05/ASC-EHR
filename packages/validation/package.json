@@ -30,7 +30,8 @@
     "./financial/prior-auth": "./src/financial/prior-auth.ts",
     "./financial": "./src/financial/index.ts",
     "./procedure-capture": "./src/procedure-capture.ts",
-    "./worklist.schema": "./src/worklist.schema.ts"
+    "./worklist.schema": "./src/worklist.schema.ts",
+    "./aims.schema": "./src/aims.schema.ts"
   },
   "scripts": {
     "lint": "eslint --max-warnings 0",

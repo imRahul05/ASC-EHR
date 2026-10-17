@@ -9,6 +9,8 @@ import {
   overrideGate2,
   recordProcedureEvent,
   signTimeOut,
+  submitPreAnesthesiaAssessment,
+  syncAimsBatch,
   transitionCase,
 } from "./cases";
 
@@ -162,4 +164,41 @@ describe("bookCase", () => {
     });
     expect(fetchMock.mock.calls[1]?.[0]).toBe("http://localhost:4000/cases/c-1/gate2-override");
   });
+
+  it("posts to /cases/:id/anesthesia/pre-assessment and /cases/:id/aims/batch", async () => {
+    const preAssessment = {
+      asaClass: 2 as const,
+      mallampati: 2 as const,
+      airwayNotes: "Normal airway",
+      lastOralIntakeIso: "2026-10-15T00:00:00Z",
+      npoStatusSatisfied: true,
+      assessedAt: "2026-10-15T08:00:00Z",
+      assessedBy: { id: "doc-1", name: "Dr. Anes", initials: "DA" },
+    };
+    const fetchMock = stubFetch(Response.json(preAssessment));
+
+    const res = await submitPreAnesthesiaAssessment("c-1", preAssessment, "fac-1");
+    expect(res).toEqual(preAssessment);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("http://localhost:4000/cases/c-1/anesthesia/pre-assessment?facilityId=fac-1");
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toEqual(
+      expect.objectContaining({ "x-facility-id": "fac-1" }),
+    );
+
+    const batchMock = stubFetch(Response.json({ syncedCount: 1, duplicateCount: 0 }));
+    const batchRes = await syncAimsBatch(
+      "c-1",
+      [
+        {
+          clientId: "uuid-1",
+          caseId: "c-1",
+          payload: { kind: "dose", drug: "propofol", amount: 50, unit: "mg" },
+          recordedAt: "2026-10-15T08:15:00Z",
+        },
+      ],
+      "fac-1",
+    );
+    expect(batchRes).toEqual({ syncedCount: 1, duplicateCount: 0 });
+    expect(batchMock.mock.calls[0]?.[0]).toBe("http://localhost:4000/cases/c-1/aims/batch?facilityId=fac-1");
+  });
 });
+

@@ -30,6 +30,8 @@ export const DRUG_PRESETS: Readonly<Record<AnesthesiaDrug, { readonly unit: Dose
   ephedrine: { unit: "mg", quick: [5, 10] },
   phenylephrine: { unit: "mcg", quick: [100] },
   ondansetron: { unit: "mg", quick: [4] },
+  naloxone: { unit: "mg", quick: [0.04, 0.4] },
+  flumazenil: { unit: "mg", quick: [0.2] },
 };
 
 export const DRUGS = Object.keys(DRUG_PRESETS) as AnesthesiaDrug[];

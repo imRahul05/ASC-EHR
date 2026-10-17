@@ -31,6 +31,7 @@ import {
   buildProcedureCaseFromFhir,
   resolveTransitionTarget,
 } from "./case-mapper.js";
+import { hydrateAnesthesiaRecord } from "./case-hydrators/anesthesia.js";
 
 export async function getCaseDetail(params: {
   medplum: MedplumClient;
@@ -70,7 +71,7 @@ export async function getCaseDetail(params: {
 
   const apptId = encounter.appointment?.[0]?.reference?.replace("Appointment/", "");
 
-  const [patient, appt, serviceRequests, observations] = await Promise.all([
+  const [patient, appt, serviceRequests, observations, medAdmins] = await Promise.all([
     medplum.readResource("Patient", patientId).catch(() => null),
     apptId ? medplum.readResource("Appointment", apptId).catch(() => null) : null,
     medplum.searchResources("ServiceRequest", [
@@ -79,6 +80,10 @@ export async function getCaseDetail(params: {
     ]).catch(() => []),
     medplum.searchResources("Observation", [
       ["encounter", `Encounter/${caseId}`],
+      ["_count", "100"],
+    ]).catch(() => []),
+    medplum.searchResources("MedicationAdministration", [
+      ["context", `Encounter/${caseId}`],
       ["_count", "100"],
     ]).catch(() => []),
   ]);
@@ -187,6 +192,15 @@ export async function getCaseDetail(params: {
     lettersSent: 0,
   };
 
+  const anesthesia = await hydrateAnesthesiaRecord({
+    caseId,
+    provider: procedureCase.team.anesthesia,
+    medplum,
+    observations,
+    medAdmins,
+    events,
+  });
+
   return {
     case: updatedCase,
     patient: patientObj,
@@ -200,15 +214,7 @@ export async function getCaseDetail(params: {
     narration: [],
     specimens: [],
     images: [],
-    anesthesia: {
-      caseId,
-      provider: procedureCase.team.anesthesia,
-      technique: "MAC",
-      airway: { device: "nasal_cannula", o2Lpm: 2 },
-      airwayEvents: [],
-      doses: [],
-      vitals: [],
-    },
+    anesthesia,
     aldrete: null,
     discharge: null,
     summary,

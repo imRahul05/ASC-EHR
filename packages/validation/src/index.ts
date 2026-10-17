@@ -71,3 +71,6 @@ export * from "./procedure-capture.js";
 // Worklist & FHIR Task Engine contracts (Phase P12)
 export * from "./worklist.schema.js";
 
+// AIMS flowsheet, pre-eval, and offline batch contracts (Phase P20)
+export * from "./aims.schema.js";
+

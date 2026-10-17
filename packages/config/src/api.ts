@@ -50,6 +50,8 @@ export const API_ROUTE_PATTERNS = {
   caseSpecimens: "/cases/:caseId/specimens",
   caseImages: "/cases/:caseId/images",
   caseAnesthesia: "/cases/:caseId/anesthesia",
+  caseAimsBatch: "/cases/:caseId/aims/batch",
+  casePreAnesthesia: "/cases/:caseId/anesthesia/pre-assessment",
 
   // Financial clearance (Phase P22a)
   caseEligibilityCheck: "/cases/:caseId/eligibility/check",
@@ -155,6 +157,8 @@ export const API_ROUTES = {
   caseSpecimens: byCase(P.caseSpecimens),
   caseImages: byCase(P.caseImages),
   caseAnesthesia: byCase(P.caseAnesthesia),
+  caseAimsBatch: byCase(P.caseAimsBatch),
+  casePreAnesthesia: byCase(P.casePreAnesthesia),
 
   // Financial clearance (Phase P22a)
   caseEligibilityCheck: byCase(P.caseEligibilityCheck),
