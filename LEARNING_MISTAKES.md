@@ -60,6 +60,7 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
 28. Distributed scheduling & timezone safety: serialize concurrent booking conflict checks with PostgreSQL transaction advisory locks ('facility-scheduling'); zero side-effect patient verification (read-only 404/403); pin all calendar date/time calculations to facility timezone (facilityDateTimeToIso, isoToFacilityTime); unlink case navigation and omit clinical flags on public Whiteboard TV displays; gate room tiles with isRoomOccupyingPhase. (LM-032)
 29. Composite pre-handler pipelines & scoped idempotency: never pass raw hook arrays on clinical endpoints; enforce canonical fail-closed sequence (capability -> idempotency with facilityChecked -> If-Match -> case context hydration -> Zod body validation); scope idempotency keys by tenant/method/route/caseId; use clinicalMutationRoute/clinicalQueryRoute to eliminate capability drift. (LM-037, LM-038)
 30. DB schema alignment & deterministic concurrency: integration tests must reflect accepted ADRs and schema migrations (parameterized tenancy vs dropped session RLS); align runtime credentials across init SQL and test runners; use explicit promise barriers (opStarted) in lock tests to avoid TCP race conditions; Medplum base URLs must end with a trailing slash. (LM-039)
+31. AIMS clinical safety & offline replay hygiene: pre-anesthesia readiness must be accessible prior to room entry (PRE_OP) to prevent gate deadlocks; mutation returns must preserve CaseDetail cache integrity; DEA controlled substance waste strictly prohibits self-witnessing (witnessedBy.id !== actor.id); ASA monitoring gap engines must evaluate active ongoing sedation against current time; offline IndexedDB queues must manage singleton connections, isolate entries by facilityId and userId on shared workstations, and purge on logout. (LM-042)
 
 ---
 
@@ -491,3 +492,20 @@ If a rule can be enforced by a tool (lint, test, CI), add the guard and set *Gua
   4. In `package.json` `"exports"`, provide explicit nested wildcard mappings (`"./components/clinical/*": "./src/components/clinical/*.tsx"`) for all nested component subdirectories.
 - **How to check:** `pnpm turbo run check-types lint test eval build`.
 - **Guarded by:** `packages/clinical-rules/src/scope-lock.test.ts`, `apps/api/src/routes/procedure-capture.test.ts`, `packages/fhir/src/builders/procedure-capture.test.ts`, `packages/ui/package.json`.
+
+### LM-042 — AIMS flowsheet safety, dual-witness DEA compliance, and multi-tenant offline queue hygiene
+- **Seen:** 3 · 2026-10-16 · PR #107 Review (`phase/P20-aims-flowsheet`)
+- **What went wrong:**
+  1. The pre-anesthesia evaluation card was gated inside an `AnesthesiaTab` condition requiring `isPhaseAtLeast(phase, "IN_PROCEDURE")`, but Hard Gate 2 blocked room entry until the pre-anesthesia evaluation was completed and signed, creating an unrecoverable clinical deadlock at the OR door.
+  2. `POST /cases/:caseId/anesthesia/record` returned an `AnesthesiaRecord`, but `@asc/api-client`'s `useAddAnesthesiaEntry` hook updated the React Query `queryKeys.cases.detail(caseId)` cache with the response, wiping out `detail.case`, `detail.patient`, and `detail.team`.
+  3. Controlled substance waste tracking accepted `witnessedBy.id === actor.id`, permitting practitioners to self-witness narcotic waste without dual-clinician attestation under DEA 21 CFR § 1304.22(c).
+  4. `findMonitoringGaps` only evaluated time gaps between recorded vitals pairs, failing to alert clinicians when an ongoing procedure exceeded 5 minutes without a new vital reading under ASA standards.
+  5. `openDatabase()` in `@asc/api-client/offline/queue.ts` opened an unbounded number of IndexedDB connections without pooling or lifecycle listeners, and queue items were shared across users/facilities without logout eviction, risking cross-tenant data leakage on shared OR tablets under HIPAA 45 CFR § 164.312.
+- **Rule:**
+  1. Any clinical card or assessment required to clear a hard gate MUST be accessible and interactive in the stage *prior* to that gate (e.g. bedside pre-anesthesia card in `PRE_OP`).
+  2. Clinical mutation endpoints that update the primary case detail cache MUST return the complete, hydrated `CaseDetail` object (`updatedDetail ?? currentDetail`).
+  3. Controlled substance waste validation MUST strictly prohibit self-witnessing (`witnessedBy.id !== actor.id`), returning HTTP 409 `GATE_FAILED` (`WASTE_SELF_WITNESSED`).
+  4. ASA monitoring gap engines MUST accept an optional `nowMs` reference clock and flag active monitoring gaps if the delta between `nowMs` and the latest vital exceeds the maximum interval threshold (5 minutes).
+  5. Offline IndexedDB clients MUST manage a singleton database connection with `onversionchange` and `onclose` handlers, scope stored queue entries by `facilityId` and `userId`, and provide guaranteed purge (`clearAimsQueue()`) on clinician session logout.
+- **How to check:** `pnpm turbo run check-types lint test eval build`.
+- **Guarded by:** `apps/api/src/routes/aims.test.ts`, `packages/clinical-rules/src/aims/intervals.test.ts`, `packages/validation/src/__tests__/aims.schema.test.ts`, `packages/api-client/src/offline/queue.test.ts`.
